@@ -654,6 +654,10 @@ body {
   }
 }
 
+.marketing__footer__main__links__soc2 {
+  max-width: 100px;
+}
+
 .marketing__footer__main__links__newsletter {
   color: var(--white);
   border-color: var(--white);

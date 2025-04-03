@@ -545,7 +545,7 @@ msgstr ""
 msgid "Contributors"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:179
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
 msgstr ""
@@ -1320,7 +1320,7 @@ msgstr ""
 msgid "Priority support"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:175
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr ""
@@ -1705,7 +1705,7 @@ msgstr ""
 msgid "Teams using Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:171
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr ""
