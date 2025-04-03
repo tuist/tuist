@@ -7,9 +7,9 @@ import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XCTest
-@testable import XcodeProj
 @testable import TuistGenerator
 @testable import TuistSupportTesting
+@testable import XcodeProj
 
 final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     var subject: ProjectDescriptorGenerator!
@@ -445,7 +445,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             "../LocalPackages/LocalPackageA",
         ])
     }
-    
+
     func test_generate_setsLastUpgradeCheck() async throws {
         // Given
         let path = try temporaryPath()
@@ -472,7 +472,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             "LastUpgradeCheck": "1251",
         ])
     }
-    
+
     func test_generate_localSwiftPackages() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -525,7 +525,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssert(remotePackageNames.isEmpty)
         XCTAssert(remoteSwiftPackageReferenceNames.isEmpty)
     }
-    
+
     func test_generate_remoteSwiftPackages() async throws {
         given(xcodeController)
             .selectedVersion()
