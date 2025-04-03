@@ -15745,32 +15745,8 @@ internal enum Operations {
         }
         internal enum Output: Sendable, Hashable {
             internal struct NoContent: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{user_name}/DELETE/responses/204/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{user_name}/DELETE/responses/204/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.removeOrganizationMember.Output.NoContent.Body
                 /// Creates a new `NoContent`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.removeOrganizationMember.Output.NoContent.Body) {
-                    self.body = body
-                }
+                internal init() {}
             }
             /// The member was removed
             ///

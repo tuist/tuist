@@ -4043,8 +4043,6 @@ paths:
             x-validate:
       responses:
         204:
-          content:
-            application/json: {}
           description: The member was removed
         400:
           content:
