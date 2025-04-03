@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.46.0 - 2025-04-03
+
+### CLI
+
+#### Changed
+
+- Improve tuist registry output, fix resolving registry transitive dependencies [#7443](https://github.com/tuist/tuist/pull/7443) by [@fortmarek](https://github.com/fortmarek)
+- Support defining `.metal` files as sources in bundle products [#7422](https://github.com/tuist/tuist/pull/7422) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add Model Context Protocol (MCP) server via `tuist mcp` command [#7366](https://github.com/tuist/tuist/pull/7366) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Disable pushing build insights in projects without Tuist.swift [#7441](https://github.com/tuist/tuist/pull/7441) by [@fortmarek](https://github.com/fortmarek)
+- Improve tuist registry output, fix resolving registry transitive dependencies [#7443](https://github.com/tuist/tuist/pull/7443) by [@fortmarek](https://github.com/fortmarek)
+- Fix incorrect registry CI link [#7447](https://github.com/tuist/tuist/pull/7447) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.45.1 - 2025-03-27
 
 ### CLI
