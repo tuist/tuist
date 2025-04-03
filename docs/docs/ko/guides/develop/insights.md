@@ -47,10 +47,10 @@ tuist inspect build
 
 ## Projects {#projects}
 
-> [!NOTE]
-> Auto-generated schemes automatically include the `tuist inspect build` post-action.
+> [!NOTE]\
+> 자동 생성된 스킴에는 `tuist inspect build` 후속 작업이 자동으로 포함됩니다.
 >
-> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
+> 자동 생성된 스킴에서 빌드 인사이트 추적이 필요하지 않으면, <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> 생성 옵션을 사용하여 비활성화할 수 있습니다.
 
 생성된 프로젝트를 사용하면, 다음과 같이 커스텀 스킴을 사용하여 커스텀 <0>빌드 후속 작업</0>을 설정할 수 있습니다:
 
