@@ -52,7 +52,7 @@ final class CachePrintHashesService {
         let absolutePath = try absolutePath(path)
         let timer = clock.startTimer()
         let config = try await configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.defaultGenerator(config: config, sources: [])
+        let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
         let graph = try await generator.load(path: absolutePath)
         let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,

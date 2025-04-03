@@ -41,5 +41,7 @@ public final class MockEnvironment: Environmenting {
 
     public var schemeName: String? { nil }
 
-    public func currentExecutablePath() -> AbsolutePath { directory.path.appending(component: "tuist") }
+    public func currentExecutablePath() -> AbsolutePath {
+        try! AbsolutePath(validating: ProcessInfo.processInfo.arguments[0])
+    }
 }
