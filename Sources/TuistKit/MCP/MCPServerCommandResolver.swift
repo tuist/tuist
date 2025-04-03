@@ -11,7 +11,7 @@ protocol MCPServerCommandResolving {
 struct MCPServerCommandResolver: MCPServerCommandResolving {
     private let executablePath: String
 
-    init(executablePath: String = Environment.shared.currentExecutablePath.pathString) {
+    init(executablePath: String = Environment.shared.currentExecutablePath().pathString) {
         self.executablePath = executablePath
     }
 
