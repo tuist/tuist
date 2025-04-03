@@ -525,7 +525,7 @@ defmodule TuistWeb.API.OrganizationsController do
       ]
     ],
     responses: %{
-      no_content: {"The member was removed", "application/json", nil},
+      no_content: "The member was removed",
       not_found:
         {"The organization or the user with the given name was not found", "application/json",
          Error},
