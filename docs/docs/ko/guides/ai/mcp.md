@@ -35,7 +35,7 @@ Tuist는 CLI를 통해 로컬 서버를 제공하여 _앱 개발 환경_과 상�
   "mcpServers": {
     "tuist": {
       "command": "tuist",
-      "args": ["mcp"]
+      "args": ["mcp", "start"]
     }
   }
 }
@@ -46,7 +46,7 @@ Tuist는 CLI를 통해 로컬 서버를 제공하여 _앱 개발 환경_과 상�
   "mcpServers": {
     "tuist": {
       "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp"] // Or tuist@x.y.z to fix the version
+      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
     }
   }
 }
@@ -67,7 +67,7 @@ Tuist는 CLI를 통해 로컬 서버를 제공하여 _앱 개발 환경_과 상�
   "mcpServers": {
     "tuist": {
       "command": "tuist",
-      "args": ["mcp"]
+      "args": ["mcp", "start"]
     }
   }
 }
@@ -78,7 +78,7 @@ Tuist는 CLI를 통해 로컬 서버를 제공하여 _앱 개발 환경_과 상�
   "mcpServers": {
     "tuist": {
       "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp"] // Or tuist@x.y.z to fix the version
+      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
     }
   }
 }
