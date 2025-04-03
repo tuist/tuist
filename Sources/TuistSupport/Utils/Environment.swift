@@ -217,6 +217,7 @@ public final class Environment: Environmenting {
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
         var pathLength = UInt32(buffer.count)
         if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
+            // swiftlint:disable:next force_try
             return try! AbsolutePath(validating: String(cString: buffer))
         }
         return nil
