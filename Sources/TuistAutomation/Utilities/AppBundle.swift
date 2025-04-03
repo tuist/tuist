@@ -75,7 +75,7 @@ public struct AppBundle: Equatable {
         }
 
         /// App version number (e.g. 10.3)
-        public let version: Version
+        public let version: String
 
         /// Name of the app
         public let name: String
@@ -93,7 +93,7 @@ public struct AppBundle: Equatable {
         public let bundleIcons: BundleIcons?
 
         init(
-            version: Version,
+            version: String,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
@@ -120,9 +120,7 @@ public struct AppBundle: Equatable {
         public init(from decoder: any Decoder) throws {
             let container: KeyedDecodingContainer<AppBundle.InfoPlist.CodingKeys> = try decoder
                 .container(keyedBy: AppBundle.InfoPlist.CodingKeys.self)
-            version = Version(
-                stringLiteral: try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.version)
-            )
+            version = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.version)
             let name = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.name)
             self.name = name
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
@@ -166,7 +164,7 @@ public struct AppBundle: Equatable {
 
     extension AppBundle.InfoPlist {
         public static func test(
-            version: Version = Version("1.0"),
+            version: String = "1.0",
             name: String = "App",
             bundleId: String = "io.tuist.App",
             minimumOSVersion: Version = Version("17.4"),

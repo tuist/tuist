@@ -36,7 +36,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
-                    version: Version("1.0"),
+                    version: "1.0",
                     name: "App",
                     bundleId: "io.tuist.MainApp",
                     minimumOSVersion: Version("17.0"),
@@ -67,7 +67,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
-                    version: Version("1.0"),
+                    version: "1.0",
                     name: "App",
                     bundleId: "io.tuist.App",
                     minimumOSVersion: Version("17.0"),
