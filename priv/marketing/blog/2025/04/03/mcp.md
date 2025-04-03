@@ -1,5 +1,5 @@
 ---
-title: "Transform you LLM into an Xcode project copilot"
+title: "Transform your LLM into an Xcode project copilot"
 category: "product"
 tags: ["LLMs", "MCP", "Xcode", "Copilot", "Virtual platform team", "Platform team"]
 excerpt: "Master your projects with the Tuist CLI MCP server by leveraging LLMs."
