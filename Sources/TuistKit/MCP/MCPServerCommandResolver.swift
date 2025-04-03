@@ -1,5 +1,7 @@
+import Darwin
 import Foundation
 import Mockable
+import TuistSupport
 
 @Mockable
 protocol MCPServerCommandResolving {
@@ -9,7 +11,7 @@ protocol MCPServerCommandResolving {
 struct MCPServerCommandResolver: MCPServerCommandResolving {
     private let executablePath: String
 
-    init(executablePath: String = CommandLine.arguments[0]) {
+    init(executablePath: String = Environment.shared.currentExecutablePath().pathString) {
         self.executablePath = executablePath
     }
 

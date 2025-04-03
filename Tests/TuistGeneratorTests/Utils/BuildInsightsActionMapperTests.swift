@@ -35,7 +35,7 @@ struct BuildInsightsActionMapperTests {
         // Given
         let buildAction: BuildAction = .test()
         given(environment)
-            .tuistExecutablePath
+            .currentExecutablePath()
             .willReturn("/mise/tuist")
 
         // When

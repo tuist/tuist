@@ -48,7 +48,7 @@ public protocol Environmenting: AnyObject, Sendable {
     var schemeName: String? { get }
 
     /// Returns path to the Tuist executable
-    var tuistExecutablePath: AbsolutePath? { get }
+    func currentExecutablePath() -> AbsolutePath
 }
 
 /// Local environment controller.
@@ -213,7 +213,14 @@ public final class Environment: Environmenting {
         ProcessInfo.processInfo.environment["SCHEME_NAME"]
     }
 
-    public var tuistExecutablePath: AbsolutePath? {
-        try? AbsolutePath(validating: ProcessInfo.processInfo.arguments[0])
+    public func currentExecutablePath() -> AbsolutePath {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        var pathLength = UInt32(buffer.count)
+        if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
+            // swiftlint:disable:next force_try
+            return try! AbsolutePath(validating: String(cString: buffer))
+        } else {
+            fatalError("Failed to get the executable path")
+        }
     }
 }
