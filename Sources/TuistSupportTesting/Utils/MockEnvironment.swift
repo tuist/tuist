@@ -41,7 +41,5 @@ public final class MockEnvironment: Environmenting {
 
     public var schemeName: String? { nil }
 
-    public func currentExecutablePath() -> AbsolutePath {
-        try! AbsolutePath(validating: ProcessInfo.processInfo.arguments[0])
-    }
+    public func currentExecutablePath() -> AbsolutePath? { nil }
 }
