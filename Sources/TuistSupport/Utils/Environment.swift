@@ -48,7 +48,7 @@ public protocol Environmenting: AnyObject, Sendable {
     var schemeName: String? { get }
 
     /// Returns path to the Tuist executable
-    var tuistExecutablePath: AbsolutePath? { get }
+    var currentExecutablePath: AbsolutePath! { get }
 }
 
 /// Local environment controller.
@@ -213,7 +213,12 @@ public final class Environment: Environmenting {
         ProcessInfo.processInfo.environment["SCHEME_NAME"]
     }
 
-    public var tuistExecutablePath: AbsolutePath? {
-        try? AbsolutePath(validating: ProcessInfo.processInfo.arguments[0])
+    public var currentExecutablePath: AbsolutePath! {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        var pathLength = UInt32(buffer.count)
+        if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
+            return try! AbsolutePath(validating: String(cString: buffer))
+        }
+        return nil
     }
 }

@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Mockable
+import TuistSupport
 
 @Mockable
 protocol MCPServerCommandResolving {
@@ -10,21 +11,11 @@ protocol MCPServerCommandResolving {
 struct MCPServerCommandResolver: MCPServerCommandResolving {
     private let executablePath: String
 
-    init(executablePath: String = Self.getExecutablePath()) {
+    init(executablePath: String = Environment.shared.currentExecutablePath.pathString) {
         self.executablePath = executablePath
     }
 
     func resolve() -> (String, [String]) {
-        print(executablePath)
         return (executablePath, ["mcp", "start"])
-    }
-
-    private static func getExecutablePath() -> String! {
-        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-        var pathLength = UInt32(buffer.count)
-        if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
-            return String(cString: buffer)
-        }
-        return nil
     }
 }
