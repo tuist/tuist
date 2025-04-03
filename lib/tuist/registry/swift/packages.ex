@@ -187,13 +187,13 @@ defmodule Tuist.Registry.Swift.Packages do
 
     File.ls!(source_archive_directory <> "/" <> source_directory)
     |> Enum.each(fn file_name ->
-      if String.ends_with?(file_name, "Package.swift") or
-           Regex.match?(
-             @alternate_package_manifest_regex,
-             file_name
-           ) do
-        file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
+      file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
 
+      if (String.ends_with?(file_name, "Package.swift") or
+            Regex.match?(
+              @alternate_package_manifest_regex,
+              file_name
+            )) and not File.dir?(file_path) do
         file_content =
           File.read!(file_path)
 

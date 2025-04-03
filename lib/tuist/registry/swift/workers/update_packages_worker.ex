@@ -65,7 +65,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
 
   defp create_missing_packages(%{packages: packages, token: token}) do
     existing_packages =
-      Packages.get_packages_by_scope_and_name_pairs(packages, preload: [:package_releases])
+      Packages.get_packages_by_scope_and_name_pairs(packages)
       |> MapSet.new(&{&1.scope, &1.name})
 
     missing_packages =
