@@ -29,6 +29,10 @@ defmodule TuistWeb.Noora.TextInput do
     default: nil,
     doc: "Errors to be rendered below the input. Takes precedence over `hint`."
 
+  attr :show_error_message, :boolean,
+    default: true,
+    doc: "Whether to show the error message below the input."
+
   attr :show_prefix, :boolean,
     default: true,
     doc: "Whether to show the prefix."
@@ -117,7 +121,7 @@ defmodule TuistWeb.Noora.TextInput do
           {render_slot(@suffix)}
         </span>
       </div>
-      <.hint_text :if={!is_nil(@error)} label={@error} variant="destructive" />
+      <.hint_text :if={!is_nil(@error) and @show_error_message} label={@error} variant="destructive" />
       <.hint_text :if={is_nil(@error) and @hint} label={@hint} variant={@hint_variant} />
     </div>
     """

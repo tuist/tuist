@@ -105,6 +105,7 @@ defmodule TuistWeb.UserLoginLive do
               placeholder="hello@tuist.dev"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
+              show_error_message={false}
               required
             />
             <.text_input
@@ -114,6 +115,7 @@ defmodule TuistWeb.UserLoginLive do
               type="password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
+              show_error_message={false}
               required
             />
             <div data-part="remember-me">
