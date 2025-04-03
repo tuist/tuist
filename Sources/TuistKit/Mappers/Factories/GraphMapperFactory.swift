@@ -11,8 +11,8 @@ protocol GraphMapperFactorying {
     func automation(
         config: Tuist,
         testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        includedTargets: Set<TargetQuery>,
+        excludedTargets: Set<TargetQuery>
     ) -> [GraphMapping]
 
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
@@ -28,8 +28,8 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     public func automation(
         config: Tuist,
         testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        includedTargets: Set<TargetQuery>,
+        excludedTargets: Set<TargetQuery>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(

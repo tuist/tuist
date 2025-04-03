@@ -84,7 +84,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(aTarget.name)])
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [aTarget, bTarget, cTarget])
         let graph = Graph.test(
@@ -119,7 +119,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: [bTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(bTarget.name)])
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [aTarget, bTarget, cTarget])
         let graph = Graph.test(
@@ -155,7 +155,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let aTestTarget = Target.test(name: targetNames[0] + "Tests", product: .unitTests)
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(aTarget.name)])
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [aTestTarget, aTarget, bTarget, cTarget])
         let graph = Graph.test(
@@ -193,7 +193,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let aTestTarget = Target.test(name: targetNames[0] + "Tests", product: .unitTests)
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name, "bar"])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(aTarget.name), .named("bar")])
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [aTestTarget, aTarget, cTarget])
         let graph = Graph.test(
@@ -212,6 +212,25 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try subject.map(graph: graph, environment: MapperEnvironment()),
             FocusTargetsGraphMappersError.targetsNotFound(["bar"])
+        )
+    }
+
+    func test_map_when_included_targets_is_unused_tag() throws {
+        // Given
+        let targetNames = ["foo"]
+        let aTarget = Target.test(name: targetNames[0])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.tagged("tag")])
+        let path = try temporaryPath()
+        let project = Project.test(path: path, targets: [aTarget])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.map(graph: graph, environment: MapperEnvironment()),
+            FocusTargetsGraphMappersError.noTargetsFound
         )
     }
 }
