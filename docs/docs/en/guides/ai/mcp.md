@@ -35,7 +35,7 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
   "mcpServers": {
     "tuist": {
       "command": "tuist",
-      "args": ["mcp"]
+      "args": ["mcp", "start"]
     }
   }
 }
@@ -46,7 +46,7 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
   "mcpServers": {
     "tuist": {
       "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp"] // Or tuist@x.y.z to fix the version
+      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
     }
   }
 }
@@ -66,7 +66,7 @@ Alternatively, can manually edit the file at `.cursor/mcp.json`, and add the Tui
   "mcpServers": {
     "tuist": {
       "command": "tuist",
-      "args": ["mcp"]
+      "args": ["mcp", "start"]
     }
   }
 }
@@ -77,7 +77,7 @@ Alternatively, can manually edit the file at `.cursor/mcp.json`, and add the Tui
   "mcpServers": {
     "tuist": {
       "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp"] // Or tuist@x.y.z to fix the version
+      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
     }
   }
 }
