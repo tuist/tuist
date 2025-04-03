@@ -36,6 +36,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
                 cacheStorage: .any
             )
             .willReturn(generator)
+        given(generator)
+            .load(path: .any)
+            .willReturn(.test())
         cacheStorageFactory = .init()
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
@@ -60,57 +63,61 @@ final class GenerateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
-        let expectedError = NSError.test()
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willThrow(expectedError)
+        try await ServiceContext.withTestingDependencies {
+            let expectedError = NSError.test()
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willThrow(expectedError)
 
-        do {
-            try await subject
-                .run(
-                    path: nil,
-                    sources: [],
-                    noOpen: true,
-                    configuration: nil,
-                    ignoreBinaryCache: false
-                )
-            XCTFail("Must throw")
-        } catch {
-            XCTAssertEqual(error as NSError?, expectedError)
+            do {
+                try await subject
+                    .run(
+                        path: nil,
+                        sources: [],
+                        noOpen: true,
+                        configuration: nil,
+                        ignoreBinaryCache: false
+                    )
+                XCTFail("Must throw")
+            } catch {
+                XCTAssertEqual(error as NSError?, expectedError)
+            }
         }
     }
 
     func test_run() async throws {
-        // Given
-        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        var environment = MapperEnvironment()
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+            let environment = MapperEnvironment()
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willReturn(
+                    (
+                        workspacePath,
+                        .test(),
+                        environment
+                    )
                 )
+
+            given(opener)
+                .open(path: .any)
+                .willReturn()
+
+            // When
+            try await subject.run(
+                path: nil,
+                sources: [],
+                noOpen: false,
+                configuration: nil,
+                ignoreBinaryCache: false
             )
 
-        given(opener)
-            .open(path: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(
-            path: nil,
-            sources: [],
-            noOpen: false,
-            configuration: nil,
-            ignoreBinaryCache: false
-        )
-
-        // Then
-        verify(opener)
-            .open(path: .value(workspacePath))
-            .called(1)
+            // Then
+            verify(opener)
+                .open(path: .value(workspacePath))
+                .called(1)
+        }
     }
 
     func test_run_timeIsPrinted() async throws {

@@ -11,30 +11,10 @@ import XCTest
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-                let initAnswers = InitPromptAnswers(
-                    workflowType: .createGeneratedProject,
-                    integrateWithServer: false,
-                    generatedProjectPlatform: "ios",
-                    generatedProjectName: "MyApp",
-                    accountType: .createOrganizationAccount,
-                    newOrganizationAccountHandle: "organization"
-                )
-                try await run(
-                    InitCommand.self,
-                    "--answers",
-                    initAnswers.base64EncodedJSONString(),
-                    "--path",
-                    temporaryDirectory.pathString
-                )
-                self.fixturePath = temporaryDirectory.appending(component: "MyApp")
-                try await run(InstallCommand.self)
-                try await run(GenerateCommand.self)
-                try await run(BuildCommand.self)
-                try await run(BuildCommand.self, "MyApp")
-                try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
-                try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
-            }
+            try await setUpFixture(.iosAppWithTemplates)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self)
         }
     }
 }
@@ -90,21 +70,25 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
     func test_with_previews() async throws {
-        try await setUpFixture(.appWithPreviews)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.appWithPreviews)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self)
+        }
     }
 }
 
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
     func test_with_framework_and_tests() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(BuildCommand.self, "AppCustomScheme")
-        try await run(BuildCommand.self, "App-Workspace")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.appWithFrameworkAndTests)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self)
+            try await run(BuildCommand.self, "App")
+            try await run(BuildCommand.self, "AppCustomScheme")
+            try await run(BuildCommand.self, "App-Workspace")
+        }
     }
 }
 
@@ -123,96 +107,110 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
 
 final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_and_build_to_custom_directory() async throws {
-        try await setUpFixture(.iosAppWithCustomConfiguration)
-        try await run(GenerateCommand.self)
-        try await run(
-            BuildCommand.self,
-            "App",
-            "--configuration",
-            "debug",
-            "--build-output-path",
-            fixturePath.appending(component: "Builds").pathString
-        )
-        let debugPath = fixturePath.appending(
-            try RelativePath(validating: "Builds/debug-iphonesimulator")
-        )
-        try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
-        try await run(
-            BuildCommand.self,
-            "App",
-            "--configuration",
-            "release",
-            "--build-output-path",
-            fixturePath.appending(component: "Builds").pathString
-        )
-        try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
-        let releasePath = fixturePath.appending(
-            try RelativePath(validating: "Builds/release-iphonesimulator")
-        )
-        try XCTAssertDirectoryContentEqual(
-            releasePath,
-            [
-                "App.app",
-                "App.app.dSYM",
-                "App.swiftmodule",
-                "FrameworkA.framework",
-                "FrameworkA.framework.dSYM",
-            ]
-        )
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithCustomConfiguration)
+            try await run(GenerateCommand.self)
+            try await run(
+                BuildCommand.self,
+                "App",
+                "--configuration",
+                "debug",
+                "--build-output-path",
+                fixturePath.appending(component: "Builds").pathString
+            )
+            let debugPath = fixturePath.appending(
+                try RelativePath(validating: "Builds/debug-iphonesimulator")
+            )
+            try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
+            try await run(
+                BuildCommand.self,
+                "App",
+                "--configuration",
+                "release",
+                "--build-output-path",
+                fixturePath.appending(component: "Builds").pathString
+            )
+            try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
+            let releasePath = fixturePath.appending(
+                try RelativePath(validating: "Builds/release-iphonesimulator")
+            )
+            try XCTAssertDirectoryContentEqual(
+                releasePath,
+                [
+                    "App.app",
+                    "App.app.dSYM",
+                    "App.swiftmodule",
+                    "FrameworkA.framework",
+                    "FrameworkA.framework.dSYM",
+                ]
+            )
+        }
     }
 }
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
-        try await setUpFixture(.frameworkWithSwiftMacro)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.frameworkWithSwiftMacro)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
+        }
     }
 }
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
-        try await setUpFixture(.frameworkWithNativeSwiftMacro)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "Framework", "--platform", "macos")
-        try await run(BuildCommand.self, "Framework", "--platform", "ios")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.frameworkWithNativeSwiftMacro)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "Framework", "--platform", "macos")
+            try await run(BuildCommand.self, "Framework", "--platform", "ios")
+        }
     }
 }
 
 final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformAppWithExtension)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.multiplatformAppWithExtension)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "App", "--platform", "ios")
+        }
     }
 }
 
 final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformAppWithSdk)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "macos")
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.multiplatformAppWithSdk)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "App", "--platform", "macos")
+            try await run(BuildCommand.self, "App", "--platform", "ios")
+        }
     }
 }
 
 final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
-        try await run(TestCommand.self, "ModuleA", "--platform", "ios")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
+            try await run(TestCommand.self, "ModuleA", "--platform", "ios")
+        }
     }
 }
 
 final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "App", "--platform", "ios")
+        }
     }
 }
