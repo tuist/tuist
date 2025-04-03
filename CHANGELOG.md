@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.46.1 - 2025-04-03
+
+### CLI
+
+#### Fixed
+
+- fix: Fix `organization remove member` command [#7455](https://github.com/tuist/tuist/pull/7455) by [@cschmatzler](https://github.com/cschmatzler)
+- Fix getting the executable path from the `mcp setup claude` command [#7456](https://github.com/tuist/tuist/pull/7456) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.46.0 - 2025-04-03
 
 ### CLI
