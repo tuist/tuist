@@ -1,0 +1,95 @@
+date: 2025-04-04
+hero:
+  image: /marketing/images/newsletter/issues/7/artwork.jpg
+  image_max_width: 250px;
+  alt: "UI design by [Ali Husni](https://bento.me/alihusni)"
+  subtitle: "Featured work: [Ali Husni](https://bento.me/alihusni)"
+title: "Apple’s native edge: fading or evolving?"
+body: |
+  Apple has long been celebrated for its seamless fusion of software and hardware. Their tools and frameworks empower developers to craft apps that feel like natural extensions of the platform—a level of integration that the web and Linux have struggled to match. Why? Because those platforms lean on a common interface, sacrificing the deep, native symbiosis Apple mastered.
+
+  The web, though, carved its own path. It built a universal interface, but its capabilities lagged behind native offerings. We saw this gap spawn a wave of extensions—companion features shipped alongside apps. Some thrived; others floundered. Yet they all hit the same wall: discoverability. Shifting users from a single tap to a new window or interface proved a tough sell.
+
+  Then the web flipped the script. Rooted in standards and collaboration, it became the ultimate stage for humanity’s primal need to connect. Enter [Slack](https://slack.com/), [Figma](https://www.figma.com/), [Notion](https://notion.com)—tools where real-time collaboration trumped native polish. Native apps scrambled to catch up, but they couldn’t quite crack it. Why? The web’s universal platform and evolving languages let developers iterate fast without breaking existing apps. That reliability drew organizations in, sparking innovation at breakneck speed.
+
+  Apple’s once-unassailable software-hardware marriage isn’t the draw it used to be. Sure, some apps still thrive on tight integration and raw platform access, but the shine’s wearing off. Apple’s push into new frontiers like [visionOS](https://developer.apple.com/visionos/)—where the web can’t follow—hasn’t ignited as hoped. And the horizon looks murkier still. The LLM revolution is here, hinting at a future where language, not taps or clicks, becomes our tech interface. Picture it: no more windows, buttons, or tabs—just natural conversation.
+
+  In that world, a chat becomes the gateway to technology. Where does an app fit? Or the App Store? If LLM-powered chats (think [ChatGPT](https://chatgpt.com/) or [Claude](https://claude.ai/)) can talk to the world via standard web protocols like [MCP](https://modelcontextprotocol.io/) over HTTP or Standard Pipelines, why bother installing anything? Could these AI models double as app stores, with the OS reduced to context for the conversation?
+
+  A few issues back, we said forking is pricey. Apple’s divergence from the web is starting to sting, challenging their core models. Apps and new platforms like visionOS still have a shot, but the real action’s brewing outside their ecosystem. Apple needs an answer—fast. Will WWDC deliver? They’ve got the resources to pull it off, no question. But do they have the vision? June will tell.
+interview:
+  interviewee: "Julia Nikitina"
+  interviewee_role: "iOS Developer"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/7/nikita.jpg
+  interviewee_intro: |
+    Julia Nikitina is a Berlin-based iOS developer and SwiftUI enthusiast. Passionate about performance, she enjoys sharing her expertise through meetups and teaching mobile development. When not coding, she's woodworking or attending barista classes.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        Two of my absolute favorite apps right now are [Routinery](https://www.routinery.app/) and [Duolingo](https://www.duolingo.com/). Routinery is like having a personal assistant that keeps me organized and balanced, even on my craziest days. I adore its stylish typography and super clean design—so simple yet oh-so-sleek. Honestly, I think a lot of apps could benefit from its approach. 
+    - question: "An open-source project worth checking out"
+      answer: |
+        I'm totally hooked on [Bash-it](https://github.com/Bash-it/bash-it) for my terminal! Every time I set up a new Mac, Bash-it is the very first thing I install because it magically transforms my terminal into a neat, readable, and well-organized space. Check it out on GitHub:
+    - question: "A developer tool worth using"
+      answer: |
+        Surprise! Xcode’s CLI tools—like [xcodebuild and simctl](https://developer.apple.com/library/archive/technotes/tn2339/_index.html)—are hidden gems you really shouldn’t miss. Dive into their help options, and you'll uncover a treasure trove of features that can speed up your tests and builds on CI, free up disk space, and even manage simulators for your UI tests. I only wish I’d explored them sooner.
+    - question: "A developer worth following"
+      answer: |
+        I was lucky enough to interview [Krzysztof Zabłocki](https://www.linkedin.com/in/merowing/) at the MBLT Dev Conference back in 2018, and I’ve been a fan ever since. His down-to-earth insights on work-life balance for developers are pure gold, and his contributions—like the amazing tool [Sourcery](https://github.com/krzysztofzablocki/Sourcery)—are total game-changers. 
+    - question: "A book worth reading"
+      answer: |
+        If you’re diving into SwiftUI, you’ve got to check out [Thinking in SwiftUI](https://www.objc.io/books/thinking-in-swiftui/) by [Chris Eidhof](https://mastodon.social/@chris@m.objc.io) and Florian Kugler. It’s a must-read for both newcomers and seasoned developers. This book really opens your mind and unveils the clever logic behind SwiftUI’s simple syntax. I always recommend it to my mentees. 
+
+tools:
+  - title: Silk
+    subtitle: Native‑like swipeable sheets on the web
+    link: https://silkhq.co/
+    description: |
+      The web is getting more and more powerful and capable. If you don't believe me, check out how native these web animations feel.
+  - title: XcodeBuildMCP
+    subtitle: A Model Context Protocol (MCP) server that provides Xcode-related tools
+    link: https://github.com/cameroncooke/XcodeBuildMCP
+    description: |
+      Talking about languages... What if you could perform common Xcode operations with language? Thanks to [Cameron Cooke'](https://github.com/cameroncooke)'s work you can now do that with his MCP server for Xcode.
+  - title: swiftly
+    subtitle: An official Swift version management solution
+    link: https://www.swift.org/blog/introducing-swiftly_10/
+    description: |
+      If you are using Swift outside of Xcode, you might need to compile your code against multiple Swift versions. Until now, there wasn't an official version to manage those versions, but Apple is changing that with swiftly.
+  - title: Runno
+    subtitle: Run code examples on your website
+    link: https://runno.dev/
+    description: |
+      Wouldn’t it be cool if you could run Swift code examples directly on your website? It would open the door to more interactive demos and tutorials. That’s exactly what Runno is aiming for—and who knows, with Apple showing [interest](https://forums.swift.org/t/pitch-a-vision-for-webassembly-support-in-swift/79060) in WebAssembly, we might not be too far off.
+  - title: Turso
+    subtitle: Database for local-first applications
+    link: https://turso.tech/
+    description: |
+      Turso, a fork of SQLite, just announced the public beta of [offline sync](https://turso.tech/blog/turso-offline-sync-public-beta), making it an excellent contender of CoreData and its syncing through iCloud if you want to build a local-first application that syncs beyond Apple devices.
+
+food_for_thought:
+  - title: "Why Is Everyone Obsessed With Chat Interfaces?"
+    subtitle: "Read"
+    link: "https://zehfernandes.com/posts/why-is-everyone-obsessed-with-chat-interfaces?mc_cid=1074e4ddd3&mc_eid=0b2b7c86dc"
+    description: |
+      Large Language Models (LLMs) open the door to fresh interfaces powered by language, but [Zeh Fernandes](https://zehfernandes.com/posts/why-is-everyone-obsessed-with-chat-interfaces) argues it won’t stop there. Not everything bends to words—think picking a color–chat-obsessed design might miss the bigger picture.
+  - title: "FOSS infrastructure is under attack by AI companies"
+    subtitle: "Read"
+    link: "https://thelibre.news/foss-infrastructure-is-under-attack-by-ai-companies/"
+    description: |
+       AI firms are putting pressure on the open-source tools we rely on every day, leading to outages and phantom bugs. The Libre News takes a closer look—here’s how it’s impacting workflows and what the community is doing in response.
+  - title: "Open platform design"
+    subtitle: "Check out"
+    link: "https://toot.cafe/@nolan/114246436279996239l"
+    description: |
+      Another unique aspect of the web is that it was designed and has evolved in the open, which leads to better design—just as mentioned in this post. Imagine if Apple opened more of its platform and tools to developers and embraced community collaboration beyond just Swift.
+  - title: "Your Product Should Be Shiny. Your Stack Should Be Boring."
+    subtitle: "Read"
+    link: "https://judoscale.com/blog/boring-software"
+    description: |
+      As Swift expands into new areas, it can be tempting to reach for the latest language features—but that often shifts focus away from the product itself. This blog post explores how choosing “boring” technologies can actually help keep your attention where it matters most: on building the right product.
+  - title: Markdown and the Slow Fade of the Formatting Fetish
+    subtitle: "Read"
+    link: https://ia.net/topics/markdown-and-the-slow-fade-of-the-formatting-fetish
+    description: |
+      We’ll keep saying it: standards benefit everyone. This blog post highlights how Microsoft once pushed proprietary solutions and formats that prioritized appearance over content. In contrast, Markdown is shifting the focus back to the content itself, emerging as the predominant format for writing and publishing.
