@@ -1316,6 +1316,62 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    // For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
+    func testMap_whenResourcesInsideXCFramework() async throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
+        let xcframeworkPath = sourcesPath.appending(component: "BinaryFramework.xcframework")
+        let resourcePath = xcframeworkPath.appending(component: "file.xib")
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
+        try await fileSystem.touch(resourcePath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .target(name: "BinaryFramework", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "BinaryFramework",
+                            type: .binary,
+                            path: "Package/Sources/Target1/BinaryFramework.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        resources: [],
+                        dependencies: [
+                            .xcframework(path: Path(stringLiteral: xcframeworkPath.pathString)),
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenHasDefaultResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
