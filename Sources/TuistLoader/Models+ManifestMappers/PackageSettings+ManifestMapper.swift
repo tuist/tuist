@@ -28,7 +28,8 @@ extension TuistCore.PackageSettings {
             productDestinations: productDestinations,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectOptions: projectOptions
+            projectOptions: projectOptions,
+            includeLocalPackageTestTargets: manifest.includeLocalPackageTestTargets
         )
     }
 }
