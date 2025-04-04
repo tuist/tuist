@@ -28,39 +28,17 @@ export class Termynal {
    * @param {boolean} options.noInit - Don't initialise the animation.
    */
   constructor(container = "#termynal", options = {}) {
-    this.container =
-      typeof container === "string"
-        ? document.querySelector(container)
-        : container;
+    this.container = typeof container === "string" ? document.querySelector(container) : container;
     this.pfx = `data-${options.prefix || "ty"}`;
-    this.startDelay =
-      options.startDelay ||
-      parseFloat(this.container.getAttribute(`${this.pfx}-startDelay`)) ||
-      600;
-    this.typeDelay =
-      options.typeDelay ||
-      parseFloat(this.container.getAttribute(`${this.pfx}-typeDelay`)) ||
-      90;
-    this.lineDelay =
-      options.lineDelay ||
-      parseFloat(this.container.getAttribute(`${this.pfx}-lineDelay`)) ||
-      1500;
+    this.startDelay = options.startDelay || parseFloat(this.container.getAttribute(`${this.pfx}-startDelay`)) || 600;
+    this.typeDelay = options.typeDelay || parseFloat(this.container.getAttribute(`${this.pfx}-typeDelay`)) || 90;
+    this.lineDelay = options.lineDelay || parseFloat(this.container.getAttribute(`${this.pfx}-lineDelay`)) || 1500;
     this.progressLength =
-      options.progressLength ||
-      parseFloat(this.container.getAttribute(`${this.pfx}-progressLength`)) ||
-      40;
-    this.progressChar =
-      options.progressChar ||
-      this.container.getAttribute(`${this.pfx}-progressChar`) ||
-      "█";
+      options.progressLength || parseFloat(this.container.getAttribute(`${this.pfx}-progressLength`)) || 40;
+    this.progressChar = options.progressChar || this.container.getAttribute(`${this.pfx}-progressChar`) || "█";
     this.progressPercent =
-      options.progressPercent ||
-      parseFloat(this.container.getAttribute(`${this.pfx}-progressPercent`)) ||
-      100;
-    this.cursor =
-      options.cursor ||
-      this.container.getAttribute(`${this.pfx}-cursor`) ||
-      "▋";
+      options.progressPercent || parseFloat(this.container.getAttribute(`${this.pfx}-progressPercent`)) || 100;
+    this.cursor = options.cursor || this.container.getAttribute(`${this.pfx}-cursor`) || "▋";
     this.lineData = this.lineDataToElements(options.lineData || []);
     if (!options.noInit) this.init();
   }
@@ -75,19 +53,15 @@ export class Termynal {
 
   reset() {
     // Appends dynamically loaded lines to existing line elements.
-    this.lines = [...this.container.querySelectorAll(`[${this.pfx}]`)].concat(
-      this.lineData,
-    );
+    this.lines = [...this.container.querySelectorAll(`[${this.pfx}]`)].concat(this.lineData);
 
     /**
      * Calculates width and height of Termynal container.
      * If container is empty and lines are dynamically loaded, defaults to browser `auto` or CSS.
      */
     const containerStyle = getComputedStyle(this.container);
-    this.container.style.width =
-      containerStyle.width !== "0px" ? containerStyle.width : undefined;
-    this.container.style.minHeight =
-      containerStyle.height !== "0px" ? containerStyle.height : undefined;
+    this.container.style.width = containerStyle.width !== "0px" ? containerStyle.width : undefined;
+    this.container.style.minHeight = containerStyle.height !== "0px" ? containerStyle.height : undefined;
 
     this.container.setAttribute("data-termynal", "");
     this.container.innerHTML = "";
@@ -140,13 +114,10 @@ export class Termynal {
    * @param {Node} line - The line element to render.
    */
   async progress(line) {
-    const progressLength =
-      line.getAttribute(`${this.pfx}-progressLength`) || this.progressLength;
-    const progressChar =
-      line.getAttribute(`${this.pfx}-progressChar`) || this.progressChar;
+    const progressLength = line.getAttribute(`${this.pfx}-progressLength`) || this.progressLength;
+    const progressChar = line.getAttribute(`${this.pfx}-progressChar`) || this.progressChar;
     const chars = progressChar.repeat(progressLength);
-    const progressPercent =
-      line.getAttribute(`${this.pfx}-progressPercent`) || this.progressPercent;
+    const progressPercent = line.getAttribute(`${this.pfx}-progressPercent`) || this.progressPercent;
     line.textContent = "";
     this.container.appendChild(line);
 
@@ -178,9 +149,7 @@ export class Termynal {
   lineDataToElements(lineData) {
     return lineData.map((line) => {
       let div = document.createElement("div");
-      div.innerHTML = `<span ${this._attributes(line)}>${
-        line.value || ""
-      }</span>`;
+      div.innerHTML = `<span ${this._attributes(line)}>${line.value || ""}</span>`;
 
       return div.firstElementChild;
     });

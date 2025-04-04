@@ -1,13 +1,13 @@
 .noora-checkbox {
   & [data-part="root"] {
-    align-items: start;
     display: grid;
+    grid-template-rows: auto auto;
+    grid-template-columns: auto auto;
     grid-template-areas:
       "control label"
       ".       description";
-    grid-template-columns: auto auto;
-    grid-template-rows: auto auto;
     justify-content: center;
+    align-items: start;
 
     &[data-disabled] {
       cursor: not-allowed;
@@ -15,26 +15,26 @@
   }
 
   & [data-part="control"] {
-    align-items: center;
-    border-radius: var(--noora-radius-small);
-    box-sizing: border-box;
-    color: var(--noora-choice-selector-label);
-    cursor: pointer;
     display: flex;
     grid-area: control;
-    height: 16px;
     justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-sizing: border-box;
     margin-top: 2px;
+    border-radius: var(--noora-radius-small);
     width: 16px;
+    height: 16px;
+    color: var(--noora-choice-selector-label);
 
     & svg {
-      height: 12px;
       width: 12px;
+      height: 12px;
     }
 
     &[data-disabled] {
-      background: var(--noora-choice-selector-disabled-background);
       box-shadow: var(--noora-border-light-default);
+      background: var(--noora-choice-selector-disabled-background);
     }
 
     &:not([data-state="checked"]),
@@ -49,8 +49,8 @@
     }
 
     &:not([data-disabled])[data-state="unchecked"] {
-      background: var(--noora-choice-selector-uncheck-background);
       box-shadow: var(--noora-border-light-default);
+      background: var(--noora-choice-selector-uncheck-background);
 
       &:hover {
         background: var(--noora-choice-selector-uncheck-background-hover);
@@ -59,9 +59,9 @@
 
     &[data-state="checked"],
     &[data-state="indeterminate"] {
-      background: var(--noora-choice-selector-check-background);
-      border: 1px solid var(--noora-purple-500);
       box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
+      border: 1px solid var(--noora-purple-500);
+      background: var(--noora-choice-selector-check-background);
 
       &:hover {
         background: var(--noora-choice-selector-check-background-hover);
@@ -82,11 +82,11 @@
   }
 
   & [data-part="label"] {
-    color: var(--noora-surface-label-primary);
     display: flex;
-    font: var(--noora-font-body-medium);
     grid-area: label;
     margin-left: var(--noora-spacing-5);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
 
     &:has(+ [data-part="description"]) {
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -94,12 +94,12 @@
   }
 
   & [data-part="description"] {
-    color: var(--noora-surface-label-secondary);
     display: flex;
-    font: var(--noora-font-body-small);
     grid-area: description;
-    margin-left: var(--noora-spacing-5);
     margin-top: var(--noora-spacing-2);
+    margin-left: var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
   }
 
   & [data-part="hidden-input"] {

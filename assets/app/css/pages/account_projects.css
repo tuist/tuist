@@ -9,18 +9,18 @@
 }
 
 .account__projects__panel {
-  background: var(--bg-primary-alt);
   border: 1px solid var(--border-secondary);
   border-radius: var(--radius-xl);
+  background: var(--bg-primary-alt);
 }
 
 .account__projects__panel__list {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  list-style-type: none;
-  padding: 0px;
   margin: 0px;
+  padding: 0px;
+  list-style-type: none;
 
   & > * + * {
     border-top: 1px solid var(--border-secondary);
@@ -36,9 +36,9 @@
 }
 
 .account__projects__panel__list__item {
-  padding: var(--spacing-2xl);
   display: block;
   position: relative;
+  padding: var(--spacing-2xl);
 
   &:hover {
     background: var(--bg-secondary-hover);
@@ -63,9 +63,9 @@
 .account__projects__get-started__background {
   position: absolute;
   top: 0;
+  z-index: -1;
   width: 60%;
   height: 40%;
-  z-index: -1;
 }
 
 .account__projects__get-started__header {
@@ -81,15 +81,15 @@
 }
 
 .account__projects__get-started__header__text {
-  text-align: center;
   display: unset;
+  text-align: center;
 }
 
 .account__projects__code {
   color: var(--text-secondary);
-  font-family: monospace;
-  line-height: 1.5;
   font-size: large;
+  line-height: 1.5;
+  font-family: monospace;
 }
 
 .account__projects__code__executable {
@@ -136,8 +136,8 @@
 }
 
 .account__projects__get-started__user-info {
-  width: 100%;
   position: absolute;
-  right: var(--spacing-2xl);
   top: 0;
+  right: var(--spacing-2xl);
+  width: 100%;
 }

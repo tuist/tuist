@@ -1,25 +1,25 @@
 .noora-text-input {
-  align-self: stretch;
   display: flex;
   flex-direction: column;
+  align-self: stretch;
   gap: var(--noora-spacing-3);
 
   & [data-part="wrapper"] {
+    display: flex;
     align-items: center;
     align-self: stretch;
-    background: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-medium);
-    box-shadow: var(--noora-border-light-default);
-    display: flex;
     gap: var(--noora-spacing-4);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
 
     & input {
-      background: none;
-      border: none;
       flex-grow: 1;
-      font: var(--noora-font-body-medium);
       outline: none;
+      border: none;
+      background: none;
+      font: var(--noora-font-body-medium);
 
       &:not(:disabled) {
         color: var(--noora-surface-label-primary);
@@ -37,12 +37,12 @@
     }
 
     & [data-part="prefix"] {
-      height: var(--noora-icon-size-large);
       width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
 
       & svg {
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
     }
 
@@ -51,12 +51,12 @@
       color: var(--noora-surface-label-secondary);
 
       & button {
-        background: none;
-        border: none;
-        color: var(--noora-surface-label-secondary);
         cursor: pointer;
         outline: none;
+        border: none;
+        background: none;
         padding: 0;
+        color: var(--noora-surface-label-secondary);
 
         &:hover {
           color: var(--noora-surface-label-primary);
@@ -67,8 +67,8 @@
         height: var(--noora-icon-size-large);
 
         & svg {
-          height: var(--noora-icon-size-large);
           width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
         }
       }
 
@@ -76,8 +76,8 @@
         box-shadow: 0px -2px 0px 0px oklch(100% 0 0 / 0.16) inset;
         fill: var(--noora-neutral-light-600);
         filter: drop-shadow(0px 2px 2px oklch(20.9% 0.009 264.4 / 0.04));
-        height: 18px;
         width: 24px;
+        height: 18px;
       }
     }
 
@@ -153,18 +153,18 @@
     --border: 0px 1px 1px 0px light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(20.9% 0.009 264.4 / 0.3)),
       0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(53.1% 0.01 264.5 / 0.45)),
       0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(53.1% 0.01 264.5 / 0.45));
+    display: inline-flex;
+    box-sizing: border-box;
+    box-shadow: var(--border);
+    border: 0;
+    border-radius: var(--noora-radius-large);
 
     background: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-large);
-    border: 0;
-    box-shadow: var(--border);
-    box-sizing: border-box;
-    color: var(--noora-surface-label-primary);
-    display: inline-flex;
-    font: var(--noora-font-heading-large);
     padding: var(--noora-spacing-5) 0;
-    text-align: center;
     width: 56px;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-heading-large);
+    text-align: center;
 
     &:hover {
       background: var(--noora-surface-background-secondary);
@@ -180,9 +180,9 @@
     }
 
     &[data-disabled] {
+      cursor: not-allowed;
       background: var(--noora-surface-background-secondary);
       color: var(--noora-surface-label-disabled);
-      cursor: not-allowed;
     }
 
     &[data-error] {

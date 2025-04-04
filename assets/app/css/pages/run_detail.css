@@ -24,8 +24,8 @@
 
         & > [data-part="metadata"] {
           display: flex;
-          flex-direction: column;
           flex: 1;
+          flex-direction: column;
           align-items: flex-start;
           gap: var(--noora-spacing-4);
 
@@ -35,18 +35,18 @@
           }
 
           & > [data-part="label"] {
-            align-items: center;
             display: flex;
             flex-direction: row;
+            align-items: center;
             gap: var(--noora-spacing-2);
-
-            & > svg {
-              color: var(--noora-surface-label-secondary);
-              height: var(--noora-icon-size-medium);
-              width: var(--noora-icon-size-medium);
-            }
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+              color: var(--noora-surface-label-secondary);
+            }
           }
 
           & > [data-part="command"] {
@@ -72,8 +72,8 @@
   & [data-part="selective-testing-section"] {
     display: flex;
     flex-direction: column;
-    padding: var(--noora-spacing-8);
     gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
 
     & table {
       & td:first-child {

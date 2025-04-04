@@ -12,7 +12,7 @@
   }
 
   & [data-part="sublabel"] {
-    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
   }
 }

@@ -1,64 +1,64 @@
 .marketing_content {
   word-break: break-word;
   word-wrap: break-word;
-  overflow-wrap: break-word;
   max-width: 100%;
-  white-space: normal;
-  font-family: var(--font-grotesk);
-  font-weight: 300;
+  color: var(--dark-violet);
   font-style: normal;
+  font-weight: 300;
   font-size: 22px;
   line-height: 26px;
-  color: var(--dark-violet);
+  font-family: var(--font-grotesk);
+  white-space: normal;
+  overflow-wrap: break-word;
 
   & img {
+    border-radius: var(--radius-xs);
     max-width: 50vw;
     height: auto;
-    border-radius: var(--radius-xs);
     object-fit: fit;
   }
 
   & blockquote {
-    background: var(--gray-violet);
     margin: var(--spacing-24) 0 0 0;
+    border-radius: var(--radius-l);
+    background: var(--gray-violet);
     padding: var(--spacing-32) var(--spacing-32);
     color: var(--dark-violet);
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 32px;
     line-height: 36px;
-    border-radius: var(--radius-l);
+    font-family: var(--font-grotesk);
 
     & p {
-      margin: 0;
-      quotes: "“" "”";
       display: inline;
       margin: 0;
+      margin: 0;
       padding: 0;
+      quotes: "“" "”";
 
       &::before {
-        content: open-quote;
         padding: 0;
+        content: open-quote;
       }
       &::after {
-        content: close-quote;
         padding: 0;
+        content: close-quote;
       }
     }
   }
 
   & code:not(pre code) {
-    background: var(--medium-violet);
     border-radius: var(--radius-xs);
+    background: var(--medium-violet);
+    padding: 2px var(--spacing-8);
     color: var(--pink);
-
-    font-family: var(--font-grotesk);
-    font-weight: 300;
     font-style: normal;
+    font-weight: 300;
     font-size: 18px;
     line-height: 22px;
-    padding: 2px var(--spacing-8);
+
+    font-family: var(--font-grotesk);
   }
 
   & h1 {
@@ -76,48 +76,48 @@
 
   & b {
     color: var(--violet);
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 22px;
     line-height: 26px;
+    font-family: var(--font-grotesk);
   }
 
   & strong {
     color: var(--violet);
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 22px;
     line-height: 26px;
+    font-family: var(--font-grotesk);
   }
 
   & h1 {
     color: var(--dark-violet);
-    /* font-xxxl-strong */
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 88px;
     line-height: 94px;
+    /* font-xxxl-strong */
+    font-family: var(--font-grotesk);
   }
 
   & h2 {
     color: var(--violet);
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 32px;
     line-height: 36px;
+    font-family: var(--font-grotesk);
   }
 
   & h3 {
     color: var(--violet);
-    font-family: var(--font-grotesk);
-    font-weight: 700;
     font-style: normal;
+    font-weight: 700;
     font-size: 28px;
     line-height: 32px;
+    font-family: var(--font-grotesk);
   }
 
   & h4 {

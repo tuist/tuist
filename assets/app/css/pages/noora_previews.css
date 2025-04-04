@@ -7,8 +7,8 @@
   & [data-part="latest-app-previews"] {
     display: flex;
     flex-direction: column;
-    padding: var(--noora-spacing-8) var(--noora-spacing-9);
     gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8) var(--noora-spacing-9);
 
     & > [data-part="title"] {
       color: var(--noora-surface-label-primary);

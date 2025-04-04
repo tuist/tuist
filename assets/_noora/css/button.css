@@ -1,14 +1,14 @@
 .noora-button,
 .noora-link-button,
 .noora-neutral-button {
-  -webkit-appearance: button;
-  align-items: center;
-  border-radius: var(--noora-radius-medium);
-  border: 0;
   display: inline-flex;
-  text-decoration: none;
-  padding: 0;
   justify-content: center;
+  align-items: center;
+  -webkit-appearance: button;
+  border: 0;
+  border-radius: var(--noora-radius-medium);
+  padding: 0;
+  text-decoration: none;
 }
 
 .noora-button {
@@ -24,30 +24,30 @@
   }
 
   &[data-variant="primary"] {
-    background: var(--noora-button-background-primary);
     box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
     color: var(--noora-button-primary-label);
 
     &:hover {
-      background: var(--noora-button-background-primary-hover);
       box-shadow: var(--noora-button-border-primary-hover);
+      background: var(--noora-button-background-primary-hover);
     }
 
     &[disabled] {
-      background: var(--noora-button-background-primary-disabled);
       box-shadow: var(--noora-button-border-primary-disabled);
+      background: var(--noora-button-background-primary-disabled);
       color: var(--noora-button-primary-disabled-label);
     }
 
     &:not(:disabled):active {
-      background: var(--noora-button-background-primary-active);
       box-shadow: var(--noora-button-border-primary-active);
+      background: var(--noora-button-background-primary-active);
     }
   }
 
   &[data-variant="secondary"] {
-    background: var(--noora-button-background-secondary);
     box-shadow: var(--noora-button-border-secondary);
+    background: var(--noora-button-background-secondary);
     color: var(--noora-button-secondary-label);
 
     &:hover {
@@ -55,31 +55,31 @@
     }
 
     &[disabled] {
-      background: var(--noora-button-background-secondary-disabled);
       box-shadow: var(--noora-button-border-secondary-disabled);
+      background: var(--noora-button-background-secondary-disabled);
       color: var(--noora-button-secondary-disabled-label);
     }
 
     &:not(:disabled):active {
-      background: var(--noora-button-background-secondary-active);
       box-shadow: var(--noora-button-border-secondary-active);
+      background: var(--noora-button-background-secondary-active);
     }
   }
 
   &[data-variant="destructive"] {
-    background: var(--noora-button-background-destructive);
     box-shadow: var(--noora-button-border-destructive);
+    background: var(--noora-button-background-destructive);
 
     color: var(--noora-button-destructive-label);
 
     &:hover {
-      background: var(--noora-button-background-destructive-hover);
       box-shadow: var(--noora-button-border-destructive-hover);
+      background: var(--noora-button-background-destructive-hover);
     }
 
     &[disabled] {
-      background: var(--noora-button-background-destructive-disabled);
       box-shadow: var(--noora-button-border-destructive-disabled);
+      background: var(--noora-button-background-destructive-disabled);
       color: var(--noora-button-destructive-disabled-label);
     }
 
@@ -101,8 +101,8 @@
     }
 
     & svg {
-      height: var(--noora-icon-size-small);
       width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
     }
   }
 
@@ -117,8 +117,8 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     & svg {
-      height: var(--noora-icon-size-medium);
       width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 
@@ -126,8 +126,8 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
-      height: var(--noora-icon-size-large);
       width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
     }
   }
 }
@@ -142,8 +142,8 @@
   background: transparent;
 
   &:disabled {
-    color: var(--noora-link-button-disabled-label) !important;
     cursor: not-allowed;
+    color: var(--noora-link-button-disabled-label) !important;
   }
 
   &:not(:disabled)[data-underline] {
@@ -199,11 +199,11 @@
 }
 
 .noora-neutral-button {
-  background: unset;
   cursor: pointer;
+  border-radius: var(--noora-radius-medium);
+  background: unset;
   padding: var(--noora-spacing-3);
   color: var(--noora-button-neutral-label);
-  border-radius: var(--noora-radius-medium);
 
   &:not(:disabled):hover {
     background: var(--noora-button-neutral-background-hover);
@@ -220,22 +220,22 @@
 
   &[data-size="large"] {
     & > svg {
-      height: var(--noora-icon-size-large);
       width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
     }
   }
 
   &[data-size="medium"] {
     & > svg {
-      height: var(--noora-icon-size-medium);
       width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 
   &[data-size="small"] {
     & > svg {
-      height: var(--noora-icon-size-small);
       width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
     }
   }
 }

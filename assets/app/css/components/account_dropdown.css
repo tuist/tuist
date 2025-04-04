@@ -1,15 +1,15 @@
 .account-dropdown {
   display: flex;
   flex-direction: column;
-  padding: unset;
   z-index: var(--noora-z-index-10);
+  padding: unset;
 
   & [data-part="trigger"] {
     align-items: center;
-    background: unset;
-    border: unset;
-    outline: unset;
     cursor: pointer;
+    outline: unset;
+    border: unset;
+    background: unset;
 
     /* Fixing layout shift by initially hiding the positioner */
     & + [data-part="positioner"] {
@@ -26,14 +26,14 @@
   }
 
   & [data-part="content"] {
-    background-color: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-2xlarge);
     box-shadow: var(--noora-border-heavy);
+    border-radius: var(--noora-radius-2xlarge);
+    background-color: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-0) var(--noora-spacing-7);
     & [data-part="header"] {
-      align-items: center;
       display: flex;
       flex-direction: row;
+      align-items: center;
       gap: var(--noora-spacing-6);
       padding-bottom: var(--noora-spacing-2);
 
@@ -44,27 +44,27 @@
         padding: var(--noora-spacing-6) var(--noora-spacing-0);
 
         & [data-part="title"] {
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
         }
         & [data-part="subtitle"] {
-          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
           color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
         }
       }
     }
 
     & [data-part="account_content"] {
-      align-items: flex-start;
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       gap: var(--noora-spacing-8);
       padding-bottom: var(--noora-spacing-8);
 
       & [data-part="actions"] {
-        align-self: stretch;
         display: flex;
         flex-direction: row;
+        align-self: stretch;
         gap: var(--noora-spacing-4);
 
         & span {
@@ -86,14 +86,14 @@
         gap: var(--noora-spacing-5);
 
         & [data-part="theme-switcher-title"] {
-          font: var(--noora-font-weight-medium) var(--noora-font-body-small);
           color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-small);
         }
 
         & [data-part="theme-switcher"] {
-          align-items: stretch;
           display: flex;
           flex-direction: row;
+          align-items: stretch;
           gap: var(--noora-spacing-5);
           height: 92px;
 
@@ -110,14 +110,14 @@
           }
 
           & > * {
+            cursor: pointer;
             border-radius: var(--noora-radius-xlarge);
             padding: var(--noora-spacing-2);
-            cursor: pointer;
           }
 
           & [data-part="theme-light"] > * {
-            color-scheme: light;
             background-color: var(--noora-surface-background-primary);
+            color-scheme: light;
           }
         }
       }

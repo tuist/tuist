@@ -1,12 +1,12 @@
 .error-page {
-  height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: start;
+  margin: 0;
   padding-left: var(--spacing-9xl);
   max-width: 60%;
-  margin: 0;
+  height: 100vh;
 }
 
 .error-page__title {

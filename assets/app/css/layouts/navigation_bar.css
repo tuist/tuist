@@ -1,22 +1,22 @@
 .sidebar {
-  flex-wrap: nowrap;
-  padding: var(--spacing-3xl) var(--spacing-3xl);
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--spacing-lg);
   border-width: 0 1px 0 0;
   border-style: solid;
   border-color: var(--border-secondary);
+  padding: var(--spacing-3xl) var(--spacing-3xl);
   width: 195px;
-  gap: var(--spacing-lg);
 }
 
 @media (max-width: 1024px) {
   .sidebar {
-    padding: var(--spacing-md) var(--spacing-md);
-    width: auto;
     border-width: 1px 0 0 0;
     border-style: solid;
     border-color: var(--border-secondary);
+    padding: var(--spacing-md) var(--spacing-md);
+    width: auto;
   }
 }
 
@@ -53,24 +53,24 @@ nav li {
   }
 
   .sidebar__navigation-list__item {
-    max-width: 100px;
     width: 100px;
+    max-width: 100px;
   }
 }
 
 .sidebar__navigation-list__item a {
-  padding: var(--spacing-md) var(--spacing-lg);
-  background-color: transparent;
-  transition-property: color, background-color;
-  transition-timing-function: var(--timing-function-base);
-  transition-duration: 0.15s;
-  cursor: pointer;
-  border-width: 0;
-  border-radius: var(--radius-sm);
   display: flex;
   flex-grow: 1;
   flex-direction: row;
   align-items: center;
+  transition-duration: 0.15s;
+  transition-property: color, background-color;
+  transition-timing-function: var(--timing-function-base);
+  cursor: pointer;
+  border-width: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .sidebar__navigation-list__item[aria-selected="true"] a {
@@ -80,16 +80,16 @@ nav li {
 
 @media (max-width: 1024px) {
   .sidebar__navigation-list a {
-    padding: var(--spacing-md) var(--spacing-lg);
     display: flex;
     flex-direction: column;
     align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
   }
 }
 
 .sidebar__navigation-list a svg {
-  height: 24px;
   width: 24px;
+  height: 24px;
   stroke: var(--gray-400);
 }
 
@@ -97,17 +97,17 @@ nav li {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-top: var(--spacing-3xl);
   border-width: 1px 0 0 0;
   border-style: solid;
   border-color: var(--border-secondary);
+  padding-top: var(--spacing-3xl);
 }
 
 .sidebar__footer__user-info {
   display: flex;
+  flex-grow: 1;
   flex-direction: column;
   align-items: start;
-  flex-grow: 1;
 }
 
 .sidebar__footer__user-info > * + * {
@@ -132,10 +132,10 @@ nav a:hover svg {
 
 nav ul {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding-left: 0;
   flex-grow: 100;
+  flex-direction: column;
+  padding-left: 0;
+  width: 100%;
 }
 
 footer .user-info {

@@ -7,15 +7,15 @@
   --noora-button-group-active-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
   --noora-button-group-disabled-background: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-1000));
   --noora-button-group-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
-
-  box-shadow: var(--noora-border-light-default);
-  background-color: var(--noora-button-group-background);
-  border-radius: var(--noora-radius-medium);
   display: flex;
   flex-direction: row;
   align-items: center;
-  overflow: hidden;
+
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-medium);
+  background-color: var(--noora-button-group-background);
   padding: var(--noora-spacing-1);
+  overflow: hidden;
 
   &[data-size="small"] {
     gap: var(--noora-spacing-1);
@@ -29,25 +29,25 @@
 .noora-button-group-item {
   --noora-border-button-group: inset 0px 2px 2px 0px oklch(31.82% 0.0113 248.18 / 0.06),
     inset 0px 1px 1px 0px oklch(31.82% 0.0113 248.18 / 0.08);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-1);
+  cursor: pointer;
+  outline: unset;
+  border: unset;
+  border-radius: var(--noora-radius-small);
+
+  background-color: unset;
+  overflow: hidden;
+  color: var(--noora-button-group-label);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  user-select: none;
+  text-decoration: unset;
 
   html[data-theme="dark"] & {
     --noora-border-button-group: inset 0px 3px 3px 0px oklch(0% 0 0 / 0.3), inset 0px 1px 1px 0px oklch(0% 0 0 / 0.3);
   }
-
-  background-color: unset;
-  outline: unset;
-  border: unset;
-  text-decoration: unset;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  flex-direction: row;
-  gap: var(--noora-spacing-1);
-  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-  color: var(--noora-button-group-label);
-  user-select: none;
-  border-radius: var(--noora-radius-small);
-  overflow: hidden;
 
   &:hover {
     background-color: var(--noora-button-group-hover-background);
@@ -76,8 +76,8 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
 
     & svg {
-      height: var(--noora-icon-size-small);
       width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
     }
   }
 
@@ -91,8 +91,8 @@
     }
 
     & svg {
-      height: var(--noora-icon-size-medium);
       width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 
@@ -101,8 +101,8 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
-      height: var(--noora-icon-size-large);
       width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
     }
   }
 }

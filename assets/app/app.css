@@ -11,61 +11,61 @@ body {
 
 body:not(html[data-noora] body) {
   margin: 0;
-  font-family: "Inter", sans-serif;
   background-color: var(--bg-primary);
+  font-family: "Inter", sans-serif;
 }
 
 /* Display 2xl */
 
 h1:not(html[data-noora] h1) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 4.5rem;
   line-height: 5.625rem;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
 }
 
 /* Display xl */
 h2:not(html[data-noora] h2) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 3.75rem;
   line-height: 4.5rem;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
 }
 
 /* Display lg */
 h3:not(html[data-noora] h3) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 3rem;
   line-height: 3.75rem;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
 }
 
 /* Display md */
 h4:not(html[data-noora] h4) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 2.25rem;
   line-height: 2.75rem;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
 }
 
 /* Display sm */
 h5:not(html[data-noora] h5) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 1.5rem;
   line-height: 2rem;
-  color: var(--text-primary);
 }
 
 /* Display xs */
 h6:not(html[data-noora] h6) {
   margin: 0;
+  color: var(--text-primary);
   font-size: 1.125rem;
   line-height: 1.75rem;
-  color: var(--text-primary);
 }
 
 p {
@@ -77,11 +77,11 @@ a {
 }
 
 a:not(html[data-noora] a) {
-  text-decoration: none;
-  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  color: var(--text-secondary);
+  text-decoration: none;
 
   & svg {
     stroke: var(--text-secondary);
@@ -94,15 +94,15 @@ p:not(html[data-noora] p) {
 /* Buttons */
 
 button:not(html[data-noora] button) {
+  display: inline-flex;
+  align-items: center;
+  transition-duration: 0.15s;
   transition-property: color, background-color;
   transition-timing-function: var(--timing-function-base);
-  transition-duration: 0.15s;
-  padding: var(--spacing-md) var(--spacing-lg);
   cursor: pointer;
   border-width: 0;
   border-radius: var(--radius-sm);
-  display: inline-flex;
-  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
 
   & span {
     width: 100%;
@@ -110,19 +110,19 @@ button:not(html[data-noora] button) {
 }
 
 button:not(html[data-noora] button) svg {
+  transition-duration: 0.15s;
   transition-property: stroke;
   transition-timing-function: var(--timing-function-base);
-  transition-duration: 0.15s;
 }
 
 .button--medium {
-  padding: var(--spacing-md) var(--spacing-lg);
   gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .button--small {
-  padding: var(--spacing-md) var(--spacing-lg);
   gap: var(--spacing-xs);
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .button--primary {
@@ -130,9 +130,9 @@ button:not(html[data-noora] button) svg {
   color: var(--button-primary-fg);
 
   &:disabled {
-    color: var(--fg-disabled);
-    background-color: var(--bg-disabled);
     cursor: not-allowed;
+    background-color: var(--bg-disabled);
+    color: var(--fg-disabled);
 
     & svg {
       stroke: var(--fg-disabled);
@@ -146,16 +146,16 @@ button:not(html[data-noora] button) svg {
 }
 
 .button--secondary {
-  background-color: var(--button-secondary-bg);
-  color: var(--button-secondary-fg);
   justify-content: center;
   border: 1px solid var(--button-secondary-border);
   border-radius: var(--radius-md);
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-fg);
 
   &:hover:enabled {
-    color: var(--button-secondary-fg-hover);
-    background-color: var(--button-secondary-bg-hover);
     border-color: var(--button-secondary-border-hover);
+    background-color: var(--button-secondary-bg-hover);
+    color: var(--button-secondary-fg-hover);
 
     & svg {
       stroke: var(--button-secondary-fg-hover);
@@ -163,9 +163,9 @@ button:not(html[data-noora] button) svg {
   }
 
   &:disabled {
-    color: var(--fg-disabled);
-    background-color: var(--bg-primary);
     cursor: not-allowed;
+    background-color: var(--bg-primary);
+    color: var(--fg-disabled);
 
     & svg {
       stroke: var(--fg-disabled);
@@ -174,8 +174,8 @@ button:not(html[data-noora] button) svg {
 
   & svg {
     stroke: var(--button-secondary-fg);
-    height: 20px;
     width: 20px;
+    height: 20px;
   }
 }
 
@@ -188,8 +188,8 @@ button:not(html[data-noora] button) svg {
 }
 
 .button--small.button--icon-only {
-  padding: var(--spacing-sm);
   background-color: transparent;
+  padding: var(--spacing-sm);
 }
 
 .button--tertiary.button--icon-only svg {
@@ -205,8 +205,8 @@ button:not(html[data-noora] button) svg {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: var(--bg-primary);
   border: 1px solid var(--border-primary);
+  background-color: var(--bg-primary);
 
   &:hover {
     background-color: var(--bg-primary-hover);
@@ -238,11 +238,11 @@ svg {
 }
 
 .featured-icon {
-  padding: var(--spacing-lg);
+  display: flex;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   background-color: var(--bg-primary);
-  display: flex;
+  padding: var(--spacing-lg);
 
   & svg {
     stroke: var(--fg-secondary);
@@ -252,14 +252,14 @@ svg {
 /* Loader */
 
 .loader {
-  width: 20px;
-  height: 20px;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+  box-sizing: border-box;
   border: 3px solid var(--fg-primary);
   border-bottom-color: transparent;
   border-radius: 50%;
-  display: inline-block;
-  box-sizing: border-box;
-  animation: rotation 1s linear infinite;
+  width: 20px;
+  height: 20px;
 }
 
 @keyframes rotation {
@@ -287,28 +287,28 @@ svg {
 
 .dropdown-menu {
   position: absolute;
-  margin-top: var(--spacing-md);
-  z-index: 10;
   gap: 0;
-  background-color: var(--bg-primary);
+  z-index: 10;
+  margin-top: var(--spacing-md);
   border: 1px solid var(--border-secondary);
   border-radius: var(--radius-md);
+  background-color: var(--bg-primary);
   overflow: hidden;
 
   & a {
-    border-left: 1px solid var(--border-secondary);
-    border-right: 1px solid var(--border-secondary);
-    padding: var(--spacing-lg) var(--spacing-lg);
-    background-color: transparent;
-    transition-property: color, background-color;
-    transition-timing-function: var(--timing-function-base);
-    transition-duration: 0.15s;
-    cursor: pointer;
-    border-width: 0;
     display: flex;
     flex-grow: 1;
     flex-direction: row;
     align-items: center;
+    transition-duration: 0.15s;
+    transition-property: color, background-color;
+    transition-timing-function: var(--timing-function-base);
+    cursor: pointer;
+    border-right: 1px solid var(--border-secondary);
+    border-left: 1px solid var(--border-secondary);
+    border-width: 0;
+    background-color: transparent;
+    padding: var(--spacing-lg) var(--spacing-lg);
   }
 }
 
@@ -337,9 +337,9 @@ svg {
 .button-group {
   display: flex;
   & button {
-    background-color: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: 0;
+    background-color: var(--bg-primary);
     padding: var(--spacing-md) var(--spacing-xl);
     color: var(--text-secondary);
   }
@@ -370,12 +370,12 @@ svg {
 
 html:not([data-noora]) {
   input {
-    background-color: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-sm);
+    background-color: var(--bg-primary);
     padding: var(--spacing-md) var(--spacing-lg);
-    caret-color: var(--text-primary);
     color: var(--text-primary);
+    caret-color: var(--text-primary);
   }
 
   input::placeholder {
@@ -392,28 +392,28 @@ html:not([data-noora]) {
 
   input[type="radio"] {
     appearance: none;
-    background-color: var(--bg-primary);
+    margin: 0;
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-full);
+    background-color: var(--bg-primary);
+    padding: 0;
     width: 16px;
     height: 16px;
-    padding: 0;
-    margin: 0;
 
     &:focus {
       outline: 4px solid rgba(51, 55, 65, 0.2);
     }
 
     &:checked {
-      background-color: var(--fg-primary);
       border: 5px solid var(--bg-brand-solid);
+      background-color: var(--fg-primary);
     }
   }
 }
 
 .radio-container {
-  flex-grow: 1;
   display: flex;
+  flex-grow: 1;
   align-items: center;
 }
 
@@ -425,13 +425,13 @@ html:not([data-noora]) {
 
 input[type="checkbox"] {
   appearance: none;
-  background-color: var(--bg-primary);
+  margin: 0;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xs);
+  background-color: var(--bg-primary);
+  padding: 0;
   width: 18px;
   height: 18px;
-  padding: 0;
-  margin: 0;
 
   &:focus {
     outline: 4px solid rgba(51, 55, 65, 0.2);
@@ -442,14 +442,14 @@ input[type="checkbox"] {
   }
 
   &:checked:after {
-    position: relative;
     display: block;
+    position: relative;
     top: 2px;
     left: 2px;
+    background-image: url('data:image/svg+xml,<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L4.5 8.5L2 6" stroke="white" stroke-width="1.6666" stroke-linecap="round" stroke-linejoin="round"/></svg>');
     width: 12px;
     height: 12px;
     content: "";
-    background-image: url('data:image/svg+xml,<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L4.5 8.5L2 6" stroke="white" stroke-width="1.6666" stroke-linecap="round" stroke-linejoin="round"/></svg>');
   }
 }
 
@@ -458,8 +458,8 @@ input[type="checkbox"] {
 }
 
 .checkbox-container {
-  flex-grow: 1;
   display: flex;
+  flex-grow: 1;
   align-items: center;
 }
 
@@ -472,11 +472,11 @@ input[type="checkbox"] {
 /* Badge */
 
 .badge {
-  border-radius: var(--radius-full);
-  padding: var(--spacing-xxs) var(--spacing-md);
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  border-radius: var(--radius-full);
+  padding: var(--spacing-xxs) var(--spacing-md);
 
   & svg {
     width: 16px;
@@ -485,15 +485,15 @@ input[type="checkbox"] {
 }
 
 .badge-group {
+  margin: 0;
   border-radius: var(--radius-full);
   padding: 0;
-  margin: 0;
 
   & svg {
     stroke: var(--utility-error-500);
+    padding-right: var(--spacing-md);
     width: 16px;
     height: 16px;
-    padding-right: var(--spacing-md);
   }
 
   & span {
@@ -502,8 +502,8 @@ input[type="checkbox"] {
 }
 
 .badge--warning {
-  background-color: var(--utility-warning-50);
   border: 1px solid var(--utility-warning-200);
+  background-color: var(--utility-warning-50);
 
   & svg {
     stroke: var(--utility-warning-500);
@@ -515,8 +515,8 @@ input[type="checkbox"] {
 }
 
 .badge--brand {
-  background-color: var(--utility-brand-50);
   border: 1px solid var(--utility-brand-200);
+  background-color: var(--utility-brand-50);
 
   & svg {
     stroke: var(--utility-brand-500);
@@ -528,8 +528,8 @@ input[type="checkbox"] {
 }
 
 .badge--brand_subtle {
-  background-color: var(--utility-brand-100);
   border: 1px solid var(--utility-brand-200);
+  background-color: var(--utility-brand-100);
 
   & .badge__text {
     color: var(--utility-brand-700);
@@ -537,8 +537,8 @@ input[type="checkbox"] {
 }
 
 .badge--neutral {
-  background-color: var(--utility-gray-50);
   border: 1px solid var(--utility-gray-200);
+  background-color: var(--utility-gray-50);
 
   & svg {
     stroke: var(--utility-gray-500);
@@ -550,8 +550,8 @@ input[type="checkbox"] {
 }
 
 .badge--success {
-  background-color: var(--utility-success-50);
   border: 1px solid var(--utility-success-200);
+  background-color: var(--utility-success-50);
 
   & svg {
     stroke: var(--utility-success-500);
@@ -563,8 +563,8 @@ input[type="checkbox"] {
 }
 
 .badge--success {
-  background-color: var(--utility-success-50);
   border: 1px solid var(--utility-success-200);
+  background-color: var(--utility-success-50);
 
   & svg {
     stroke: var(--utility-success-500);
@@ -576,8 +576,8 @@ input[type="checkbox"] {
 }
 
 .badge--error {
-  background-color: var(--utility-error-50);
   border: 1px solid var(--utility-error-200);
+  background-color: var(--utility-error-50);
 
   & svg {
     stroke: var(--utility-error-500);
@@ -588,8 +588,8 @@ input[type="checkbox"] {
   }
 
   & .badge__type {
-    color: var(--utility-error-700);
     border: 1px solid var(--utility-error-200);
+    color: var(--utility-error-700);
   }
 
   & .badge__text {
@@ -598,8 +598,8 @@ input[type="checkbox"] {
 }
 
 .badge--info {
-  background-color: var(--bg-primary);
   border: 1px solid var(--utility-gray-200);
+  background-color: var(--bg-primary);
 
   & svg {
     stroke: var(--utility-gray-500);
@@ -610,8 +610,8 @@ input[type="checkbox"] {
   }
 
   & .badge__type {
-    color: var(--utility-gray-700);
     border: 1px solid var(--utility-gray-200);
+    color: var(--utility-gray-700);
   }
 
   & .badge__text {
@@ -620,10 +620,10 @@ input[type="checkbox"] {
 }
 
 .badge__type {
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-full);
-  padding: var(--spacing-xxs) var(--spacing-md);
   margin: var(--spacing-xs);
+  border-radius: var(--radius-full);
+  background-color: var(--bg-primary);
+  padding: var(--spacing-xxs) var(--spacing-md);
 }
 
 .badge__text {
@@ -634,16 +634,16 @@ input[type="checkbox"] {
 
 .flash-group {
   display: flex;
-  align-items: center;
   flex-direction: column;
+  align-items: center;
 }
 
 /* Card */
 
 .card {
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-xl);
   border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg-primary);
   padding: var(--spacing-3xl);
 }
 
@@ -664,14 +664,14 @@ input[type="checkbox"] {
 .table-container__footer {
   display: flex;
   justify-content: center;
-  padding: var(--spacing-xl);
-  border-top: 1px solid var(--border-secondary);
   gap: var(--spacing-none);
+  border-top: 1px solid var(--border-secondary);
+  padding: var(--spacing-xl);
 }
 
 .table-container__empty-state {
-  padding: var(--spacing-5xl);
   align-items: center;
+  padding: var(--spacing-5xl);
 
   & p {
     text-align: center;
@@ -683,22 +683,22 @@ input[type="checkbox"] {
 }
 
 table:not(html[data-noora] table) {
-  width: 100%;
   border-spacing: 0;
+  width: 100%;
 
   & th {
-    padding: var(--spacing-lg) var(--spacing-3xl);
-    text-align: start;
-    color: var(--text-tertiary);
-    line-height: var(--line-height-text-small);
-    font-size: var(--font-size-text-small);
-    font-weight: var(--font-weight-medium);
     background-color: var(--bg-secondary);
+    padding: var(--spacing-lg) var(--spacing-3xl);
+    color: var(--text-tertiary);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-text-small);
+    line-height: var(--line-height-text-small);
+    text-align: start;
   }
 
   & td {
-    padding: var(--spacing-lg) 0;
     border-top: 1px solid var(--border-secondary);
+    padding: var(--spacing-lg) 0;
     color: var(--text-primary);
   }
 
@@ -718,9 +718,9 @@ table:not(html[data-noora] table) {
 .tuist-pagination {
   display: flex;
   flex-direction: row;
+  justify-content: center;
   align-items: center;
   gap: var(--noora-spacing-4);
-  justify-content: center;
 }
 
 .pagination {
@@ -758,57 +758,56 @@ table:not(html[data-noora] table) {
 /* Page */
 
 .page {
-  flex-basis: 0;
   flex-grow: 999;
+  flex-basis: 0;
   min-inline-size: 50%;
 }
 
 /* Modal */
 
 .modal {
+  display: none;
   position: relative;
   z-index: 50;
-  display: none;
 }
 
 .modal__background {
   position: fixed;
+  opacity: 0.9;
   filter: blur(4px);
+  transition-duration: 150ms;
+
+  transition-property: opacity;
+  transition-timing-function: var(--timing-function-base);
+  inset: 0px;
   /* bg-zinc-50/90 */
   /* background-color: red; */
   background-color: var(--bg-overlay);
-  opacity: 0.9;
-  inset: 0px;
-
-  transition-property: opacity;
-  transition-timing-function: var(--timing-function-base);
-  transition-duration: 150ms;
 }
 
 .modal__dialog {
+  display: flex;
   /* fixed inset-0 overflow-y-auto */
   position: fixed;
-  inset: 0;
-  overflow-y: auto;
-
-  display: flex;
-  min-height: 100vh;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  inset: 0;
   width: 100%;
+  min-height: 100vh;
+  overflow-y: auto;
 }
 
 .modal__dialog__container {
-  position: relative;
   display: none;
+  position: relative;
+  transition-duration: 150ms;
   transition-property: opacity;
   transition-timing-function: var(--timing-function-base);
-  transition-duration: 150ms;
-
-  padding: var(--spacing-3xl);
-  background-color: var(--bg-primary);
   border: 1px solid var(--border-secondary);
   border-radius: var(--radius-lg);
+  background-color: var(--bg-primary);
+
+  padding: var(--spacing-3xl);
 }
 
 .modal__dialog__container__content {
@@ -824,12 +823,12 @@ table:not(html[data-noora] table) {
 /* Progress bar */
 
 progress[value] {
-  height: 8px;
   -webkit-appearance: none;
   appearance: none;
-  border-radius: var(--radius-md);
   border: none;
+  border-radius: var(--radius-md);
   background-color: var(--bg-quaternary);
+  height: 8px;
 }
 
 progress[value]::-webkit-progress-bar {
@@ -852,8 +851,8 @@ progress[value]::-moz-progress-bar {
 /* Switch */
 
 .switch {
-  position: relative;
   display: inline-block;
+  position: relative;
   width: 36px;
   height: 20px;
 }
@@ -866,28 +865,28 @@ progress[value]::-moz-progress-bar {
 
 .slider {
   position: absolute;
-  cursor: pointer;
   top: 0;
-  left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--bg-tertiary);
+  left: 0;
   -webkit-transition: 0.4s;
   transition: 0.4s;
+  cursor: pointer;
   border-radius: var(--radius-full);
+  background-color: var(--bg-tertiary);
 }
 
 .slider:before {
   position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: var(--spacing-xxs);
   bottom: var(--spacing-xxs);
-  background-color: var(--fg-white);
+  left: var(--spacing-xxs);
   -webkit-transition: 0.4s;
   transition: 0.4s;
   border-radius: var(--radius-full);
+  background-color: var(--fg-white);
+  width: 16px;
+  height: 16px;
+  content: "";
 }
 
 input:checked + .slider {
@@ -933,9 +932,9 @@ input:checked + .slider:before {
 
   & .noora-tooltip {
     display: inline-block;
-    color: var(--noora-surface-label-secondary);
     width: 16px;
     height: 16px;
+    color: var(--noora-surface-label-secondary);
 
     & svg {
       width: 100%;
@@ -949,9 +948,9 @@ input:checked + .slider:before {
   }
 
   & [data-part="trend"] {
-    align-items: center;
     display: flex;
     flex-direction: row;
+    align-items: center;
     gap: var(--noora-spacing-3);
 
     & [data-part="label"] {
@@ -961,15 +960,15 @@ input:checked + .slider:before {
 }
 
 .tuist-legend {
-  padding-bottom: var(--noora-spacing-7);
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-5);
+  padding-bottom: var(--noora-spacing-7);
 
   & > [data-part="header"] {
-    align-items: stretch;
     display: flex;
     flex-direction: row;
+    align-items: stretch;
     gap: var(--noora-spacing-3);
 
     & [data-part="indicator"] {

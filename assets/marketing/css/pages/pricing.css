@@ -1,9 +1,9 @@
 .marketing__pricing {
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-72);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -22,32 +22,32 @@
 .marketing__pricing__gradient {
   position: absolute;
   top: 0;
-  left: 0;
   right: 0;
-  height: 50vh;
-  background: red;
+  left: 0;
   z-index: -1;
+  background: red;
   background: linear-gradient(to bottom, var(--lime), white);
+  height: 50vh;
 }
 
 .marketing__pricing__header__title {
-  font: var(--font-xxxl-strong);
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-xxxl-strong);
 }
 
 .marketing__pricing__header__subtitle {
-  font: var(--font-l);
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-l);
   text-align: center;
 }
 
 .marketing__pricing__plans {
   display: flex;
   flex-direction: row;
-  gap: var(--spacing-24);
   align-self: stretch;
+  gap: var(--spacing-24);
 }
 
 @media (max-width: 1024px) {
@@ -58,25 +58,25 @@
 }
 
 .marketing__pricing__plans__plan {
-  position: relative;
-  background: var(--white);
-  padding: 0 var(--spacing-32) var(--spacing-32) var(--spacing-32);
-  border-radius: var(--radius-xl);
   display: flex;
+  position: relative;
+
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-24);
-
-  flex: 1;
+  border-radius: var(--radius-xl);
+  background: var(--white);
+  padding: 0 var(--spacing-32) var(--spacing-32) var(--spacing-32);
   &[data-popular] {
     border-width: 4px;
-    border-color: var(--medium-violet);
     border-style: solid;
+    border-color: var(--medium-violet);
   }
   &:not([data-popular]) {
     border-width: 2px;
-    border-color: var(--gray-violet);
     border-style: solid;
+    border-color: var(--gray-violet);
 
     & .marketing__pricing__plans__plan__badge {
       display: none;
@@ -85,23 +85,23 @@
 }
 
 .marketing__pricing__plans__plan__badge {
-  color: var(--lime);
   position: absolute;
   top: calc(-0.5 * 26px - var(--spacing-4));
-  margin-bottom: 20px;
-  text-transform: uppercase;
-  font: var(--font-m-strong);
-  background: var(--dark-violet);
-  border-radius: var(--radius-full);
-  padding: var(--spacing-8) var(--spacing-16);
   align-self: center;
+  margin-bottom: 20px;
+  border-radius: var(--radius-full);
+  background: var(--dark-violet);
+  padding: var(--spacing-8) var(--spacing-16);
+  color: var(--lime);
+  font: var(--font-m-strong);
+  text-transform: uppercase;
 }
 
 .marketing__pricing__plans__plan__name {
   margin: 0;
-  font: var(--font-xl-strong);
   padding-top: var(--spacing-32);
   color: var(--dark-violet);
+  font: var(--font-xl-strong);
 }
 
 .marketing__pricing__plans__plan__description {
@@ -111,8 +111,8 @@
 }
 
 .marketing__pricing__plans__plan__price {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
   font: var(--font-xxl);
 }
 
@@ -121,9 +121,9 @@
 }
 
 .marketing__pricing__plans__plan__cta__separator {
-  background: var(--gray-violet);
   flex: 0 0 2px;
   align-self: stretch;
+  background: var(--gray-violet);
 }
 
 .marketing__pricing__plans__plan__features {
@@ -131,8 +131,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-16);
-  padding-left: 0;
   margin-left: 0;
+  padding-left: 0;
 }
 
 .marketing__pricing__plans__plan__feature {
@@ -177,19 +177,19 @@
 }
 
 .marketing__pricing__plans__plan__bottom_badges__badge {
+  border-radius: var(--radius-full);
+  background: var(--gray-violet);
+  padding: var(--spacing-8) var(--spacing-16);
   color: var(--dark-violet);
   font: var(--font-xs);
-  background: var(--gray-violet);
-  border-radius: var(--radius-full);
-  padding: var(--spacing-8) var(--spacing-16);
 }
 
 .marketing__pricing__features__mobile {
   display: none;
   flex-direction: column;
-  gap: var(--spacing-24);
-  align-self: stretch;
   align-items: stretch;
+  align-self: stretch;
+  gap: var(--spacing-24);
 }
 
 @media (max-width: 1024px) {
@@ -199,20 +199,20 @@
 }
 
 .marketing__pricing__features__mobile__feature {
-  padding: var(--spacing-16);
-  border-radius: var(--radius-l);
-  border-style: solid;
-  border-width: 2px;
-  border-color: var(--gray-violet);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-8);
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--gray-violet);
+  border-radius: var(--radius-l);
+  padding: var(--spacing-16);
 }
 
 .marketing__pricing__features__mobile__feature__title {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-xs-strong);
-  margin: 0;
 }
 
 .marketing__pricing__features__mobile__feature__title__share_icon {
@@ -246,15 +246,15 @@
 }
 
 .marketing__pricing__paired_with__title {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-xxl-strong);
-  margin: 0;
 }
 
 .marketing__pricing__paired_with__subtitle {
+  margin-top: var(--spacing-8);
   color: var(--dark-violet);
   font: var(--font-l);
-  margin-top: var(--spacing-8);
 }
 
 .marketing__pricing__paired_with__companies {
@@ -268,14 +268,14 @@
 }
 
 .marketing__pricing__paired_with__companies__company {
-  background: var(--light-gray-violet);
-  border-radius: var(--radius-l);
-  padding: var(--spacing-32);
-  text-decoration: none;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--spacing-24);
-  flex: 1;
+  border-radius: var(--radius-l);
+  background: var(--light-gray-violet);
+  padding: var(--spacing-32);
+  text-decoration: none;
   &:hover {
     background: var(--gray-violet);
   }
@@ -286,63 +286,63 @@
 }
 
 .marketing__pricing__paired_with__companies__company__name {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-xl-strong);
-  margin: 0;
 }
 
 .marketing__pricing__paired_with__companies__company__description {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-m);
-  margin: 0;
 }
 
 .marketing__pricing__features__header {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--spacing-8);
   align-self: stretch;
+  gap: var(--spacing-8);
 }
 
 .marketing__pricing__features__header__title {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-xxl-strong);
-  margin: 0;
 }
 
 .marketing__pricing__features__header__subtitle {
-  font: var(--font-l);
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-l);
   text-align: center;
   text-align: left;
 }
 
 .marketing__pricing__features__desktop {
   align-self: stretch;
-  width: 100%;
   border: 1px solid var(--gray-violet);
+  border-radius: var(--radius-xl);
   border-collapse: separate;
   border-spacing: 0;
-  border-radius: var(--radius-xl);
+  width: 100%;
   overflow: hidden;
 
   & th,
   & td {
     padding: var(--spacing-16);
-    text-align: center;
     width: 25%;
+    text-align: center;
   }
 
   & th {
-    border-bottom: 1px solid var(--gray-violet);
     border-right: 1px solid var(--gray-violet);
+    border-bottom: 1px solid var(--gray-violet);
   }
 
   & td {
-    border-bottom: 1px solid var(--gray-violet);
     border-right: 1px solid var(--gray-violet);
+    border-bottom: 1px solid var(--gray-violet);
   }
 
   & th:first-child {
@@ -397,11 +397,11 @@
 
 .marketing__pricing__features__desktop__row__feature__name {
   display: block;
-  text-align: left;
+  color: var(--dark-violet);
   font: var(--font-xs-strong);
   text-align: left;
+  text-align: left;
   text-decoration: none;
-  color: var(--dark-violet);
 
   &:visited {
     color: var(--dark-violet);
@@ -431,9 +431,9 @@
 }
 
 .marketing__pricing__faq__title {
+  margin: 0;
   color: var(--dark-violet);
   font: var(--font-xxl-strong);
-  margin: 0;
 }
 
 .marketing__pricing__faq__questions {
@@ -443,11 +443,11 @@
 }
 
 .marketing__pricing__faq__item {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--dark-violet);
   border-radius: var(--radius-xl);
   border-radius: var(--radius-l);
-  border-style: solid;
-  border-width: 2px;
-  border-color: var(--dark-violet);
 
   &:not([data-open]) {
     .marketing__pricing__faq__item__answer {
@@ -475,31 +475,31 @@
 }
 
 .marketing__pricing__faq__item__question {
-  width: 100%;
-  font: var(--font-m-strong);
-  color: var(--dark-violet);
   display: flex;
   flex-direction: row;
   gap: var(--spacing-8);
   cursor: pointer;
-  padding: var(--spacing-24) var(--spacing-32);
-  background: none;
-  border: none;
   outline: none;
+  border: none;
+  background: none;
+  padding: var(--spacing-24) var(--spacing-32);
+  width: 100%;
+  color: var(--dark-violet);
+  font: var(--font-m-strong);
 }
 
 .marketing__pricing__faq__item__question__question {
-  text-align: left;
   flex: 1;
+  text-align: left;
 }
 
 .marketing__pricing__faq__item__answer {
+  border-bottom-right-radius: var(--radius-l);
+  border-bottom-left-radius: var(--radius-l);
+  background: var(--gray-violet);
+  padding: var(--spacing-24) var(--spacing-32);
   color: var(--dark-violet);
   font: var(--font-xs);
-  padding: var(--spacing-24) var(--spacing-32);
-  background: var(--gray-violet);
-  border-bottom-left-radius: var(--radius-l);
-  border-bottom-right-radius: var(--radius-l);
 
   & a {
     color: var(--dark-violet);

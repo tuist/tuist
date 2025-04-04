@@ -25,8 +25,8 @@
   & [data-part="analytics-chart"] {
     display: flex;
     flex-direction: column;
-    padding: var(--noora-spacing-5);
     gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
   }
 
   & > [data-part="analytics"] {

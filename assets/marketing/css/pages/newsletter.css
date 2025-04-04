@@ -14,14 +14,14 @@
 }
 
 .marketing__newsletter__description {
-  font: var(--font-m);
   color: var(--dark-violet);
+  font: var(--font-m);
 }
 
 .marketing__newsletter__subscribe__title {
-  font: var(--font-xxl-strong);
-  color: var(--violet);
   margin: var(--spacing-48) 0 var(--spacing-16) 0;
+  color: var(--violet);
+  font: var(--font-xxl-strong);
 }
 
 .marketing__newsletter__subscribe__title__form {
@@ -31,17 +31,17 @@
 }
 
 .marketing__newsletter__subscribe__title__form__description {
-  font: var(--font-m);
   color: var(--dark-violet);
+  font: var(--font-m);
 }
 
 .marketing__newsletter__subscribe__title__form__field {
   border: initial;
+  border-radius: var(--radius-m);
   background: var(--light-gray-violet);
   padding: var(--spacing-8);
-  font: var(--font-m);
   color: var(--violet);
-  border-radius: var(--radius-m);
+  font: var(--font-m);
 
   &:focus {
     outline: var(--violet) 2px solid;

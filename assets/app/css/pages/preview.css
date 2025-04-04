@@ -1,8 +1,8 @@
 .preview {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   gap: var(--spacing-lg);
 }
 
@@ -19,13 +19,13 @@
 }
 
 .preview__header__icon {
-  object-fit: contain;
-  height: 70px;
-  width: 70px;
-  flex-direction: row;
   display: flex;
+  flex-direction: row;
   align-items: center;
   border-radius: 10px;
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
 }
 
 .preview__header__metadata {
@@ -36,8 +36,8 @@
 }
 
 .preview__header__metadata__title {
-  font: var(--text-extra-large-regular);
   color: var(--text-primary);
+  font: var(--text-extra-large-regular);
 }
 
 .preview__header__metadata__subtitle {
@@ -45,21 +45,21 @@
 }
 
 .preview__header__download-text {
-  font: var(--text-small-regular);
   color: var(--text-primary);
+  font: var(--text-small-regular);
 }
 
 .preview__extra-metadata {
-  background-color: var(--bg-secondary);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-radius: var(--radius-sm);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   column-gap: var(--spacing-5xl);
   row-gap: var(--spacing-lg);
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg) var(--spacing-xl);
   width: 100%;
   max-width: 800px;
-  box-sizing: border-box;
 }
 
 @media (max-width: 1024px) {
@@ -69,13 +69,13 @@
 }
 
 .preview__extra-metadata-item__title {
-  font: var(--text-medium-regular);
   color: var(--text-primary);
+  font: var(--text-medium-regular);
 }
 
 .preview__extra-metadata-item__value {
-  font: var(--text-small-regular);
   color: var(--text-secondary);
+  font: var(--text-small-regular);
 }
 
 .preview__qr-code {
@@ -83,18 +83,18 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-lg);
-  background-color: var(--bg-secondary);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-radius: var(--radius-sm);
-  width: 100%;
-  max-width: 800px;
   box-sizing: border-box;
   margin-top: var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  width: 100%;
+  max-width: 800px;
 }
 
 .preview__qr-code__title {
-  font: var(--text-medium-regular);
   color: var(--text-primary);
+  font: var(--text-medium-regular);
 }
 
 .preview__qr-code__image {

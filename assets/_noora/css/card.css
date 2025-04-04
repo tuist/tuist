@@ -1,63 +1,63 @@
 .noora-card {
-  align-items: stretch;
-  background: var(--noora-surface-background-tertiary);
-  border-radius: var(--noora-radius-2xlarge);
-  box-shadow: var(--noora-border-section);
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: var(--noora-spacing-5);
+  box-shadow: var(--noora-border-section);
+  border-radius: var(--noora-radius-2xlarge);
+  background: var(--noora-surface-background-tertiary);
   justify-section: center;
-  padding: var(--noora-spacing-4);
   box-sizing: border-box;
+  padding: var(--noora-spacing-4);
 
   & > [data-part="header"] {
-    align-items: center;
-    box-sizing: border-box;
     display: flex;
+    align-items: center;
     gap: var(--noora-spacing-3);
+    box-sizing: border-box;
     padding: var(--noora-spacing-1) var(--noora-spacing-4);
     width: 100%;
 
     & [data-part="icon"] {
-      background: var(--noora-surface-background-primary);
-      border-radius: var(--noora-radius-medium);
-      box-shadow: var(--noora-border-light-default);
-      color: var(--noora-surface-label-primary);
       display: flex;
       gap: 10px;
-      height: var(--noora-icon-size-medium);
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-medium);
+      background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-3);
       width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+      color: var(--noora-surface-label-primary);
 
       & svg {
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
     }
 
     & [data-part="title"] {
-      color: var(--noora-surface-label-primary);
       display: inline-flex;
       flex: 1 0 0;
+      color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
 
     & [data-part="actions"] {
-      align-items: center;
       display: flex;
+      align-items: center;
       gap: var(--noora-spacing-4);
     }
   }
 }
 
 .noora-card__section {
-  background: var(--noora-surface-background-primary);
-  border-radius: var(--noora-radius-large);
-  box-shadow: var(--noora-border-light-default);
-  box-sizing: border-box;
-  color: var(--noora-surface-label-primary);
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-5);
+  box-sizing: border-box;
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-large);
+  background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-7);
+  color: var(--noora-surface-label-primary);
 }

@@ -1,6 +1,6 @@
 .run-detail {
-  margin-bottom: var(--spacing-4xl);
   margin-right: var(--spacing-4xl);
+  margin-bottom: var(--spacing-4xl);
 }
 
 .run-detail__header {
@@ -13,8 +13,8 @@
 
 .run-detail__target-breakdown__table {
   flex-grow: 6;
-  overflow-y: auto;
   max-height: 420px;
+  overflow-y: auto;
 
   & th {
     position: sticky;
@@ -41,6 +41,6 @@
 
 .run-detail__details__row__value {
   display: flex;
-  align-items: start;
   flex: 4;
+  align-items: start;
 }

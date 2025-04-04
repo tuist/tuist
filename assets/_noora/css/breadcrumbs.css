@@ -2,22 +2,22 @@
   --noora-breadcrumb-icon: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-300));
   --noora-breadcrumb-label: light-dark(var(--nora-neutral-light-1100), var(--noora-neutral-dark-50));
   --noora-breadcrumb-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
-
-  align-items: center;
   display: flex;
   flex-direction: row;
+
+  align-items: center;
   z-index: 100;
 
   & [data-part="slash"],
   & [data-part="arrow"] {
-    color: var(--noora-breadcrumb-icon);
-    height: var(--noora-icon-size-large);
     padding: 0 var(--noora-spacing-2);
     width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+    color: var(--noora-breadcrumb-icon);
 
     & svg {
-      height: 100%;
       width: 100%;
+      height: 100%;
     }
   }
 
@@ -35,29 +35,29 @@
   gap: var(--noora-spacing-2);
 
   & [data-part="trigger"] {
-    align-items: center;
-    background: unset;
-    border: unset;
-    cursor: pointer;
     display: flex;
-    font: var(--noora-font-body-medium);
+    align-items: center;
     gap: var(--noora-spacing-2);
+    cursor: pointer;
     outline: unset;
+    border: unset;
+    background: unset;
     padding: var(--noora-spacing-2);
+    font: var(--noora-font-body-medium);
 
     &:not(:has([data-part="icon"], [data-part="avatar"])) {
       padding: var(--noora-spacing-3) var(--noora-spacing-2) var(--noora-spacing-3) var(--noora-spacing-4);
     }
 
     & [data-part="icon"] {
-      color: var(--noora-breadcrumb-icon);
       flex-shrink: 0;
-      height: var(--noora-icon-size-medium);
       width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+      color: var(--noora-breadcrumb-icon);
 
       & svg {
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
     }
 
@@ -69,9 +69,9 @@
     &[data-state="open"],
     &:active,
     &:hover {
-      background-color: var(--noora-breadcrumb-background);
-      border-radius: var(--noora-radius-medium);
       box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-medium);
+      background-color: var(--noora-breadcrumb-background);
     }
 
     /* Fixing layout shift by initially hiding the positioner */
@@ -85,16 +85,16 @@
   }
 
   & [data-part="selector"] {
-    align-items: center;
-    color: var(--noora-breadcrumb-icon);
     display: inline-flex;
     flex-shrink: 0;
-    height: var(--noora-icon-size-medium);
+    align-items: center;
     width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+    color: var(--noora-breadcrumb-icon);
 
     & svg {
-      height: 100%;
       width: 100%;
+      height: 100%;
     }
   }
 

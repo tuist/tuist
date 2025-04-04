@@ -1,8 +1,8 @@
 .noora-hint-text {
-  align-items: center;
   display: inline-flex;
-  font: var(--noora-font-body-small);
+  align-items: center;
   gap: var(--noora-spacing-2);
+  font: var(--noora-font-body-small);
 
   & svg {
     width: var(--noora-icon-size-medium);

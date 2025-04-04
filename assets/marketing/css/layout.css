@@ -15,9 +15,9 @@ body {
 .marketing__header__bar {
   display: flex;
   flex-direction: row;
+  justify-content: space-between;
   align-items: center;
   padding: var(--spacing-16) var(--spacing-96);
-  justify-content: space-between;
 }
 
 @media (max-width: 1024px) {
@@ -43,16 +43,16 @@ body {
 }
 
 .marketing__header__bar__title__link__text {
-  font-family: var(--font-grotesk);
-  font-weight: 700;
-  font-style: normal;
-  font-size: 24px;
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
+  font-style: normal;
+  font-weight: 700;
+  font-size: 24px;
+  font-family: var(--font-grotesk);
 
   & > a {
-    text-decoration: none;
     color: var(--dark-violet);
+    text-decoration: none;
 
     &:hover {
       color: var(--dark-violet);
@@ -84,32 +84,32 @@ body {
 
 .marketing__header__menu__button {
   display: none;
-  background: none;
-  border: none;
-  padding: 0;
+  cursor: pointer;
   margin: 0;
+  border: none;
+  background: none;
+  padding: 0;
   color: inherit;
   font: inherit;
-  cursor: pointer;
 }
 
 @media (max-width: 1024px) {
   .marketing__header__menu__button {
     display: block;
-    color: var(--violet);
     cursor: pointer;
+    color: var(--violet);
   }
 }
 
 .marketing__header__bar__links__link {
-  white-space: nowrap;
   display: flex;
   flex-direction: row;
   align-items: center;
-  color: var(--dark-violet);
   gap: var(--spacing-4);
-  text-decoration: none;
+  color: var(--dark-violet);
   font: var(--font-xxs);
+  text-decoration: none;
+  white-space: nowrap;
 
   &:visited {
     text-decoration: none;
@@ -130,23 +130,23 @@ body {
   font: var(--font-xxs);
 }
 .marketing__header__bar__app-lifecycle {
-  z-index: 10;
   display: none;
   position: absolute;
-  max-width: 100%;
-  padding: var(--spacing-48) 80px;
-  background: var(--off-white);
   grid-template-columns: repeat(4, 1fr);
   grid-auto-flow: column;
   column-gap: var(--spacing-48);
+  z-index: 10;
+  background: var(--off-white);
+  padding: var(--spacing-48) 80px;
+  max-width: 100%;
 }
 
 .marketing__header__bar__app-lifecycle__phase {
   display: grid;
   grid-template-rows: auto;
   row-gap: var(--spacing-16);
-  text-decoration: none;
   color: var(--medium-violet);
+  text-decoration: none;
 
   &:hover {
     color: var(--violet);
@@ -154,13 +154,13 @@ body {
 }
 
 .marketing__header__bar__app-lifecycle__phase__title {
+  cursor: pointer;
   margin: 0px 0px;
   font: var(--font-m-strong);
-  cursor: pointer;
 
   > a {
-    text-decoration: none;
     color: var(--medium-violet);
+    text-decoration: none;
 
     &:visited {
       color: var(--medium-violet);
@@ -180,44 +180,44 @@ body {
 }
 
 .marketing__header__bar__developers {
-  z-index: 10;
   display: none;
   position: absolute;
-  max-width: 100%;
-  padding: var(--spacing-48) 80px;
-  background: var(--off-white);
-  grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(2, auto);
+  grid-template-columns: repeat(3, 1fr);
   grid-auto-flow: column;
   column-gap: var(--spacing-48);
   row-gap: var(--spacing-32);
+  z-index: 10;
+  background: var(--off-white);
+  padding: var(--spacing-48) 80px;
+  max-width: 100%;
 }
 
 .marketing__header__bar__developers__phase {
   display: grid;
   grid-template-rows: auto;
   row-gap: var(--spacing-16);
-  text-decoration: none;
   color: var(--medium-violet);
+  text-decoration: none;
 
   &:hover {
     color: var(--violet);
   }
 
   &:first-child {
-    grid-column: 1 / span 1;
     grid-row: 1 / span 2;
+    grid-column: 1 / span 1;
   }
 }
 
 .marketing__header__bar__developers__phase__title {
-  margin: 0px 0px;
   cursor: pointer;
+  margin: 0px 0px;
   font: var(--font-m-strong);
 
   > a {
-    text-decoration: none;
     color: var(--medium-violet);
+    text-decoration: none;
 
     &:visited {
       color: var(--medium-violet);
@@ -236,37 +236,37 @@ body {
 }
 
 .marketing__header__bar__mobile__menu {
+  display: none;
   position: fixed;
   top: 0;
   right: 0;
-  left: 0;
   bottom: 0;
+  left: 0;
+  flex-direction: column;
   z-index: 1000;
   background: var(--dark-violet);
-  display: none;
-  flex-direction: column;
-  max-height: calc(100vh - env(safe-area-inset-bottom));
-  height: 100%;
-  overflow-y: auto;
   padding-bottom: env(safe-area-inset-bottom);
+  height: 100%;
+  max-height: calc(100vh - env(safe-area-inset-bottom));
+  overflow-y: auto;
 }
 
 .marketing__header__bar__mobile__menu__main {
-  padding: var(--spacing-48) var(--spacing-24);
   display: flex;
-  flex-direction: column;
   flex-grow: 1;
-  overflow-y: auto;
+  flex-direction: column;
   box-sizing: border-box;
+  padding: var(--spacing-48) var(--spacing-24);
+  overflow-y: auto;
 }
 
 .marketing__header__bar__mobile__menu__main__dropdown {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-16);
-  padding: var(--spacing-8) 0;
 
   background: var(--dark-violet);
+  padding: var(--spacing-8) 0;
 
   &[data-collapsed="false"] {
     & .marketing__header__bar__mobile__menu__main__dropdown__header {
@@ -274,11 +274,11 @@ body {
     }
     & .marketing__header__bar__mobile__menu__main__dropdown__header__children {
       display: flex;
-      max-height: 1000px;
       opacity: 1;
       transition:
         max-height 0.5s ease-in-out,
         opacity 0.5s ease;
+      max-height: 1000px;
     }
   }
   &[data-collapsed="true"] {
@@ -298,11 +298,11 @@ body {
     }
     & .marketing__header__bar__mobile__menu__main__dropdown__header__children {
       display: flex;
-      max-height: 0;
-      overflow: hidden;
       transition:
         opacity 0.5s ease,
         max-height 0.5s ease;
+      max-height: 0;
+      overflow: hidden;
     }
   }
 }
@@ -310,8 +310,8 @@ body {
 .marketing__header__bar__mobile__menu__main__dropdown__header {
   display: flex;
   flex-direction: row;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   cursor: pointer;
 }
 
@@ -342,12 +342,12 @@ body {
 }
 
 .marketing__header__bar__mobile__menu__header {
-  padding: var(--spacing-16) var(--spacing-24);
   display: flex;
   flex: 1;
-  justify-content: space-between;
   flex-direction: row;
+  justify-content: space-between;
   align-items: center;
+  padding: var(--spacing-16) var(--spacing-24);
 }
 
 .marketing__header__bar__mobile__menu__header__title {
@@ -358,10 +358,10 @@ body {
 }
 
 .marketing__header__bar__mobile__menu__header__title__text {
-  font-family: var(--font-grotesk);
-  font-weight: 700;
   font-style: normal;
+  font-weight: 700;
   font-size: 24px;
+  font-family: var(--font-grotesk);
 }
 
 .marketing__header__bar__mobile__menu__header__title__logo {
@@ -370,13 +370,13 @@ body {
 }
 
 .marketing__header__bar__mobile__menu__header__close {
-  background: none;
-  border: none;
-  padding: 0;
+  cursor: pointer;
   margin: 0;
+  border: none;
+  background: none;
+  padding: 0;
   color: inherit;
   font: inherit;
-  cursor: pointer;
 
   & > svg {
     color: var(--light-violet);
@@ -384,26 +384,26 @@ body {
 }
 
 .marketing__header__bar__mobile__menu__header__title__text {
-  color: white;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  color: white;
 }
 
 .marketing__header__bar__mobile__menu__main__footer {
   display: flex;
   flex-direction: column;
   align-items: start;
-  padding-top: var(--spacing-72);
   gap: var(--spacing-48);
   background: var(--dark-violet);
+  padding-top: var(--spacing-72);
 }
 
 .marketing__header__bar__mobile__menu__main__footer__links {
-  color: white;
   display: flex;
   flex-direction: column;
   align-self: stretch;
   gap: var(--spacing-24);
+  color: white;
 }
 
 .marketing__header__bar__mobile__menu__main__footer__links__main {
@@ -432,11 +432,11 @@ body {
 }
 
 .marketing__footer {
-  background: var(--medium-violet);
-  padding: var(--spacing-72);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-24);
+  background: var(--medium-violet);
+  padding: var(--spacing-72);
 }
 
 @media (max-width: 1024px) {
@@ -448,8 +448,8 @@ body {
 .marketing__footer__header {
   display: flex;
   flex-direction: row;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
 }
 
 .marketing__footer__header__title {
@@ -468,16 +468,16 @@ body {
 }
 
 .marketing__footer__header__status {
-  text-decoration: none;
-  border-color: var(--light-violet);
-  border-style: solid;
-  border-width: 1px;
-  border-radius: var(--radius-full);
-  padding: var(--spacing-8) var(--spacing-16);
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: var(--spacing-8);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--light-violet);
+  border-radius: var(--radius-full);
+  padding: var(--spacing-8) var(--spacing-16);
+  text-decoration: none;
 
   &:hover {
     text-decoration: none;
@@ -489,9 +489,9 @@ body {
 }
 
 .marketing__footer__header__status__indicator {
-  height: 1rem;
-  width: 1rem;
   border-radius: var(--radius-full);
+  width: 1rem;
+  height: 1rem;
 
   &[data-status="operational"] {
     background: var(--lime);
@@ -553,10 +553,10 @@ body {
 }
 
 .marketing__footer__main__menus__menu_title {
-  color: var(--white);
-  padding: 0;
-  margin-top: 0;
   display: flex;
+  margin-top: 0;
+  padding: 0;
+  color: var(--white);
   flex-directionr: row;
   justify-content: space-between;
   align-items: center;
@@ -565,9 +565,9 @@ body {
 @media (max-width: 1024px) {
   .marketing__footer__main__menus__menu_title {
     cursor: pointer;
-    padding: var(--spacing-16) 0;
     margin-bottom: 0;
     border-bottom: 1px solid oklch(100% 0 0 / 0.2);
+    padding: var(--spacing-16) 0;
   }
 }
 
@@ -582,11 +582,11 @@ body {
 }
 
 .marketing__footer__main__menus__menu_link {
-  color: var(--white);
-  text-decoration: none;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+  color: var(--white);
+  text-decoration: none;
   &:hover {
     text-decoration: underline;
   }
@@ -635,9 +635,9 @@ body {
 }
 
 .marketing__footer__main__links__social__title {
-  color: var(--white);
-  padding: 0;
   margin: 0;
+  padding: 0;
+  color: var(--white);
 }
 
 .marketing__footer__main__links__social__items {
@@ -659,12 +659,12 @@ body {
 }
 
 .marketing__footer__main__links__newsletter {
-  color: var(--white);
-  border-color: var(--white);
-  border-style: solid;
   border-width: 1px;
-  padding: var(--spacing-8) var(--spacing-16);
+  border-style: solid;
+  border-color: var(--white);
   border-radius: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-16);
+  color: var(--white);
 }
 
 .marketing__footer__footer {

@@ -1,20 +1,20 @@
 .noora-tab-menu-vertical {
-  cursor: pointer;
   display: flex;
   align-items: center;
-  padding: var(--noora-spacing-3) var(--noora-spacing-4);
   gap: var(--noora-spacing-4);
+  cursor: pointer;
   border-radius: var(--noora-radius-medium);
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
   color: var(--noora-surface-label-primary);
 
   & [data-part="icon-left"],
   & [data-part="icon-right"] {
-    height: 18px;
     width: 18px;
+    height: 18px;
 
     & svg {
-      height: 100%;
       width: 100%;
+      height: 100%;
     }
   }
 
@@ -27,26 +27,26 @@
   }
 
   &[data-selected] {
-    background: var(--noora-button-background-secondary);
     box-shadow: var(--noora-button-border-secondary);
+    background: var(--noora-button-background-secondary);
   }
 }
 
 .noora-tab-menu-horizontal {
   display: flex;
-  align-items: center;
   flex-direction: row;
+  align-items: center;
   gap: var(--noora-spacing-8);
   box-shadow: inset 0px -1px 0px 0px var(--noora-surface-border-primary);
   padding: var(--noora-spacing-0) var(--noora-spacing-6);
 }
 
 .noora-tab-menu-horizontal-item {
-  cursor: pointer;
-  align-items: center;
   display: flex;
   flex-direction: row;
+  align-items: center;
   gap: var(--noora-spacing-3);
+  cursor: pointer;
   text-decoration: unset;
 
   &[data-selected] {
@@ -68,12 +68,12 @@
 
   & > [data-part="icon-left"],
   & > [data-part="icon-right"] {
-    height: 18px;
     width: 18px;
+    height: 18px;
 
     & svg {
-      height: 100%;
       width: 100%;
+      height: 100%;
     }
   }
 }

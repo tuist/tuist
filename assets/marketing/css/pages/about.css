@@ -4,21 +4,21 @@
 }
 
 .marketing__about__intro {
-  padding: var(--spacing-96);
-  background: var(--gray-violet);
-  color: var(--dark-violet);
   display: flex;
-  gap: var(--spacing-48);
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-48);
+  background: var(--gray-violet);
+  padding: var(--spacing-96);
+  color: var(--dark-violet);
 }
 
 @media (max-width: 1024px) {
   .marketing__about__intro {
-    padding: var(--spacing-48) var(--spacing-24);
     flex-direction: column;
     justify-content: flex-start;
+    padding: var(--spacing-48) var(--spacing-24);
   }
 }
 
@@ -32,23 +32,23 @@
 
 .marketing__about__intro__right {
   flex: 1;
+  border-radius: var(--radius-xl);
   max-width: 50%;
   overflow: hidden;
-  border-radius: var(--radius-xl);
 }
 
 @media (max-width: 1024px) {
   .marketing__about__intro__right {
-    max-width: 100%;
     width: 100%;
+    max-width: 100%;
   }
 }
 
 .marketing__about__company {
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-24);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -73,16 +73,16 @@
 }
 
 .marketing__about__company__quote {
+  border-radius: var(--radius-l);
   background: var(--gray-violet);
   padding: var(--spacing-32);
   color: var(--dark-violet);
-  border-radius: var(--radius-l);
 }
 
 .marketing__about__company__photos {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   grid-template-rows: auto auto;
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-24);
   margin-top: var(--spacing-32);
 }
@@ -94,18 +94,18 @@
 }
 
 .marketing__about__company__photos__photo {
+  border-radius: var(--radius-l);
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: var(--radius-l);
 }
 
 .marketing__about__principles {
-  background: var(--medium-violet);
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-72);
+  background: var(--medium-violet);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -133,8 +133,8 @@
 }
 
 .marketing__about__principles__items__value {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-24);
@@ -147,15 +147,15 @@
 }
 
 .marketing__about__principles__items__value__icon {
-  background: var(--lime);
-  color: var(--dark-violet);
   border-radius: var(--radius-l);
+  background: var(--lime);
   padding: var(--spacing-16);
+  color: var(--dark-violet);
 }
 
 .marketing__about__principles__items__value__content__title {
-  color: white;
   margin: 0;
+  color: white;
 }
 
 .marketing__about__principles__items__value__content__description {
@@ -164,40 +164,40 @@
 }
 
 .marketing__about__leadership {
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: row;
   gap: var(--spacing-72);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
   .marketing__about__leadership {
-    padding: var(--spacing-48) var(--spacing-24);
     flex-direction: column;
     gap: var(--spacing-48);
+    padding: var(--spacing-48) var(--spacing-24);
   }
 }
 
 .marketing__about__leadership__left {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  flex-direction: column;
   gap: var(--spacing-32);
 }
 
 .marketing__about__leadership__left__title {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__about__leadership__left__description {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__about__leadership__right {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: row;
   gap: var(--spacing-24);
 }
@@ -227,13 +227,13 @@
 }
 
 .marketing__about__leadership__right__lead__name {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__about__leadership__right__lead__role {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__about__leadership__right__lead__socials {
@@ -251,11 +251,11 @@
 }
 
 .marketing__about__resources {
-  background: var(--gray-violet);
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-48);
+  background: var(--gray-violet);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -265,8 +265,8 @@
 }
 
 .marketing__about__resources__title {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__about__resources__items {
@@ -294,27 +294,27 @@
 }
 
 .marketing__about__resources__items__item__description {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
   font: var(--font-m);
 }
 .marketing__about__resources__items__item__list {
-  list-style: none;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .marketing__about__resources__items__item__list__item {
   display: flex;
   flex-direction: row;
   align-items: center;
-  color: var(--violet);
   gap: var(--spacing-16);
+  color: var(--violet);
   font: var(--font-m);
 }
 
 .marketing__about__resources__items__item__list__item__link {
   color: var(--violet);
-  text-decoration: none;
   font: var(--font-m);
+  text-decoration: none;
 }

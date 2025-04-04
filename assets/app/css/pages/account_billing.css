@@ -3,17 +3,17 @@
 }
 
 .billing__pricing-tier-card {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  padding: var(--spacing-4xl);
   border: 1px solid var(--border-secondary);
   border-radius: var(--radius-md);
+  padding: var(--spacing-4xl);
 }
 
 .billing__pricing-tier-card__features-list {
-  list-style-type: none;
   padding: 0;
+  list-style-type: none;
 }
 
 .billing__pricing-tier-card__features-list__feature {
@@ -46,18 +46,18 @@
 }
 
 .billing__confirm-modal__button-group {
-  width: 100%;
   display: flex;
   justify-content: flex-end;
+  width: 100%;
 }
 
 .billing__overview {
-  width: 100%;
   display: flex;
+  flex-direction: row;
   justify-content: flex-start;
   align-items: stretch;
   gap: var(--spacing-4xl);
-  flex-direction: row;
+  width: 100%;
 
   @media (max-width: 1024px) {
     flex-direction: column;
@@ -66,10 +66,10 @@
 
 .billing__pricing__plans {
   display: flex;
-  gap: var(--spacing-4xl);
   flex-direction: row;
   justify-content: space-between;
   align-items: stretch;
+  gap: var(--spacing-4xl);
 
   @media (max-width: 1024px) {
     flex-direction: column;
@@ -81,10 +81,10 @@
 }
 
 .billing__overview__payment-card__billing-details {
-  align-self: stretch;
   display: flex;
   flex-direction: row;
   align-items: center;
+  align-self: stretch;
   gap: var(--spacing-xl);
 }
 
@@ -107,9 +107,9 @@
 
 .billing__overview__payment-card__billing-details__labels__email {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--spacing-xs);
-  flex-direction: row;
 }
 
 .billing__overview__plan-card__plan-summary__info {
@@ -125,11 +125,11 @@
 }
 
 .billing__overview__plan-card__usage__progress-label {
-  font: var(----text-small-regular);
   color: var(--text-tertiary);
+  font: var(----text-small-regular);
 }
 
 .billing__overview__payment-card__manage-subscription {
-  font: var(----text-small-regular);
   color: var(--text-tertiary);
+  font: var(----text-small-regular);
 }

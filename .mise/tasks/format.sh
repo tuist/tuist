@@ -5,7 +5,9 @@
 if [ "$usage_check" = "true" ]; then
   (cd $MISE_PROJECT_ROOT && mix format --check-formatted)
   prettier -c $MISE_PROJECT_ROOT/priv/static/app
+  prettier -c $MISE_PROJECT_ROOT/assets
 else
   (cd $MISE_PROJECT_ROOT && mix format)
   prettier --write $MISE_PROJECT_ROOT/priv/static/app
+  prettier --write $MISE_PROJECT_ROOT/assets
 fi

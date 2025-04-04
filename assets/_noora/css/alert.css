@@ -7,18 +7,18 @@
   --noora-alert-warning-secondary-background: light-dark(var(--noora-orange-50), var(--noora-alpha-orange));
   --noora-alert-information-icon: var(--noora-azure-500);
   --noora-alert-information-secondary-background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure));
+  display: flex;
 
   border-radius: var(--noora-radius-large);
-  display: flex;
 
   & > [data-part="title"] {
     color: var(--noora-surface-label-primary);
   }
 
   & [data-part="description"] {
+    margin-top: var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
-    margin-top: var(--noora-spacing-2);
   }
 
   & [data-part="dismiss-icon"] {
@@ -26,8 +26,8 @@
   }
 
   &[data-type="primary"] {
-    background: var(--noora-surface-background-primary);
     box-shadow: var(--noora-border-medium);
+    background: var(--noora-surface-background-primary);
   }
 
   &[data-type="secondary"] {
@@ -54,8 +54,8 @@
       height: var(--noora-icon-size-medium);
 
       & svg {
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
     }
 
@@ -93,8 +93,8 @@
       height: var(--noora-icon-size-large);
 
       & svg {
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
     }
 

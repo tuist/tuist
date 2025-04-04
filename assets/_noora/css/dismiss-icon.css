@@ -1,17 +1,17 @@
 .noora-dismiss-icon {
-  align-items: center;
-  background: transparent;
-  border-radius: var(--noora-radius-small);
-  border: 0;
-  color: var(--noora-surface-label-secondary);
   display: inline-flex;
   justify-content: center;
+  align-items: center;
   outline: 0;
+  border: 0;
+  border-radius: var(--noora-radius-small);
+  background: transparent;
   padding: 0;
+  color: var(--noora-surface-label-secondary);
 
   &:not(:disabled):hover {
-    color: var(--noora-surface-label-primary);
     cursor: pointer;
+    color: var(--noora-surface-label-primary);
   }
 
   &:not(:disabled):active {
@@ -23,17 +23,17 @@
   }
 
   & svg {
-    height: 100%;
     width: 100%;
+    height: 100%;
   }
 
   &[data-size="small"] {
-    height: var(--noora-icon-size-medium);
     width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
   }
 
   &[data-size="large"] {
-    height: var(--noora-icon-size-large);
     width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
   }
 }

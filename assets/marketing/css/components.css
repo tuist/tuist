@@ -29,12 +29,12 @@
 .marketing__component__primary__icon__button {
   display: flex;
   flex-direction: row;
-  align-items: center;
   justify-content: center;
-  background: var(--violet);
-  color: white;
-  padding: var(--spacing-8);
+  align-items: center;
   border-radius: var(--radius-full);
+  background: var(--violet);
+  padding: var(--spacing-8);
+  color: white;
 
   &:hover {
     background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)), var(--violet);
@@ -44,35 +44,35 @@
 .marketing__component__primary__button {
   /* Reset */
   appearance: none;
-  border: none;
-  padding: 0;
+  cursor: pointer;
   margin: 0;
+  border: none;
+  border-radius: var(--radius-xs);
   background: none;
+  background: var(--violet);
+  padding: 0;
+  padding: var(--radius-m) var(--radius-l);
   color: inherit;
+  color: var(--white);
+  text-decoration: none;
 
   white-space: nowrap;
-  text-decoration: none;
-  background: var(--violet);
-  color: var(--white);
-  border-radius: var(--radius-xs);
-  padding: var(--radius-m) var(--radius-l);
-  cursor: pointer;
 
   &:hover {
     background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)), var(--violet);
   }
 
   &[data-size="small"] {
-    padding: var(--spacing-8) var(--spacing-16);
     border-radius: var(--spacing-4);
+    padding: var(--spacing-8) var(--spacing-16);
   }
   &[data-size="medium"] {
-    padding: var(--spacing-16) var(--spacing-24);
     border-radius: var(--spacing-8);
+    padding: var(--spacing-16) var(--spacing-24);
   }
   &[data-size="big"] {
-    padding: var(--spacing-24) var(--spacing-24);
     border-radius: var(--spacing-8);
+    padding: var(--spacing-24) var(--spacing-24);
   }
 }
 
@@ -81,22 +81,22 @@
   text-decoration: none;
 
   &[data-size="small"] {
-    padding: var(--spacing-8) var(--spacing-16);
     border-radius: var(--spacing-4);
+    padding: var(--spacing-8) var(--spacing-16);
   }
   &[data-size="medium"] {
-    padding: var(--spacing-16) var(--spacing-24);
     border-radius: var(--spacing-8);
+    padding: var(--spacing-16) var(--spacing-24);
   }
   &[data-size="big"] {
-    padding: var(--spacing-24) var(--spacing-24);
     border-radius: var(--spacing-8);
+    padding: var(--spacing-24) var(--spacing-24);
   }
   &[data-variant="dark"] {
-    color: var(--white);
     border-width: 2px;
-    border-color: var(--white);
     border-style: solid;
+    border-color: var(--white);
+    color: var(--white);
 
     &:hover {
       border-color: var(--gray-violet);
@@ -104,10 +104,10 @@
     }
   }
   &[data-variant="light"] {
-    color: var(--dark-violet);
     border-width: 2px;
-    border-color: var(--dark-violet);
     border-style: solid;
+    border-color: var(--dark-violet);
+    color: var(--dark-violet);
     &:hover {
       border-color: var(--dark-violet);
       background-color: oklch(from var(--gray-violet) l c h / 0.2);
@@ -121,42 +121,42 @@
 }
 
 .marketing__component__window__bar {
-  border-top-left-radius: var(--radius-l);
-  border-top-right-radius: var(--radius-l);
-  background: var(--dark-violet);
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
   gap: var(--spacing-8);
+  border-top-right-radius: var(--radius-l);
+  border-top-left-radius: var(--radius-l);
+  background: var(--dark-violet);
   padding: var(--spacing-16) var(--spacing-24);
 }
 
 .marketing__component__window__bar__close {
-  background: #d27777;
-  height: 12px;
-  width: 12px;
   border-radius: var(--radius-full);
+  background: #d27777;
+  width: 12px;
+  height: 12px;
 }
 
 .marketing__component__window__bar__minimize {
-  background: var(--yellow);
-  height: 12px;
-  width: 12px;
   border-radius: var(--radius-full);
+  background: var(--yellow);
+  width: 12px;
+  height: 12px;
 }
 
 .marketing__component__window__bar__maximize {
-  background: #bdfb8c;
-  height: 12px;
-  width: 12px;
   border-radius: var(--radius-full);
+  background: #bdfb8c;
+  width: 12px;
+  height: 12px;
 }
 
 .marketing__component__window__content {
-  background: var(--medium-violet);
-  border-bottom-left-radius: var(--radius-l);
-  border-bottom-right-radius: var(--radius-l);
   margin: 0;
+  border-bottom-right-radius: var(--radius-l);
+  border-bottom-left-radius: var(--radius-l);
+  background: var(--medium-violet);
   padding: 0 0;
   overflow-x: auto;
 }
@@ -164,8 +164,8 @@
 .marketing__component__cta {
   display: flex;
   flex-direction: row;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   background: var(--lime);
   padding: var(--spacing-72) var(--spacing-96);
 }
@@ -179,14 +179,14 @@
 @media (max-width: 1024px) {
   .marketing__component__cta {
     flex-direction: column;
-    gap: var(--spacing-48);
     align-items: flex-start;
+    gap: var(--spacing-48);
   }
 }
 
 .marketing__component__cta__title {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
 }
 
 .marketing__component__more_card {
@@ -196,19 +196,19 @@
 }
 
 .marketing__component__more_card__content__category {
+  border-radius: var(--spacing-32) var(--spacing-32) 0 0;
+  background: var(--gray-violet);
+  padding: var(--spacing-32) var(--spacing-32) var(--spacing-8) var(--spacing-32);
   color: var(--violet);
   text-transform: uppercase;
-  background: var(--gray-violet);
-  border-radius: var(--spacing-32) var(--spacing-32) 0 0;
-  padding: var(--spacing-32) var(--spacing-32) var(--spacing-8) var(--spacing-32);
 }
 
 .marketing__component__more_card__content__title {
+  flex-grow: 0;
   background: var(--gray-violet);
+  padding: 0 var(--spacing-32) 0 var(--spacing-32);
   color: var(--dark-violet);
   text-decoration: none;
-  padding: 0 var(--spacing-32) 0 var(--spacing-32);
-  flex-grow: 0;
 
   & :hover {
     text-decoration: underline;
@@ -221,13 +221,13 @@
 }
 
 .marketing__component__more_card__content__image {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: row;
   justify-content: flex-end;
   align-items: flex-end;
-  background: var(--gray-violet);
   border-radius: 0 0 var(--spacing-32) var(--spacing-32);
+  background: var(--gray-violet);
   padding: var(--spacing-32);
 }
 

@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: var(--spacing-96);
   gap: var(--spacing-48);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -15,9 +15,9 @@
 
 .marketing__blog__hero__left {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--spacing-16);
-  flex: 1;
 }
 
 .marketing__blog__hero__right {
@@ -25,14 +25,14 @@
 }
 
 .marketing__blog__hero__left__title {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
   font: var(--font-xxxl-strong);
 }
 
 .marketing__blog__hero__left__subtitle {
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
   font: var(--font-l);
 }
 
@@ -47,12 +47,12 @@
 }
 
 .marketing__blog__essential {
-  background: var(--medium-violet);
-  padding: var(--spacing-96);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--spacing-48);
+  background: var(--medium-violet);
+  padding: var(--spacing-96);
 
   @media (max-width: 1024px) {
     padding: var(--spacing-48) 0 var(--spacing-48) 0;
@@ -60,9 +60,9 @@
 }
 
 .marketing__blog__essential__title {
-  font: var(--font-xl-strong);
-  color: var(--lime);
   margin: 0;
+  color: var(--lime);
+  font: var(--font-xl-strong);
   text-transform: uppercase;
 
   @media (max-width: 1024px) {
@@ -101,8 +101,8 @@
 
 .marketing__blog__essential__posts__post__link {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  flex-direction: column;
   text-decoration: none;
 }
 
@@ -122,8 +122,8 @@
 .marketing__blog__posts {
   display: flex;
   flex-direction: column;
-  padding: var(--spacing-96);
   gap: var(--spacing-48);
+  padding: var(--spacing-96);
 }
 
 @media (max-width: 1024px) {
@@ -142,15 +142,15 @@
 @media (max-width: 1024px) {
   .marketing__blog__posts__heading {
     flex-direction: column;
-    gap: var(--spacing-48);
     align-items: flex-start;
+    gap: var(--spacing-48);
   }
 }
 
 .marketing__blog__posts__heading__title {
-  font: var(--font-xxxl-strong);
-  color: var(--dark-violet);
   margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-xxxl-strong);
 }
 
 @media (max-width: 1024px) {
@@ -167,12 +167,12 @@
 
 @media (max-width: 1024px) {
   .marketing__blog__posts__heading__categories {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
     padding: 0 var(--spacing-24);
+    width: calc(100% - (var(--spacing-24) * 2));
     overflow-x: scroll;
     scrollbar-width: none;
-    flex-wrap: nowrap;
-    width: calc(100% - (var(--spacing-24) * 2));
-    flex-shrink: 0;
   }
   .marketing__blog__posts__heading__categories::-webkit-scrollbar {
     display: none; /* WebKit */
@@ -180,13 +180,13 @@
 }
 
 .marketing__blog__posts__heading__categories__category {
-  text-transform: uppercase;
-  color: var(--dark-violet);
-  text-decoration: none;
   display: flex;
-  padding: var(--spacing-16) 0;
   flex-direction: column;
+  padding: var(--spacing-16) 0;
+  color: var(--dark-violet);
   font: var(--font-m);
+  text-decoration: none;
+  text-transform: uppercase;
 
   &:hover {
     color: var(--violet);
