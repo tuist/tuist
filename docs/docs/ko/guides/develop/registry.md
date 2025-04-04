@@ -14,11 +14,16 @@ description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최�
 
 ## Usage {#usage}
 
-To set up and login to the registry, `cd` into your project's directory and run:
+레지스트리를 설정하고 로그인하기 위해서는, 프로젝트 경로에서 다음의 명령을 실행해줍니다:
 
 ```bash
-tuist registry setup # Creates a `registries.json` file with the default registry configuration.
-tuist registry login # Logs you into the registry.
+tuist registry setup
+```
+
+위 명령은 레지스트리에 레지스트리 설정용 파일과 로그를 생성합니다. 다른 작업자들도 레지스트리에 접근하도록 하기 위해서, 생성된 파일들을 커밋하고 작업자들이 아래의 명령을 통해 로그인 할 수 있도록 합니다:
+
+```bash
+tuist registry login
 ```
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
@@ -28,7 +33,7 @@ Now you can access the registry! To resolve dependencies from the registry inste
 - <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/ci">Continuous integration</LocalizedLink>.
+CI에서 레지스트리를 설정하려면, 다음 내용을 참고해주세요: <LocalizedLink href="/guides/develop/registry/continuous-integration">Continuous integration</LocalizedLink>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 

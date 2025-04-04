@@ -14,11 +14,16 @@ As the number of dependencies grows, so does the time to resolve them. While oth
 
 ## Usage {#usage}
 
-To set up and login to the registry, `cd` into your project's directory and run:
+To set up and log in to the registry, run the following command in your project's directory:
 
 ```bash
-tuist registry setup # Creates a `registries.json` file with the default registry configuration.
-tuist registry login # Logs you into the registry.
+tuist registry setup
+```
+
+This command generates a registry configuration files and logs you in to the registry. To ensure the rest of your team can access the registry, ensure the generated files is committed and that your team members run the following command to log in:
+
+```bash
+tuist registry login
 ```
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
@@ -28,7 +33,7 @@ Now you can access the registry! To resolve dependencies from the registry inste
 - <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/ci">Continuous integration</LocalizedLink>.
+To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/continuous-integration">Continuous integration</LocalizedLink>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 

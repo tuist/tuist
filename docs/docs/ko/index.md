@@ -4,8 +4,7 @@ description: Apple의 기본 도구를 확장하여 더 나은 앱을 효과적�
 ---
 
 <script setup>
-import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
-</script>
+import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"</script>
 
 # From idea to the store
 
@@ -69,7 +68,7 @@ mise x tuist@latest -- tuist init
 
 :::
 
-더 자세한 내용은 <0>설치 가이드</0>를 확인하세요.
+더 자세한 내용은 <LocalizedLink href="/guides/quick-start/install-tuist">설치 가이드</LocalizedLink> 를 확인하세요.
 
 ## 더 알아보기
 
