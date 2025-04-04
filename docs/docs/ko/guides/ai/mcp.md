@@ -54,38 +54,6 @@ Tuist는 CLI를 통해 로컬 서버를 제공하여 _앱 개발 환경_과 상�
 
 :::
 
-### Cursor
-
-[Cursor](https://www.cursor.com)를 사용한다면, Claude 환경을 구성하기위해 <LocalizedLink href="/cli/mcp/setup/cursor">tuist mcp setup cursor</LocalizedLink> 명령어를 수행할 수 있습니다.
-
-또한 `.cursor/mcp.json`의 파일을 직접 수정하여 Tuist MCP 서버를 추가할 수 있습니다:
-
-:::code-group
-
-```json [Global Tuist installation (e.g. Homebrew)]
-{
-  "mcpServers": {
-    "tuist": {
-      "command": "tuist",
-      "args": ["mcp", "start"]
-    }
-  }
-}
-```
-
-```json [Mise installation]
-{
-  "mcpServers": {
-    "tuist": {
-      "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
-    }
-  }
-}
-```
-
-:::
-
 ## Capabilities
 
 다음 섹션에서 Tuist MCP 서버의 기능에 대해 배워봅니다.
