@@ -765,8 +765,12 @@ defmodule Tuist.Accounts do
     Repo.delete(invitation)
   end
 
+  def decline_invitation(%{invitation: %Invitation{} = invitation}) do
+    Repo.delete(invitation)
+  end
+
   def get_invitation_by_token(token, %User{} = invitee) do
-    invitation = Repo.get_by(Invitation, token: token)
+    invitation = Repo.get_by(Invitation, token: token) |> Repo.preload(inviter: :account)
 
     cond do
       is_nil(invitation) ->

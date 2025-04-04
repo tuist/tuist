@@ -525,7 +525,7 @@ defmodule Tuist.AccountsTest do
       {:ok, got} = Accounts.get_invitation_by_token(invitation.token, invitee)
 
       # Then
-      assert got == invitation
+      assert got == Repo.preload(invitation, inviter: :account)
     end
 
     test "returns :forbidden error when invitee email does not match" do

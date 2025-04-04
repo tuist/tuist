@@ -45,7 +45,8 @@ html[data-noora] {
   #signup-success,
   #confirmation,
   #forgot-password,
-  #reset-password {
+  #reset-password,
+  #accept-invitation {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -55,6 +56,10 @@ html[data-noora] {
 
     & * {
       box-sizing: border-box;
+    }
+
+    & .noora-alert {
+      width: 100%;
     }
 
     & [data-part="frame"] {
@@ -217,10 +222,6 @@ html[data-noora] {
   #login,
   #signup,
   #forgot-password {
-    & .noora-alert {
-      width: 100%;
-    }
-
     & [data-part="bottom-link"] {
       align-items: center;
       background: var(--noora-surface-background-tertiary);
@@ -265,11 +266,8 @@ html[data-noora] {
       align-items: flex-start;
       padding: 0;
       justify-content: space-between;
-      background: radial-gradient(
-          131.61% 140.32% at 0% 100%,
-          oklch(53.2% 0.276 286.9 / 0.04) 0%,
-          oklch(100% 0 0 / 0) 100%
-        ),
+      background:
+        radial-gradient(131.61% 140.32% at 0% 100%, oklch(53.2% 0.276 286.9 / 0.04) 0%, oklch(100% 0 0 / 0) 100%),
         var(--noora-surface-background-primary);
     }
 
@@ -352,6 +350,19 @@ html[data-noora] {
         width: 658px;
         object-fit: cover;
         object-position: top;
+      }
+    }
+  }
+
+  #accept-invitation {
+    & [data-part="actions"] {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & .noora-button {
+        width: 100%;
       }
     }
   }
