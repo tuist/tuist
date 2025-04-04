@@ -2,6 +2,7 @@ defmodule TuistWeb.UserLoginLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   alias Tuist.Environment
+
   alias Phoenix.Flash
 
   def mount(_params, _session, socket) do
@@ -81,6 +82,14 @@ defmodule TuistWeb.UserLoginLive do
             </.button>
           </div>
           <.line_divider :if={oauth_configured?() and @mail_configured?} text="OR" />
+          <.alert
+            :if={Flash.get(@flash, :info)}
+            id="flash"
+            type="secondary"
+            status="information"
+            size="small"
+            title={Flash.get(@flash, :info)}
+          />
           <.form
             :if={@mail_configured?}
             data-part="form"

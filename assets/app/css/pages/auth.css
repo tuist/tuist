@@ -43,7 +43,9 @@ html[data-noora] {
   #login,
   #signup,
   #signup-success,
-  #confirmation {
+  #confirmation,
+  #forgot-password,
+  #reset-password {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -56,7 +58,7 @@ html[data-noora] {
     }
 
     & [data-part="frame"] {
-      z-index: var(--noora-z-index-3);
+      z-index: var(--noora-z-index-4);
       display: flex;
       padding: var(--noora-spacing-4);
       flex-direction: column;
@@ -66,6 +68,12 @@ html[data-noora] {
       border-radius: var(--noora-radius-2xlarge);
       background: var(--noora-surface-background-primary);
       box-shadow: var(--noora-border-heavy);
+
+      &:not(:has([data-part="bottom-link"])) {
+        & [data-part="content"] {
+          padding: var(--noora-spacing-10) var(--noora-spacing-11);
+        }
+      }
     }
 
     & [data-part="content"] {
@@ -73,6 +81,7 @@ html[data-noora] {
       padding: var(--noora-spacing-10) var(--noora-spacing-11) var(--noora-spacing-3) var(--noora-spacing-11);
       flex-direction: column;
       align-items: center;
+      max-width: 438px;
       gap: var(--noora-spacing-9);
 
       & > [data-part="logo"] {
@@ -145,11 +154,11 @@ html[data-noora] {
 
     & [data-part="background"] {
       position: absolute;
+      z-index: -1;
       top: 0px;
       left: 0px;
       width: 100dvw;
       height: 100dvh;
-      z-index: var(--noora-z-index-0);
       overflow: hidden;
 
       & [data-part="shell"] {
@@ -206,7 +215,8 @@ html[data-noora] {
   }
 
   #login,
-  #signup {
+  #signup,
+  #forgot-password {
     & .noora-alert {
       width: 100%;
     }
@@ -343,14 +353,6 @@ html[data-noora] {
         object-fit: cover;
         object-position: top;
       }
-    }
-  }
-
-  #signup-success,
-  #confirmation {
-    & [data-part="content"] {
-      max-width: 412px;
-      padding: var(--noora-spacing-10) var(--noora-spacing-11);
     }
   }
 }

@@ -11,17 +11,6 @@
   border-radius: var(--noora-radius-large);
   display: flex;
 
-  & [data-part="icon"] {
-    display: flex;
-    width: var(--noora-icon-size-medium);
-    height: var(--noora-icon-size-medium);
-
-    & svg {
-      height: 100%;
-      width: 100%;
-    }
-  }
-
   & > [data-part="title"] {
     color: var(--noora-surface-label-primary);
   }
@@ -58,7 +47,19 @@
 
   &[data-size="small"],
   &[data-size="medium"] {
-    & [data-part="actions"] {
+    & > [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+
+    & > [data-part="actions"] {
       display: flex;
     }
   }
@@ -67,21 +68,8 @@
     gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-4);
 
-    & [data-part="icon"] {
-      height: var(--noora-icon-size-medium);
-      width: var(--noora-icon-size-medium);
-    }
-
     & [data-part="title"] {
       font: var(--noora-font-body-small);
-    }
-  }
-
-  &[data-size="medium"],
-  &[data-size="large"] {
-    & [data-part="icon"] {
-      height: var(--noora-icon-size-large);
-      width: var(--noora-icon-size-large);
     }
   }
 
@@ -98,17 +86,29 @@
     gap: var(--noora-spacing-6);
     padding: var(--noora-spacing-6);
 
-    & [data-part="column"] {
+    & > [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+
+    & > [data-part="column"] {
       display: flex;
       flex-direction: column;
-    }
 
-    & [data-part="title"] {
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    }
+      & > [data-part="title"] {
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
 
-    & [data-part="actions"] {
-      margin-top: var(--noora-spacing-4);
+      & > [data-part="actions"] {
+        margin-top: var(--noora-spacing-4);
+      }
     }
   }
 

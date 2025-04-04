@@ -37,6 +37,10 @@ defmodule TuistWeb.Noora.TextInput do
     default: true,
     doc: "Whether to show the prefix."
 
+  attr :show_suffix, :boolean,
+    default: true,
+    doc: "Whether to show the suffix."
+
   attr :suffix_hint, :string,
     default: nil,
     doc:
@@ -60,7 +64,7 @@ defmodule TuistWeb.Noora.TextInput do
 
   def text_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
-    |> assign(field: nil, id: assigns.id || field.id)
+    |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)
     |> assign_new(:value, fn -> field.value end)
     |> text_input()
@@ -96,7 +100,7 @@ defmodule TuistWeb.Noora.TextInput do
         />
         {# Suffix hint tooltip #}
         <div
-          :if={not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
+          :if={@show_suffix and not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
           data-part="suffix-hint"
         >
           <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
@@ -108,7 +112,7 @@ defmodule TuistWeb.Noora.TextInput do
         {# Type-based suffix #}
         <div
           :if={
-            @type in ~w(card_number search password) and is_nil(@suffix_hint) and
+            @show_suffix and @type in ~w(card_number search password) and is_nil(@suffix_hint) and
               !has_slot_content?(@suffix, assigns)
           }
           data-part="suffix"
@@ -117,7 +121,7 @@ defmodule TuistWeb.Noora.TextInput do
           <.type_suffix type={@type} input_id={@id} />
         </div>
         {# Custom suffix #}
-        <span :if={has_slot_content?(@suffix, assigns)} data-part="suffix">
+        <span :if={@show_suffix and has_slot_content?(@suffix, assigns)} data-part="suffix">
           {render_slot(@suffix)}
         </span>
       </div>

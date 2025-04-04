@@ -1,9 +1,69 @@
 defmodule TuistWeb.UserResetPasswordLive do
   use TuistWeb, :live_view
+  use TuistWeb.Noora
 
   alias Tuist.Accounts
 
   def render(assigns) do
+    ~H"""
+    <%= if FunWithFlags.enabled?(:noora) do %>
+      <.noora_reset_password {assigns} />
+    <% else %>
+      <.legacy_reset_password {assigns} />
+    <% end %>
+    """
+  end
+
+  def noora_reset_password(assigns) do
+    ~H"""
+    <div id="reset-password">
+      <div data-part="wrapper">
+        <div data-part="frame">
+          <div data-part="content">
+            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <div data-part="dots">
+              <.dots_light />
+              <.dots_dark />
+            </div>
+            <div data-part="header">
+              <h1 data-part="title">{gettext("Change your password")}</h1>
+              <span data-part="subtitle">
+                {gettext("Your new password must be different to previously used passwords.")}
+              </span>
+            </div>
+            <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
+              <.text_input
+                field={@form[:password]}
+                type="password"
+                label={gettext("New password")}
+                show_prefix={false}
+                show_suffix={false}
+                required
+              />
+              <.text_input
+                field={@form[:password_confirmation]}
+                type="password"
+                label={gettext("Confirm password")}
+                show_prefix={false}
+                show_suffix={false}
+                required
+              />
+              <.button variant="primary" size="large" label={gettext("Reset password")} />
+            </.form>
+          </div>
+        </div>
+      </div>
+
+      <div data-part="background">
+        <div data-part="top-right-gradient"></div>
+        <div data-part="bottom-left-gradient"></div>
+        <div data-part="shell"><.shell /></div>
+      </div>
+    </div>
+    """
+  end
+
+  def legacy_reset_password(assigns) do
     ~H"""
     <.stack class="auth-page" gap="4xl">
       <.auth_header
