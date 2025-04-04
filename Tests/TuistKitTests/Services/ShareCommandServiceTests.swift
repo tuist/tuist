@@ -415,7 +415,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 .willReturn(
                     .test(
                         infoPlist: .test(
-                            version: Version(1, 0, 0),
+                            version: "1.0.0",
                             bundleId: "com.tuist.app",
                             supportedPlatforms: [.simulator(.iOS)]
                         )
@@ -962,7 +962,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     .test(
                         path: appBundlePath,
                         infoPlist: .test(
-                            version: Version(1, 0, 0),
+                            version: "1.0.0",
                             name: "App",
                             bundleId: "com.tuist.app",
                             bundleIcons: .test(
