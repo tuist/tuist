@@ -11,6 +11,10 @@ defmodule TuistWeb.OverviewLive do
     {:ok,
      socket
      |> assign(
+       :user_agent,
+       UAParser.parse(get_connect_info(socket, :user_agent))
+     )
+     |> assign(
        :head_title,
        "#{gettext("Overview")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )}
@@ -130,10 +134,6 @@ defmodule TuistWeb.OverviewLive do
     |> assign(
       :latest_app_previews,
       Previews.latest_previews_with_distinct_bundle_ids(project)
-    )
-    |> assign(
-      :user_agent,
-      UAParser.parse(get_connect_info(socket, :user_agent))
     )
   end
 

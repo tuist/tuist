@@ -1,0 +1,35 @@
+.noora-pagination-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: var(--noora-spacing-4);
+
+  & > [data-part="page-button"] {
+    cursor: pointer;
+    padding: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    background: var(--noora-button-secondary-background);
+    text-decoration: unset;
+    outline: unset;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+
+    &:hover {
+      background: var(--noora-button-background-secondary-hover);
+    }
+
+    &:active,
+    &[data-selected] {
+      color: var(--noora-surface-label-secondary);
+      box-shadow: var(--noora-border-light-focus);
+    }
+
+    & > [data-part="label"] {
+      text-align: center;
+      display: inline-block;
+      width: 20px;
+    }
+  }
+}

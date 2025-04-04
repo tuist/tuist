@@ -181,7 +181,7 @@
         }
       >
         <:col :let={test_run} label={gettext("Command")}>
-          <.text_and_description_cell label={test_run.name <> (if test_run.command_arguments, do: (test_run.command_arguments |> Enum.take(2) |> Enum.join()), else: "")} />
+          <.text_and_description_cell label={"tuist " <> test_run.name <> (if test_run.command_arguments, do: (test_run.command_arguments |> Enum.take(2) |> Enum.join()), else: "")} />
         </:col>
         <:col :let={test_run} label="Status">
           <%= if test_run.status == :success do %>

@@ -77,6 +77,7 @@ defmodule TuistWeb.AppLayoutComponents do
 
   attr :selected_project, :map, required: true
   attr :selected_account, :map, required: true
+  attr :selected_run, :map, required: true
   attr :current_path, :string, required: true
 
   defp noora_project_sidebar(assigns) do
@@ -89,23 +90,31 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
-      <% test_runs_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"
-      tests_default_open = @current_path in [test_runs_path] %>
       <.sidebar_item
-        label="Test runs"
+        label="Test Runs"
         icon="dashboard"
-        navigate={test_runs_path}
-        selected={test_runs_path == @current_path}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs" == @current_path or
+            (not is_nil(@selected_run) and not Enum.empty?(@selected_run.test_targets))
+        }
       />
-      <.sidebar_group id="binary_cache" label="Binary cache" icon="database">
-        <.sidebar_item label="Cache runs" icon="schema" />
-      </.sidebar_group>
-      <% previews_path = ~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews" %>
+      <.sidebar_item
+        label="Cache Runs"
+        icon="schema"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/cache_runs"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/cache_runs" == @current_path or
+            (not is_nil(@selected_run) and @selected_run.name == "cache")
+        }
+      />
       <.sidebar_item
         label="Previews"
         icon="devices"
-        navigate={previews_path}
-        selected={previews_path == @current_path}
+        navigate={~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews"}
+        selected={
+          ~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews" == @current_path
+        }
       />
     </.sidebar>
     """

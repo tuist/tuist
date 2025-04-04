@@ -1,4 +1,4 @@
-defmodule TuistWeb.TestRunsLiveTest do
+defmodule TuistWeb.CacheRunsLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   use TuistTestSupport.Cases.ConnCase, async: false
@@ -13,33 +13,33 @@ defmodule TuistWeb.TestRunsLiveTest do
     %{conn: conn}
   end
 
-  test "lists latest test runs", %{
+  test "lists latest cache runs", %{
     conn: conn,
     organization: organization,
     project: project
   } do
     # Given
-    _test_run_one =
+    _cache_run_one =
       CommandEventsFixtures.command_event_fixture(
         project: project,
-        name: "test",
+        name: "cache",
         command_arguments: ["App"]
       )
 
-    _test_run_one =
+    _cache_run_one =
       CommandEventsFixtures.command_event_fixture(
         project: project,
-        name: "test",
+        name: "cache",
         command_arguments: ["AppTwo"]
       )
 
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/test_runs")
+      |> live(~p"/#{organization.account.name}/#{project.name}/cache_runs")
 
     # Then
-    has_element?(lv, "span", "test App")
-    has_element?(lv, "span", "test AppTwo")
+    has_element?(lv, "span", "cache App")
+    has_element?(lv, "span", "cache AppTwo")
   end
 end

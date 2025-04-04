@@ -1,15 +1,20 @@
 defmodule TuistWeb.TestRunsLive do
+  alias Tuist.Projects
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Runs.RanByBadge
   alias Tuist.Runs.Analytics
   alias Tuist.CommandEvents
 
-  def mount(_params, _session, %{assigns: %{}} = socket) do
-    {:ok, socket}
+  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+    slug = Projects.get_project_slug_from_id(project.id)
+
+    {:ok,
+     socket
+     |> assign(:head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
+  def handle_params(params, _uri, socket) do
     {
       :noreply,
       socket

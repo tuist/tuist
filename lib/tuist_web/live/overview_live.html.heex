@@ -16,7 +16,7 @@
       >
         <.dropdown_item
           value="any"
-          label="Any"
+          label={gettext("Any")}
           patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=any"}
           data-selected={@analytics_environment == "any"}
         >
@@ -24,7 +24,7 @@
         </.dropdown_item>
         <.dropdown_item
           value="local"
-          label="Local"
+          label={gettext("Local")}
           patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=local"}
           data-selected={@analytics_environment == "local"}
         >
@@ -32,7 +32,7 @@
         </.dropdown_item>
         <.dropdown_item
           value="ci"
-          label="CI"
+          label={gettext("CI")}
           patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=ci"}
           data-selected={@analytics_environment == "ci"}
         >

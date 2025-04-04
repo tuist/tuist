@@ -112,7 +112,6 @@ defmodule TuistWeb.Noora.Button do
         patch={@patch}
         data-variant={@variant}
         data-size={@size}
-        data-icon-only={@icon_only}
         {@rest}
       >
         {render_slot(@inner_block)}

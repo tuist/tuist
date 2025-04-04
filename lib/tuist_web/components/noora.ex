@@ -22,8 +22,10 @@ defmodule TuistWeb.Noora do
       import TuistWeb.Noora.Label
       import TuistWeb.Noora.LineDivider
       import TuistWeb.Noora.Modal
+      import TuistWeb.Noora.PaginationGroup
       import TuistWeb.Noora.ShortcutKey
       import TuistWeb.Noora.Table
+      import TuistWeb.Noora.TabMenu
       import TuistWeb.Noora.Tag
       import TuistWeb.Noora.TextDivider
       import TuistWeb.Noora.TextInput

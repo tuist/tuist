@@ -51,6 +51,7 @@ defmodule TuistWeb.Noora.Table do
   slot :col, required: true do
     attr :label, :string, required: false, doc: "The label of the column"
     attr :icon, :string, doc: "An icon to render next to the label"
+    attr :patch, :string, doc: "A patch to apply to the column"
   end
 
   def table(assigns) do
@@ -67,8 +68,15 @@ defmodule TuistWeb.Noora.Table do
         <thead>
           <tr>
             <th :for={col <- @col}>
-              <span>{col[:label]}</span>
-              <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
+              <%= if col[:patch] do %>
+                <.link patch={col[:patch]} data-part="sort-link">
+                  <span>{col[:label]}</span>
+                  <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
+                </.link>
+              <% else %>
+                <span>{col[:label]}</span>
+                <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
+              <% end %>
             </th>
           </tr>
         </thead>

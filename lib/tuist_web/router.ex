@@ -548,7 +548,7 @@ defmodule TuistWeb.Router do
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/previews", NooraPreviewsLive
-      live "/runs/:id", RunDetailLive
+      live "/runs/:run_id", RunDetailLive
     end
   end
 
@@ -572,6 +572,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user}
       ] do
       live "/test_runs", TestRunsLive
+      live "/cache_runs", CacheRunsLive
     end
   end
 

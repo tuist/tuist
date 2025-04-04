@@ -8,6 +8,7 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias Tuist.CommandEvents
   import Phoenix.Component
   import TuistWeb.AppLayoutComponents
 
@@ -26,7 +27,7 @@ defmodule TuistWeb.LayoutLive do
 
   def on_mount(
         :project,
-        %{"account_handle" => account_handle, "project_handle" => project_handle},
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = params,
         session,
         socket
       )
@@ -102,7 +103,8 @@ defmodule TuistWeb.LayoutLive do
      |> assign(
        :selected_account_projects,
        selected_account_projects
-     )}
+     )
+     |> assign_selected_run(params)}
   end
 
   def on_mount(:account, params, session, socket) do
@@ -188,6 +190,23 @@ defmodule TuistWeb.LayoutLive do
       end
 
     user
+  end
+
+  defp assign_selected_run(socket, params) do
+    if is_nil(params["run_id"]) do
+      socket
+      |> assign(:selected_run, nil)
+    else
+      run = CommandEvents.get_command_event_by_id(params["run_id"])
+
+      if is_nil(run) do
+        raise TuistWeb.Errors.NotFoundError,
+              gettext("The run you are looking for doesn't exist or has been moved.")
+      end
+
+      socket
+      |> assign(:selected_run, run)
+    end
   end
 
   def assign_latest_app_release(socket) do

@@ -1,0 +1,121 @@
+<div id="cache-runs">
+  <.card title={gettext("Cache Runs")} icon="schema" data-part="cache-runs">
+    <.card_section data-part="cache-runs-table-section">
+      <div data-part="filters">
+        <.dropdown
+          id="cache-runs-sort-by"
+          label={
+            case @cache_runs_sort_by do
+              "duration" -> gettext("Duration")
+              _ -> gettext("Ran at")
+            end
+          }
+          secondary_text={gettext("Sort by:")}
+        >
+          <.dropdown_item
+            value="duration"
+            label={gettext("Duration")}
+            patch={cache_runs_dropdown_item_patch_sort("duration", @uri)}
+            data-selected={@cache_runs_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="ran_at"
+            label={gettext("Ran at")}
+            patch={cache_runs_dropdown_item_patch_sort("ran_at", @uri)}
+            data-selected={@cache_runs_sort_by == "ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.table
+        id="cache-runs-table"
+        rows={@cache_runs}
+        row_navigate={
+          fn cache_run ->
+            url(
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{cache_run.id}"
+            )
+          end
+        }
+      >
+        <:col :let={cache_run} label={gettext("Command")}>
+          <.text_and_description_cell label={"tuist " <> cache_run.name <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join()), else: "")} />
+        </:col>
+        <:col :let={cache_run} label={gettext("Hit rate")}>
+          <.text_cell label={
+            gettext("%{hit_rate}%",
+              hit_rate:
+                if(Enum.count(cache_run.cacheable_targets) == 0,
+                  do: 0,
+                  else:
+                    ((Enum.count(cache_run.local_cache_target_hits) +
+                        Enum.count(cache_run.remote_cache_target_hits)) /
+                       Enum.count(cache_run.cacheable_targets) * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+            )
+          } />
+        </:col>
+        <:col :let={cache_run} label="Status">
+          <%= if cache_run.status == :success do %>
+            <.status_badge_cell label={gettext("Passed")} status="success" />
+          <% else %>
+            <.status_badge_cell label={gettext("Failed")} status="error" />
+          <% end %>
+        </:col>
+        <:col :let={cache_run} label={gettext("Branch")}>
+          <.text_cell icon="git_branch" label={cache_run.git_branch || "None"} />
+        </:col>
+        <:col :let={cache_run} label={gettext("Ran by")}>
+          <.run_ran_by_badge_cell run={cache_run} />
+        </:col>
+        <:col
+          :let={cache_run}
+          label={gettext("Duration")}
+          patch={@cache_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
+          icon={
+            @cache_runs_sort_by == "duration" &&
+              sort_icon(@cache_runs_sort_order)
+          }
+        >
+          <.text_cell
+            label={
+              gettext("%{run_duration}s",
+                run_duration:
+                  (cache_run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+              )
+            }
+            icon="history"
+          />
+        </:col>
+        <:col
+          :let={cache_run}
+          label={gettext("Ran at")}
+          patch={@cache_runs_sort_by == "ran_at" && column_patch_sort(assigns, "ran_at")}
+          icon={
+            @cache_runs_sort_by == "ran_at" &&
+              sort_icon(@cache_runs_sort_order)
+          }
+        >
+          <% relative_date =
+            case Timex.from_now(cache_run.ran_at) |> String.split(" ") do
+              [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
+              _ -> Timex.from_now(cache_run.ran_at)
+            end %>
+          <.text_cell sublabel={relative_date} />
+        </:col>
+      </.table>
+      <.pagination
+        uri={@uri}
+        has_previous_page={@cache_runs_meta.has_previous_page?}
+        has_next_page={@cache_runs_meta.has_next_page?}
+        start_cursor={@cache_runs_meta.start_cursor}
+        end_cursor={@cache_runs_meta.end_cursor}
+      />
+    </.card_section>
+  </.card>
+</div>

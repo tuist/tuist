@@ -107,6 +107,15 @@
     text-align: left;
     top: 0;
 
+    & > [data-part="sort-link"] {
+      text-decoration: unset;
+      color: unset;
+
+      &:hover [data-part="icon"] {
+        color: var(--noora-surface-label-primary);
+      }
+    }
+
     & [data-part="icon"] {
       /* We cannot make `th` a flex element for vertical alignment and `gap`, so we are using `top` to vertically align, and `left` for
       * spacing. */
@@ -121,10 +130,6 @@
       & svg {
         height: 100%;
         width: 100%;
-      }
-
-      &:hover {
-        color: var(--noora-surface-label-primary);
       }
     }
   }

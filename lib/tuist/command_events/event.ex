@@ -18,7 +18,7 @@ defmodule Tuist.CommandEvents.Event do
       :git_ref,
       :git_branch
     ],
-    sortable: [:created_at]
+    sortable: [:created_at, :ran_at, :duration]
   }
 
   schema "command_events" do

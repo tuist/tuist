@@ -1,6 +1,7 @@
 @import "./pages/account_projects.css";
 @import "./pages/auth.css";
 @import "./pages/account_billing.css";
+@import "./pages/cache_runs.css";
 @import "./pages/error.css";
 @import "./pages/noora_previews.css";
 @import "./pages/overview.css";
@@ -10,4 +11,5 @@
 @import "./pages/project_tests.css";
 @import "./pages/previews.css";
 @import "./pages/preview.css";
+@import "./pages/run_detail.css";
 @import "./pages/test_runs.css";
