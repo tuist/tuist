@@ -34,7 +34,7 @@ extension XcodeGraph.TestAction {
                 .concurrentCompactMap { index, path in
                     let resolvedPath = try generatorPaths.resolve(path: path)
                     guard try await fileSystem.exists(resolvedPath) else { return nil }
-                    return try TestPlan(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
+                    return try await TestPlan.from(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
                 }
 
             // not used when using test plans

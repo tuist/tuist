@@ -28,6 +28,7 @@ public enum TuistAcceptanceFixtures {
     case appWithTestPlan
     case appWithTests
     case appWithMacBundle
+    case appWorkspaceWithTestPlan
     case commandLineToolBasic
     case commandLineToolWithDynamicFramework
     case commandLineToolWithDynamicLibrary
@@ -166,6 +167,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_tests"
         case .appWithMacBundle:
             return "app_with_mac_bundle"
+        case .appWorkspaceWithTestPlan:
+            return "app_workspace_with_test_plan"
         case .commandLineToolBasic:
             return "command_line_tool_basic"
         case .commandLineToolWithDynamicFramework:
