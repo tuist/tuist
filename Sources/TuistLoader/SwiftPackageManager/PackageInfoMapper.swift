@@ -902,6 +902,7 @@ extension ProjectDescription.ResourceFileElements {
                 ]
             )
             .collect()
+            .filter { !$0.components.contains(where: { $0.hasSuffix(".xcframework") }) }
             .filter { candidatePath in
                 try excludedPaths.allSatisfy {
                     try !AbsolutePath(validating: $0.pathString.lowercased())
