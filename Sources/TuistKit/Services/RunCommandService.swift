@@ -10,7 +10,7 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 
-enum RunServiceError: FatalError, Equatable {
+enum RunCommandServiceError: LocalizedError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutRunnableTarget(scheme: String)
     case invalidVersion(String)
@@ -20,7 +20,7 @@ enum RunServiceError: FatalError, Equatable {
     case missingFullHandle(displayName: String, specifier: String)
     case previewNotFound(displayName: String, specifier: String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .schemeNotFound(scheme, existing):
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
@@ -40,24 +40,9 @@ enum RunServiceError: FatalError, Equatable {
             return "We could not find a preview for \(displayName)@\(specifier). You can create one by running tuist share \(displayName)."
         }
     }
-
-    var type: ErrorType {
-        switch self {
-        case .schemeNotFound,
-             .schemeWithoutRunnableTarget,
-             .invalidVersion,
-             .appNotFound,
-             .invalidPreviewURL,
-             .missingFullHandle,
-             .previewNotFound:
-            return .abort
-        case .workspaceNotFound:
-            return .bug
-        }
-    }
 }
 
-final class RunService {
+struct RunCommandService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
@@ -65,14 +50,13 @@ final class RunService {
     private let configLoader: ConfigLoading
     private let getPreviewService: GetPreviewServicing
     private let listPreviewsService: ListPreviewsServicing
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let appRunner: AppRunning
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let appBundleLoader: AppBundleLoading
     private let fileArchiverFactory: FileArchivingFactorying
 
-    convenience init() {
+    init() {
         self.init(
             generatorFactory: GeneratorFactory(),
             buildGraphInspector: BuildGraphInspector(),
@@ -81,7 +65,6 @@ final class RunService {
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
             getPreviewService: GetPreviewService(),
             listPreviewsService: ListPreviewsService(),
-            fileHandler: FileHandler.shared,
             fileSystem: FileSystem(),
             appRunner: AppRunner(),
             remoteArtifactDownloader: RemoteArtifactDownloader(),
@@ -98,7 +81,6 @@ final class RunService {
         configLoader: ConfigLoading,
         getPreviewService: GetPreviewServicing,
         listPreviewsService: ListPreviewsServicing,
-        fileHandler: FileHandling,
         fileSystem: FileSystem,
         appRunner: AppRunning,
         remoteArtifactDownloader: RemoteArtifactDownloading,
@@ -112,7 +94,6 @@ final class RunService {
         self.configLoader = configLoader
         self.getPreviewService = getPreviewService
         self.listPreviewsService = listPreviewsService
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.appRunner = appRunner
         self.remoteArtifactDownloader = remoteArtifactDownloader
@@ -143,7 +124,7 @@ final class RunService {
 
         let osVersion = try osVersion.map { versionString in
             guard let version = versionString.version() else {
-                throw RunServiceError.invalidVersion(versionString)
+                throw RunCommandServiceError.invalidVersion(versionString)
             }
             return version
         }
@@ -174,7 +155,7 @@ final class RunService {
             let config = try await configLoader.loadConfig(path: runPath)
             guard let fullHandle = config.fullHandle
             else {
-                throw RunServiceError.missingFullHandle(
+                throw RunCommandServiceError.missingFullHandle(
                     displayName: displayName,
                     specifier: specifier
                 )
@@ -189,7 +170,7 @@ final class RunService {
                 distinctField: nil,
                 fullHandle: fullHandle,
                 serverURL: config.url
-            ).first else { throw RunServiceError.previewNotFound(displayName: displayName, specifier: specifier) }
+            ).first else { throw RunCommandServiceError.previewNotFound(displayName: displayName, specifier: specifier) }
             try await runPreviewLink(
                 preview.url,
                 device: device,
@@ -203,21 +184,21 @@ final class RunService {
         device: String?,
         version: Version?
     ) async throws {
-        ServiceContext.current?.logger?.notice("Runnning \(previewLink.absoluteString)...")
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
               previewLink.pathComponents.count > 4 // We expect at least four path components
-        else { throw RunServiceError.invalidPreviewURL(previewLink.absoluteString) }
+        else { throw RunCommandServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
-        let preview = try await getPreviewService.getPreview(
-            previewLink.lastPathComponent,
-            fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
-            serverURL: serverURL
-        )
-
-        guard let archivePath = try await remoteArtifactDownloader.download(url: preview.url)
-        else { throw RunServiceError.appNotFound(previewLink.absoluteString) }
+        let archivePath = try await ServiceContext.current?.ui?.progressStep(message: "Downloading preview...") { _ in
+            let preview = try await getPreviewService.getPreview(
+                previewLink.lastPathComponent,
+                fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
+                serverURL: serverURL
+            )
+            return try await remoteArtifactDownloader.download(url: preview.url)
+        }
+        guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
         let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
 
@@ -227,7 +208,7 @@ final class RunService {
             fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
             .collect()
             .concurrentMap {
-                try await self.appBundleLoader.load($0)
+                try await appBundleLoader.load($0)
             }
 
         try await appRunner.runApp(
@@ -260,7 +241,7 @@ final class RunService {
         }
 
         guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
-            throw RunServiceError.workspaceNotFound(path: path.pathString)
+            throw RunCommandServiceError.workspaceNotFound(path: path.pathString)
         }
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -270,11 +251,11 @@ final class RunService {
             .debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
 
         guard let scheme = runnableSchemes.first(where: { $0.name == scheme }) else {
-            throw RunServiceError.schemeNotFound(scheme: scheme, existing: runnableSchemes.map(\.name))
+            throw RunCommandServiceError.schemeNotFound(scheme: scheme, existing: runnableSchemes.map(\.name))
         }
 
         guard let graphTarget = buildGraphInspector.runnableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
-            throw RunServiceError.schemeWithoutRunnableTarget(scheme: scheme.name)
+            throw RunCommandServiceError.schemeWithoutRunnableTarget(scheme: scheme.name)
         }
 
         try targetRunner.assertCanRunTarget(graphTarget.target)

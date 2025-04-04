@@ -1,3 +1,4 @@
+import Foundation
 import Mockable
 import ServiceContextModule
 import struct TSCUtility.Version
@@ -5,12 +6,12 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-enum AppRunnerError: FatalError, Equatable {
+enum AppRunnerError: LocalizedError, Equatable {
     case invalidSimulatorPlatform(String)
     case selectedPlatformNotFound(String)
     case appNotFoundForPhysicalDevice(PhysicalDevice)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .invalidSimulatorPlatform(platform):
             "The chosen simulator's platform \(platform) is invalid"
@@ -18,15 +19,6 @@ enum AppRunnerError: FatalError, Equatable {
             "No app bundle for the selected platform \(platform) was found."
         case let .appNotFoundForPhysicalDevice(physicalDevice):
             "No app bundle for the device \(physicalDevice.name) was found."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .invalidSimulatorPlatform, .appNotFoundForPhysicalDevice:
-            return .abort
-        case .selectedPlatformNotFound:
-            return .bug
         }
     }
 }
@@ -40,27 +32,23 @@ public protocol AppRunning {
     ) async throws
 }
 
-public final class AppRunner: AppRunning {
+public struct AppRunner: AppRunning {
     private let simulatorController: SimulatorControlling
     private let deviceController: DeviceControlling
-    private let userInputReader: UserInputReading
 
-    public convenience init() {
+    public init() {
         self.init(
             simulatorController: SimulatorController(),
-            deviceController: DeviceController(),
-            userInputReader: UserInputReader()
+            deviceController: DeviceController()
         )
     }
 
     init(
         simulatorController: SimulatorControlling,
-        deviceController: DeviceControlling,
-        userInputReader: UserInputReading
+        deviceController: DeviceControlling
     ) {
         self.simulatorController = simulatorController
         self.deviceController = deviceController
-        self.userInputReader = userInputReader
     }
 
     public func runApp(
@@ -138,7 +126,7 @@ public final class AppRunner: AppRunning {
         }
 
         let devices = try await simulatorPlatforms.concurrentMap { platform in
-            try await self.simulatorController.findAvailableDevices(
+            try await simulatorController.findAvailableDevices(
                 platform: platform,
                 version: version,
                 minVersion: platformsWithVersions[platform],
@@ -152,10 +140,24 @@ public final class AppRunner: AppRunning {
         if bootedDevices.count == 1, let bootedDevice = bootedDevices.first {
             simulator = bootedDevice
         } else {
-            simulator = try userInputReader.readValue(
-                asking: "Select the simulator device where you want to run the app:",
-                values: devices,
-                valueDescription: { "\($0.device.name) (\($0.device.udid))" }
+            simulator = ServiceContext.current!.ui!.singleChoicePrompt(
+                title: nil,
+                question: "Select a simulator device",
+                options: devices.sorted(by: {
+                    if $0.device.isShutdown != $1.device.isShutdown {
+                        if $0.device.isShutdown {
+                            return false
+                        } else {
+                            return true
+                        }
+                    } else {
+                        return $0.device.description < $1.device.description
+                    }
+                }),
+                description: nil,
+                collapseOnSelection: true,
+                filterMode: .enabled,
+                autoselectSingleChoice: true
             )
         }
 
@@ -169,16 +171,33 @@ public final class AppRunner: AppRunning {
         })
         else { throw AppRunnerError.selectedPlatformNotFound(simulatorPlatform.caseValue) }
 
-        ServiceContext.current?.logger?.notice("Installing and launching \(appBundle.infoPlist.name) on \(simulator.device.name)")
-        let device = try simulatorController.booted(device: simulator.device)
-        try simulatorController.installApp(at: appBundle.path, device: device)
-        try await simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
-        ServiceContext.current?.alerts?.success(.alert("\(appBundle.infoPlist.name) was successfully launched 📲"))
+        try await ServiceContext.current?.ui?.progressStep(
+            message: "Installing \(appBundle.infoPlist.name) on \(simulator.device.name)",
+            successMessage: "\(appBundle.infoPlist.name) was successfully launched 📲",
+            errorMessage: nil,
+            showSpinner: true
+        ) { updateProgress in
+            let device = try simulatorController.booted(device: simulator.device)
+            try simulatorController.installApp(at: appBundle.path, device: device)
+            updateProgress("Launching \(appBundle.infoPlist.name) on \(simulator.device.name)")
+            try await simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
+        }
     }
 }
 
 extension Version {
     init(_ version: XcodeGraph.Version) {
         self.init(version.major, version.minor, version.patch)
+    }
+}
+
+extension SimulatorDeviceAndRuntime: @retroactive CustomStringConvertible {
+    public var description: String {
+        let description = "\(device.name) \(device.udid)"
+        if device.isShutdown {
+            return description
+        } else {
+            return description + " (Booted)"
+        }
     }
 }
