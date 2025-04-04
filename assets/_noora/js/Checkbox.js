@@ -1,14 +1,15 @@
 import * as checkbox from "@zag-js/checkbox";
 import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Checkbox extends Component {
-  initService(context) {
-    return checkbox.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(checkbox.machine, context);
   }
 
   initApi() {
-    return checkbox.connect(this.service.state, this.service.send, normalizeProps);
+    return checkbox.connect(this.machine.service, normalizeProps);
   }
 
   render() {

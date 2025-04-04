@@ -1,14 +1,15 @@
 import * as collapsible from "@zag-js/collapsible";
 import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Collapsible extends Component {
-  initService(context) {
-    return collapsible.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(collapsible.machine, context);
   }
 
   initApi() {
-    return collapsible.connect(this.service.state, this.service.send, normalizeProps);
+    return collapsible.connect(this.machine.service, normalizeProps);
   }
 
   render() {

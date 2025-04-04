@@ -31,7 +31,7 @@ defmodule TuistWeb.Storybook.Modal do
           <:header_icon>
             <.mail />
           </:header_icon>
-          <.text_input id="email" type="email" label="Email" required placeholder="hello@tuist.dev" />
+          <.text_input id="email" name="email" value="" type="email" label="Email" required placeholder="hello@tuist.dev" />
           <:footer>
             <.modal_footer>
               <:action>

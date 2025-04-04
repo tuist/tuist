@@ -1,14 +1,15 @@
 import * as menu from "@zag-js/menu";
 import { normalizeProps, spreadProps, renderPart, getBooleanOption, getOption } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Menu extends Component {
-  initService(context) {
-    return menu.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(menu.machine, context);
   }
 
   initApi() {
-    return menu.connect(this.service.state, this.service.send, normalizeProps);
+    return menu.connect(this.machine.service, normalizeProps);
   }
 
   render() {

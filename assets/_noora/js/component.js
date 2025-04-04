@@ -1,56 +1,33 @@
 export class Component {
-  /**
-   * @param {HTMLElement} el - The DOM element
-   * @param {*} context - The context for the component
-   */
-  constructor(el, context) {
-    if (!el || !(el instanceof HTMLElement)) {
-      throw new Error("Component requires an HTMLElement");
-    }
-
+  constructor(el, props) {
+    if (!el) throw new Error("Root element not found");
     this.el = el;
-    this.service = this.initService(context);
+    this.machine = this.initMachine(props);
     this.api = this.initApi();
   }
 
-  /**
-   * Initialize the service - Must be implemented by child classes
-   * @param {*} context
-   */
-  initService(_context) {
-    throw new Error("initService must be implemented by child class");
-  }
-
-  /**
-   * Initialize the API - Must be implemented by child classes
-   */
-  initApi() {
-    throw new Error("initApi must be implemented by child class");
-  }
-
-  /**
-   * Render method - Must be implemented by child classes
-   */
-  render() {
-    throw new Error("render must be implemented by child class");
-  }
-
-  /**
-   * Initialize the component
-   */
   init = () => {
     this.render();
-    this.service.subscribe(() => {
+    this.machine.subscribe(() => {
       this.api = this.initApi();
       this.render();
     });
-    this.service.start();
+    this.machine.start();
   };
 
-  /**
-   * Cleanup the component
-   */
   destroy = () => {
-    this.service.stop();
+    this.machine.stop();
   };
+
+  initMachine(_props) {
+    throw new Error("Method 'initMachine' must be implemented.");
+  }
+
+  initApi() {
+    throw new Error("Method 'initApi' must be implemented.");
+  }
+
+  render() {
+    throw new Error("Method 'render' must be implemented.");
+  }
 }

@@ -1,14 +1,15 @@
 import * as tooltip from "@zag-js/tooltip";
 import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Tooltip extends Component {
-  initService(context) {
-    return tooltip.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(tooltip.machine, context);
   }
 
   initApi() {
-    return tooltip.connect(this.service.state, this.service.send, normalizeProps);
+    return tooltip.connect(this.machine.service, normalizeProps);
   }
 
   render() {

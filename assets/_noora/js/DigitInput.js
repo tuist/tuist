@@ -1,14 +1,15 @@
 import * as menu from "@zag-js/pin-input";
 import { normalizeProps, spreadProps, renderPart, getOption, getBooleanOption } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class PinInput extends Component {
-  initService(context) {
-    return menu.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(menu.machine, context);
   }
 
   initApi() {
-    return menu.connect(this.service.state, this.service.send, normalizeProps);
+    return menu.connect(this.machine.service, normalizeProps);
   }
 
   render() {

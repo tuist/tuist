@@ -1,14 +1,15 @@
 import * as avatar from "@zag-js/avatar";
-import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
+import { normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Avatar extends Component {
-  initService(context) {
-    return avatar.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(avatar.machine, context);
   }
 
   initApi() {
-    return avatar.connect(this.service.state, this.service.send, normalizeProps);
+    return avatar.connect(this.machine.service, normalizeProps);
   }
 
   render() {

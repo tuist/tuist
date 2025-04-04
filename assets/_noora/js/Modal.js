@@ -1,14 +1,15 @@
 import * as dialog from "@zag-js/dialog";
 import { getOption, getBooleanOption, normalizeProps, renderPart } from "./util.js";
 import { Component } from "./component.js";
+import { VanillaMachine } from "./machine.js";
 
 class Dialog extends Component {
-  initService(context) {
-    return dialog.machine(context);
+  initMachine(context) {
+    return new VanillaMachine(dialog.machine, context);
   }
 
   initApi() {
-    return dialog.connect(this.service.state, this.service.send, normalizeProps);
+    return dialog.connect(this.machine.service, normalizeProps);
   }
 
   render() {
