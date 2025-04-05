@@ -1422,6 +1422,7 @@ public class GraphTraverser: GraphTraversing {
             .watch2Extension,
             .systemExtension,
             .xpc,
+            .bundle,
         ]
         return validProducts.contains(target.product)
     }
