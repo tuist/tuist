@@ -53,6 +53,37 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
 ```
 :::
 
+### Cursor
+
+If you are using [Cursor](https://www.cursor.com), you can run the <LocalizedLink href="/cli/mcp/setup/cursor">tuist mcp setup cursor</LocalizedLink> command to configure your Claude environment.
+
+Alternatively, can manually edit the file at `.cursor/mcp.json`, and add the Tuist MCP server:
+
+:::code-group
+
+```json [Global Tuist installation (e.g. Homebrew)]
+{
+  "mcpServers": {
+    "tuist": {
+      "command": "tuist",
+      "args": ["mcp", "start"]
+    }
+  }
+}
+```
+
+```json [Mise installation]
+{
+  "mcpServers": {
+    "tuist": {
+      "command": "mise",
+      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
+    }
+  }
+}
+```
+:::
+
 ## Capabilities
 
 In the following sections you'll learn about the capabilities of the Tuist MCP server.
