@@ -25,8 +25,12 @@ defmodule TuistWeb.Noora.PaginationGroup do
       >
         <.chevron_left />
       </.neutral_button>
-      <%= for page <- 1..@number_of_pages do %>
+      <%= for page <- pagination_items(@current_page, @number_of_pages) do %>
+        <span :if={page == :ellipsis} size="large" data-part="ellipsis">
+          ...
+        </span>
         <.link
+          :if={page != :ellipsis}
           patch={@page_patch.(page)}
           data-part="page-button"
           data-selected={@current_page == page}
@@ -36,7 +40,6 @@ defmodule TuistWeb.Noora.PaginationGroup do
           </span>
         </.link>
       <% end %>
-
       <.neutral_button
         size="large"
         disabled={@current_page == @number_of_pages}
@@ -46,5 +49,40 @@ defmodule TuistWeb.Noora.PaginationGroup do
       </.neutral_button>
     </div>
     """
+  end
+
+  # This method is heavily inspired by: https://github.com/chakra-ui/zag/blob/b7adf8e5f0acc1a83c8e1745ed9809ad598e3d4a/packages/machines/pagination/src/pagination.utils.ts
+  defp pagination_items(current_page, number_of_pages) do
+    sibling_count = 1
+    total_page_numbers = min(2 * sibling_count + 5, number_of_pages)
+
+    first_page_index = 1
+    last_page_index = number_of_pages
+
+    left_sibling_index = max(current_page - sibling_count, first_page_index)
+    right_sibling_index = min(current_page + sibling_count, last_page_index)
+
+    show_left_ellipsis = left_sibling_index > first_page_index + 1
+    show_right_ellipsis = right_sibling_index < last_page_index - 1
+
+    # 2 stands for one ellipsis and either first or last page
+    item_count = total_page_numbers - 2
+
+    cond do
+      !show_left_ellipsis && show_right_ellipsis ->
+        left_range = 1..item_count |> Enum.to_list()
+        left_range ++ [:ellipsis, last_page_index]
+
+      show_left_ellipsis && !show_right_ellipsis ->
+        right_range = (last_page_index - item_count + 1)..last_page_index |> Enum.to_list()
+        [first_page_index, :ellipsis | right_range]
+
+      show_left_ellipsis && show_right_ellipsis ->
+        middle_range = Enum.to_list(left_sibling_index..right_sibling_index)
+        [first_page_index, :ellipsis] ++ middle_range ++ [:ellipsis, last_page_index]
+
+      true ->
+        first_page_index..last_page_index
+    end
   end
 end

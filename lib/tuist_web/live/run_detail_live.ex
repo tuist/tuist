@@ -25,7 +25,7 @@ defmodule TuistWeb.RunDetailLive do
     selective_testing_analytics = selective_testing_analytics(run)
 
     selective_testing_page_count =
-      max(div(length(selective_testing_analytics.test_modules), @table_page_size), 1)
+      div(length(selective_testing_analytics.test_modules), @table_page_size) + 1
 
     binary_cache_analytics = binary_cache_analytics(run)
 

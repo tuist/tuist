@@ -5,6 +5,12 @@
   align-items: center;
   gap: var(--noora-spacing-4);
 
+  & > [data-part="ellipsis"] {
+    padding: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
   & > [data-part="page-button"] {
     cursor: pointer;
     outline: unset;
