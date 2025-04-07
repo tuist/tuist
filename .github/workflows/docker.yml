@@ -13,6 +13,8 @@ concurrency:
 
 env:
   MISE_EXPERIMENTAL: 1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
 
 jobs:
   build:
@@ -23,6 +25,22 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: 'Get version'
         id: version

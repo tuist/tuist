@@ -14,7 +14,8 @@ permissions:
 
 env:
   MISE_EXPERIMENTAL: 1
-
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
 jobs:
   release:
     name: Release
@@ -24,6 +25,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -67,6 +84,8 @@ jobs:
             org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
             org.opencontainers.image.source=https://github.com/tuist/registry
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build and push
         uses: docker/build-push-action@v5
         with:

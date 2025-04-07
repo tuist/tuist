@@ -14,6 +14,8 @@ concurrency:
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
   MISE_EXPERIMENTAL: 1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
 
 jobs:
   canary:
@@ -32,6 +34,22 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -39,8 +57,10 @@ jobs:
           version=$(.mise/tasks/generate-version)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Fly
-        run: flyctl deploy --remote-only -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
+        run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
       - name: Notify about the deployment in Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
