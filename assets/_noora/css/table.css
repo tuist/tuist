@@ -48,7 +48,7 @@
 
       & tr {
         &:hover {
-          & td([data-selectable]) {
+          & td[data-selectable] {
             background: var(--noora-surface-background-secondary);
           }
           & td:not([data-selectable]) {

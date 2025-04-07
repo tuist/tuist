@@ -9,7 +9,7 @@ import Config
 
 # esbuild
 config :esbuild,
-  version: "0.17.11",
+  version: "0.25.2",
   app: [
     args:
       ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
