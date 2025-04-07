@@ -55,53 +55,7 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         given(settingsContentHasher)
             .hash(settings: .any)
             .willReturn("settings_hash")
-    }
 
-    override func tearDown() async throws {
-        contentHasher = nil
-        coreDataModelsContentHasher = nil
-        sourceFilesContentHasher = nil
-        targetScriptsContentHasher = nil
-        resourcesContentHasher = nil
-        copyFilesContentHasher = nil
-        headersContentHasher = nil
-        plistContentHasher = nil
-        settingsContentHasher = nil
-        dependenciesContentHasher = nil
-        subject = nil
-        try await super.tearDown()
-    }
-
-    func test_hash_when_targetBelongsToExternalProjectWithHash() async throws {
-        // Given
-        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
-
-        // When
-        let got = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:])
-
-        // Then
-        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone")
-    }
-
-    func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
-        // Given
-        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
-
-        // When
-        let got = try await subject.contentHash(
-            for: target,
-            hashedTargets: [:],
-            hashedPaths: [:],
-            additionalStrings: ["additional_string_one", "additional_string_two"]
-        )
-
-        // Then
-        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone-additional_string_one-additional_string_two")
-    }
-
-    func test_hash_with_additional_strings() async throws {
-        // Given
-        let target = GraphTarget.test(project: .test())
         given(sourceFilesContentHasher)
             .hash(identifier: .any, sources: .any)
             .willReturn(MerkleNode(hash: "sources_hash", identifier: "sources"))
@@ -126,12 +80,69 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         given(deploymentTargetContentHasher)
             .hash(deploymentTargets: .any)
             .willReturn("deployment_targets_hash")
+    }
+
+    override func tearDown() async throws {
+        contentHasher = nil
+        coreDataModelsContentHasher = nil
+        sourceFilesContentHasher = nil
+        targetScriptsContentHasher = nil
+        resourcesContentHasher = nil
+        copyFilesContentHasher = nil
+        headersContentHasher = nil
+        plistContentHasher = nil
+        settingsContentHasher = nil
+        dependenciesContentHasher = nil
+        subject = nil
+        try await super.tearDown()
+    }
+
+    func test_hash_when_targetBelongsToExternalProjectWithHash() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
 
         // When
         let got = try await subject.contentHash(
             for: target,
             hashedTargets: [:],
             hashedPaths: [:],
+            destination: nil
+        )
+
+        // Then
+        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone")
+    }
+
+    func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            additionalStrings: ["additional_string_one", "additional_string_two"]
+        )
+
+        // Then
+        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone-additional_string_one-additional_string_two")
+    }
+
+    func test_hash_with_additional_strings() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
             additionalStrings: ["additional_string"]
         )
 
@@ -139,6 +150,38 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.hash,
             "Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad-iPhone-deployment_targets_hash-settings_hash"
+        )
+    }
+
+    func test_hash_with_destination() async throws {
+        // Given
+        let target = GraphTarget.test(
+            target: .test(
+                product: .uiTests
+            ),
+            project: .test()
+        )
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(
+                    name: "iPhone 16",
+                    runtimeIdentifier: "iOS-16"
+                )
+            ),
+            additionalStrings: []
+        )
+
+        // Then
+        XCTAssertTrue(
+            got.hash.contains("iPhone 16")
+        )
+        XCTAssertTrue(
+            got.hash.contains("iOS-16")
         )
     }
 }

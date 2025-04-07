@@ -64,7 +64,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -88,7 +94,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -112,7 +124,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -136,7 +154,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -165,7 +189,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .willReturn(graph)
 
         given(cacheGraphContentHasher)
-            .contentHashes(for: .value(graph), configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .value(graph),
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
 
         // When / Then
@@ -178,7 +208,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
             let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
             given(cacheGraphContentHasher)
-                .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+                .contentHashes(
+                    for: .any,
+                    configuration: .any,
+                    defaultConfiguration: .any,
+                    excludedTargets: .any,
+                    destination: .any
+                )
                 .willReturn([target1: "hash1", target2: "hash2"])
 
             given(generator)
@@ -204,7 +240,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     func test_run_gives_correct_configuration_type_to_hasher() async throws {
         // Given
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any)
+            .contentHashes(
+                for: .any,
+                configuration: .value("Debug"),
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
             .willReturn([:])
 
         given(generator)

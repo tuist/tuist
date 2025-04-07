@@ -16,6 +16,7 @@ public protocol GraphContentHashing {
     func contentHashes(
         for graph: Graph,
         include: @escaping (GraphTarget) -> Bool,
+        destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String]
     ) async throws -> [GraphTarget: String]
 }
@@ -56,6 +57,7 @@ public struct GraphContentHasher: GraphContentHashing {
     public func contentHashes(
         for graph: Graph,
         include: (GraphTarget) -> Bool,
+        destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String]
     ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
@@ -88,6 +90,7 @@ public struct GraphContentHasher: GraphContentHashing {
                 for: target,
                 hashedTargets: hashedTargets.value,
                 hashedPaths: hashedPaths.value,
+                destination: destination,
                 additionalStrings: additionalStrings
             )
             hashedPaths.mutate { $0 = hash.hashedPaths }

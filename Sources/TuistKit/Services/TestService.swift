@@ -75,6 +75,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let xcResultService: XCResultServicing
+    private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
 
     public convenience init(
         generatorFactory: GeneratorFactorying,
@@ -100,7 +101,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
         fileSystem: FileSysteming = FileSystem(),
-        xcResultService: XCResultServicing = XCResultService()
+        xcResultService: XCResultServicing = XCResultService(),
+        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -112,6 +114,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.xcResultService = xcResultService
+        xcodeBuildAgumentParser = xcodeBuildArgumentParser
     }
 
     static func validateParameters(
@@ -200,6 +203,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         let config = try await configLoader.loadConfig(path: path)
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
+        let destination = try await destination(arguments: passthroughXcodeBuildArguments)
+
         let testGenerator = generatorFactory.testing(
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
@@ -209,7 +214,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            destination: destination
         )
 
         ServiceContext.current?.logger?.notice("Generating project for testing", metadata: .section)
@@ -730,5 +736,24 @@ final class TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
+    }
+
+    private func destination(
+        arguments: [String]
+    ) async throws -> SimulatorDeviceAndRuntime? {
+        let parsedArguments = xcodeBuildAgumentParser
+            .parse(arguments)
+        if let destination = parsedArguments.destination {
+            if let id = destination.id {
+                return try await simulatorController.findAvailableDevice(udid: id)
+            } else if let name = destination.name {
+                return try await simulatorController.findAvailableDevice(
+                    deviceName: name,
+                    version: destination.os.map { TSCUtility.Version($0.major, $0.minor, $0.patch) }
+                )
+            }
+        }
+
+        return nil
     }
 }
