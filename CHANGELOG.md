@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.47.0 - 2025-04-07
+
+### CLI
+
+#### Changed
+
+- Remove docs for Cursor MCP integration [#7463](https://github.com/tuist/tuist/pull/7463) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix: Local package not in project Package Dependencies [#7419](https://github.com/tuist/tuist/pull/7419) by [@lukevanin](https://github.com/lukevanin)
+- Fix tuist share when the bundle version is not semantic [#7458](https://github.com/tuist/tuist/pull/7458) by [@fortmarek](https://github.com/fortmarek)
+- Fix test plan container reference in a workspace [#7460](https://github.com/tuist/tuist/pull/7460) by [@fortmarek](https://github.com/fortmarek)
+- Ignore resources inside XCFramework in the SwiftPM XcodeProj integration [#7461](https://github.com/tuist/tuist/pull/7461) by [@fortmarek](https://github.com/fortmarek)
+- Fix formatting of the synthesized resource accessor source file [#7442](https://github.com/tuist/tuist/pull/7442) by [@danieleformichelli](https://github.com/danieleformichelli)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.46.1 - 2025-04-03
 
 ### CLI
