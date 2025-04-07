@@ -22,6 +22,9 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
 
             /// The revision a package has been resolved to.
             let checkoutState: CheckoutState?
+
+            /// The version a package has been resolved to.
+            let version: String?
         }
 
         /// The package reference of the dependency
