@@ -231,6 +231,16 @@ export default defineConfig({
       },
       "",
     ],
+    [
+      "script",
+      {
+        src: "https://cdn.jsdelivr.net/npm/@inkeep/cxkit-js@0.5/dist/embed.js",
+        type: "module",
+        defer: true,
+      },
+      "",
+    ],
+    ["script", { src: "/static/addInkeep.js", type: "module", defer: true }],
   ],
   sitemap: {
     hostname: "https://docs.tuist.io",
