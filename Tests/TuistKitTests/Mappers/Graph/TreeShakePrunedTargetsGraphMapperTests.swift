@@ -150,6 +150,48 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
     }
 
+    func test_map_removes_project_schemes_with_test_plans_when_all_targets_were_removed() throws {
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
+                testAction: .test(
+                    testPlans: [
+                        TestPlan(
+                            path: "/Test.xctestplan",
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: path,
+                                        name: prunedTarget.name
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                    ]
+                )
+            ),
+        ]
+        let project = Project.test(path: path, targets: [keptTarget, prunedTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
     func test_map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {
         let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", prune: true)
@@ -157,7 +199,28 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let schemes: [Scheme] = [
             .test(
                 buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
-                testAction: .test(testPlans: [.init(path: "/Test.xctestplan", testTargets: [], isDefault: true)])
+                testAction: .test(
+                    testPlans: [
+                        TestPlan(
+                            path: "/Test.xctestplan",
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: path,
+                                        name: prunedTarget.name
+                                    )
+                                ),
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: path,
+                                        name: keptTarget.name
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                    ]
+                )
             ),
         ]
         let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
@@ -179,7 +242,23 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             [
                 .test(
                     buildAction: .test(targets: []),
-                    testAction: .test(targets: [], testPlans: [.init(path: "/Test.xctestplan", testTargets: [], isDefault: true)])
+                    testAction: .test(
+                        targets: [],
+                        testPlans: [
+                            TestPlan(
+                                path: "/Test.xctestplan",
+                                testTargets: [
+                                    .test(
+                                        target: TargetReference(
+                                            projectPath: path,
+                                            name: keptTarget.name
+                                        )
+                                    ),
+                                ],
+                                isDefault: true
+                            ),
+                        ]
+                    )
                 ),
             ]
         )

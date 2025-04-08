@@ -124,12 +124,18 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
             let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
             try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
             try await run(GenerateCommand.self)
-            XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            XCTAssertEqual(
+                ServiceContext.current?.recordedUI()
+                    .contains("We detected outdated dependencies"), true
+            )
+            ServiceContext.current?.resetRecordedUI()
 
-            ServiceContext.current?.testingLogHandler?.flush()
             try await run(InstallCommand.self)
             try await run(GenerateCommand.self)
-            XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            XCTAssertEqual(
+                ServiceContext.current?.recordedUI()
+                    .contains("We detected outdated dependencies"), false
+            )
         }
     }
 }
