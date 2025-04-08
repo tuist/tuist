@@ -3,7 +3,6 @@ defmodule TuistWeb.CacheRunsLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Runs.RanByBadge
-  alias Tuist.Runs.Analytics
   alias Tuist.CommandEvents
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
@@ -89,7 +88,7 @@ defmodule TuistWeb.CacheRunsLive do
     )
   end
 
-  defp list_cache_runs(project_id, attrs \\ []) do
+  defp list_cache_runs(project_id, attrs) do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},

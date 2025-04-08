@@ -429,7 +429,7 @@ defmodule Tuist.Registry.Swift.Packages do
     )
   end
 
-  defp find_matching_bracket(string, pos, count) when pos >= byte_size(string) do
+  defp find_matching_bracket(string, pos, _count) when pos >= byte_size(string) do
     {:error, "No matching bracket found"}
   end
 

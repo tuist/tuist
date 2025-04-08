@@ -198,7 +198,7 @@ msgstr ""
 msgid "About us"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:178
+#: lib/tuist/accounts/user_notifier.ex:177
 #: lib/tuist_web/live/accept_invitation_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -526,12 +526,12 @@ msgstr ""
 msgid "Confirm your account to access Tuist."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:113
+#: lib/tuist/accounts/user_notifier.ex:112
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:104
+#: lib/tuist/accounts/user_notifier.ex:103
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
 msgstr ""
@@ -636,7 +636,7 @@ msgstr ""
 msgid "Developers"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:140
+#: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr ""
@@ -901,12 +901,12 @@ msgstr ""
 msgid "Happiness"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist/accounts/user_notifier.ex:174
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:142
+#: lib/tuist/accounts/user_notifier.ex:141
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
@@ -923,8 +923,8 @@ msgstr ""
 msgid "INFO:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:118
-#: lib/tuist/accounts/user_notifier.ex:150
+#: lib/tuist/accounts/user_notifier.ex:117
+#: lib/tuist/accounts/user_notifier.ex:149
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
@@ -980,7 +980,7 @@ msgstr ""
 msgid "Invitation not found or expired"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:169
+#: lib/tuist/accounts/user_notifier.ex:168
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -1442,12 +1442,12 @@ msgstr ""
 msgid "Reset password"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:136
+#: lib/tuist/accounts/user_notifier.ex:135
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:145
+#: lib/tuist/accounts/user_notifier.ex:144
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr ""
@@ -1818,7 +1818,7 @@ msgstr ""
 msgid "To authenticate interactions with the server"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:110
+#: lib/tuist/accounts/user_notifier.ex:109
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr ""
@@ -2216,17 +2216,17 @@ msgstr ""
 msgid "You need to be authenticated to access this page."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:116
+#: lib/tuist/accounts/user_notifier.ex:115
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:148
+#: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:173
+#: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
@@ -2236,7 +2236,7 @@ msgstr ""
 msgid "You'll save 60% of compilation time"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:108
+#: lib/tuist/accounts/user_notifier.ex:107
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
 msgstr ""
@@ -2928,7 +2928,7 @@ msgstr ""
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:14
+#: lib/tuist_web/live/cache_runs_live.ex:13
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #: lib/tuist_web/live/test_runs_live.ex:14
 #: lib/tuist_web/live/test_runs_live.html.heex:170

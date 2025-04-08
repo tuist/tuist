@@ -4,7 +4,6 @@ defmodule Tuist.Accounts.UserNotifier do
   """
   import Bamboo.Email
 
-  alias Tuist.Repo
   alias Tuist.Environment
   alias Tuist.Mailer
   alias Tuist.Accounts.User

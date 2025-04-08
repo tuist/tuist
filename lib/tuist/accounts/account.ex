@@ -6,6 +6,11 @@ defmodule Tuist.Accounts.Account do
   import Ecto.Changeset
   alias Tuist.Projects.Project
 
+  @derive {
+    Flop.Schema,
+    filterable: [:customer_id], sortable: [:name]
+  }
+
   schema "accounts" do
     field :name, :string
     field :billing_email, :string

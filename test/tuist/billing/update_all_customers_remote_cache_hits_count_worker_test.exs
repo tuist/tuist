@@ -1,0 +1,67 @@
+defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorkerTest do
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  test "updates the remote cache hit for accounts with subscriptions" do
+    # Given
+    first_account_customer_id = UUIDv7.generate()
+    second_account_customer_id = UUIDv7.generate()
+
+    %{account: first_account} =
+      AccountsFixtures.user_fixture(customer_id: first_account_customer_id)
+
+    %{account: second_account} =
+      AccountsFixtures.user_fixture(customer_id: second_account_customer_id)
+
+    first_account_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
+    second_account_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
+
+    date = ~U[2024-04-30 10:20:30Z]
+    DateTime |> stub(:utc_now, fn -> date end)
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: first_account_project.id,
+      name: "generate",
+      duration: 1500,
+      created_at: ~U[2024-04-29 10:20:30Z],
+      remote_test_target_hits: ["target1", "target2"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: second_account_project.id,
+      name: "generate",
+      duration: 1500,
+      created_at: ~U[2024-04-29 10:20:30Z],
+      remote_test_target_hits: ["target1", "target2"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: first_account_project.id,
+      name: "build",
+      duration: 1500,
+      created_at: ~U[2024-04-29 10:20:30Z],
+      remote_cache_target_hits: ["target1", "target2"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: first_account_project.id,
+      name: "generate",
+      duration: 1500,
+      created_at: ~U[2024-04-27 10:20:30Z],
+      remote_cache_target_hits: ["target1", "target2"]
+    )
+
+    Tuist.Billing
+    |> expect(:update_remote_cache_hit_meter, fn {^first_account_customer_id, 2} -> :ok end)
+
+    Tuist.Billing
+    |> expect(:update_remote_cache_hit_meter, fn {^second_account_customer_id, 1} -> :ok end)
+
+    # When
+    UpdateAllCustomersRemoteCacheHitsCountWorker.perform(%{args: %{"page_size" => 1}})
+  end
+end

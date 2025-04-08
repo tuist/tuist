@@ -256,7 +256,7 @@ config :tuist, Oban,
      crontab:
        [
          {"@hourly", Tuist.CommandEvents.UpdateCacheEventCountWorker},
-         {"@daily", Tuist.Billing.UpdateRemoteCacheHitWorker},
+         {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
          {"@daily", Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorker}
        ] ++
          if(not Tuist.Environment.on_premise?() and env == :prod,

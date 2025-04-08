@@ -452,8 +452,8 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def get_customer_ids_with_remote_cache_hits_stream() do
-    now = Tuist.Time.utc_now()
+  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
+    now = DateTime.utc_now()
     start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
@@ -463,7 +463,9 @@ defmodule Tuist.Accounts do
         on: e.project_id == p.id,
         join: a in Account,
         on: p.account_id == a.id,
-        where: e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday,
+        where:
+          e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday and
+            not is_nil(a.customer_id),
         group_by: a.customer_id,
         select:
           {a.customer_id,
@@ -475,7 +477,7 @@ defmodule Tuist.Accounts do
              )
            )}
 
-    query |> Repo.stream()
+    query |> Flop.validate_and_run!(attrs, for: Account)
   end
 
   defp create_oauth2_identity(%{
