@@ -253,7 +253,7 @@ defmodule TuistWeb.API.RunsController do
     build_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.current_user(conn).account)
+      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
     case get_or_create_build(build_params) do
       {:ok, build} ->

@@ -11,6 +11,9 @@ defmodule TuistWeb.Authentication do
   alias Phoenix.LiveView
   alias Tuist.Analytics
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
+  alias Tuist.Projects.Project
+  alias Tuist.Accounts.AuthenticatedAccount
   use TuistWeb, :verified_routes
 
   @current_user_key :current_user
@@ -56,6 +59,14 @@ defmodule TuistWeb.Authentication do
       project -> project
       authenticated_account -> authenticated_account
       true -> nil
+    end
+  end
+
+  def authenticated_subject_account(conn) do
+    case authenticated_subject(conn) do
+      %User{account: account} -> account
+      %Project{account: account} -> account
+      %AuthenticatedAccount{account: account} -> account
     end
   end
 

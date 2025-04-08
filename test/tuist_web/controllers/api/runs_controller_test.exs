@@ -198,7 +198,7 @@ defmodule TuistWeb.API.RunsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/runs" do
-    test "creates a new build", %{conn: conn} do
+    test "creates a new build when authenticatd as user", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
       project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
@@ -207,6 +207,49 @@ defmodule TuistWeb.API.RunsControllerTest do
       conn =
         conn
         |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "machine-123",
+          scheme: "App"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      assert build.duration == 1000
+      assert build.macos_version == "11.2.3"
+      assert build.xcode_version == "12.4"
+      assert build.is_ci == false
+      assert build.model_identifier == "machine-123"
+      assert build.scheme == "App"
+      assert build.project_id == project.id
+      assert build.account_id == user.account.id
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id
+             }
+
+      response
+    end
+
+    test "creates a new build when authenticatd as project", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> assign(:current_project, project)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
           id: UUIDv7.generate(),

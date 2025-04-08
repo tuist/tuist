@@ -8,6 +8,7 @@ defmodule TuistWeb.AuthenticationTest do
   alias Tuist.Accounts
   alias TuistWeb.Authentication
   import TuistTestSupport.Fixtures.AccountsFixtures
+  alias Tuist.Accounts.AuthenticatedAccount
 
   @remember_me_cookie "_tuist_web_user_remember_me"
 
@@ -17,7 +18,45 @@ defmodule TuistWeb.AuthenticationTest do
       |> Map.replace!(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
       |> init_test_session(%{})
 
-    %{user: user_fixture(preload: [:account]), conn: conn}
+    %{
+      user: user_fixture(preload: [:account]),
+      project: ProjectsFixtures.project_fixture(),
+      conn: conn
+    }
+  end
+
+  describe "authenticated_subject_account/1" do
+    test "when the authenticated subject is a user", %{user: user, conn: conn} do
+      # Given
+      conn = conn |> assign(:current_user, user)
+
+      # Then
+      assert Authentication.authenticated_subject_account(conn) == user.account
+    end
+
+    test "when the authenticated subject is a project", %{project: project, conn: conn} do
+      # Given
+      conn = conn |> assign(:current_project, project)
+
+      # Then
+      assert Authentication.authenticated_subject_account(conn) == project.account
+    end
+
+    test "when the authenticated subject is an authenticated account", %{
+      project: project,
+      conn: conn
+    } do
+      # Given
+      current_subject = %AuthenticatedAccount{
+        account: project.account,
+        scopes: ["scope-1", "scope-2"]
+      }
+
+      conn = conn |> assign(:current_subject, current_subject)
+
+      # Then
+      assert Authentication.authenticated_subject_account(conn) == current_subject.account
+    end
   end
 
   describe "log_in_user/3" do
