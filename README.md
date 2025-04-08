@@ -270,6 +270,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/zapis.svg" alt="wise_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://apps.apple.com/kz/app/rbk-business/id1466194695" target="_blank">
+          <img src="assets/companies/rbkbusiness.svg" alt="rbkbusiness_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
