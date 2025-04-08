@@ -48,6 +48,6 @@ let project = Project(
     targets: [
         appTarget(name: "App"),
         bundleTarget(name: "MyBundle"),
-        frameworkTarget(name: "MyFramework")
+        frameworkTarget(name: "MyFramework"),
     ]
 )
