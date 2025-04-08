@@ -49,9 +49,7 @@ defmodule Tuist.Application do
           :default => [size: 10],
           Environment.s3_endpoint() => [
             conn_opts: [
-              log: true,
-              verify: :verify_peer,
-              cacertfile: CAStore.file_path()
+              log: true
             ],
             size: Environment.s3_pool_size(),
             count: Environment.s3_pool_count(),
