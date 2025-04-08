@@ -169,6 +169,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 scheme.testAction?.codeCoverageTargets = testAction.codeCoverageTargets.filter(
                     sourceTargets.contains
                 )
+                scheme.testAction?.testPlans = testAction.testPlans?.compactMap {
+                    treeShake(testPlan: $0, sourceTargets: sourceTargets)
+                }
             }
 
             let hasBuildTargets = !(scheme.buildAction?.targets ?? []).isEmpty
@@ -191,6 +194,22 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             }
 
             return scheme
+        }
+    }
+
+    private func treeShake(
+        testPlan: TestPlan,
+        sourceTargets: Set<TargetReference>
+    ) -> TestPlan? {
+        let testTargets = testPlan.testTargets.filter { sourceTargets.contains($0.target) }
+        if testTargets.isEmpty {
+            return nil
+        } else {
+            return TestPlan(
+                path: testPlan.path,
+                testTargets: testTargets,
+                isDefault: testPlan.isDefault
+            )
         }
     }
 }
