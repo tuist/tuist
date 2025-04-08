@@ -1,8 +1,8 @@
 ---
-title: "Unveiling Tuist 4 and Tuist Cloud"
+title: "Unveiling Tuist 4"
 category: "product"
 tags: ["tuist", "release", "cloud"]
-excerpt: "In this blog post, we unveil Tuist 4 and Tuist Cloud, marking an inflection point in the project's sustainability. We also discuss the long-term sustainability of the project, the introduction of Tuist Cloud, and the new features in Tuist 4. We also talk about the new logo, our partnership with Codemagic, and our commitment to open-source."
+excerpt: "In this blog post, we unveil Tuist 4 and paid features offered through a server, marking an inflection point in the project's sustainability. We also discuss the long-term sustainability of the project and the new features in Tuist 4. We also talk about the new logo, our partnership with Codemagic, and our commitment to open-source."
 author: pepicrft
 og_image: /marketing/images/blog/2024/02/07/tuist-4-og.jpg
 ---
@@ -25,19 +25,19 @@ However, the uniqueness of software lies in its ongoing maintenance requirements
 
 Tuist, as a project, has reached a level of popularity that necessitates substantial maintenance efforts. Relying solely on volunteer contributions or donations has proven insufficient to meet these demands. Consequently, a new approach is required to sustain Tuist effectively.
 
-To address this challenge, **we are embracing a commercial open source model for Tuist**, with [Tuist Cloud](https://tuist.io/cloud) serving as the inaugural commercial complement. This model offers several key advantages:
+To address this challenge, **we are embracing a commercial open source model for Tuist**, with [a server](https://docs.tuist.dev/en/server/introduction/why-a-server) serving as the inaugural commercial complement. This model offers several key advantages:
 
-- **No Resource Starvation:** Tuist Cloud's costs are covered by its selling price, eliminating the resource scarcity that can plague a zero-priced open source model. It ensures the project's financial sustainability.
+- **No Resource Starvation:** Tuist's costs are covered by its selling price, eliminating the resource scarcity that can plague a zero-priced open source model. It ensures the project's financial sustainability.
 - **No Hidden Costs:** Open source remains genuinely free under this model, with no restrictive licensing terms or unexpected financial burdens on users.
 - **No Predatory Pricing:** While open source may be free, it doesn't enable predatory pricing practices. Competitors can freely use the codebase to offer their solutions, fostering healthy competition and preventing monopolies.
 
-Unlike the conventional loss-leading strategy where free and paid offerings are identical or substitutes, our approach views them as complementary components of the Tuist ecosystem. Tuist Cloud represents the first step in this transition, helping us secure the necessary resources to sustain Tuist's ongoing development and guarantee its long-term viability.
+Unlike the conventional loss-leading strategy where free and paid offerings are identical or substitutes, our approach views them as complementary components of the Tuist ecosystem. Our paid offering represents the first step in this transition, helping us secure the necessary resources to sustain Tuist's ongoing development and guarantee its long-term viability.
 
 By embracing the commercial open source model, **we are striking a balance between the benefits of open source collaboration and the sustainability of the Tuist project**, ensuring that it continues to thrive and serve the community effectively.
 
-## Tuist Cloud
+## Paid features
 
-Tuist Cloud is a paid server-side extension of Tuist, building on the project-generation foundation to offer exclusive features for optimizing workflows such as testing and project generation. Organizations can easily self-host Tuist Cloud or use our hosted version, leaving updates, maintenance, and support in our hands. **The service is generally available** and we already have organizations using it. Key Tuist Cloud features include:
+We introduced a set of paid features via a server by leveraging the project-generation foundation. Organizations can easily self-host the server or use our hosted version, leaving updates, maintenance, and support in our hands. **The service is generally available** and we already have organizations using it. Key features include:
 
 ### Binary caching
 
@@ -51,7 +51,7 @@ The efficiency of the cache is closely tied to the modular architecture of the p
 
 At some point in the project's journey, building and testing all the targets with every CI commit becomes inefficient. **The time required is directly proportional to the project's size,** and while slight improvements can be made with new processor generations, as demonstrated with M processors, CI providers struggle to keep up with the pace. When organizations reach this point, some opt to create their own in-house selective testing solutions, but this entails a significant time investment that detracts from product development. Moreover, without a tool to mitigate the inherent complexity in Xcode projects, the resulting logic can become unreliable and cause frustration among developers.
 
-Tuist Cloud offers a selective testing solution that works seamlessly across different environments. It utilizes the same hashing logic employed by binary caching to uniquely identify binaries in the cache, this time to determine whether a target has changed and, consequently, whether its tests and those of dependent targets need to run. The best part? It operates automatically, requiring no additional configuration or complexity.
+We offer a selective testing solution that works seamlessly across different environments. It utilizes the same hashing logic employed by binary caching to uniquely identify binaries in the cache, this time to determine whether a target has changed and, consequently, whether its tests and those of dependent targets need to run. The best part? It operates automatically, requiring no additional configuration or complexity.
 
 ![A video that shows selective testing in practice](/marketing/images/blog/2024/02/07/tuist-cloud-selective-testing.gif)
 
@@ -71,17 +71,17 @@ class="flex flex-col p-[0.060rem] shadow-2xl rounded-3xl bg-gradient-to-b from-i
 
 We have more ideas to tackle challenges, but our initial focus is on getting organizations on board, understanding their needs, and prioritizing development accordingly. Additionally, we aim to provide actionable metrics for project and build data, helping teams ensure their projects are future-proof.
 
-If you're eager to begin using Tuist Cloud, we recommend [reviewing our documentation](https://docs.tuist.io/cloud/get-started) and ensuring that `tuist cache` runs successfully with your Xcode project. You may need to make some adjustments to eliminate implicit configurations that could potentially hinder reliable caching.
+If you're eager to begin using our paid features, we recommend [reviewing our documentation](https://docs.tuist.dev/en/server/introduction/why-a-server) and ensuring that `tuist cache` runs successfully with your Xcode project. You may need to make some adjustments to eliminate implicit configurations that could potentially hinder reliable caching.
 
-> At Lapse speed is our top priority, Tuist Cloud has accelerated our development feedback loop massively. We mostly try to ship to the App Store every single day, so ensuring fast iteration speeds for feature development is of utmost importance.
+> At Lapse speed is our top priority, Tuist has accelerated our development feedback loop massively. We mostly try to ship to the App Store every single day, so ensuring fast iteration speeds for feature development is of utmost importance.
 Our average build time for an internal QA build or for our PR workflows used to be around 30 minutes on the CI, and when we added macros to the project this increased to 53 minutes.
-Since we started using Tuist Cloud with our modularised codebase (220 modules including dependencies) we’ve seen builds as quick as 8 minutes, with the average build time now being 13 minutes with macros!
+Since we started using Tuist's paid features with our modularised codebase (220 modules including dependencies) we’ve seen builds as quick as 8 minutes, with the average build time now being 13 minutes with macros!
 This has also dramatically impacted local development, we now no longer need to rebuild all those modules we’re not working on, which has resulted in much faster iteration speeds for the whole iOS team. Head of iOS at Lapse - Alex Little
 
 
 ## Tuist 4
 
-In addition to Tuist Cloud, we are introducing a major new release of Tuist, Tuist 4. With this release, we are placing a strong emphasis on sustainability.
+In addition to our paid features offered by the server, we are introducing a major new release of Tuist, Tuist 4. With this release, we are placing a strong emphasis on sustainability.
 
 We have observed that over the years, we have developed and maintained features and components of Tuist that are peripheral to the core of the project. For instance, the version manager "tuistenv" has seamlessly handled the installation and activation of Tuist versions. Additionally, we have implemented contributor tooling that introduced unnecessary friction and created a significant dependency between contributors and the core maintenance team. We have not critically evaluated their necessity until recently.
 
@@ -99,7 +99,7 @@ When Apple integrated Swift Packages into Xcode, they introduced a new post-Xcod
 
 Shortly after its release, the downsides of this idea became evident. Package products determining their static/linking nature had cascading integration effects, which Apple addressed by introducing an "automatic" linking option. Delegating these responsibilities to the build system increased dependence on Apple and the underlying build system for optimization. This strong dependency wasn't desirable, especially for large-scale projects.
 
-This motivated us to take a different approach, where **we aimed to provide users with more control over integration, making it compatible with Tuist Cloud for easy binary caching of dependencies.** We introduced a `Dependencies.swift` file where users could define their package dependencies. A `tuist fetch` command would resolve these dependencies using the Swift Package Manager. At generation time, we would convert them into Xcode projects, integrating, validating, and optimizing them alongside the rest of the graph. Although this feature came with ongoing maintenance costs, especially with new SPM features like Swift Macros, our experiments with binary caching showed that the investment was truly worthwhile. Tuist users embraced `Dependencies.swift`. When `tuist generate` completed, they had an optimized Xcode project ready for compilation. Additionally, they could delete derived data without worrying about invalidating package resolution. Through Xcode project generation, we enhanced developers' experience using the Swift Package Manager at its core.
+This motivated us to take a different approach, where **we aimed to provide users with more control over integration, making it compatible with Tuist for easy binary caching of dependencies.** We introduced a `Dependencies.swift` file where users could define their package dependencies. A `tuist fetch` command would resolve these dependencies using the Swift Package Manager. At generation time, we would convert them into Xcode projects, integrating, validating, and optimizing them alongside the rest of the graph. Although this feature came with ongoing maintenance costs, especially with new SPM features like Swift Macros, our experiments with binary caching showed that the investment was truly worthwhile. Tuist users embraced `Dependencies.swift`. When `tuist generate` completed, they had an optimized Xcode project ready for compilation. Additionally, they could delete derived data without worrying about invalidating package resolution. Through Xcode project generation, we enhanced developers' experience using the Swift Package Manager at its core.
 
 However, the use of `Dependencies.swift` distanced us from SPM's default interface, `Package.swift`, which had cascading consequences. For instance, we couldn't utilize tools like [Dependabot](https://github.com/dependabot) for automated dependency updates. To address this, we made changes in Tuist 4. Now, your dependencies are defined in a `Package.swift` file at the root of your project. Furthermore, you can use the `#if TUIST` compiler directive to include integration settings in the same manifest file. Additionally, we renamed `tuist fetch` to `tuist install` to align it with the industry's naming convention for dependency installation.
 
@@ -127,11 +127,11 @@ Many more changes have been incorporated into Tuist 4, which would significantly
 
 ## Remaining faithful to Tuist's open-source model
 
-Introducing an additional source of funding to the project might raise concerns among users – what if every new feature becomes exclusive to Tuist Cloud, and we end up adopting the loss-leading models commonly seen in traditional companies? To prevent this scenario, we are committed to embracing the open-source philosophy in the way we manage the company, ensuring accountability.
+Introducing an additional source of funding to the project might raise concerns among users – what if every new feature becomes exclusive to paying users, and we end up adopting the loss-leading models commonly seen in traditional companies? To prevent this scenario, we are committed to embracing the open-source philosophy in the way we manage the company, ensuring accountability.
 
 To fulfill this commitment, we will begin publishing a monthly report at the end of each month. In this report, we will openly share our financial status and how the funds are being utilized to sustain Tuist. We call it **Monthly Sustainability Report.** Key points we will address include:
 
-- How we have addressed issues and pull requests for both Tuist and Tuist Cloud.
+- How we have addressed issues and pull requests for both, the CLI and the server.
 - The number of contributions we have made to other open-source projects on which we depend.
 - The number of contributions paid through our bounty program.
 - The areas on which we plan to focus based on users’ feedback.
@@ -148,7 +148,7 @@ In this new logo, Matthew skillfully preserved Tuist's identity through the choi
 
 ## Strengthening our partnership with Codemagic
 
-Since the early days of Tuist, [Codemagic](https://codemagic.io), a CI/CD platform designed for mobile teams, has been a staunch supporter of Tuist through sponsorships and valuable resources for the community. With the release of Tuist 4 and Tuist Cloud, they are taking their support to the next level by offering us an exceptional CI/CD service and environments. As a result, we will be transitioning all our CI pipelines to run on Codemagic. We are incredibly grateful for this support.
+Since the early days of Tuist, [Codemagic](https://codemagic.io), a CI/CD platform designed for mobile teams, has been a staunch supporter of Tuist through sponsorships and valuable resources for the community. With the release of Tuist 4 and the paid features, they are taking their support to the next level by offering us an exceptional CI/CD service and environments. As a result, we will be transitioning all our CI pipelines to run on Codemagic. We are incredibly grateful for this support.
 
 If your company is in search of an excellent CI/CD solution for your mobile projects, we wholeheartedly recommend Codemagic. They are currently offering Tuist users **a discounted annual price of $2990, down from $4788**. To take advantage of this offer, simply use the code `TUIST2024` when purchasing Codemagic fixed price annual plan.
 
