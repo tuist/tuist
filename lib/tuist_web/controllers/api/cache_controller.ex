@@ -5,7 +5,6 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.CacheActionItems
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
-  alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Storage
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
@@ -64,15 +63,16 @@ defmodule TuistWeb.API.CacheController do
     }
   )
 
-  def get_cache_action_item(conn, %{hash: hash} = _params) do
-    project = EnsureProjectPresencePlug.get_project(conn)
-
+  def get_cache_action_item(
+        %{assigns: %{selected_project: selected_project}} = conn,
+        %{hash: hash} = _params
+      ) do
     cache_action_item =
       Tuist.Cache.get_value(
         [
           Atom.to_string(__MODULE__),
           "get_cache_action_item",
-          project.id,
+          selected_project.id,
           hash
         ],
         [
@@ -81,7 +81,7 @@ defmodule TuistWeb.API.CacheController do
         ],
         fn ->
           CacheActionItems.get_cache_action_item(%{
-            project: project,
+            project: selected_project,
             hash: hash
           })
         end
@@ -142,6 +142,7 @@ defmodule TuistWeb.API.CacheController do
 
   def download(
         %{
+          assigns: %{selected_project: selected_project},
           query_params: %{
             "hash" => hash,
             "name" => name,
@@ -178,7 +179,7 @@ defmodule TuistWeb.API.CacheController do
              event_type: :download,
              hash: hash,
              name: name,
-             project_id: EnsureProjectPresencePlug.get_project(conn).id,
+             project_id: selected_project.id,
              size: size,
              created_at: NaiveDateTime.utc_now(:second),
              updated_at: NaiveDateTime.utc_now(:second)
@@ -349,20 +350,19 @@ defmodule TuistWeb.API.CacheController do
 
   def upload_cache_action_item(
         %{
+          assigns: %{selected_project: selected_project},
           body_params: %{
             hash: hash
           }
         } = conn,
         _params
       ) do
-    project = EnsureProjectPresencePlug.get_project(conn)
-
     cache_action_item =
       Tuist.Cache.get_value(
         [
           Atom.to_string(__MODULE__),
           "upload_cache_action_item",
-          project.id,
+          selected_project.id,
           hash
         ],
         [
@@ -371,7 +371,7 @@ defmodule TuistWeb.API.CacheController do
         ],
         fn ->
           CacheActionItems.get_cache_action_item(%{
-            project: project,
+            project: selected_project,
             hash: hash
           })
         end
@@ -383,7 +383,7 @@ defmodule TuistWeb.API.CacheController do
           Tuist.API.Pipeline.async_push(
             {:create_cache_action_item,
              %{
-               project_id: project.id,
+               project_id: selected_project.id,
                hash: hash,
                inserted_at: DateTime.utc_now(:second),
                updated_at: DateTime.utc_now(:second)
@@ -665,7 +665,8 @@ defmodule TuistWeb.API.CacheController do
           },
           body_params: %{
             parts: parts
-          }
+          },
+          assigns: %{selected_project: selected_project}
         } = conn,
         _params
       ) do
@@ -695,7 +696,7 @@ defmodule TuistWeb.API.CacheController do
            event_type: :upload,
            hash: hash,
            name: name,
-           project_id: EnsureProjectPresencePlug.get_project(conn).id,
+           project_id: selected_project.id,
            size: size,
            created_at: NaiveDateTime.utc_now(:second),
            updated_at: NaiveDateTime.utc_now(:second)
@@ -744,6 +745,7 @@ defmodule TuistWeb.API.CacheController do
 
   def clean(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{
             "account_handle" => account_handle,
             "project_handle" => project_handle
@@ -755,8 +757,7 @@ defmodule TuistWeb.API.CacheController do
 
     Storage.delete_all_objects("#{project_slug}/builds")
     Storage.delete_all_objects("#{project_slug}/tests")
-    project = EnsureProjectPresencePlug.get_project(conn)
-    CacheActionItems.delete_all_action_items(%{project: project})
+    CacheActionItems.delete_all_action_items(%{project: selected_project})
 
     conn
     |> send_resp(:no_content, "")

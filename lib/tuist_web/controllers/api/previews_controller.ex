@@ -4,7 +4,6 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.ArtifactUploadURL
   alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
-  alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
   alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
@@ -29,7 +28,7 @@ defmodule TuistWeb.API.PreviewsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(EnsureProjectPresencePlug)
+  plug(TuistWeb.API.EnsureProjectPresencePlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
 
   tags ["Previews"]
@@ -121,12 +120,9 @@ defmodule TuistWeb.API.PreviewsController do
   )
 
   def multipart_start(
-        %{body_params: body_params} = conn,
+        %{body_params: body_params, assigns: %{selected_project: selected_project}} = conn,
         _params
       ) do
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
-
     account_id =
       case conn |> Authentication.authenticated_subject() do
         %Project{} = project -> project.account.id
@@ -136,7 +132,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     %Preview{id: preview_id} =
       Previews.create_preview(%{
-        project: project,
+        project: selected_project,
         type: Map.get(body_params, :type) |> String.to_atom(),
         display_name: Map.get(body_params, :display_name),
         bundle_identifier: Map.get(body_params, :bundle_identifier),
@@ -522,6 +518,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   def index(
         %{
+          assigns: %{selected_project: selected_project},
           params:
             %{
               account_handle: account_handle,
@@ -533,10 +530,7 @@ defmodule TuistWeb.API.PreviewsController do
           conn,
         _params
       ) do
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
-
-    filters = get_filters(project, params)
+    filters = get_filters(selected_project, params)
 
     distinct =
       case Map.get(params, :distinct_field) do

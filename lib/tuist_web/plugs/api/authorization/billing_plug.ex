@@ -7,7 +7,6 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
   alias Tuist.Billing
   alias Tuist.Accounts
-  alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Environment
 
   def init(opts), do: opts
@@ -46,7 +45,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
             [
               Atom.to_string(__MODULE__),
               "subscription_data",
-              EnsureProjectPresencePlug.get_project(conn).id
+              conn.assigns[:selected_project].id
             ],
             [
               ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
@@ -116,10 +115,10 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
     end
   end
 
-  defp get_subscription_data(conn) do
+  defp get_subscription_data(%{assigns: %{selected_project: selected_project}} = conn) do
     account =
       %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} =
-      Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
+      Accounts.get_account_by_id(selected_project.account_id)
 
     subscription = Billing.get_current_active_subscription(account)
 

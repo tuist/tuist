@@ -39,7 +39,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     # When/Then
     for _n <- 0..10 do
       conn = conn |> EnsureProjectPresencePlug.call(opts)
-      assert EnsureProjectPresencePlug.get_project(conn) == project
+      assert conn.assigns[:selected_project] == project
     end
   end
 
@@ -54,7 +54,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     conn = conn |> EnsureProjectPresencePlug.call(opts)
 
     # Then
-    assert EnsureProjectPresencePlug.get_project(conn) == project
+    assert conn.assigns[:selected_project] == project
   end
 
   test "loads and assigns the project to the connection if the command event and project exist" do
@@ -78,7 +78,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     conn = conn |> EnsureProjectPresencePlug.call(opts)
 
     # Then
-    assert EnsureProjectPresencePlug.get_project(conn) == project
+    assert conn.assigns[:selected_project] == project
   end
 
   test "errors and halts the connection if the command event is not found" do

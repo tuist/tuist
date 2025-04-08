@@ -6,7 +6,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias Tuist.Authorization
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistWeb.API.EnsureProjectPresencePlug
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
@@ -52,7 +51,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
       |> TuistWeb.Authentication.put_current_user(user)
 
     # When
@@ -74,7 +73,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     conn =
       build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
       |> TuistWeb.Authentication.put_current_project(project)
 
     # When
@@ -99,7 +98,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       conn =
         build_conn()
         |> assign(:cache, cache)
-        |> EnsureProjectPresencePlug.put_project(project)
+        |> assign(:selected_project, project)
         |> TuistWeb.Authentication.put_current_project(project)
 
       # When/Then

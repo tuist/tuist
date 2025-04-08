@@ -7,7 +7,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   alias Tuist.Authorization
   alias TuistWeb.Authentication
-  alias TuistWeb.API.EnsureProjectPresencePlug
 
   def init(:run), do: :run
   def init(:cache), do: :cache
@@ -65,12 +64,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     end
   end
 
-  def authorize_project(conn, category, opts \\ []) do
+  def authorize_project(
+        %{assigns: %{selected_project: selected_project}} = conn,
+        category,
+        opts \\ []
+      ) do
     caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
-
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
 
     subject =
       Authentication.authenticated_subject(conn)
@@ -79,7 +79,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       Atom.to_string(__MODULE__),
       "authorize",
       "#{Atom.to_string(subject.__struct__)}-#{subject.id}",
-      "#{Atom.to_string(project.__struct__)}-#{project.id}"
+      "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]
 
     authorized? =
@@ -91,11 +91,11 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
             ttl: Keyword.get(opts, :cache_ttl, :timer.minutes(1))
           ],
           fn ->
-            authorize(subject, action, project, category)
+            authorize(subject, action, selected_project, category)
           end
         )
       else
-        authorize(subject, action, project, category)
+        authorize(subject, action, selected_project, category)
       end
 
     if authorized? do

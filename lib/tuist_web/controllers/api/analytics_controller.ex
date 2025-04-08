@@ -10,7 +10,6 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias TuistWeb.API.Schemas.ArtifactUploadId
   alias Tuist.Repo
-  alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.CommandEvents
   alias TuistWeb.Authentication
   alias OpenApiSpex.Schema
@@ -263,7 +262,8 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def create(
         %{
-          body_params: body_params
+          body_params: body_params,
+          assigns: %{selected_project: selected_project}
         } = conn,
         _params
       ) do
@@ -275,8 +275,6 @@ defmodule TuistWeb.API.AnalyticsController do
       else
         current_user.id
       end
-
-    project = EnsureProjectPresencePlug.get_project(conn)
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
@@ -304,7 +302,7 @@ defmodule TuistWeb.API.AnalyticsController do
         is_ci: body_params.is_ci,
         user_id: user_id,
         client_id: body_params.client_id,
-        project_id: project.id,
+        project_id: selected_project.id,
         status: Map.get(body_params, :status),
         error_message: Map.get(body_params, :error_message),
         preview_id: preview_id,
@@ -326,7 +324,7 @@ defmodule TuistWeb.API.AnalyticsController do
       git_commit_sha: git_commit_sha,
       git_ref: git_ref,
       git_remote_url_origin: git_remote_url_origin,
-      project: project,
+      project: selected_project,
       preview_url:
         &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
       preview_qr_code_url:
@@ -343,7 +341,10 @@ defmodule TuistWeb.API.AnalyticsController do
       id: command_event.id,
       project_id: command_event.project_id,
       name: command_event.name,
-      url: url(~p"/#{project.account.name}/#{project.name}/runs/#{command_event.id}")
+      url:
+        url(
+          ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}"
+        )
     })
   end
 

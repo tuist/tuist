@@ -11,16 +11,10 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
-  @project_key :project
-
   def init(opts), do: opts
 
-  def get_project(conn) do
-    conn.assigns[@project_key]
-  end
-
   def put_project(conn, %Project{} = project) do
-    conn |> assign(@project_key, project)
+    conn |> assign(:selected_project, project)
   end
 
   def call(
@@ -71,7 +65,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
       |> json(%{message: "The command event #{run_id} was not found."})
       |> halt()
     else
-      conn |> assign(@project_key, command_event.project)
+      conn |> assign(:selected_project, command_event.project)
     end
   end
 
@@ -96,7 +90,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
 
     case project do
       {:ok, project} ->
-        conn |> assign(@project_key, project)
+        conn |> assign(:selected_project, project)
 
       {:error, :not_found} ->
         conn

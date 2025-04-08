@@ -3,7 +3,6 @@ defmodule TuistWeb.API.RunsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Runs.Build
-  alias TuistWeb.API.EnsureProjectPresencePlug
   alias TuistWeb.Authentication
   alias Tuist.Runs
   alias OpenApiSpex.Schema
@@ -15,7 +14,7 @@ defmodule TuistWeb.API.RunsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(EnsureProjectPresencePlug)
+  plug(TuistWeb.API.EnsureProjectPresencePlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
   tags ["Runs"]
@@ -97,6 +96,7 @@ defmodule TuistWeb.API.RunsController do
 
   def index(
         %{
+          assigns: %{selected_project: selected_project},
           params:
             %{
               page_size: page_size,
@@ -106,12 +106,9 @@ defmodule TuistWeb.API.RunsController do
           conn,
         _params
       ) do
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
-
     filters =
       [
-        %{field: :project_id, op: :==, value: project.id}
+        %{field: :project_id, op: :==, value: selected_project.id}
       ] ++ filters_from_params(params)
 
     {command_events, _meta} =
@@ -150,7 +147,10 @@ defmodule TuistWeb.API.RunsController do
             :remote_test_target_hits,
             :preview_id
           ])
-          |> Map.put(:url, ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}")
+          |> Map.put(
+            :url,
+            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
+          )
         end)
     })
   end
@@ -245,15 +245,14 @@ defmodule TuistWeb.API.RunsController do
 
   def create(
         %{
+          assigns: %{selected_project: selected_project},
           body_params: body_params
         } = conn,
         _params
       ) do
-    project = EnsureProjectPresencePlug.get_project(conn)
-
     build_params =
       body_params
-      |> Map.put(:project, project)
+      |> Map.put(:project, selected_project)
       |> Map.put(:account, Authentication.current_user(conn).account)
 
     case get_or_create_build(build_params) do

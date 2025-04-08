@@ -4,7 +4,6 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias TuistWeb.API.Authorization.BillingPlug
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistWeb.API.EnsureProjectPresencePlug
   use TuistTestSupport.Cases.ConnCase, async: false
   alias Tuist.Repo
   use Mimic
@@ -50,7 +49,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     for _n <- 0..10 do
@@ -73,7 +72,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -97,7 +96,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -125,7 +124,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -153,7 +152,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -181,7 +180,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -205,7 +204,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
@@ -229,7 +228,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
 
     conn =
       %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> EnsureProjectPresencePlug.put_project(project)
+      |> assign(:selected_project, project)
 
     # When
     got = conn |> BillingPlug.call(plug_opts)
