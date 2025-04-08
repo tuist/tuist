@@ -42,6 +42,15 @@ public protocol SimulatorControlling {
         deviceName: String?
     ) async throws -> [SimulatorDeviceAndRuntime]
 
+    func findAvailableDevice(
+        deviceName: String?,
+        version: Version?
+    ) async throws -> SimulatorDeviceAndRuntime?
+
+    func findAvailableDevice(
+        udid: String
+    ) async throws -> SimulatorDeviceAndRuntime?
+
     /// Installs an app on a given simulator.
     /// - Parameters:
     ///   - path: The path to the app to install in the simulator.
@@ -235,6 +244,38 @@ public final class SimulatorController: SimulatorControlling {
         guard let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
         else {
             throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, try await devicesAndRuntimes())
+        }
+        return device
+    }
+
+    public func findAvailableDevice(
+        deviceName: String?,
+        version: Version?
+    ) async throws -> SimulatorDeviceAndRuntime? {
+        let devicesAndRuntimes = try await devicesAndRuntimes()
+        return devicesAndRuntimes
+            .sorted(by: { $0.runtime.version < $1.runtime.version })
+            .filter(\.device.isAvailable)
+            .first(where: {
+                if version != nil, Version(
+                    $0.runtime.version.major,
+                    $0.runtime.version.minor ?? 0,
+                    $0.runtime.version.patch ?? 0
+                ) != version {
+                    return false
+                }
+                return $0.device.name == deviceName
+            })
+    }
+
+    public func findAvailableDevice(
+        udid: String
+    ) async throws -> SimulatorDeviceAndRuntime? {
+        let devicesAndRuntimes = try await devicesAndRuntimes()
+        guard let device = devicesAndRuntimes
+            .first(where: { $0.device.udid == udid })
+        else {
+            throw SimulatorControllerError.simulatorNotFound(udid: udid)
         }
         return device
     }

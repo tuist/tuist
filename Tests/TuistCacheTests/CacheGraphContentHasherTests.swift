@@ -56,6 +56,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .contentHashes(
                 for: .any,
                 include: .any,
+                destination: .any,
                 additionalStrings: .any
             )
             .willReturn([:])
@@ -69,7 +70,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             for: Graph.test(),
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -79,6 +81,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
                 include: .matching { filter in
                     filter(includedTarget)
                 },
+                destination: .any,
                 additionalStrings: .any
             )
             .called(1)
@@ -100,6 +103,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .contentHashes(
                 for: .any,
                 include: .any,
+                destination: .any,
                 additionalStrings: .any
             )
             .willReturn([:])
@@ -113,7 +117,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             for: Graph.test(),
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: ["Excluded"]
+            excludedTargets: ["Excluded"],
+            destination: nil
         )
 
         // Then
@@ -123,6 +128,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
                 include: .matching { filter in
                     filter(includedTarget) && !filter(excludedTarget)
                 },
+                destination: .any,
                 additionalStrings: .any
             )
             .called(1)
@@ -151,6 +157,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .contentHashes(
                 for: .any,
                 include: .any,
+                destination: .any,
                 additionalStrings: .any
             )
             .willReturn([:])
@@ -164,7 +171,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             for: Graph.test(),
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: ["Excluded"]
+            excludedTargets: ["Excluded"],
+            destination: nil
         )
 
         // Then
@@ -174,6 +182,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
                 include: .matching { filter in
                     filter(includedTarget) && !filter(excludedTarget) && !filter(excludedTargetResource)
                 },
+                destination: .any,
                 additionalStrings: .any
             )
             .called(1)

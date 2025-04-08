@@ -26,7 +26,8 @@ public protocol GeneratorFactorying {
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        destination: SimulatorDeviceAndRuntime?
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -81,7 +82,8 @@ public class GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        destination _: SimulatorDeviceAndRuntime?
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)

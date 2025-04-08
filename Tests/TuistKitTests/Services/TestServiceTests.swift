@@ -32,6 +32,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
+    private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -45,6 +46,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
+        xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -75,6 +77,12 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
             .willReturn([])
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                XcodeBuildArguments(destination: nil)
+            )
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -323,6 +331,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path in
                 (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
+        given(simulatorController)
+            .findAvailableDevice(udid: .any)
+            .willReturn(.test(device: .test(name: "Test iPhone")))
 
         // When
         try await testRun(
@@ -340,6 +351,20 @@ final class TestServiceTests: TuistUnitTestCase {
                 deviceName: .any
             )
             .called(0)
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .value(.test(device: .test(name: "Test iPhone")))
+            )
+            .called(1)
         verify(xcodebuildController)
             .test(
                 .any,
@@ -1195,7 +1220,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                destination: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -2157,7 +2183,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                destination: .any
             )
             .willReturn(generator)
     }
