@@ -32,3 +32,15 @@ description: 생성된 프로젝트에서 선택적 테스트를 활용하는 �
 | `tuist test` 호출 | `CoreTests`, `FeatureATests`, 그리고 `FeatureBTests`에서 테스트 실행 | `FeatureATests`, `FeatureBTests`, 그리고 `CoreTests`의 새로운 해시 저장 |
 
 `tuist test`는 바이너리 캐싱을 활용하여 테스트를 실행할 때 로컬이나 원격 스토리지에서 가능한 많은 바이너리를 사용함으로써 빌드 시간을 단축합니다. 선택적 테스트와 바이너리 캐싱의 조합은 CI에서 테스트를 수행하는 시간을 극적으로 줄일 수 있습니다.
+
+## UI Tests {#ui-tests}
+
+Tuist supports selective testing of UI tests. However, Tuist needs to know the destination in advance. Only if you specify the `destination` parameter, Tuist will run the UI tests selectively, such as:
+
+```sh
+tuist test --device 'iPhone 14 Pro'
+# or
+tuist test -- -destination 'name=iPhone 14 Pro'
+# or
+tuist test -- -destination 'id=SIMULATOR_ID'
+```
