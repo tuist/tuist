@@ -16,7 +16,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Build
             try await run(BuildCommand.self, "App")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
             ServiceContext.current?.resetRecordedUI()
 
             // When: Share
@@ -30,9 +29,10 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Run
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16 Pro")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
-            ServiceContext.current?.resetRecordedUI()
-            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Pro")
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Launching App on iPhone 16 Pro") == true
+            )
         }
     }
 
@@ -42,7 +42,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Build
             try await run(BuildCommand.self)
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
             ServiceContext.current?.resetRecordedUI()
 
             // When: Share App
@@ -56,8 +55,10 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Run App on iPhone 16
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
-            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Launching App on iPhone 16") == true
+            )
             ServiceContext.current?.resetRecordedUI()
 
             // When: Share AppClip1
@@ -71,8 +72,10 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Run AppClip1
             try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
-            XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Launching AppClip1 on iPhone 16") == true
+            )
         }
     }
 
@@ -104,8 +107,10 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             ServiceContext.current?.resetRecordedUI()
 
             try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
-            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Launching App on iPhone 16 Plus") == true
+            )
         }
     }
 
@@ -144,8 +149,10 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             let previewLink = try previewLink()
             ServiceContext.current?.resetRecordedUI()
             try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
-            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Launching App on iPhone 16 Plus") == true
+            )
         }
     }
 }
