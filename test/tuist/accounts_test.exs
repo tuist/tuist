@@ -727,7 +727,86 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
+    test "creates an organization" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
+    test "creates an organization when new pricing model is enabled" do
+      # Given
+      Billing
+
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
+    test "creates an organization with SSO provider" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, organization} =
+        Accounts.create_organization(
+          %{
+            name: "tuist",
+            creator: user
+          },
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization.sso_provider == :google
+      assert organization.sso_organization_id == "tuist.io"
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+
+    test "creates an organization when billing is enabled" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      # Then
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert Accounts.get_account_from_organization(organization).customer_id != ""
+      assert Accounts.organization_admin?(user, organization) == true
+    end
+  end
+
+  describe "create_organization!/1" do
+    test "doesn't start the billing trial if it's an on-premise environment" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      organization = Accounts.create_organization!(%{name: "tuist", creator: user})
 
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id)
@@ -740,7 +819,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      organization = Accounts.create_organization!(%{name: "tuist", creator: user})
 
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id)
@@ -754,7 +833,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      organization = Accounts.create_organization!(%{name: "tuist", creator: user})
 
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id)
@@ -768,7 +847,7 @@ defmodule Tuist.AccountsTest do
 
       # When
       organization =
-        Accounts.create_organization(
+        Accounts.create_organization!(
           %{
             name: "tuist",
             creator: user
@@ -790,7 +869,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      organization = Accounts.create_organization!(%{name: "tuist", creator: user})
 
       # Then
       assert organization == Accounts.get_organization_by_id(organization.id, preload: [:account])
@@ -805,7 +884,7 @@ defmodule Tuist.AccountsTest do
       Environment |> stub(:on_premise?, fn -> false end)
 
       user = AccountsFixtures.user_fixture()
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
+      organization = Accounts.create_organization!(%{name: "tuist", creator: user})
       account = Accounts.get_account_from_organization(organization)
 
       # When
@@ -1009,7 +1088,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       organization =
-        Accounts.create_organization(%{name: "tuist", creator: user}, preload: [:account])
+        Accounts.create_organization!(%{name: "tuist", creator: user}, preload: [:account])
 
       # When
       got = Accounts.get_organization_by_handle("TUIST")

@@ -5,6 +5,7 @@ defmodule TuistWeb.Noora.Dropdown do
   use Phoenix.Component
 
   import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.LineDivider
   import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "Unique identifier for the dropdown component"
@@ -125,6 +126,7 @@ defmodule TuistWeb.Noora.Dropdown do
       class="noora-dropdown-item"
       data-part="item"
       data-value={@value || @label}
+      data-label={@label}
       patch={@patch}
       navigate={@navigate}
       href={@href}
@@ -150,6 +152,12 @@ defmodule TuistWeb.Noora.Dropdown do
         {render_slot(@right_icon)}
       </div>
     </.link>
+    """
+  end
+
+  def dropdown_separator(assigns) do
+    ~H"""
+    <.line_divider data-part="separator" />
     """
   end
 end

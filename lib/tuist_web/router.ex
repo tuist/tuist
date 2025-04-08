@@ -432,6 +432,8 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
+      live "/organizations/new", CreateOrganizationLive, :new
+      live "/projects/new", CreateProjectLive, :new
     end
   end
 

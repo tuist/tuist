@@ -117,7 +117,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
       is_nil(existing_account) ->
         organization =
-          Accounts.create_organization(%{name: organization_name, creator: user})
+          Accounts.create_organization!(%{name: organization_name, creator: user})
 
         organization_account = Accounts.get_account_from_organization(organization)
         Tuist.Analytics.organization_create(organization_name, user)

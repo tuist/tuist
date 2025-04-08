@@ -22,6 +22,8 @@
   }
 
   & [data-part="text"] {
+    display: inline-flex;
+    flex-shrink: 0;
     padding: var(--noora-spacing-0) var(--noora-spacing-2);
     color: var(--noora-content-divider-label);
     font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);

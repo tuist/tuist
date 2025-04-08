@@ -155,6 +155,23 @@ defmodule Tuist.Projects do
     token = opts |> Keyword.get(:token, Tuist.Tokens.generate_token())
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
     visibility = opts |> Keyword.get(:visibility, :private)
+
+    Project.create_changeset(%{
+      token: token,
+      name: name,
+      account_id: account_id,
+      created_at: created_at,
+      visibility: visibility,
+      vcs_repository_full_handle: opts |> Keyword.get(:vcs_repository_full_handle),
+      vcs_provider: opts |> Keyword.get(:vcs_provider)
+    })
+    |> Repo.insert()
+  end
+
+  def create_project!(%{name: name, account: %{id: account_id}}, opts \\ []) do
+    token = opts |> Keyword.get(:token, Tuist.Tokens.generate_token())
+    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
+    visibility = opts |> Keyword.get(:visibility, :private)
     preload = opts |> Keyword.get(:preload, [])
 
     %Project{}

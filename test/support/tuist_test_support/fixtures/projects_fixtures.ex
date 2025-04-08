@@ -18,7 +18,7 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     preload = Keyword.get(opts, :preload, [:account])
 
-    Projects.create_project(
+    Projects.create_project!(
       %{
         name: name,
         account: %{id: account_id}

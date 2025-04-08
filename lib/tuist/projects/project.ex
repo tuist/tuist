@@ -26,7 +26,7 @@ defmodule Tuist.Projects.Project do
     timestamps(inserted_at: :created_at)
   end
 
-  def create_changeset(project, attrs) do
+  def create_changeset(project \\ %__MODULE__{}, attrs) do
     project
     |> cast(attrs, [
       :token,
@@ -52,6 +52,7 @@ defmodule Tuist.Projects.Project do
       end
     end)
     |> update_change(:name, &String.downcase/1)
+    |> unique_constraint([:name, :account_id], name: "index_projects_on_name_and_account_id")
   end
 
   def validate_allowed_handle(changeset) do

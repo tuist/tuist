@@ -58,7 +58,7 @@ organization =
     Accounts.get_organization_by_handle("tuist")
   else
     organization =
-      Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
+      Accounts.create_organization!(%{name: "tuist", creator: user}, setup_billing: false)
 
     organization.account
   end
@@ -68,12 +68,15 @@ tuist_cloud_acceptance_tests_project =
     project
   else
     {:error, _} ->
-      Projects.create_project(%{name: "ios_app_with_frameworks", account: %{id: organization.id}})
+      Projects.create_project!(%{
+        name: "ios_app_with_frameworks",
+        account: %{id: organization.id}
+      })
   end
 
 _org_project =
   Projects.get_project_by_slug("tuist/tuist") ||
-    Projects.create_project(%{name: "tuist", account: %{id: organization.id}})
+    Projects.create_project!(%{name: "tuist", account: %{id: organization.id}})
 
 for _event <- 1..10000 do
   names = ["build", "test", "cache", "generate"]

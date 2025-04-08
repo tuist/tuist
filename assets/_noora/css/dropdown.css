@@ -5,6 +5,7 @@
   --noora-dropdown-disabled-secondary-text: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-500));
 
   display: flex;
+  position: relative;
   flex-direction: column;
   gap: var(--noora-spacing-3);
   z-index: 100;
@@ -15,8 +16,8 @@
     --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
     --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05), 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
       0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
-    display: flex;
 
+    display: flex;
     align-items: center;
     gap: var(--noora-spacing-4);
     cursor: pointer;
@@ -48,6 +49,7 @@
 
     & [data-part="label-wrapper"] {
       display: flex;
+      flex-grow: 1;
       gap: var(--noora-spacing-3);
     }
 
@@ -105,6 +107,7 @@
 
   & > [data-state="open"] + [data-part="positioner"] {
     display: flex;
+    width: 100%;
   }
 
   & [data-part="indicator"] {
@@ -150,6 +153,7 @@
   border-radius: var(--noora-radius-large);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-2);
+  width: 100%;
 
   &[data-state="open"] {
     display: flex;
@@ -158,7 +162,7 @@
 
 & [data-part="hint"] {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--noora-spacing-2);
   color: var(--noora-surface-label-secondary);
   font: var(--noora-font-body-small);

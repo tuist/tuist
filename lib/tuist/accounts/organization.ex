@@ -18,7 +18,7 @@ defmodule Tuist.Accounts.Organization do
     timestamps(inserted_at: :created_at)
   end
 
-  def create_changeset(organization, attrs \\ %{}) do
+  def create_changeset(organization \\ %__MODULE__{}, attrs \\ %{}) do
     organization
     |> cast(attrs, [:sso_provider, :sso_organization_id, :created_at])
     |> validate_inclusion(:sso_provider, [:okta, :google])

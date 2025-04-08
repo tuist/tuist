@@ -26,7 +26,6 @@ defmodule TuistWeb.Noora.TextInput do
   attr :hint_variant, :string, default: "default", doc: "Hint text variant."
 
   attr :error, :string,
-    default: nil,
     doc: "Errors to be rendered below the input. Takes precedence over `hint`."
 
   attr :show_error_message, :boolean,
@@ -67,11 +66,14 @@ defmodule TuistWeb.Noora.TextInput do
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)
     |> assign_new(:value, fn -> field.value end)
+    |> assign_new(:error, fn ->
+      Enum.map(field.errors, fn {message, _opts} -> message end) |> List.first()
+    end)
     |> text_input()
   end
 
   def text_input(assigns) do
-    assigns = assigns |> assign_new(:value, fn -> "" end)
+    assigns = assigns |> assign_new(:value, fn -> "" end) |> assign_new(:error, fn -> nil end)
 
     ~H"""
     <div class="noora-text-input">

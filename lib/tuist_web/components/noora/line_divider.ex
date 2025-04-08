@@ -10,9 +10,11 @@ defmodule TuistWeb.Noora.LineDivider do
     default: nil,
     doc: "The text to display in the line divider"
 
+  attr :rest, :global
+
   def line_divider(assigns) do
     ~H"""
-    <div class="noora-line-divider">
+    <div class="noora-line-divider" {@rest}>
       <div data-part="line"></div>
       <span :if={@text} data-part="text">{@text}</span>
       <div data-part="line"></div>

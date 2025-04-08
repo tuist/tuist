@@ -54,7 +54,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
-    Accounts.create_organization(%{name: name, creator: creator},
+    Accounts.create_organization!(%{name: name, creator: creator},
       sso_provider: sso_provider,
       sso_organization_id: sso_organization_id,
       created_at: created_at,

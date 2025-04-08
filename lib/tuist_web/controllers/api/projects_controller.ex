@@ -121,7 +121,7 @@ defmodule TuistWeb.API.ProjectsController do
       true ->
         try do
           project =
-            Projects.create_project(%{
+            Projects.create_project!(%{
               name: project_handle,
               account: account
             })

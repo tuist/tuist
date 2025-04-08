@@ -25,6 +25,8 @@ defmodule Tuist.Accounts do
   alias Tuist.Billing
   import Ecto.Query, only: [from: 2]
 
+  require Logger
+
   def create_customer_when_absent(%Account{} = account) do
     if is_nil(account.customer_id) do
       customer_id =
@@ -184,13 +186,43 @@ defmodule Tuist.Accounts do
     |> Repo.update()
   end
 
-  @doc ~S"""
+  @doc """
   Creates an organization with the given attributes.
   """
-  def create_organization(
-        %{name: name, creator: %User{id: user_id, email: user_email}},
+  def create_organization(attrs, opts \\ []) do
+    create_organization_multi(attrs, opts)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{organization: organization}} ->
+        {:ok, organization}
+
+      {:error, part, changeset, _changes} when part in [:organization, :account] ->
+        {:error, changeset}
+
+      {:error, part, changeset, _changes} ->
+        Logger.error("Unknown error caught: #{part}, #{inspect(changeset)}")
+        {:error, :internal_server_error}
+    end
+  end
+
+  @doc """
+  Creates an organization with the given attributes.
+  """
+  def create_organization!(
+        attrs,
         opts \\ []
       ) do
+    {:ok, %{organization: organization}} =
+      create_organization_multi(attrs, opts)
+      |> Repo.transaction()
+
+    organization |> Repo.preload(:account)
+  end
+
+  defp create_organization_multi(
+         %{name: name, creator: %User{id: user_id, email: user_email}} = attrs,
+         opts \\ []
+       ) do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
@@ -198,54 +230,50 @@ defmodule Tuist.Accounts do
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
 
-    {:ok, %{organization: organization}} =
-      Ecto.Multi.new()
-      |> Ecto.Multi.insert(
-        :organization,
-        Organization.create_changeset(%Organization{}, %{
-          sso_provider: sso_provider,
-          sso_organization_id: sso_organization_id,
-          created_at: created_at
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(
+      :organization,
+      Organization.create_changeset(%Organization{}, %{
+        sso_provider: sso_provider,
+        sso_organization_id: sso_organization_id,
+        created_at: created_at
+      })
+    )
+    |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
+      repo.insert(
+        Account.create_changeset(%Account{}, %{
+          organization_id: organization_id,
+          name: name,
+          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
+          billing_email: user_email,
+          customer_id:
+            Keyword.get(
+              opts,
+              :customer_id
+            )
         })
       )
-      |> Ecto.Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
-        repo.insert(
-          Account.create_changeset(%Account{}, %{
-            organization_id: organization_id,
-            name: name,
-            current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-            billing_email: user_email,
-            customer_id:
-              Keyword.get(
-                opts,
-                :customer_id
-              )
-          })
+    end)
+    |> Ecto.Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
+      repo.insert(
+        Role.create_changeset(
+          %Role{},
+          %{
+            name: "admin",
+            resource_type: "Organization",
+            resource_id: organization_id
+          }
         )
-      end)
-      |> Ecto.Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
-        repo.insert(
-          Role.create_changeset(
-            %Role{},
-            %{
-              name: "admin",
-              resource_type: "Organization",
-              resource_id: organization_id
-            }
-          )
-        )
-      end)
-      |> Ecto.Multi.run(:user_role, fn repo, %{role: role} ->
-        repo.insert(
-          UserRole.create_changeset(%UserRole{}, %{
-            user_id: user_id,
-            role_id: role.id
-          })
-        )
-      end)
-      |> Repo.transaction()
-
-    organization |> Repo.preload(:account)
+      )
+    end)
+    |> Ecto.Multi.run(:user_role, fn repo, %{role: role} ->
+      repo.insert(
+        UserRole.create_changeset(%UserRole{}, %{
+          user_id: user_id,
+          role_id: role.id
+        })
+      )
+    end)
   end
 
   def delete_user(%User{} = user) do
