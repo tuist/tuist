@@ -123,7 +123,7 @@ defmodule Tuist.MixProject do
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.13.0"},
-      {:fun_with_flags_ui, "~> 1.1.0"},
+      {:fun_with_flags_ui, "~> 1.0.0"},
       {:esbuild, "~> 0.9"},
       {:deep_merge, "~> 1.0"},
       {:broadway, "~> 1.2"},
