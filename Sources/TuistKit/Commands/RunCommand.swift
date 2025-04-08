@@ -97,7 +97,7 @@ public struct RunCommand: AsyncParsableCommand {
     var arguments: [String] = []
 
     public func run() async throws {
-        try await RunService().run(
+        try await RunCommandService().run(
             path: path,
             runnable: runnable,
             generate: generate,
