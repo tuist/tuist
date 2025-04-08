@@ -36,7 +36,9 @@ For example, assuming the following dependency graph:
 
 Tuist supports selective testing of UI tests. However, Tuist needs to know the destination in advance. Only if you specify the `destination` parameter, Tuist will run the UI tests selectively, such as:
 ```sh
-tuist test -- -destination 'name=iPhone 14 Pro,OS=17.0'
+tuist test --device 'iPhone 14 Pro'
+# or
+tuist test -- -destination 'name=iPhone 14 Pro'
 # or
 tuist test -- -destination 'id=SIMULATOR_ID'
 ```

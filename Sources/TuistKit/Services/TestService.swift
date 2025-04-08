@@ -203,7 +203,11 @@ final class TestService { // swiftlint:disable:this type_body_length
         let config = try await configLoader.loadConfig(path: path)
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        let destination = try await destination(arguments: passthroughXcodeBuildArguments)
+        let destination = try await destination(
+            arguments: passthroughXcodeBuildArguments,
+            deviceName: deviceName,
+            osVersion: osVersion
+        )
 
         let testGenerator = generatorFactory.testing(
             config: config,
@@ -739,8 +743,22 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     private func destination(
-        arguments: [String]
+        arguments: [String],
+        deviceName: String?,
+        osVersion: String?
     ) async throws -> SimulatorDeviceAndRuntime? {
+        if let deviceName {
+            let os: XcodeGraph.Version?
+            if let osVersion {
+                os = XcodeGraph.Version(string: osVersion)
+            } else {
+                os = nil
+            }
+            return try await simulatorController.findAvailableDevice(
+                deviceName: deviceName,
+                version: os.map { TSCUtility.Version($0.major, $0.minor, $0.patch) }
+            )
+        }
         let parsedArguments = xcodeBuildAgumentParser
             .parse(arguments)
         if let destination = parsedArguments.destination {
