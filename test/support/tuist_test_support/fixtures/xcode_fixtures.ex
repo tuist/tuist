@@ -49,7 +49,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     binary_cache_hash = Keyword.get(opts, :binary_cache_hash, nil)
-    binary_cache_hit = Keyword.get(opts, :binary_cache_hit, nil)
+    binary_cache_hit = Keyword.get(opts, :binary_cache_hit, :miss)
     selective_testing_hash = Keyword.get(opts, :selective_testing_hash, nil)
     selective_testing_hit = Keyword.get(opts, :selective_testing_hit, nil)
 

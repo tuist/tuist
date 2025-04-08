@@ -253,6 +253,22 @@ defmodule TuistWeb.RunDetailLive do
     }
   end
 
+  defp binary_cache_analytics(run) when not is_nil(run.xcode_graph) do
+    cacheable_targets =
+      run.xcode_graph.xcode_projects
+      |> Enum.flat_map(& &1.xcode_targets)
+      |> Enum.filter(&(not is_nil(&1.binary_cache_hash)))
+
+    %{
+      cacheable_targets: cacheable_targets,
+      binary_cache_local_hits_count:
+        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :local)),
+      binary_cache_remote_hits_count:
+        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :remote)),
+      binary_cache_misses_count: cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :miss))
+    }
+  end
+
   # Deprecated way of obtaining binary cache analytics
   # Will be removed in the future
   defp binary_cache_analytics(run)
@@ -281,22 +297,6 @@ defmodule TuistWeb.RunDetailLive do
       binary_cache_local_hits_count: Enum.count(local_cache_target_hits),
       binary_cache_remote_hits_count: Enum.count(remote_cache_target_hits),
       binary_cache_misses_count: Enum.count(cache_misses)
-    }
-  end
-
-  defp binary_cache_analytics(run) when not is_nil(run.xcode_graph) do
-    cacheable_targets =
-      run.xcode_graph.xcode_projects
-      |> Enum.flat_map(& &1.xcode_targets)
-      |> Enum.filter(&(not is_nil(&1.binary_cache_hash)))
-
-    %{
-      cacheable_targets: cacheable_targets,
-      binary_cache_local_hits_count:
-        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :local)),
-      binary_cache_remote_hits_count:
-        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :remote)),
-      binary_cache_misses_count: cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :miss))
     }
   end
 

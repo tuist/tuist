@@ -50,12 +50,9 @@
             <div data-part="metadata">
               <div data-part="title">{gettext("Command")}</div>
               <span data-part="command">
-                {"tuist " <>
-                  @run.name <>
-                  if @run.command_arguments,
-                    do:
-                      @run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(),
-                    else: ""}
+                {if @run.command_arguments,
+                  do: ("tuist " <> @run.command_arguments) |> String.split(" ") |> Enum.join(" "),
+                  else: "tuist #{@run.name}"}
               </span>
             </div>
           </div>

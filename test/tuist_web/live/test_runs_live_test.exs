@@ -15,22 +15,25 @@ defmodule TuistWeb.TestRunsLiveTest do
 
   test "lists latest test runs", %{
     conn: conn,
+    user: user,
     organization: organization,
     project: project
   } do
     # Given
     _test_run_one =
       CommandEventsFixtures.command_event_fixture(
-        project: project,
+        project_id: project.id,
+        user_id: user.id,
         name: "test",
-        command_arguments: ["App"]
+        command_arguments: ["test", "App"]
       )
 
     _test_run_one =
       CommandEventsFixtures.command_event_fixture(
-        project: project,
+        project_id: project.id,
+        user_id: user.id,
         name: "test",
-        command_arguments: ["AppTwo"]
+        command_arguments: ["test", "AppTwo"]
       )
 
     # When
@@ -39,7 +42,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       |> live(~p"/#{organization.account.name}/#{project.name}/test_runs")
 
     # Then
-    has_element?(lv, "span", "test App")
-    has_element?(lv, "span", "test AppTwo")
+    assert has_element?(lv, "span", "tuist test App")
+    assert has_element?(lv, "span", "tuist test AppTwo")
   end
 end

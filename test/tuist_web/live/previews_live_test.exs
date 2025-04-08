@@ -83,8 +83,8 @@ defmodule TuistWeb.PreviewsLiveTest do
     # Then
     assert html =~ "AppOne"
     assert html =~ "AppTwo"
-    has_element?(lv, "span", "iOS")
-    has_element?(lv, "span", "Unknown")
+    assert has_element?(lv, "span", "iOS")
+    assert has_element?(lv, "span", "Unknown")
   end
 
   test "raises not found error when the project does not exist", %{conn: conn} do

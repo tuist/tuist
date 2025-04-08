@@ -20,7 +20,7 @@ defmodule TuistWeb.Noora.TabMenu do
           {render_slot(@icon_left)}
         </div>
       <% end %>
-      <div data-part="label">{@label}</div>
+      <span data-part="label">{@label}</span>
       <%= if has_slot_content?(@icon_right, assigns) do %>
         <div data-part="icon-right">
           {render_slot(@icon_right)}
@@ -57,7 +57,7 @@ defmodule TuistWeb.Noora.TabMenu do
             {render_slot(@icon_left)}
           </div>
         <% end %>
-        <div data-part="label">{@label}</div>
+        <span data-part="label">{@label}</span>
         <%= if has_slot_content?(@icon_right, assigns) do %>
           <div data-part="icon-right">
             {render_slot(@icon_right)}
@@ -71,7 +71,7 @@ defmodule TuistWeb.Noora.TabMenu do
             {render_slot(@icon_left)}
           </div>
         <% end %>
-        <div data-part="label">{@label}</div>
+        <span data-part="label">{@label}</span>
         <%= if has_slot_content?(@icon_right, assigns) do %>
           <div data-part="icon-right">
             {render_slot(@icon_right)}

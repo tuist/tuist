@@ -24,7 +24,7 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
       |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews")
 
     # Then
-    has_element?(lv, ".tuist-empty-state")
+    assert has_element?(lv, ".tuist-empty-state")
   end
 
   test "lists latest share previews", %{
@@ -60,7 +60,7 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
       |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews")
 
     # Then
-    has_element?(lv, "span", "AppOne")
-    has_element?(lv, "span", "AppTwo")
+    assert has_element?(lv, "span", "AppOne")
+    assert has_element?(lv, "span", "AppTwo")
   end
 end

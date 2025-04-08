@@ -216,7 +216,7 @@ defmodule TuistWeb.TestRunsLive do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["test"]}
+        %{field: :name, op: :==, value: "test"}
       ],
       order_by: [:created_at],
       order_directions: [:desc]

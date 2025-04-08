@@ -15,22 +15,25 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
   test "lists latest cache runs", %{
     conn: conn,
+    user: user,
     organization: organization,
     project: project
   } do
     # Given
     _cache_run_one =
       CommandEventsFixtures.command_event_fixture(
-        project: project,
+        project_id: project.id,
+        user_id: user.id,
         name: "cache",
-        command_arguments: ["App"]
+        command_arguments: ["cache", "App"]
       )
 
     _cache_run_one =
       CommandEventsFixtures.command_event_fixture(
-        project: project,
+        project_id: project.id,
+        user_id: user.id,
         name: "cache",
-        command_arguments: ["AppTwo"]
+        command_arguments: ["cache", "AppTwo"]
       )
 
     # When
@@ -39,7 +42,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       |> live(~p"/#{organization.account.name}/#{project.name}/cache_runs")
 
     # Then
-    has_element?(lv, "span", "cache App")
-    has_element?(lv, "span", "cache AppTwo")
+    assert has_element?(lv, "span", "cache App")
+    assert has_element?(lv, "span", "cache AppTwo")
   end
 end

@@ -42,7 +42,7 @@
         }
       >
         <:col :let={cache_run} label={gettext("Command")}>
-          <.text_and_description_cell label={"tuist " <> cache_run.name <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join()), else: "")} />
+          <.text_and_description_cell label={"tuist " <> cache_run.name <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: "")} />
         </:col>
         <:col :let={cache_run} label={gettext("Hit rate")}>
           <.text_cell label={

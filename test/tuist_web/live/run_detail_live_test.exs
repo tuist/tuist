@@ -1,6 +1,7 @@
 defmodule TuistWeb.RunDetailLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
@@ -37,8 +38,8 @@ defmodule TuistWeb.RunDetailLiveTest do
       |> live(~p"/noora/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
     # Then
-    has_element?(lv, "span", "Test Optimizations")
-    has_element?(lv, "span", "tuist test App")
+    assert has_element?(lv, "span", "Test Optimizations")
+    assert has_element?(lv, "span", "tuist test App")
   end
 
   test "shows details of a cache run", %{
@@ -57,13 +58,28 @@ defmodule TuistWeb.RunDetailLiveTest do
         user_id: user.id
       )
 
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: cache_run.id)
+
+    xcode_project =
+      XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    _xcode_target =
+      XcodeFixtures.xcode_target_fixture(
+        name: "AppTests",
+        xcode_project_id: xcode_project.id,
+        binary_cache_hash: "AppTests-hash"
+      )
+
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}")
+      |> live(
+        ~p"/noora/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
+      )
 
     # Then
-    has_element?(lv, "span", "Cache Optimizations")
-    has_element?(lv, "span", "tuist cache")
+    assert has_element?(lv, "span", "Compilation Optimizations")
+    assert has_element?(lv, "table span", "AppTests")
+    assert has_element?(lv, "table span", "AppTests-hash")
   end
 end
