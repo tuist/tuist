@@ -4,6 +4,7 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { Hooks } from "./js/hooks.js";
 import "./marketing.css";
+import { setupInkeepChatButton } from "./js/inkeep.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -32,6 +33,8 @@ window.addEventListener("phx:js-exec", ({ detail }) => {
     liveSocket.execJS(el, el.getAttribute(detail.attr));
   });
 });
+
+setupInkeepChatButton();
 
 import "./js/home.js";
 import "./js/components.js";
