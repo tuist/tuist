@@ -40,6 +40,7 @@ struct InspectBuildCommandService {
     private let xcactivityParser: XCActivityParsing
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let dateService: DateServicing
+    private let serverURLService: ServerURLServicing
 
     init(
         environment: Environmenting = Environment.shared,
@@ -52,7 +53,8 @@ struct InspectBuildCommandService {
         configLoader: ConfigLoading = ConfigLoader(),
         xcactivityParser: XCActivityParsing = XCActivityParser(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-        dateService: DateServicing = DateService()
+        dateService: DateServicing = DateService(),
+        serverURLService: ServerURLServicing = ServerURLService()
     ) {
         self.environment = environment
         self.derivedDataLocator = derivedDataLocator
@@ -65,6 +67,7 @@ struct InspectBuildCommandService {
         self.xcactivityParser = xcactivityParser
         self.backgroundProcessRunner = backgroundProcessRunner
         self.dateService = dateService
+        self.serverURLService = serverURLService
     }
 
     func run(
@@ -117,10 +120,11 @@ struct InspectBuildCommandService {
     ) async throws {
         let config = try await configLoader
             .loadConfig(path: projectPath)
+        let serverURL = try serverURLService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else { throw InspectBuildCommandServiceError.missingFullHandle }
         try await createBuildService.createBuild(
             fullHandle: fullHandle,
-            serverURL: config.url,
+            serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000) -
                 Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
@@ -128,7 +132,8 @@ struct InspectBuildCommandService {
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: environment.schemeName,
-            xcodeVersion: try await xcodeBuildController.version()?.description
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
         ServiceContext.current?.ui?.success(
             .alert(

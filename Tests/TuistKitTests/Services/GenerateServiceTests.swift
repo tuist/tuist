@@ -83,7 +83,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        var environment = MapperEnvironment()
+        let environment = MapperEnvironment()
         given(generator)
             .generateWithGraph(path: .any)
             .willReturn(
