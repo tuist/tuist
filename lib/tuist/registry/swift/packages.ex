@@ -45,7 +45,7 @@ defmodule Tuist.Registry.Swift.Packages do
       last_updated_releases_at: Keyword.get(opts, :last_updated_releases_at)
     })
     |> Repo.insert!()
-    |> Repo.preload(Keyword.get(opts, :preload, []))
+    |> Repo.preload(Keyword.get(opts, :preload, [:package_releases]))
   end
 
   def delete_package(%Package{} = package) do

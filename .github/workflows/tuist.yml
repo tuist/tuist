@@ -221,8 +221,6 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - name: Set up Docker Buildx # Caches layers
-        uses: docker/setup-buildx-action@v3
       - name: Docker build
         uses: docker/build-push-action@v5
         with:

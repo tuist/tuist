@@ -57,8 +57,6 @@ jobs:
           version=$(.mise/tasks/generate-version)
           echo "::set-output name=version::$version"
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Fly
         run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
       - name: Notify about the deployment in Slack

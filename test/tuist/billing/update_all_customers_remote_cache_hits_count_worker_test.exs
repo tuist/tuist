@@ -35,7 +35,7 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorkerTest do
       project_id: second_account_project.id,
       name: "generate",
       duration: 1500,
-      created_at: ~U[2024-04-29 10:20:30Z],
+      created_at: ~U[2024-04-29 10:20:31Z],
       remote_test_target_hits: ["target1", "target2"]
     )
 
@@ -43,7 +43,7 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorkerTest do
       project_id: first_account_project.id,
       name: "build",
       duration: 1500,
-      created_at: ~U[2024-04-29 10:20:30Z],
+      created_at: ~U[2024-04-29 10:20:32Z],
       remote_cache_target_hits: ["target1", "target2"]
     )
 
@@ -51,7 +51,7 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorkerTest do
       project_id: first_account_project.id,
       name: "generate",
       duration: 1500,
-      created_at: ~U[2024-04-27 10:20:30Z],
+      created_at: ~U[2024-04-27 10:20:33Z],
       remote_cache_target_hits: ["target1", "target2"]
     )
 

@@ -47,7 +47,6 @@ jobs:
         run: |
           version=$(.mise/tasks/generate-version)
           echo "::set-output name=version::$version"
-      - uses: docker/setup-buildx-action@v1
       - name: Build
         uses: docker/build-push-action@v5
         with:
@@ -55,5 +54,3 @@ jobs:
           push: false
           build-args: |
             MIX_ENV=prod
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
