@@ -5,8 +5,6 @@ defmodule Tuist.Repo.Migrations.BackfillAccountBillingEmail do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  @disable_ddl_transaction true
-  @disable_migration_lock true
   @batch_size 1000
   @throttle_ms 100
 
