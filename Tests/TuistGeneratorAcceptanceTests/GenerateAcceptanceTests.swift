@@ -1202,6 +1202,16 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
             resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
@@ -1217,12 +1227,7 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Resources/MacPlugin.bundle"
-        )
-        try await XCTAssertProductWithDestinationDoesNotContainResource(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            resource: "PlugIns/MacPlugin.bundle"
+            resource: "MacPlugin.bundle"
         )
     }
 
@@ -1232,6 +1237,16 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App-macOS")
 
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+        )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",

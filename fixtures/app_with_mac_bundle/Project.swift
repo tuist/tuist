@@ -20,6 +20,7 @@ let project = Project(
             sources: ["App/Sources/**"],
             dependencies: [
                 .target(name: "MacPlugin", condition: .when([.catalyst])),
+                .target(name: "ProjectResourcesFramework"),
                 .external(name: "ResourcesFramework"),
             ]
         ),
@@ -31,6 +32,7 @@ let project = Project(
             sources: ["App/Sources/**"],
             dependencies: [
                 .target(name: "MacPlugin"),
+                .target(name: "ProjectResourcesFramework"),
                 .external(name: "ResourcesFramework"),
             ]
         ),
@@ -39,6 +41,15 @@ let project = Project(
             destinations: .macOS,
             product: .bundle,
             bundleId: "io.tuist.App.MacPlugin"
+        ),
+        .target(
+            name: "ProjectResourcesFramework",
+            destinations: [.iPhone, .iPad, .macCatalyst, .mac],
+            product: .staticFramework,
+            bundleId: "ProjectResourcesFramework",
+            deploymentTargets: .multiplatform(iOS: "13.0", macOS: "11.0"),
+            sources: ["ProjectResourcesFramework/Sources/*.swift"],
+            resources: ["ProjectResourcesFramework/Sources/greeting.txt"]
         ),
     ]
 )
