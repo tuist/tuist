@@ -13,7 +13,7 @@ defmodule TuistWeb.DownloadController do
         |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
         |> Map.get(:browser_download_url)
 
-      conn |> redirect(external: app_download_url)
+      conn |> redirect(external: app_download_url) |> halt()
     end
   end
 end

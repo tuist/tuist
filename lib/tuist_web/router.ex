@@ -121,6 +121,7 @@ defmodule TuistWeb.Router do
     if FunWithFlags.enabled?(:noora) do
       conn
       |> redirect(to: "/noora#{current_path(conn)}")
+      |> halt()
     else
       conn
     end

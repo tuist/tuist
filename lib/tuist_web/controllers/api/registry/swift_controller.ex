@@ -164,6 +164,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
           to:
             ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
         )
+        |> halt()
       end
     end
   end

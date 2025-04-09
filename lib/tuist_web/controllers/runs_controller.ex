@@ -30,5 +30,6 @@ defmodule TuistWeb.RunsController do
 
     conn
     |> redirect(external: url)
+    |> halt()
   end
 end

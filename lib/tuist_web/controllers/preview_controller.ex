@@ -18,6 +18,7 @@ defmodule TuistWeb.PreviewController do
   def latest_badge(conn, _params) do
     conn
     |> redirect(to: ~p"/app/images/previews-badge.svg")
+    |> halt()
   end
 
   def latest(
@@ -203,6 +204,7 @@ defmodule TuistWeb.PreviewController do
 
     conn
     |> redirect(external: url)
+    |> halt()
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
