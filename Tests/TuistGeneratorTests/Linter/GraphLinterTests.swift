@@ -1769,7 +1769,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: [:]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1781,7 +1780,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_none() async throws {
         // Given
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
@@ -1793,7 +1791,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_all() async throws {
         // Given
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(
             graph: .test(
                 workspace: .test(
@@ -1848,7 +1845,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1860,7 +1856,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_relevant_notConfigured() async throws {
         // Given
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -1905,7 +1900,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1917,7 +1911,6 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_targets_empty() async throws {
         // Given
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -1962,7 +1955,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2008,7 +2000,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ): try XCTUnwrap(.test([.macos])),
             ]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2040,7 +2031,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchOnlyTarget.name, path: path): [],
             ]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2086,7 +2076,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchApp.name, path: path): [],
             ]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2132,7 +2121,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2171,7 +2159,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2235,7 +2222,6 @@ final class GraphLinterTests: TuistUnitTestCase {
                     ],
                 ]
             )
-            let config = Tuist.test()
             let graphTraverser = GraphTraverser(graph: graph)
 
             // When
@@ -2270,7 +2256,6 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
 
-        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When

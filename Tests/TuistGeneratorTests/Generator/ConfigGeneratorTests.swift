@@ -831,7 +831,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -879,7 +879,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -921,7 +921,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -958,7 +958,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -995,7 +995,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1025,7 +1025,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1055,7 +1055,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1085,7 +1085,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1124,7 +1124,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1163,7 +1163,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
@@ -1202,7 +1202,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let targetSettingsResult = try pbxTarget
+        let targetSettingsResult = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
