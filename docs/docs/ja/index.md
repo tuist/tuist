@@ -7,11 +7,11 @@ description: Apple 標準の開発ツールを強化し、より大規模で優�
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# From idea to the store
+# アイデアからストア公開まで
 
-We are the only **integrated extension of Apple's native toolchain to build better apps faster.**
 
-<br/>
+
+<0/>
 
 <HomeCards>
     <HomeCard icon="📝"
@@ -50,9 +50,9 @@ We are the only **integrated extension of Apple's native toolchain to build bett
         link="/guides/develop/insights"/>
 </HomeCards>
 
-## Installation
+## インストール方法
 
-Install Tuist and run `tuist init` to get started:
+早速Tuist をインストールして `tuist init` を実行してみましょう：
 
 ::: code-group
 
@@ -69,11 +69,11 @@ mise x tuist@latest -- tuist init
 
 :::
 
-Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.
+詳細については、 <LocalizedLink href="/guides/quick-start/install-tuist">導入の手順</LocalizedLink> をご覧ください。
 
-## Discover more
+## もっと詳しく
 
-Try out Tuist in minutes and learn how to get the most out of Tuist.
+Tuist を少し試してみて、Tuist を最大限に活用する方法を学びましょう。
 
 <HomeCards type="carousel">
     <HomeCard icon="⚙️"
@@ -95,15 +95,15 @@ Try out Tuist in minutes and learn how to get the most out of Tuist.
         link="https://handbook.tuist.dev"/>
 </HomeCards>
 
-## Watch our latest talks
+## 最新の登壇一覧
 
-Explore our team's presentations. Stay informed and gain expertise.
+Tuistのこれまでの発表内容をご覧ください。 最新情報をキャッチし、専門知識を身につけましょう。
 
 <HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
 
-## Join the community
+## コミュニティに参加する
 
-See the source code, connect with others, and get connected.
+ソースコードを確認し、他の開発者とつながりましょう。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
