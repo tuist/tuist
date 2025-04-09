@@ -14,4 +14,9 @@ defmodule Tuist.Runs do
     |> Build.create_changeset(attrs)
     |> Repo.insert()
   end
+
+  def list_build_runs(attrs) do
+    Build
+    |> Flop.validate_and_run!(attrs, for: Build)
+  end
 end

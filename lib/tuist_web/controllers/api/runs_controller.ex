@@ -216,6 +216,11 @@ defmodule TuistWeb.API.RunsController do
                scheme: %Schema{
                  type: :string,
                  description: "The scheme used for the build."
+               },
+               status: %Schema{
+                 type: :string,
+                 description: "The status of the build run.",
+                 enum: [:success, :failure]
                }
              },
              required: [
@@ -285,7 +290,8 @@ defmodule TuistWeb.API.RunsController do
           model_identifier: params |> Map.get(:model_identifier),
           scheme: params |> Map.get(:scheme),
           project_id: params.project.id,
-          account_id: params.account.id
+          account_id: params.account.id,
+          status: Map.get(params, :status, :success)
         })
     end
   end

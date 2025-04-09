@@ -216,7 +216,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           xcode_version: "12.4",
           is_ci: false,
           model_identifier: "machine-123",
-          scheme: "App"
+          scheme: "App",
+          status: :failure
         )
 
       # Then
@@ -231,6 +232,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.scheme == "App"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
+      assert build.status == :failure
 
       assert response == %{
                "id" => build.id,
@@ -353,6 +355,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.scheme == nil
       assert build.project_id == project.id
       assert build.account_id == user.account.id
+      assert build.status == :success
 
       assert response == %{
                "id" => build.id,

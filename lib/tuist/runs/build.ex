@@ -5,6 +5,14 @@ defmodule Tuist.Runs.Build do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :project_id
+    ],
+    sortable: [:inserted_at]
+  }
+
   @primary_key {:id, UUIDv7, autogenerate: false}
   schema "build_runs" do
     field :duration, :integer
@@ -13,6 +21,7 @@ defmodule Tuist.Runs.Build do
     field :is_ci, :boolean
     field :model_identifier, :string
     field :scheme, :string
+    field :status, Ecto.Enum, values: [success: 0, failure: 1]
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
 
@@ -31,14 +40,17 @@ defmodule Tuist.Runs.Build do
       :scheme,
       :project_id,
       :account_id,
-      :inserted_at
+      :inserted_at,
+      :status
     ])
     |> validate_required([
       :id,
       :duration,
       :is_ci,
       :project_id,
-      :account_id
+      :account_id,
+      :status
     ])
+    |> validate_inclusion(:status, [:success, :failure])
   end
 end

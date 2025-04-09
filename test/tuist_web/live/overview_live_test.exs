@@ -1,9 +1,10 @@
 defmodule TuistWeb.OverviewLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -65,5 +66,28 @@ defmodule TuistWeb.OverviewLiveTest do
       |> live(~p"/noora/#{organization.account.name}/#{project.name}")
 
     assert has_element?(lv, ".tuist-widget span", "50.0%")
+  end
+
+  test "sets the right average build time", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    DateTime
+    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      duration: 1000,
+      inserted_at: ~U[2024-04-30 03:00:00Z]
+    )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+
+    assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end
 end

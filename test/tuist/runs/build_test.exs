@@ -14,6 +14,7 @@ defmodule Tuist.Runs.BuildTest do
       scheme: "App",
       project_id: 1,
       account_id: 1,
+      status: :success,
       inserted_at: ~U[2023-10-01 12:00:00Z]
     }
 
@@ -45,6 +46,23 @@ defmodule Tuist.Runs.BuildTest do
     test "ensures account_id is present" do
       changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:account_id]))
       assert "can't be blank" in errors_on(changeset).account_id
+    end
+
+    test "ensures status is present" do
+      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:status]))
+      assert "can't be blank" in errors_on(changeset).status
+    end
+
+    test "ensures status is a valid value" do
+      invalid_attrs = Map.put(@valid_attrs, :status, :invalid_status)
+      changeset = Build.create_changeset(%Build{}, invalid_attrs)
+      assert "is invalid" in errors_on(changeset).status
+    end
+
+    test "is valid when status is :failure" do
+      attrs = Map.put(@valid_attrs, :status, :failure)
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert changeset.valid?
     end
   end
 end

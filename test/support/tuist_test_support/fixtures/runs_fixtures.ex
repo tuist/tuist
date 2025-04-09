@@ -24,7 +24,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
       project_id: project_id,
       account_id: account_id,
-      inserted_at: Keyword.get(attrs, :inserted_at)
+      inserted_at: Keyword.get(attrs, :inserted_at),
+      status: Keyword.get(attrs, :status, :success)
     })
   end
 end

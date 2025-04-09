@@ -23,7 +23,8 @@ defmodule Tuist.RunsTest do
           model_identifier: "Mac15,6",
           scheme: "App",
           project_id: project_id,
-          account_id: account_id
+          account_id: account_id,
+          status: :success
         })
 
       # Then
@@ -35,6 +36,7 @@ defmodule Tuist.RunsTest do
       assert build.scheme == "App"
       assert build.project_id == project_id
       assert build.account_id == account_id
+      assert build.status == :success
     end
   end
 
@@ -62,6 +64,46 @@ defmodule Tuist.RunsTest do
 
       # Then
       assert build == nil
+    end
+  end
+
+  describe "list_build_runs/1" do
+    test "lists build runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      {:ok, build_one} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          inserted_at: ~U[2024-03-04 01:00:00Z]
+        )
+
+      RunsFixtures.build_fixture(project_id: project_two.id)
+
+      {:ok, build_two} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          inserted_at: ~U[2024-03-04 02:00:00Z]
+        )
+
+      # When
+      {got_builds_first_page, got_meta_first_page} =
+        Runs.list_build_runs(%{
+          page_size: 1,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc]
+        })
+
+      {got_builds_second_page, _meta} =
+        Runs.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
+
+      # Then
+      assert got_builds_first_page == [build_two]
+      assert got_builds_second_page == [build_one]
     end
   end
 end

@@ -1,4 +1,5 @@
 defmodule TuistWeb.OverviewLive do
+  alias Tuist.Runs
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Previews.AppPreview
@@ -21,10 +22,27 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
+    uri =
+      ("?" <>
+         (params
+          |> Map.take([
+            "analytics_environment",
+            "analytics_date_range",
+            "builds_environment",
+            "builds_date_range"
+          ])
+          |> URI.encode_query()))
+      |> URI.new!()
+
     {
       :noreply,
       socket
       |> assign_analytics(params)
+      |> assign_builds(params)
+      |> assign(
+        :uri,
+        uri
+      )
     }
   end
 
@@ -73,6 +91,92 @@ defmodule TuistWeb.OverviewLive do
     )
   end
 
+  defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
+    builds_date_range = params["builds_date_range"] || "last_30_days"
+
+    start_date =
+      case builds_date_range do
+        "last_12_months" -> Date.add(DateTime.utc_now(), -365)
+        "last_30_days" -> Date.add(DateTime.utc_now(), -30)
+        "last_7_days" -> Date.add(DateTime.utc_now(), -7)
+      end
+
+    builds_environment = params["builds_environment"] || "any"
+
+    opts = [
+      project_id: project.id,
+      start_date: start_date
+    ]
+
+    opts =
+      case builds_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
+    {recent_build_runs, _meta} =
+      Runs.list_build_runs(%{
+        last: 30,
+        filters: [
+          %{field: :project_id, op: :==, value: project.id}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:asc]
+      })
+
+    recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
+
+    failed_build_runs_count = Enum.count(recent_build_runs, fn run -> run.status == :failure end)
+
+    passed_build_runs_count =
+      Enum.count(recent_build_runs, fn run -> run.status == :success end)
+
+    socket
+    |> assign(
+      :builds_date_range,
+      builds_date_range
+    )
+    |> assign(
+      :builds_environment,
+      builds_environment
+    )
+    |> assign(
+      :builds_environment_label,
+      environment_label(builds_environment)
+    )
+    |> assign(
+      :recent_build_runs,
+      recent_build_runs_chart_data
+    )
+    |> assign(
+      :failed_build_runs_count,
+      failed_build_runs_count
+    )
+    |> assign(
+      :passed_build_runs_count,
+      passed_build_runs_count
+    )
+    |> assign(
+      :builds_duration_analytics,
+      Analytics.builds_duration_analytics(project.id, opts)
+    )
+  end
+
+  defp recent_build_runs_chart_data(recent_build_runs) do
+    Enum.map(recent_build_runs, fn run ->
+      color =
+        case run.status do
+          :success -> "var:noora-chart-primary"
+          :failure -> "var:noora-chart-destructive"
+        end
+
+      value = Decimal.from_float(run.duration / 1000) |> Decimal.round(0)
+
+      %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
+    end)
+  end
+
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     date_range = date_range(params)
 
@@ -112,7 +216,7 @@ defmodule TuistWeb.OverviewLive do
     )
     |> assign(
       :analytics_environment_label,
-      analytics_environment_label(analytics_environment)
+      environment_label(analytics_environment)
     )
     |> assign(
       :binary_cache_hit_rate_analytics,
@@ -141,15 +245,15 @@ defmodule TuistWeb.OverviewLive do
   defp analytics_trend_label("last_12_months"), do: gettext("since last year")
   defp analytics_trend_label(_), do: gettext("since last month")
 
-  defp analytics_environment_label("any") do
+  defp environment_label("any") do
     gettext("Any")
   end
 
-  defp analytics_environment_label("local") do
+  defp environment_label("local") do
     gettext("Local")
   end
 
-  defp analytics_environment_label("ci") do
+  defp environment_label("ci") do
     gettext("CI")
   end
 

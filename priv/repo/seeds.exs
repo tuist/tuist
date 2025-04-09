@@ -1,3 +1,4 @@
+alias Tuist.Runs.Build
 alias Tuist.Accounts
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -41,18 +42,6 @@ account =
 
 user = Accounts.get_user_by_email(email)
 
-_public_project =
-  case Projects.get_project_by_slug("tuist/public") do
-    {:ok, %Project{} = project} ->
-      project
-
-    {:error, _} ->
-      Projects.create_project(%{name: "public", account: %{id: account.id}},
-        token: "public",
-        visibility: :public
-      )
-  end
-
 organization =
   if Accounts.get_organization_by_handle("tuist") do
     Accounts.get_organization_by_handle("tuist")
@@ -63,7 +52,18 @@ organization =
     organization.account
   end
 
-tuist_cloud_acceptance_tests_project =
+_public_project =
+  case Projects.get_project_by_slug("tuist/public") |> dbg do
+    {:ok, %Project{} = project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project(%{name: "public", account: %{id: organization.id}},
+        visibility: :public
+      )
+  end
+
+ios_app_with_frameworks_project =
   with {:ok, project} <- Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
     project
   else
@@ -78,8 +78,40 @@ _org_project =
   Projects.get_project_by_slug("tuist/tuist") ||
     Projects.create_project!(%{name: "tuist", account: %{id: organization.id}})
 
-for _event <- 1..10000 do
-  names = ["build", "test", "cache", "generate"]
+builds =
+  Enum.map(1..2000, fn _ ->
+    status = Enum.random([:success, :failure])
+    is_ci = Enum.random([true, false])
+    account_id = if is_ci, do: organization.id, else: user.account.id
+
+    inserted_at =
+      DateTime.new!(
+        Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+        Time.new!(
+          Enum.random(0..23),
+          Enum.random(0..59),
+          Enum.random(0..59)
+        )
+      )
+
+    %{
+      id: UUIDv7.generate(),
+      duration: Enum.random(10000..100_000),
+      macos_version: "11.2.3",
+      xcode_version: "12.4",
+      is_ci: is_ci,
+      model_identifier: "Mac15,6",
+      project_id: ios_app_with_frameworks_project.id,
+      account_id: account_id,
+      inserted_at: inserted_at,
+      status: status
+    }
+  end)
+
+Repo.insert_all(Build, builds)
+
+for _event <- 1..8000 do
+  names = ["test", "cache", "generate"]
   name = Enum.random(names)
   status = Enum.random([:success, :failure])
   is_ci = Enum.random([true, false])
@@ -157,7 +189,7 @@ for _event <- 1..10000 do
     name: name,
     duration: Enum.random(10000..100_000),
     tuist_version: "4.1.0",
-    project_id: tuist_cloud_acceptance_tests_project.id,
+    project_id: ios_app_with_frameworks_project.id,
     cacheable_targets: cacheable_targets,
     local_cache_target_hits: local_cache_target_hits,
     remote_cache_target_hits: remote_cache_target_hits,
@@ -215,7 +247,7 @@ test_cases =
             module_name: module_name,
             identifier: identifier,
             project_identifier: "AppTests/AppTests.xcodeproj",
-            project_id: tuist_cloud_acceptance_tests_project.id
+            project_id: ios_app_with_frameworks_project.id
           },
           flaky: Enum.random([true, false, false, false, false])
         )
