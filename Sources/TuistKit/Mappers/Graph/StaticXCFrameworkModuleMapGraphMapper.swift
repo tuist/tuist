@@ -249,7 +249,7 @@ extension SettingsDictionary {
         case let .array(value):
             var seen = Set<String>()
             let value = value.enumerated().filter {
-                if $0.element.starts(with: "-X") {
+                if $0.element.starts(with: "-X") || $0.element == "-I" {
                     if value.endIndex > $0.offset + 1 {
                         return !seen.contains($0.element + value[$0.offset + 1])
                     } else {
@@ -260,7 +260,7 @@ extension SettingsDictionary {
                         return seen.insert($0.element).inserted
                     } else {
                         let previousElement = value[$0.offset - 1]
-                        if previousElement.starts(with: "-X") {
+                        if previousElement.starts(with: "-X") || previousElement == "-I" {
                             return seen.insert(previousElement + $0.element).inserted
                         } else {
                             return seen.insert($0.element).inserted
