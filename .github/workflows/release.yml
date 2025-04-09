@@ -84,12 +84,16 @@ jobs:
             org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
             org.opencontainers.image.source=https://github.com/tuist/registry
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ steps.version.outputs.version }}

@@ -83,6 +83,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run db:reset
       - name: Run tests
         run: mix test
   analyze-migrations:
@@ -121,6 +122,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run db:reset
       - name: Analyze migrations
         run: mix excellent_migrations.migrate
   credo:
@@ -198,8 +200,8 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run security
-  build_on_premise_image:
-    name: Build on-premise image
+  docker_build:
+    name: Docker build
     runs-on: "blacksmith-4vcpu-ubuntu-2204"
     timeout-minutes: 15
     steps:
@@ -221,12 +223,16 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Docker build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
           push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
@@ -267,6 +273,7 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
+      - run: mise run db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

@@ -8,4 +8,6 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 mix deps.get
 pnpm install
 
-$SCRIPT_DIR/db/reset
+if [ -z "$CI" ]; then
+  $SCRIPT_DIR/db/reset
+fi
