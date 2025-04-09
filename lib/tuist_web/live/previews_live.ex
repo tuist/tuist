@@ -25,7 +25,7 @@ defmodule TuistWeb.PreviewsLive do
         previews
       )
       |> assign(
-        :previews,
+        :previews_meta,
         previews_meta
       )
     }
