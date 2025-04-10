@@ -93,19 +93,30 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label="Test Runs"
         icon="dashboard"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs" == @current_path or
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs" == @current_path or
             (not is_nil(@selected_run) and not Enum.empty?(@selected_run.test_targets))
         }
       />
       <.sidebar_item
         label="Cache Runs"
         icon="schema"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/cache_runs"}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs"}
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/cache_runs" == @current_path or
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs" ==
+            @current_path or
             (not is_nil(@selected_run) and @selected_run.name == "cache")
+        }
+      />
+      <.sidebar_item
+        label="Generate Runs"
+        icon="filters"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs" ==
+            @current_path or
+            (not is_nil(@selected_run) and @selected_run.name == "generate")
         }
       />
       <.sidebar_item

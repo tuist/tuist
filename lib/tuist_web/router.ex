@@ -604,8 +604,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :project},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
-      live "/test_runs", TestRunsLive
-      live "/cache_runs", CacheRunsLive
+      live "/tests/test-runs", TestRunsLive
+      live "/binary-cache/cache-runs", CacheRunsLive
+      live "/binary-cache/generate-runs", GenerateRunsLive
     end
   end
 

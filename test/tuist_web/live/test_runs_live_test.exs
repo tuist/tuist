@@ -39,7 +39,7 @@ defmodule TuistWeb.TestRunsLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/test_runs")
+      |> live(~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
     # Then
     assert has_element?(lv, "span", "tuist test App")

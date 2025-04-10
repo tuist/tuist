@@ -1,4 +1,4 @@
-defmodule TuistWeb.CacheRunsLive do
+defmodule TuistWeb.GenerateRunsLive do
   alias Tuist.Projects
   use TuistWeb, :live_view
   use TuistWeb.Noora
@@ -10,7 +10,7 @@ defmodule TuistWeb.CacheRunsLive do
 
     {:ok,
      socket
-     |> assign(:head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")}
+     |> assign(:head_title, "#{gettext("Generate Runs")} · #{slug} · Tuist")}
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
@@ -18,14 +18,14 @@ defmodule TuistWeb.CacheRunsLive do
       ("?" <>
          URI.encode_query(
            Map.take(params, [
-             "cache_runs_sort_by",
-             "cache_runs_sort_order"
+             "generate_runs_sort_by",
+             "generate_runs_sort_order"
            ])
          ))
       |> URI.new!()
 
-    cache_runs_sort_by = params["cache_runs_sort_by"] || "ran_at"
-    cache_runs_sort_order = params["cache_runs_sort_order"] || "desc"
+    generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
+    generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
 
     {
       :noreply,
@@ -35,64 +35,66 @@ defmodule TuistWeb.CacheRunsLive do
         uri
       )
       |> assign(
-        :cache_runs_sort_by,
-        cache_runs_sort_by
+        :generate_runs_sort_by,
+        generate_runs_sort_by
       )
       |> assign(
-        :cache_runs_sort_order,
-        cache_runs_sort_order
+        :generate_runs_sort_order,
+        generate_runs_sort_order
       )
-      |> assign_cache_runs(params)
+      |> assign_generate_runs(params)
     }
   end
 
-  def assign_cache_runs(
+  def assign_generate_runs(
         %{
           assigns: %{
             selected_project: project,
-            cache_runs_sort_by: cache_runs_sort_by,
-            cache_runs_sort_order: cache_runs_sort_order
+            generate_runs_sort_by: generate_runs_sort_by,
+            generate_runs_sort_order: generate_runs_sort_order
           }
         } = socket,
         params
       ) do
-    order_by = String.to_atom(cache_runs_sort_by)
-    order_direction = String.to_atom(cache_runs_sort_order)
-    {cache_runs, cache_runs_meta} = list_cache_runs(project.id, params, order_by, order_direction)
+    order_by = String.to_atom(generate_runs_sort_by)
+    order_direction = String.to_atom(generate_runs_sort_order)
+
+    {generate_runs, generate_runs_meta} =
+      list_generate_runs(project.id, params, order_by, order_direction)
 
     socket
-    |> assign(:cache_runs, cache_runs)
-    |> assign(:cache_runs_meta, cache_runs_meta)
+    |> assign(:generate_runs, generate_runs)
+    |> assign(:generate_runs_meta, generate_runs_meta)
   end
 
-  defp list_cache_runs(project_id, %{"after" => after_cursor}, order_by, order_direction) do
-    list_cache_runs(project_id,
+  defp list_generate_runs(project_id, %{"after" => after_cursor}, order_by, order_direction) do
+    list_generate_runs(project_id,
       after: after_cursor,
       order_by: order_by,
       order_direction: order_direction
     )
   end
 
-  defp list_cache_runs(project_id, %{"before" => before}, order_by, order_direction) do
-    list_cache_runs(project_id,
+  defp list_generate_runs(project_id, %{"before" => before}, order_by, order_direction) do
+    list_generate_runs(project_id,
       before: before,
       order_by: order_by,
       order_direction: order_direction
     )
   end
 
-  defp list_cache_runs(project_id, _params, order_by, order_direction) do
-    list_cache_runs(project_id,
+  defp list_generate_runs(project_id, _params, order_by, order_direction) do
+    list_generate_runs(project_id,
       order_by: order_by,
       order_direction: order_direction
     )
   end
 
-  defp list_cache_runs(project_id, attrs) do
+  defp list_generate_runs(project_id, attrs) do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["cache"]}
+        %{field: :name, op: :in, value: ["generate"]}
       ],
       order_by: [Keyword.get(attrs, :order_by, :created_at)],
       order_directions: [Keyword.get(attrs, :order_direction, :desc)]
@@ -129,13 +131,13 @@ defmodule TuistWeb.CacheRunsLive do
   def column_patch_sort(
         %{
           uri: uri,
-          cache_runs_sort_by: cache_runs_sort_by,
-          cache_runs_sort_order: cache_runs_sort_order
+          generate_runs_sort_by: generate_runs_sort_by,
+          generate_runs_sort_order: generate_runs_sort_order
         } = _assigns,
         column_value
       ) do
     sort_order =
-      case {cache_runs_sort_by == column_value, cache_runs_sort_order} do
+      case {generate_runs_sort_by == column_value, generate_runs_sort_order} do
         {true, "asc"} -> "desc"
         {true, _} -> "asc"
         {false, _} -> "asc"
@@ -144,22 +146,22 @@ defmodule TuistWeb.CacheRunsLive do
     query_params =
       uri.query
       |> URI.decode_query()
-      |> Map.put("cache_runs_sort_by", column_value)
-      |> Map.put("cache_runs_sort_order", sort_order)
+      |> Map.put("generate_runs_sort_by", column_value)
+      |> Map.put("generate_runs_sort_order", sort_order)
       |> Map.delete("after")
       |> Map.delete("before")
 
     "?#{URI.encode_query(query_params)}"
   end
 
-  def cache_runs_dropdown_item_patch_sort(cache_runs_sort_by, uri) do
+  def generate_runs_dropdown_item_patch_sort(generate_runs_sort_by, uri) do
     query_params =
       uri.query
       |> URI.decode_query()
-      |> Map.put("cache_runs_sort_by", cache_runs_sort_by)
+      |> Map.put("generate_runs_sort_by", generate_runs_sort_by)
       |> Map.delete("after")
       |> Map.delete("before")
-      |> Map.delete("cache_runs_sort_order")
+      |> Map.delete("generate_runs_sort_order")
 
     "?#{URI.encode_query(query_params)}"
   end

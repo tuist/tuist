@@ -1,4 +1,4 @@
-defmodule TuistWeb.CacheRunsLiveTest do
+defmodule TuistWeb.GenerateRunsLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   use TuistTestSupport.Cases.ConnCase, async: false
@@ -13,36 +13,36 @@ defmodule TuistWeb.CacheRunsLiveTest do
     %{conn: conn}
   end
 
-  test "lists latest cache runs", %{
+  test "lists latest generate runs", %{
     conn: conn,
     user: user,
     organization: organization,
     project: project
   } do
     # Given
-    _cache_run_one =
+    _generate_run_one =
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         user_id: user.id,
-        name: "cache",
-        command_arguments: ["cache", "App"]
+        name: "generate",
+        command_arguments: ["generate", "App"]
       )
 
-    _cache_run_one =
+    _generate_run_one =
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         user_id: user.id,
-        name: "cache",
-        command_arguments: ["cache", "AppTwo"]
+        name: "generate",
+        command_arguments: ["generate", "AppTwo"]
       )
 
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
+      |> live(~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")
 
     # Then
-    assert has_element?(lv, "span", "cache App")
-    assert has_element?(lv, "span", "cache AppTwo")
+    assert has_element?(lv, "span", "generate App")
+    assert has_element?(lv, "span", "generate AppTwo")
   end
 end

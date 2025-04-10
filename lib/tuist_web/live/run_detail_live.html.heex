@@ -5,7 +5,7 @@
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/test_runs"}
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs"}
   >
     <:icon_left>
       <.icon name="arrow_left" />
@@ -17,7 +17,23 @@
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/cache_runs"}
+    navigate={
+      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/binary-cache/cache-runs"
+    }
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <.button
+    :if={@run.name == "generate"}
+    label={gettext("Generate Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/binary-cache/generate-runs"
+    }
   >
     <:icon_left>
       <.icon name="arrow_left" />

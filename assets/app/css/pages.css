@@ -3,6 +3,7 @@
 @import "./pages/auth.css";
 @import "./pages/cache_runs.css";
 @import "./pages/error.css";
+@import "./pages/generate_runs.css";
 @import "./pages/noora_preview.css";
 @import "./pages/noora_previews.css";
 @import "./pages/overview.css";
