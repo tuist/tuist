@@ -1,13 +1,13 @@
 {
-  "originHash" : "5cfdb0dd741b0671fcc535fda3d541d280ea686f33ea15df065667ca97a08d16",
+  "originHash" : "5996db8fce90e3d591da3eac278d9190d432829e5b800124866bb43a22c3cede",
   "pins" : [
     {
       "identity" : "aexml",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tadija/AEXML.git",
       "state" : {
-        "revision" : "db806756c989760b35108146381535aec231092b",
-        "version" : "4.7.0"
+        "revision" : "38f7d00b23ecd891e1ee656fa6aeebd6ba04ecc3",
+        "version" : "4.6.1"
       }
     },
     {
@@ -31,10 +31,10 @@
     {
       "identity" : "command",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/Command.git",
+      "location" : "https://github.com/TamarMilchtaich/Command.git",
       "state" : {
-        "revision" : "079a7803b581d3022469b3a331bccd51d48d2fc0",
-        "version" : "0.13.0"
+        "branch" : "non-throwing-concatenated-string",
+        "revision" : "1a7925feea54a0b4d1ec5dbbe5c537a8a3e3207c"
       }
     },
     {
@@ -436,19 +436,19 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/TamarMilchtaich/XcodeGraph",
       "state" : {
-        "revision" : "1c7ef35380a4c5d316f3fda68b6dd8140ab0f287",
-        "version" : "1.9.1"
+        "branch" : "xcframeworks-expected-signature",
+        "revision" : "e19c591c90678442a81006bdb70d24ee8e423f79"
       }
     },
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj",
+      "location" : "https://github.com/TamarMilchtaich/XcodeProj",
       "state" : {
-        "revision" : "128d90e4633a8e6941586dea75426e177dfb92e6",
-        "version" : "9.0.0"
+        "branch" : "xcframeworks-expected-signature",
+        "revision" : "a11e0ea1d73bb4c9d7e4f4fcb222ad27d7f99c5e"
       }
     },
     {
