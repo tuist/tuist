@@ -1,13 +1,5 @@
 .noora-modal {
   box-sizing: border-box;
-  --noora-modal-icon-destructive-background: light-dark(var(--noora-red-50), var(--noora-alpha-red));
-  --noora-modal-icon-destructive-label: light-dark(var(--noora-red-600), var(--noora-red-500));
-  --noora-modal-icon-warning-background: light-dark(var(--noora-orange-50), var(--noora-alpha-orange));
-  --noora-modal-icon-warning-label: light-dark(var(--noora-orange-600), var(--noora-orange-500));
-  --noora-modal-icon-success-background: light-dark(var(--noora-green-50), var(--noora-alpha-green));
-  --noora-modal-icon-success-label: light-dark(var(--noora-green-700), var(--noora-green-500));
-  --noora-modal-icon-info-background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure));
-  --noora-modal-icon-info-label: light-dark(var(--noora-azure-700), var(--noora-azure-400));
 
   & [data-part="backdrop"] {
     position: fixed;
@@ -82,19 +74,19 @@
     }
 
     &[data-type="error"] [data-part="icon"] {
-      color: var(--noora-modal-icon-destructive-label);
+      color: var(--noora-icon-destructive-label);
     }
 
     &[data-type="success"] [data-part="icon"] {
-      color: var(--noora-modal-icon-success-label);
+      color: var(--noora-icon-success-label);
     }
 
     &[data-type="warning"] [data-part="icon"] {
-      color: var(--noora-modal-icon-warning-label);
+      color: var(--noora-icon-warning-label);
     }
 
     &[data-type="info"] [data-part="icon"] {
-      color: var(--noora-modal-icon-info-label);
+      color: var(--noora-icon-info-label);
     }
 
     &[data-size="small"] {
@@ -114,19 +106,19 @@
       }
 
       &[data-type="error"] [data-part="icon"] {
-        background: var(--noora-modal-icon-destructive-background);
+        background: var(--noora-icon-destructive-background);
       }
 
       &[data-type="success"] [data-part="icon"] {
-        background: var(--noora-modal-icon-success-background);
+        background: var(--noora-icon-success-background);
       }
 
       &[data-type="warning"] [data-part="icon"] {
-        background: var(--noora-modal-icon-warning-background);
+        background: var(--noora-icon-warning-background);
       }
 
       &[data-type="info"] [data-part="icon"] {
-        background: var(--noora-modal-icon-info-background);
+        background: var(--noora-icon-info-background);
       }
     }
   }

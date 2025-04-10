@@ -3234,3 +3234,93 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Select account"
 msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:78
+#, elixir-autogen, elixir-format
+msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:11
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Connect your project"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "Connect your project to the dashboard"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Connection successful"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "Install Tuist CLI"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Next steps"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "OR"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "Project Ready? Proceed to dashboard"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Run the following command to install Tuist CLI."
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Run this command to link your project to the dashboard."
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Tuist dashboard"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Tuist documentation"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Waiting for connection"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "homebrew"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "mise"
+msgstr ""
+
+#: lib/tuist_web/live/connect_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "using CLI"
+msgstr ""

@@ -255,6 +255,8 @@ defmodule TuistWeb.API.ProjectsController do
         |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
       !is_nil(project) ->
+        Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
+
         conn
         |> put_status(:ok)
         |> json(%{

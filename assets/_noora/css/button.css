@@ -9,6 +9,10 @@
   border-radius: var(--noora-radius-medium);
   padding: 0;
   text-decoration: none;
+
+  & svg {
+    pointer-events: none;
+  }
 }
 
 .noora-button {

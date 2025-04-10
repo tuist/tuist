@@ -12,6 +12,7 @@
     "@zag-js/pin-input": "^1.8.2",
     "@zag-js/select": "^1.8.2",
     "@zag-js/store": "^1.8.2",
+    "@zag-js/tabs": "^1.8.2",
     "@zag-js/tooltip": "^1.8.2",
     "@zag-js/types": "^1.8.2",
     "@zag-js/utils": "^1.8.2",

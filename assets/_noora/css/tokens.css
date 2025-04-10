@@ -315,6 +315,16 @@
   --noora-chart-legend-secondary: light-dark(var(--noora-blue-500), var(--noora-blue-400));
   --noora-chart-lines: light-dark(var(--noora-neutral-light-300), var(--noora-neutral-gray-16));
 
+  /* Icons */
+  --noora-icon-destructive-background: light-dark(var(--noora-red-50), var(--noora-alpha-red));
+  --noora-icon-destructive-label: light-dark(var(--noora-red-600), var(--noora-red-500));
+  --noora-icon-warning-background: light-dark(var(--noora-orange-50), var(--noora-alpha-orange));
+  --noora-icon-warning-label: light-dark(var(--noora-orange-600), var(--noora-orange-500));
+  --noora-icon-success-background: light-dark(var(--noora-green-50), var(--noora-alpha-green));
+  --noora-icon-success-label: light-dark(var(--noora-green-700), var(--noora-green-500));
+  --noora-icon-info-background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure));
+  --noora-icon-info-label: light-dark(var(--noora-azure-700), var(--noora-azure-400));
+
   /* Spacing */
   --noora-spacing-0: 0rem;
   --noora-spacing-1: 0.125rem;

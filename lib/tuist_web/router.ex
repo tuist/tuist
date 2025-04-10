@@ -548,6 +548,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :project},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
+      live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/previews", NooraPreviewsLive

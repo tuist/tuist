@@ -8,6 +8,7 @@
   />
   <section class="layout__main">
     <TuistWeb.AppLayoutComponents.project_sidebar
+      :if={Map.get(assigns, :sidebar_enabled?, true)}
       current_path={@current_path}
       selected_project={@selected_project}
       selected_account={@selected_account}

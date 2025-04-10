@@ -126,7 +126,10 @@ defmodule TuistWeb.CreateProjectLive do
          %Account{} = account <- Accounts.get_account_by_id(account_id),
          true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
          {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
-      {:noreply, socket}
+      {:noreply,
+       push_navigate(socket,
+         to: ~p"/noora/#{account.name}/#{project.name}/connect"
+       )}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
