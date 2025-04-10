@@ -1,32 +1,30 @@
 ---
-title: Model Context Protocol (MCP)
+title: モデルコンテキストプロトコル(MCP)
 titleTemplate: :title · AI · Guides · Tuist
-description: Learn how to use Tuist's MCP server to have a language-based interface for your app development environment.
+description: Tuist MCPサーバーを使用して、アプリ開発環境に自然言語インターフェースを導入する方法を学びましょう。
 ---
 
-# Model Context Protocol (MCP)
+# モデルコンテキストプロトコル (MCP)
 
-[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard proposed by [Claude](https://claude.ai) for LLMs to interact with development environments.
-You can think of it as the USB-C of LLMs.
-Like shipping containers, which made cargo and transportation more interoperable,
-or protocols like TCP, which decoupled the application layer from the transport layer,
-MCP makes LLM-powered applications such as [Claude](https://claude.ai/) and editors like [Zed](https://zed.dev) or [Cursor](https://www.cursor.com) interoperable with other domains.
+[MCP](https://www.claudemcp.com) は、LLM（大規模言語モデル）が開発環境と連携するための標準仕様として、[Claude](https://claude.ai) によって提案されたプロトコルです。
+これは、LLM における USB-C のような存在と考えることができます。つまり、さまざまな開発環境とスムーズに接続できる、LLM 向けの共通インターフェースのようなものです。
+貨物輸送を相互運用可能にしたコンテナや、アプリケーション層とトランスポート層を分離した通信プロトコルのように、MCPは[Claude](https://claude.ai/) のような LLMを活用したアプリケーションと、[Zed](https://zed.dev) や[Cursor](https://www.cursor.com) のようなエディタを、他のドメインと相互運用可能にします。
 
-Tuist provides a local server through its CLI so that you can interact with your **app development environment**.
-By connecting your client apps to it, you can use language to interact with your projects.
+Tuist は、CLI を通じてローカルサーバーを提供しており、**アプリ開発環境**と対話できるようになっています。
+クライアントアプリをこのサーバーに接続することで、自然言語を用いてプロジェクトと対話できるようになります。
 
-In this page you'll learn about how to set it up and its capabilities.
+このページではMCPの設定方法と、その機能について学ぶことができます。
 
 > [!NOTE]
-> Tuist MCP server uses Xcode's most-recent projects as the source of truth for projects you want to interact with.
+> Tuist MCPサーバーは、操作対象となるプロジェクトの情報源として、Xcodeの最新プロジェクトを利用します。
 
-## Set it up
+## 導入手順
 
 ### [Claude](https://claude.ai)
 
-If you are using [Claude desktop](https://claude.ai/download), you can run the <LocalizedLink href="/cli/mcp/setup/claude">tuist mcp setup claude</LocalizedLink> command to configure your Claude environment.
+[Claude desktop](https://claude.ai/download) を使用している場合は、<LocalizedLink href="/cli/mcp/setup/claude">tuist mcp setup claude</LocalizedLink> コマンドを実行することで、Claude 環境を構成できます。
 
-Alternatively, can manually edit the file at `~/Library/Application\ Support/Claude/claude_desktop_config.json`, and add the Tuist MCP server:
+または、 `~/Library/Application\ Support/Claude/claude_desktop_config.json` にあるファイルを手動で編集し、Tuist MCPサーバーを追加することもできます：
 
 :::code-group
 
@@ -54,29 +52,29 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
 
 :::
 
-## Capabilities
+## 主な機能
 
-In the following sections you'll learn about the capabilities of the Tuist MCP server.
+以下のセクションでは、Tuist MCPサーバーの機能について解説します。
 
-### リソース
+### 参考文献
 
-#### Recent projects and workspaces
+#### 最近使用したプロジェクトとワークスペース
 
-Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked with, giving your application access to their dependency graphs for powerful insights. You can query this data to uncover details about your project structure and relationships, such as:
+Tuistは、最近操作したXcodeプロジェクトおよびワークスペースの記録を保持しており、アプリケーションがそれらの依存関係グラフにアクセスできるようにすることで、強力な分析や可視化を可能にします。 このデータに対してクエリを実行することで、例えば以下のようなプロジェクトの構造や依存関係などの詳細情報を把握できます：
 
-- What are the direct and transitive dependencies of a specific target?
-- Which target has the most source files, and how many does it include?
-- What are all the static products (e.g., static libraries or frameworks) in the graph?
-- Can you list all targets, sorted alphabetically, along with their names and product types (e.g., app, framework, unit test)?
-- Which targets depend on a particular framework or external dependency?
-- What’s the total number of source files across all targets in the project?
-- Are there any circular dependencies between targets, and if so, where?
-- Which targets use a specific resource (e.g., an image or plist file)?
-- What’s the deepest dependency chain in the graph, and which targets are involved?
-- Can you show me all the test targets and their associated app or framework targets?
-- Which targets have the longest build times based on recent interactions?
-- What are the differences in dependencies between two specific targets?
-- Are there any unused source files or resources in the project?
-- Which targets share common dependencies, and what are they?
+- 特定のターゲットに対する直接的および推移的な依存関係は何か？
+- 最も多くのソースファイルを含むターゲットはどれで、いくつのファイルが含まれているか？
+- グラフ内に含まれるすべての静的プロダクト（スタティックライブラリやフレームワークなど）は何か？
+- すべてのターゲットを名前とプロダクトの種類（アプリ、フレームワーク、ユニットテストなど）とともに、アルファベット順で並び替えは可能か？
+- 特定のフレームワークや外部依存関係に依存しているターゲットはどれか？
+- プロジェクト内のすべてのターゲットに含まれるソースファイルの合計数はいくつか？
+- ターゲット間に循環依存は存在するか？ある場合は、その発生箇所はどこか？
+- 特定のリソース（画像や plistファイルなど）を使用しているターゲットはどれか？
+- グラフ内で最も深い依存関係のチェーンは何か？また、それに関与しているターゲットはどれか？
+- すべてのテストターゲットと、それぞれが関連付けられているアプリまたはフレームワークのターゲットを表示することは可能か？
+- 最近の操作履歴に基づいて、ビルド時間が最も長いターゲットはどれか？
+- 2つの特定のターゲット間で依存関係にどのような違いがあるか？
+- プロジェクトに使用されていないソース ファイルやリソースはあるか？
+- どのターゲットが共通の依存関係を持っており、それらは何か？
 
-With Tuist, you can dig into your Xcode projects like never before, making it easier to understand, optimize, and manage even the most complex setups!
+Tuist を使えば、これまでにない方法でXcodeプロジェクトを深く掘り下げて理解でき、複雑な構成であっても、理解・最適化・管理がより簡単になります！
