@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -35,7 +35,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -76,7 +76,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -115,7 +115,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -157,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -175,6 +175,40 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run format --check
+  esbuild:
+    name: esbuild
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Install esbuild
+        run: mix esbuild.install
+      - name: Check esbuild output
+        run: |
+          if ! mix esbuild app --log-level=warning | grep .; then
+            echo "No esbuild warnings detected."
+            exit 0
+          else
+            echo "::error title=esbuild output detected::asset build has warnings."
+            exit 1
+          fi
   security:
     name: Security
     runs-on: "blacksmith-4vcpu-ubuntu-2204"
@@ -182,7 +216,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -257,7 +291,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: mix-cache
         with:
           path: |
@@ -266,7 +300,7 @@ jobs:
             _site
           key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
