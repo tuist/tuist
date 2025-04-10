@@ -300,6 +300,7 @@ msgid "Back to log in"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:59
+#: lib/tuist_web/components/layouts/noora_account.html.heex:25
 #: lib/tuist_web/live/account_billing_live.ex:62
 #: lib/tuist_web/live/account_billing_live.html.heex:9
 #, elixir-autogen, elixir-format
@@ -1386,6 +1387,7 @@ msgid "Project: %{project_name}"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:47
+#: lib/tuist_web/components/layouts/noora_account.html.heex:14
 #: lib/tuist_web/live/account_projects_live.ex:20
 #: lib/tuist_web/live/account_projects_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -3359,6 +3361,16 @@ msgstr ""
 #: lib/tuist_web/live/connect_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "using CLI"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/noora_account.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "Members"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/noora_account.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Settings"
 msgstr ""
 
 #: lib/tuist_web/live/noora_preview_live.html.heex:92

@@ -1199,4 +1199,7 @@ defmodule Tuist.Accounts do
   defp available_avatar_colors do
     ~w(gray red orange yellow azure blue purple pink)
   end
+
+  def organization?(account), do: !is_nil(account.organization_id)
+  def user?(account), do: !is_nil(account.user_id)
 end

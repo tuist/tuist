@@ -536,6 +536,26 @@ defmodule TuistWeb.Router do
     end
   end
 
+  scope "/noora/:account_handle", TuistWeb do
+    pipe_through [
+      :check_noora_enabled,
+      :open_api,
+      :browser_app,
+      :require_authenticated_user,
+      :analytics
+    ]
+
+    live_session :noora_account,
+      layout: {TuistWeb.Layouts, :noora_account},
+      on_mount: [{TuistWeb.LayoutLive, :account}, {TuistWeb.Authentication, :mount_current_user}] do
+      live "/", NooraProjectsLive
+      live "/projects", NooraProjectsLive
+      live "/members", NooraMembersLive
+      live "/billing", NooraBillingLive
+      live "/settings", NooraSettingsLive
+    end
+  end
+
   scope "/", TuistWeb do
     pipe_through [
       :open_api,
@@ -662,3 +682,4 @@ defmodule TuistWeb.Router do
     end
   end
 end
+

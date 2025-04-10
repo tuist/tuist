@@ -1,0 +1,23 @@
+.account-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding: var(--noora-spacing-15) var(--noora-spacing-5);
+
+  & > [data-part="title"] {
+    display: flex;
+    margin: 0;
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+  }
+
+  & > [data-part="tabs"] {
+    margin: var(--noora-spacing-0) var(--noora-spacing-16);
+    padding: 0;
+  }
+
+  & > [data-part="content"] {
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+  }
+}

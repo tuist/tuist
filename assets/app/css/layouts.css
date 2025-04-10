@@ -1,5 +1,6 @@
 @import "./layouts/navigation_bar.css";
 @import "./layouts/header_bar.css";
+@import "./layouts/account.css";
 
 .layout {
   display: flex;
