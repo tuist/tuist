@@ -1,5 +1,29 @@
 # Changelog
 
+## 4.48.0 - 2025-04-10
+
+### CLI
+
+#### Changed
+
+- Improve tuist run CLI output [#7462](https://github.com/tuist/tuist/pull/7462) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add support for selectively testing UI tests [#7467](https://github.com/tuist/tuist/pull/7467) by [@fortmarek](https://github.com/fortmarek)
+- Include build status in build insights [#7476](https://github.com/tuist/tuist/pull/7476) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix tree-shaking target references from test plans when selective testing [#7471](https://github.com/tuist/tuist/pull/7471) by [@fortmarek](https://github.com/fortmarek)
+- Efficiently precompute hash for registry dependencies [#7469](https://github.com/tuist/tuist/pull/7469) by [@fortmarek](https://github.com/fortmarek)
+- Do not output informational messages when --json is passed [#7473](https://github.com/tuist/tuist/pull/7473) by [@fortmarek](https://github.com/fortmarek)
+- Do not remove duplicated -I "include path" parameter from OTHER_SWIFT_FLAGS [#7478](https://github.com/tuist/tuist/pull/7478) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.47.0 - 2025-04-07
 
 ### CLI
