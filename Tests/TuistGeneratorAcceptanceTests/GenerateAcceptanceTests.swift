@@ -1245,6 +1245,13 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcceptanceTestCase {
+    func test_app_with_signed_xcframework_dependencies() async throws {
+        try await setUpFixture(.appWithSignedXCfrmaworkDependencies)
+        try await run(GenerateCommand.self)
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
