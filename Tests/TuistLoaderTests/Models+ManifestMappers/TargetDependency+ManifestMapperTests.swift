@@ -20,7 +20,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", expectedSignature: nil, status: .required)]]
+            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", expectedSignature: nil,
+                                                            status: .required)]]
         )
 
         // Then

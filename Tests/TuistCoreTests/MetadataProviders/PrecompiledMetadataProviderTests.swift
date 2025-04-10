@@ -1,9 +1,9 @@
 import Foundation
 import Path
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
-import TuistSupportTesting
 
 @testable import TuistCore
 @testable import TuistSupportTesting
