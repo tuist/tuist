@@ -10,7 +10,7 @@ defmodule TuistWeb.Previews.PlatformIcon do
 
   def platform_icon(assigns) do
     ~H"""
-    <.icon name={icon_name(@platform)} />
+    <.icon name={platform_icon_name(@platform)} />
     """
   end
 
@@ -18,17 +18,17 @@ defmodule TuistWeb.Previews.PlatformIcon do
 
   def platform_cell(assigns) do
     ~H"""
-    <.tag_cell label={Previews.platform_string(@platform)} icon={icon_name(@platform)} />
+    <.tag_cell label={Previews.platform_string(@platform)} icon={platform_icon_name(@platform)} />
     """
   end
 
-  defp icon_name(:ios), do: "device_mobile"
-  defp icon_name(:ios_simulator), do: "device_mobile"
-  defp icon_name(:macos), do: "device_desktop"
-  defp icon_name(:tvos), do: "device_tv"
-  defp icon_name(:tvos_simulator), do: "device_tv"
-  defp icon_name(:watchos), do: "device_watch"
-  defp icon_name(:watch_os_simulator), do: "device_watch"
-  defp icon_name(:visionos), do: "device_vision_pro"
-  defp icon_name(:visionos_simulator), do: "device_vision_pro"
+  def platform_icon_name(:ios), do: "device_mobile"
+  def platform_icon_name(:ios_simulator), do: "device_mobile_share"
+  def platform_icon_name(:macos), do: "device_laptop"
+  def platform_icon_name(:tvos), do: "device_desktop"
+  def platform_icon_name(:tvos_simulator), do: "device_desktop_share"
+  def platform_icon_name(:watchos), do: "device_watch"
+  def platform_icon_name(:watch_os_simulator), do: "device_watch_share"
+  def platform_icon_name(:visionos), do: "device_vision_pro"
+  def platform_icon_name(:visionos_simulator), do: "device_vision_pro_share"
 end

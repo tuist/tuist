@@ -4,6 +4,8 @@ defmodule TuistWeb.EmptyState do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
+  import TuistWeb.Components.Terminal
+
   attr :id, :string, required: true, doc: "The id of the empty state."
   attr :title, :string, required: true, doc: "The title of the empty state."
   attr :subtitle, :string, required: true, doc: "The subtitle of the empty state."
@@ -44,26 +46,7 @@ defmodule TuistWeb.EmptyState do
             />
           </span>
         </div>
-        <div data-part="terminal">
-          <div data-part="header">
-            <span data-part="title">
-              {gettext("bash")}
-            </span>
-            <.neutral_button
-              id={@id <> "-button"}
-              size="small"
-              phx-hook="Clipboard"
-              data-clipboard-value={@command}
-            >
-              <.copy />
-            </.neutral_button>
-          </div>
-          <div data-part="body">
-            <span data-part="label">
-              {@command}
-            </span>
-          </div>
-        </div>
+        <.terminal id={@id} command={@command} />
       </div>
     </div>
     """

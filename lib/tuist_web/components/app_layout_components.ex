@@ -113,7 +113,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="devices"
         navigate={~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews"}
         selected={
-          ~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews" == @current_path
+          String.starts_with?(
+            @current_path,
+            ~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews"
+          )
         }
       />
     </.sidebar>

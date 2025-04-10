@@ -27,7 +27,17 @@
     </.card>
     <.card title={gettext("Previews")} icon="screen_share" data-part="previews">
       <.card_section data-part="previews-table-section">
-        <.table id="previews-table" rows={@previews}>
+        <.table
+          id="previews-table"
+          rows={@previews}
+          row_navigate={
+            fn preview ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/previews/#{preview.id}"
+              )
+            end
+          }
+        >
           <:col :let={preview} label={gettext("Name")}>
             <.text_and_description_cell label={preview.display_name} />
           </:col>

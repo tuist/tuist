@@ -37,9 +37,18 @@ defmodule TuistWeb.Noora.Alert do
 
   slot :action, required: false
 
+  attr :rest, :global
+
   def alert(assigns) do
     ~H"""
-    <div id={@id} class="noora-alert" data-type={@type} data-status={@status} data-size={@size}>
+    <div
+      id={@id}
+      class="noora-alert"
+      data-type={@type}
+      data-status={@status}
+      data-size={@size}
+      {@rest}
+    >
       <%= if @size in ["small", "medium"] do %>
         <.icon status={@status} />
         <span data-part="title">{@title}</span>

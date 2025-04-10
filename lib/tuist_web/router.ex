@@ -497,6 +497,17 @@ defmodule TuistWeb.Router do
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
     get "/download", PreviewController, :download_preview
+  end
+
+  # TODO: Remove when Noora becomes the default
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :redirect_to_noora_when_enabled,
+      :open_api,
+      :browser_app,
+      :require_authenticated_user_for_previews,
+      :analytics
+    ]
 
     live_session :preview_detail,
       on_mount: [
@@ -504,6 +515,24 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :optional_project}
       ] do
       live "/", PreviewLive
+    end
+  end
+
+  scope "/noora/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :check_noora_enabled,
+      :open_api,
+      :browser_app,
+      :require_authenticated_user_for_previews,
+      :analytics
+    ]
+
+    live_session :overriden_preview_detail,
+      on_mount: [
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.LayoutLive, :optional_project}
+      ] do
+      live "/", NooraPreviewLive
     end
   end
 

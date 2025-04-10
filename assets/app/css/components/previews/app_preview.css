@@ -1,55 +1,68 @@
 .tuist-app-preview {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--noora-spacing-6);
-  box-shadow: var(--noora-light-border-default);
-  border-radius: var(--noora-radius-xlarge);
-  padding: var(--noora-spacing-5);
+  text-decoration: none;
 
-  & > [data-part="icon"] {
-    border-radius: 8.42px;
-    width: 48px;
-    height: 48px;
-  }
-
-  & > [data-part="metadata"] {
+  & > [data-part="card"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-5);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    padding: var(--noora-spacing-5);
 
-    & > [data-part="title"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    &:hover {
+      background: var(--noora-surface-background-secondary);
     }
 
-    & > [data-part="extra-metadata"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-4);
+    &:active {
+      box-shadow: var(--noora-border-light-focus);
+      background: var(--noora-surface-background-primary);
+    }
 
-      & > [data-part="time"] {
+    & > [data-part="icon"] {
+      border-radius: 8.42px;
+      width: 48px;
+      height: 48px;
+    }
+
+    & > [data-part="metadata"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="extra-metadata"] {
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: var(--noora-spacing-1);
+        gap: var(--noora-spacing-4);
 
-        & > [data-part="icon"] {
+        & > [data-part="time"] {
           display: flex;
-          width: var(--noora-icon-size-small);
-          height: var(--noora-icon-size-small);
-          color: var(--noora-surface-label-secondary);
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-1);
 
-          & svg {
-            width: 100%;
-            height: 100%;
+          & > [data-part="icon"] {
+            display: flex;
+            width: var(--noora-icon-size-small);
+            height: var(--noora-icon-size-small);
+            color: var(--noora-surface-label-secondary);
+
+            & svg {
+              width: 100%;
+              height: 100%;
+            }
           }
-        }
 
-        & > [data-part="label"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+          }
         }
       }
     }

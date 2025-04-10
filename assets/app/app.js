@@ -27,6 +27,7 @@ import * as NooraComponents from "../_noora/noora.js";
 import "./app.css";
 import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
+import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -35,6 +36,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let Hooks = {};
 Hooks.ImageFallback = ImageFallback;
 Hooks.Clipboard = Clipboard;
+Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.Chart = {
   mounted() {
     this.render();
