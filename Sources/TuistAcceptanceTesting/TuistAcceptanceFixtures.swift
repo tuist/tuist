@@ -109,6 +109,7 @@ public enum TuistAcceptanceFixtures {
     case xcodeProjectWithPackagesAndTests
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
+    case appWithSignedXCfrmaworkDependencies
     case custom(String)
 
     public var path: String {
@@ -329,6 +330,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:
             return "app_with_generated_sources"
+        case .appWithSignedXCfrmaworkDependencies:
+            return "app_with_signed_xcfrmawork_dependencies"
         case let .custom(path):
             return path
         }
