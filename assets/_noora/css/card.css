@@ -52,6 +52,7 @@
 
 .noora-card__section {
   display: flex;
+  position: relative;
   flex-direction: column;
   gap: var(--noora-spacing-5);
   box-sizing: border-box;

@@ -918,7 +918,34 @@ input:checked + .slider:before {
 }
 
 .tuist-widget {
+  position: relative;
   gap: var(--noora-spacing-5);
+
+  & [data-part="background"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--noora-z-index-1);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  & [data-part="empty-label"] {
+    align-self: center;
+    padding-top: var(--noora-spacing-5);
+    padding-bottom: 30px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+  }
+
+  & > * {
+    z-index: var(--noora-z-index-2);
+  }
 
   & > [data-part="header"] {
     display: flex;

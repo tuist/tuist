@@ -143,6 +143,7 @@
   --noora-link-button-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-light-300));
 
   display: inline-flex;
+  gap: var(--noora-spacing-1);
   background: transparent;
 
   &:disabled {

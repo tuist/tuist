@@ -1,6 +1,6 @@
 <div id="cache-runs">
   <.card title={gettext("Cache Runs")} icon="schema" data-part="cache-runs">
-    <.card_section data-part="cache-runs-table-section">
+    <.card_section :if={not Enum.empty?(@cache_runs)} data-part="cache-runs-table-section">
       <div data-part="filters">
         <.dropdown
           id="cache-runs-sort-by"
@@ -117,5 +117,16 @@
         end_cursor={@cache_runs_meta.end_cursor}
       />
     </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@cache_runs)}
+      title={gettext("No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/cache"
+      data-part="empty-cache-runs-table-card-section"
+    >
+      <:image>
+        <img src="/images/empty_table_light.png" data-theme="light" />
+        <img src="/images/empty_table_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
 </div>

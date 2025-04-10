@@ -90,4 +90,21 @@ defmodule TuistWeb.OverviewLiveTest do
 
     assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end
+
+  test "shows empty states", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+
+    assert has_element?(
+             lv,
+             ".noora-card__section span",
+             "Binary cache and selective testing: no data yet"
+           )
+  end
 end

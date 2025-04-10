@@ -73,6 +73,7 @@
         id="widget-binary-cache-effectiveness"
         trend_value={@binary_cache_hit_rate_analytics.trend}
         trend_label={@analytics_trend_label}
+        empty={@binary_cache_hit_rate_analytics.cache_hit_rate == 0.0}
       />
       <.widget
         title={gettext("Selective test effectiveness")}
@@ -89,6 +90,7 @@
         id="widget-selective-tests-effectiveness"
         trend_value={@selective_testing_analytics.trend}
         trend_label={@analytics_trend_label}
+        empty={@selective_testing_analytics.hit_rate == 0.0}
       />
       <.widget
         title={gettext("Average build time")}
@@ -103,6 +105,7 @@
         id="widget-average-build-time"
         trend_value={@build_analytics.trend}
         trend_label={@analytics_trend_label}
+        empty={@build_analytics.total_average_duration == 0}
       />
       <.widget
         title={gettext("Average test time")}
@@ -117,9 +120,10 @@
         id="widget-average-test-time"
         trend_value={@test_analytics.trend}
         trend_label={@analytics_trend_label}
+        empty={@test_analytics.total_average_duration == 0}
       />
     </div>
-    <.card_section>
+    <.card_section :if={@binary_cache_hit_rate_analytics.cache_hit_rate != 0.0}>
       <div data-part="effectiveness-chart">
         <div data-part="legends">
           <.legend
@@ -219,6 +223,16 @@
         />
       </div>
     </.card_section>
+    <.empty_card_section
+      :if={@binary_cache_hit_rate_analytics.cache_hit_rate == 0.0}
+      title={gettext("Binary cache and selective testing: no data yet")}
+      get_started_href="https://docs.tuist.dev/en/"
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
   <.card title={gettext("Tests")} icon="subtask">
     <:actions>
@@ -227,9 +241,10 @@
         label="View more"
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+        disabled={Enum.empty?(@recent_test_runs)}
       />
     </:actions>
-    <.card_section>
+    <.card_section :if={not Enum.empty?(@recent_test_runs)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend title={gettext("Passed runs")} value={@passed_test_runs_count} style="primary" />
@@ -287,6 +302,16 @@
         <span data-part="label">{gettext("Last 40 runs")}</span>
       </div>
     </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@recent_test_runs)}
+      title={gettext("Runs: no data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+    >
+      <:image>
+        <img src="/images/empty_bar_chart_light.png" data-theme="light" />
+        <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
   <.card title={gettext("Previews")} icon="devices" data-part="previews">
     <:actions>
@@ -295,9 +320,10 @@
         label="View more"
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
+        disabled={Enum.empty?(@latest_app_previews)}
       />
     </:actions>
-    <.card_section data-part="latest-app-previews">
+    <.card_section :if={not Enum.empty?(@latest_app_previews)} data-part="latest-app-previews">
       <span data-part="title">{gettext("Latest app previews")}</span>
       <div data-part="apps">
         <%= for preview <- @latest_app_previews do %>
@@ -305,6 +331,17 @@
         <% end %>
       </div>
     </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@latest_app_previews)}
+      data-part="empty-previews-card-section"
+      title={gettext("No previews yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/share/previews"
+    >
+      <:image>
+        <img src="/images/empty_previews_light.png" data-theme="light" />
+        <img src="/images/empty_previews_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
   <.card title={gettext("Builds")} icon="subtask" data-part="builds-card-section">
     <:actions>
@@ -357,7 +394,7 @@
       </.button_group>
     </:actions>
     <div data-part="builds-card-sections">
-      <.card_section>
+      <.card_section :if={not Enum.empty?(@recent_build_runs)}>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend
@@ -418,7 +455,17 @@
           <span data-part="label">{gettext("Last 30 runs")}</span>
         </div>
       </.card_section>
-      <.card_section>
+      <.empty_card_section
+        :if={Enum.empty?(@recent_build_runs)}
+        title={gettext("No recent builds yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+      >
+        <:image>
+          <img src="/images/empty_bar_chart_light.png" data-theme="light" />
+          <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+      <.card_section :if={@builds_duration_analytics.total_average_duration != 0}>
         <div data-part="average-build-time-chart">
           <div data-part="legends">
             <.legend
@@ -495,6 +542,16 @@
           />
         </div>
       </.card_section>
+      <.empty_card_section
+        :if={@builds_duration_analytics.total_average_duration == 0}
+        title={gettext("No builds yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+      >
+        <:image>
+          <img src="/images/empty_line_chart_light.png" data-theme="light" />
+          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
     </div>
   </.card>
 </div>

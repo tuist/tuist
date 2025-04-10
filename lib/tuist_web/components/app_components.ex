@@ -19,6 +19,7 @@ defmodule TuistWeb.AppComponents do
   alias Phoenix.LiveView.JS
   use Gettext, backend: TuistWeb.Gettext
   import TuistWeb.Components.IconComponents
+  import TuistWeb.Components.EmptyStateBackground
   use TuistWeb.Noora
 
   attr :id, :string, required: true, doc: "The id of the widget."
@@ -48,14 +49,27 @@ defmodule TuistWeb.AppComponents do
     default: false,
     doc: "Whether the widget is selected. Only applicable when patch is not nil."
 
+  attr :empty, :boolean, default: false, doc: "Whether the widget is empty"
+
   def widget(assigns) do
     ~H"""
-    <%= if @patch do %>
-      <.link href={@patch} data-selected={@selected} class="tuist-widget-link">
+    <%= if @empty do %>
+      <.card_section class="tuist-widget" id={@id}>
+        <div data-part="background">
+          <.empty_state_background />
+        </div>
+        <div data-part="header">
+          <span data-part="title">{@title}</span>
+        </div>
+        <span data-part="empty-label">
+          {gettext("No data yet")}
+        </span>
+      </.card_section>
+    <% else %>
+      <.link :if={@patch} href={@patch} data-selected={@selected} class="tuist-widget-link">
         <.static_widget {assigns} />
       </.link>
-    <% else %>
-      <.static_widget {assigns} />
+      <.static_widget :if={!@patch} {assigns} />
     <% end %>
     """
   end

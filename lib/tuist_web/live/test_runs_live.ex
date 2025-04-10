@@ -3,6 +3,7 @@ defmodule TuistWeb.TestRunsLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Components.EmptyCardSection
   alias Tuist.Runs.Analytics
   alias Tuist.CommandEvents
 

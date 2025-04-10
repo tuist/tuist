@@ -3,6 +3,7 @@ defmodule TuistWeb.OverviewLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Previews.AppPreview
+  import TuistWeb.Components.EmptyCardSection
   alias Tuist.Previews
   alias Tuist.CommandEvents
   alias Tuist.Runs.Analytics

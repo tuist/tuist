@@ -63,6 +63,7 @@
         trend_label={@analytics_trend_label}
         patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "test_run_count"))}"}
         selected={@analytics_selected_widget == "test_run_count"}
+        empty={@test_runs_analytics.count == 0}
       />
       <.widget
         title={gettext("Failed run count")}
@@ -78,6 +79,7 @@
         trend_inverse
         patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "failed_test_run_count"))}"}
         selected={@analytics_selected_widget == "failed_test_run_count"}
+        empty={@test_runs_analytics.count == 0}
       />
       <.widget
         title={gettext("Avg. test run duration")}
@@ -100,9 +102,10 @@
         trend_inverse
         patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "test_run_duration"))}"}
         selected={@analytics_selected_widget == "test_run_duration"}
+        empty={@test_runs_analytics.count == 0}
       />
     </div>
-    <.card_section>
+    <.card_section :if={@test_runs_analytics.count != 0}>
       <div data-part="analytics-chart">
         <.chart
           id="test-runs-analytics-chart"
@@ -166,9 +169,15 @@
         />
       </div>
     </.card_section>
+    <.empty_card_section :if={@test_runs_analytics.count == 0} title={gettext("No data yet")}>
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
   <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
-    <.card_section data-part="test-runs-table-section">
+    <.card_section :if={not Enum.empty?(@test_runs)} data-part="test-runs-table-section">
       <.table
         id="test-runs-table"
         rows={@test_runs}
@@ -228,5 +237,16 @@
         end_cursor={@test_runs_meta.end_cursor}
       />
     </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@test_runs)}
+      title={gettext("No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      data-part="empty-test-runs-table-card-section"
+    >
+      <:image>
+        <img src="/images/empty_table_light.png" data-theme="light" />
+        <img src="/images/empty_table_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
 </div>

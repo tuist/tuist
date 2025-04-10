@@ -3,6 +3,7 @@ defmodule TuistWeb.CacheRunsLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Components.EmptyCardSection
   alias Tuist.CommandEvents
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do

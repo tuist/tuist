@@ -42,4 +42,13 @@
       font: var(--noora-font-weight-regular) var(--noora-font-code-small);
     }
   }
+
+  & [data-part="empty-test-runs-table-card-section"] {
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+    & > [data-part="image"] {
+      height: 150px;
+    }
+  }
 }

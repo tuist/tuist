@@ -1,6 +1,6 @@
 <div id="generate-runs">
   <.card title={gettext("Generate Runs")} icon="filters" data-part="generate-runs">
-    <.card_section data-part="generate-runs-table-section">
+    <.card_section :if={not Enum.empty?(@generate_runs)} data-part="generate-runs-table-section">
       <div data-part="filters">
         <.dropdown
           id="generate-runs-sort-by"
@@ -117,5 +117,16 @@
         end_cursor={@generate_runs_meta.end_cursor}
       />
     </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@generate_runs)}
+      title={gettext("No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/projects"
+      data-part="empty-generate-runs-table-card-section"
+    >
+      <:image>
+        <img src="/images/empty_table_light.png" data-theme="light" />
+        <img src="/images/empty_table_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
 </div>
