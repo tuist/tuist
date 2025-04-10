@@ -86,7 +86,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         )
 
         // When
-        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -149,7 +149,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         )
 
         // When
-        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -230,7 +230,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         )
 
         // When
-        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -270,7 +270,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
             )
 
             // When
-            let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+            let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
 
             // Then
             let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -344,7 +344,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         }
 
         // When
-        let metadata = try await subject.loadMetadata(at: xcframeworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: xcframeworkPath, expectedSignature: nil, status: .required)
 
         // Then
         XCTAssertEqual(metadata.macroPath, macroPaths.sorted().first)
@@ -355,7 +355,7 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMath.xcframework"))
 
         // When
-        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+        let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
