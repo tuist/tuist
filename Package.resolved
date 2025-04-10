@@ -436,19 +436,19 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/TamarMilchtaich/XcodeGraph",
       "state" : {
-        "revision" : "1c7ef35380a4c5d316f3fda68b6dd8140ab0f287",
-        "version" : "1.9.1"
+        "branch" : "xcframeworks-expected-signature",
+        "revision" : "b1094a9724fee90919ac16a37fbc823fd1834f03"
       }
     },
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj",
+      "location" : "https://github.com/TamarMilchtaich/XcodeProj",
       "state" : {
-        "revision" : "128d90e4633a8e6941586dea75426e177dfb92e6",
-        "version" : "9.0.0"
+        "branch" : "xcframeworks-expected-signature",
+        "revision" : "5d34fab1b02c6c20586fdcb64003e1d7e049dee8"
       }
     },
     {
