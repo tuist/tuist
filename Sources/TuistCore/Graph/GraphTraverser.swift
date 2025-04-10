@@ -1502,6 +1502,7 @@ public class GraphTraverser: GraphTraversing {
         case let .xcframework(xcframework):
             return .xcframework(
                 path: xcframework.path,
+                expectedSignature: xcframework.expectedSignature,
                 infoPlist: xcframework.infoPlist,
                 status: xcframework.status,
                 condition: condition

@@ -5,7 +5,7 @@ import XcodeGraph
 
 public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvider, XCFrameworkMetadataProviding {
     public var loadMetadataStub: ((AbsolutePath) throws -> XCFrameworkMetadata)?
-    public func loadMetadata(at path: AbsolutePath, status: LinkingStatus) throws -> XCFrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, expectedSignature: XcodeGraph.XCFrameworkSignature?, status: LinkingStatus) throws -> XCFrameworkMetadata {
         if let loadMetadataStub {
             return try loadMetadataStub(path)
         } else {
