@@ -213,11 +213,28 @@ defmodule TuistWeb.API.AuthController do
         "application/json",
         AuthenticationTokens
       },
-      unauthorized: {"Invalid email or password.", "application/json", Error}
+      unauthorized: {"Invalid email or password.", "application/json", Error},
+      too_many_requests: {"You've exceeded the rate limit.", "application/json", Error}
     }
   )
 
-  def authenticate(
+  def authenticate(conn, params) do
+    case TuistWeb.RateLimit.hit(
+           "api_auth_authenticate:#{TuistWeb.RemoteIp.get(conn)}",
+           :timer.minutes(1),
+           10
+         ) do
+      {:allow, count} ->
+        do_authenticate(conn, params)
+
+      {:deny, _limit} ->
+        conn
+        |> put_status(:too_many_requests)
+        |> json(%{message: "You've exceeded the rate limit. Try again later."})
+    end
+  end
+
+  def do_authenticate(
         %{
           body_params: %{
             email: email,

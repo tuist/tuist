@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mise description="Devs the application"
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 

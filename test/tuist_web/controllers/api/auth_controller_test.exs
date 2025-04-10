@@ -6,6 +6,31 @@ defmodule TuistWeb.API.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  setup context do
+    if Map.get(context, :rate_limited, false) do
+      remote_ip = "127.0.0.1"
+      rate_limit_key = "api_auth_authenticate:#{remote_ip}"
+      rate_limit_scale = :timer.minutes(1)
+      rate_limit_limit = 10
+      TuistWeb.RemoteIp |> stub(:get, fn _ -> remote_ip end)
+
+      TuistWeb.RateLimit
+      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+        {:allow, 1}
+      end)
+      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+        {:deny, 1}
+      end)
+    else
+      TuistWeb.RateLimit
+      |> stub(:hit, fn _, _, _, _ ->
+        {:allow, 1000}
+      end)
+    end
+
+    :ok
+  end
+
   describe "GET /api/auth/device_code" do
     test "returns accepted response when a device code does not exist", %{conn: conn} do
       # Given
@@ -198,7 +223,7 @@ defmodule TuistWeb.API.AuthControllerTest do
     end
   end
 
-  describe "POST /auth" do
+  describe "POST /api/auth" do
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(password: "password") |> Tuist.Repo.preload(:account)
@@ -271,6 +296,47 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :unauthorized)
       assert response == %{"message" => "Please confirm your account before logging in."}
+    end
+
+    @tag :rate_limited
+    test "fails the requests that go above the rate limit", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(password: "password") |> Tuist.Repo.preload(:account)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+
+      # Then
+      first_response =
+        json_response(conn |> post("/api/auth", %{email: user.email, password: "password"}), :ok)
+
+      {:ok, access_token_claims} =
+        assert Tuist.Authentication.decode_and_verify(first_response["access_token"], %{
+                 "typ" => "access"
+               })
+
+      assert access_token_claims["sub"] == to_string(user.id)
+      assert access_token_claims["email"] == user.email
+      assert access_token_claims["preferred_username"] == user.account.name
+
+      {:ok, refresh_token_claims} =
+        assert Tuist.Authentication.decode_and_verify(first_response["refresh_token"], %{
+                 "typ" => "refresh"
+               })
+
+      assert refresh_token_claims["sub"] == to_string(user.id)
+      assert refresh_token_claims["email"] == user.email
+      assert refresh_token_claims["preferred_username"] == user.account.name
+
+      second_response =
+        json_response(
+          conn |> post("/api/auth", %{email: user.email, password: "password"}),
+          :too_many_requests
+        )
+
+      assert second_response == %{"message" => "You've exceeded the rate limit. Try again later."}
     end
   end
 end

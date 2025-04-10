@@ -45,6 +45,8 @@ Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(Tuist.Registry.Swift.Packages)
 Mimic.copy(Tuist.Zip)
+Mimic.copy(TuistWeb.RemoteIp)
+Mimic.copy(TuistWeb.RateLimit)
 Mimic.copy(QRCode)
 Mimic.copy(UAParser)
 
