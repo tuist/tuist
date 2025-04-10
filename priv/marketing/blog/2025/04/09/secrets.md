@@ -202,10 +202,47 @@ Note in the code snippet that we hardcoded the value, which is not what we want.
 To simplify the process, we created [that script](https://gist.github.com/pepicrft/a692d44abf72df96c7bcd12c1e7bbc75) which does that automatically for all the environment variables whose name starts with `SECRET_`:
 
 ```bash
-bash <(curl -s https://gist.githubusercontent.com/pepicrft/a692d44abf72df96c7bcd12c1e7bbc75/raw/5bf3aeb49b3cf559652eb5722e41e5dd3a09f7f4/secrets-to-obfuscated-swift-secrets.sh) Sources/Secrets.swift
+#!/usr/bin/env bash
+# mise/tasks/env/generate-secrets.sh
+
+set -eo pipefail
+
+# Check if output file argument is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <output_file_path>"
+  exit 1
+fi
+
+OUTPUT_FILE="$1"
+
+mkdir -p "$(dirname "$OUTPUT_FILE")"
+
+{
+  echo 'import ObfuscateMacro'
+  echo ''
+  echo 'struct Secrets {'
+} > "$OUTPUT_FILE"
+
+env | while IFS='=' read -r key value; do
+  if [[ "$key" == SECRET_* ]]; then
+    base_key="${key#SECRET_}"
+    camel_case_key="$(echo "$base_key" | awk '{
+      split(tolower($0), parts, "_");
+      result = parts[1];
+      for (i = 2; i <= length(parts); i++) {
+        result = result toupper(substr(parts[i],1,1)) substr(parts[i],2);
+      }
+      print result;
+    }')"
+
+    echo "  static let $camel_case_key = #ObfuscatedString(\"$value\")" >> "$OUTPUT_FILE"
+  fi
+done
+
+echo '}' >> "$OUTPUT_FILE"
 ```
 
-You only need to replace `Sources/Secrets.swift` with the path where you plan to keep your secrets, and ensure the file is included in the project target from where you plan to read them. Note that you'll need a placeholder that you can run in development, so I recommend setting development values, and when doing releases, override using the script.
+Create the script at `mise/tasks/env/generate-secrets.sh` and assign executable permissions with `chmod +x mise/tasks/env/generate-secrets.sh` and then invoke it with `mise run env:generate-secrets Sources/Secrets.swift`. Make sure you replace `Sources/Secrets.swift` with the path where you plan to keep your secrets, and the file is included in the project target from where you plan to read them. Note that you'll need a placeholder that you can run in development, so I recommend setting development values, and when doing releases, override using the script.
 
 You'll then have to adjust the automation from secret environments to run the script before building the project:
 
@@ -221,3 +258,7 @@ You'd be surprised how many apps include sensitive data in their `Info.plist`, a
 Now you no longer have excuses to add an extra layer of safety to your apps. You won't regret it in the future.
 
 > Check out [this repository](https://github.com/tuist/secrets-in-swift-app) which contains an Xcode project exemplifying this setup.
+
+## Updates
+
+- The post was updated on April 10th 2025 to suggest including the `generate-secrets.sh` script in the repo over piping the `curl` output through bash, which is unsafe.
