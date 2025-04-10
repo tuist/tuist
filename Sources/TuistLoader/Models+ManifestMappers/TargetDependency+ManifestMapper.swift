@@ -86,10 +86,13 @@ extension XcodeGraph.TargetDependency {
                     condition: condition?.asGraphCondition
                 ),
             ]
-        case let .xcframework(path, status, condition):
+        case let .xcframework(path, expectedSignature, status, condition):
+            let signature = expectedSignature == nil ? nil :
+                XcodeGraph.XCFrameworkSignature.from(expectedSignature!)
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
+                    expectedSignature: signature,
                     status: .from(manifest: status),
                     condition: condition?.asGraphCondition
                 ),
@@ -159,6 +162,19 @@ extension ProjectDescription.SDKType {
             return "tbd"
         case .framework:
             return "framework"
+        }
+    }
+}
+
+extension XcodeGraph.XCFrameworkSignature {
+    static func from(_ signature: ProjectDescription.XCFrameworkSignature) -> Self {
+        switch signature {
+        case .unsigned:
+            return .unsigned
+        case let .selfSigned(fingerprint):
+            return .selfSigned(fingerprint: fingerprint)
+        case let .signedWithAppleCertificate(teamIdentifier, teamName):
+            return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
         }
     }
 }

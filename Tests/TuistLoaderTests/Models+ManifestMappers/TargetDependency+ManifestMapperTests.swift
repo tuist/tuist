@@ -20,12 +20,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
+            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", expectedSignature: nil, status: .required)]]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .xcframework(path, status, _) = got[0] else {
+        guard case let .xcframework(path, _, status, _) = got[0] else {
             XCTFail("Dependency should be xcframework")
             return
         }
@@ -66,7 +66,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             generatorPaths: generatorPaths,
             externalDependencies: [
                 "library": [
-                    .xcframework(path: "/path.xcframework", status: .required),
+                    .xcframework(path: "/path.xcframework", expectedSignature: nil, status: .required),
                     .project(target: "Target", path: "/Project"),
                 ],
             ]
@@ -74,7 +74,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 2)
-        guard case let .xcframework(frameworkPath, status, _) = got[0] else {
+        guard case let .xcframework(frameworkPath, _, status, _) = got[0] else {
             XCTFail("First dependency should be xcframework")
             return
         }
