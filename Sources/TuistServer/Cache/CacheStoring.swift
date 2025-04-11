@@ -8,13 +8,13 @@ import XcodeGraph
 public struct CacheStorableTarget: Hashable, Equatable {
     public let target: GraphTarget
     public let hash: String
-    public let buildTime: Double?
+    public let time: Double?
     public var name: String { target.target.name }
 
-    public init(target: GraphTarget, hash: String, buildTime: Double? = nil) {
+    public init(target: GraphTarget, hash: String, time: Double? = nil) {
         self.target = target
         self.hash = hash
-        self.buildTime = buildTime
+        self.time = time
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -26,12 +26,12 @@ public struct CacheStorableTarget: Hashable, Equatable {
 public struct CacheStorableItem: Hashable, Equatable {
     public let name: String
     public let hash: String
-    public let buildTime: Double?
+    public let time: Double?
     
-    public init(name: String, hash: String, buildTime: Double? = nil) {
+    public init(name: String, hash: String, time: Double? = nil) {
         self.name = name
         self.hash = hash
-        self.buildTime = buildTime
+        self.time = time
     }
 
     public func hash(into hasher: inout Hasher) {
