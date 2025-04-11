@@ -1,3 +1,4 @@
+import ProjectResourcesFramework
 import ResourcesFramework
 import SwiftUI
 
@@ -5,7 +6,10 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        Text(ResourcesProvider.greeting())
-            .padding()
+        VStack {
+            Text(ProjectResourcesFramework.ResourcesProvider.greeting())
+            Text(ResourcesFramework.ResourcesProvider.greeting())
+        }
+        .padding()
     }
 }

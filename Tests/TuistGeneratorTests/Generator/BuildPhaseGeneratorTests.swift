@@ -1225,6 +1225,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let generatedResourceBundle = Target.test(
+            name: "Feature_Resources",
+            platform: .macOS,
+            product: .bundle,
+            bundleId: ".generated.resources"
+        )
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, generatedResourceBundle])
+        let project = Project.test(targets: [app, generatedResourceBundle])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: generatedResourceBundle.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: generatedResourceBundle.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertEmpty(nativeTarget.buildPhases)
+    }
+
     func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .macCatalyst])
