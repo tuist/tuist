@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "GeneratediOSStaticLibraryWithStringResources",
     settings: .settings(
-        base: ["VERSIONING_SYSTEM":"apple-generic"],
+        base: ["VERSIONING_SYSTEM": "apple-generic"],
         configurations: [
             .debug(name: "Debug"),
             .release(name: "Release"),
