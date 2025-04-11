@@ -393,7 +393,11 @@ defmodule TuistWeb.Router do
       additional_pages: [
         route_name: TuistWeb.OpsConfigurationLive,
         broadway: {BroadwayDashboard, pipelines: [Tuist.API.Pipeline]}
-      ]
+      ],
+      csp_nonce_assign_key: %{
+        style: :csp_nonce,
+        script: :csp_nonce
+      }
 
     error_tracker_dashboard("/errors",
       on_mount: [
@@ -683,4 +687,3 @@ defmodule TuistWeb.Router do
     end
   end
 end
-
