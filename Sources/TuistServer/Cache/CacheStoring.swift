@@ -78,7 +78,7 @@ extension CacheStoring {
         let items = Dictionary(
             uniqueKeysWithValues: targets.map {
                 target, paths -> (CacheStorableItem, [AbsolutePath]) in
-                (CacheStorableItem(name: target.name, hash: target.hash), paths)
+                (CacheStorableItem(name: target.name, hash: target.hash, time: target.time), paths)
             }
         )
         try await store(items, cacheCategory: cacheCategory)
