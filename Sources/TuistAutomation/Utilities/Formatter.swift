@@ -1,3 +1,4 @@
+import ServiceContextModule
 import TuistSupport
 import XcbeautifyLib
 
@@ -8,7 +9,8 @@ protocol Formatting {
 final class Formatter: Formatting {
     private let formatter: XCBeautifier
 
-    init(environment: Environmenting = Environment.shared) {
+    init() {
+        let environment = ServiceContext.current!.environment!
         formatter = XCBeautifier(
             colored: environment.shouldOutputBeColoured,
             renderer: Self.renderer(for: environment),

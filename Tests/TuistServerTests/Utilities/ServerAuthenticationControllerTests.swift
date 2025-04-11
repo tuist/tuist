@@ -24,8 +24,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         ciChecker = .init()
         subject = .init(
             credentialsStore: credentialsStore,
-            ciChecker: ciChecker,
-            environment: environment
+            ciChecker: ciChecker
         )
     }
 
@@ -37,90 +36,98 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
     }
 
     func test_when_config_token_is_present_and_is_ci() async throws {
-        // Given
-        environment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        given(ciChecker)
-            .isCI()
-            .willReturn(true)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            ServiceContext.current!.testEnvironment!.tuistVariables[
+                Constants.EnvironmentVariables.token
+            ] = "project-token"
+            given(ciChecker)
+                .isCI()
+                .willReturn(true)
 
-        // When
-        let got = try await subject.authenticationToken(serverURL: .test())
+            // When
+            let got = try await subject.authenticationToken(serverURL: .test())
 
-        // Then
-        XCTAssertEqual(
-            got,
-            .project("project-token")
-        )
+            // Then
+            XCTAssertEqual(
+                got,
+                .project("project-token")
+            )
+        }
     }
 
     func test_when_config_token_is_present_and_is_not_ci() async throws {
-        // Given
-        environment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
-        given(credentialsStore)
-            .read(serverURL: .any)
-            .willReturn(nil)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            ServiceContext.current!.testEnvironment!.tuistVariables[
+                Constants.EnvironmentVariables.token
+            ] = "project-token"
+            given(ciChecker)
+                .isCI()
+                .willReturn(false)
+            given(credentialsStore)
+                .read(serverURL: .any)
+                .willReturn(nil)
 
-        // When
-        let got = try await subject.authenticationToken(serverURL: .test())
+            // When
+            let got = try await subject.authenticationToken(serverURL: .test())
 
-        // Then
-        XCTAssertNil(got)
+            // Then
+            XCTAssertNil(got)
+        }
     }
 
     func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing() async throws {
-        // Given
-        environment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        let credentials = ServerCredentials.test(token: "access-token")
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
-        given(credentialsStore)
-            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
-            .willReturn(nil)
-        given(credentialsStore)
-            .read(serverURL: .value(URL(string: "https://cloud.tuist.io")!))
-            .willReturn(credentials)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            ServiceContext.current!.testEnvironment!.tuistVariables[
+                Constants.EnvironmentVariables.token
+            ] = "project-token"
+            let credentials = ServerCredentials.test(token: "access-token")
+            given(ciChecker)
+                .isCI()
+                .willReturn(false)
+            given(credentialsStore)
+                .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+                .willReturn(nil)
+            given(credentialsStore)
+                .read(serverURL: .value(URL(string: "https://cloud.tuist.io")!))
+                .willReturn(credentials)
 
-        // When
-        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+            // When
+            let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
 
-        // Then
-        XCTAssertEqual(got?.value, credentials.token)
+            // Then
+            XCTAssertEqual(got?.value, credentials.token)
+        }
     }
 
     func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present() async throws {
-        // Given
-        environment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        let credentials = ServerCredentials.test(token: "access-token")
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
-        given(credentialsStore)
-            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
-            .willReturn(credentials)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            ServiceContext.current!.testEnvironment!.tuistVariables[
+                Constants.EnvironmentVariables.token
+            ] = "project-token"
+            let credentials = ServerCredentials.test(token: "access-token")
+            given(ciChecker)
+                .isCI()
+                .willReturn(false)
+            given(credentialsStore)
+                .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+                .willReturn(credentials)
 
-        // When
-        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+            // When
+            let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
 
-        // Then
-        XCTAssertEqual(got?.value, credentials.token)
+            // Then
+            XCTAssertEqual(got?.value, credentials.token)
+        }
     }
 
     func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
-            environment.tuistVariables[
+            ServiceContext.current!.testEnvironment!.tuistVariables[
                 Constants.EnvironmentVariables.deprecatedToken
             ] = "project-token"
             given(ciChecker)
@@ -144,10 +151,10 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
     func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
-            environment.tuistVariables[
+            ServiceContext.current!.testEnvironment!.tuistVariables[
                 Constants.EnvironmentVariables.deprecatedToken
             ] = "deprecated-project-token"
-            environment.tuistVariables[
+            ServiceContext.current!.testEnvironment!.tuistVariables[
                 Constants.EnvironmentVariables.token
             ] = "project-token"
             given(ciChecker)

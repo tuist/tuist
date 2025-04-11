@@ -1,5 +1,6 @@
 import TSCUtility
 import XCTest
+import ServiceContextModule
 
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -17,14 +18,16 @@ final class GitControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_cloneInto() throws {
-        let url = "https://some/url/to/repo.git"
-        let path = try temporaryPath()
+    func test_cloneInto() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let url = "https://some/url/to/repo.git"
+            let path = try temporaryPath()
 
-        system.succeedCommand(["git", "-C \(path.pathString)", "clone \(url)"])
+            system.succeedCommand(["git", "-C \(path.pathString)", "clone \(url)"])
 
-        XCTAssertNoThrow(try subject.clone(url: url, into: path))
-        XCTAssertTrue(system.called(["git", "-C", path.pathString, "clone", url]))
+            XCTAssertNoThrow(try subject.clone(url: url, into: path))
+            XCTAssertTrue(system.called(["git", "-C", path.pathString, "clone", url]))
+        }
     }
 
     func test_cloneTo() throws {
@@ -36,50 +39,56 @@ final class GitControllerTests: TuistUnitTestCase {
         XCTAssertTrue(system.called(["git", "clone", url]))
     }
 
-    func test_cloneTo_WITH_path() throws {
-        let url = "https://some/url/to/repo.git"
-        let path = try temporaryPath()
+    func test_cloneTo_WITH_path() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let url = "https://some/url/to/repo.git"
+            let path = try temporaryPath()
 
-        system.succeedCommand(["git", "clone \(url)", path.pathString])
+            system.succeedCommand(["git", "clone \(url)", path.pathString])
 
-        XCTAssertNoThrow(try subject.clone(url: url, to: path))
-        XCTAssertTrue(system.called(["git", "clone", url, path.pathString]))
+            XCTAssertNoThrow(try subject.clone(url: url, to: path))
+            XCTAssertTrue(system.called(["git", "clone", url, path.pathString]))
+        }
     }
 
-    func test_checkout() throws {
-        let id = "main"
+    func test_checkout() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let id = "main"
 
-        system.succeedCommand(["git", "checkout \(id)"])
+            system.succeedCommand(["git", "checkout \(id)"])
 
-        XCTAssertNoThrow(try subject.checkout(id: id, in: nil))
+            XCTAssertNoThrow(try subject.checkout(id: id, in: nil))
+        }
     }
 
-    func test_checkout_WITH_path() throws {
-        let id = "main"
-        let path = try temporaryPath()
+    func test_checkout_WITH_path() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let id = "main"
+            let path = try temporaryPath()
 
-        let expectedCommand = [
-            "git",
-            "--git-dir",
-            path.appending(component: ".git").pathString,
-            "--work-tree",
-            path.pathString,
-            "checkout",
-            id,
-        ]
+            let expectedCommand = [
+                "git",
+                "--git-dir",
+                path.appending(component: ".git").pathString,
+                "--work-tree",
+                path.pathString,
+                "checkout",
+                id,
+            ]
 
-        system.succeedCommand(expectedCommand)
+            system.succeedCommand(expectedCommand)
 
-        XCTAssertNoThrow(try subject.checkout(id: id, in: path))
-        XCTAssertTrue(system.called([
-            "git",
-            "--git-dir",
-            path.appending(component: ".git").pathString,
-            "--work-tree",
-            path.pathString,
-            "checkout",
-            id,
-        ]))
+            XCTAssertNoThrow(try subject.checkout(id: id, in: path))
+            XCTAssertTrue(system.called([
+                "git",
+                "--git-dir",
+                path.appending(component: ".git").pathString,
+                "--work-tree",
+                path.pathString,
+                "checkout",
+                id,
+            ]))
+        }
     }
 
     func test_parsed_versions() throws {

@@ -63,23 +63,22 @@ enum ServerAuthenticationControllerError: FatalError {
 public final class ServerAuthenticationController: ServerAuthenticationControlling {
     private let credentialsStore: ServerCredentialsStoring
     private let ciChecker: CIChecking
-    private let environment: Environmenting
 
     public init(
         credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
-        ciChecker: CIChecking = CIChecker(),
-        environment: Environmenting = Environment.shared
+        ciChecker: CIChecking = CIChecker()
     ) {
         self.credentialsStore = credentialsStore
         self.ciChecker = ciChecker
-        self.environment = environment
     }
 
     public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         if ciChecker.isCI() {
-            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+            if let configToken = ServiceContext.current!.environment!.tuistVariables[Constants.EnvironmentVariables.token] {
                 return .project(configToken)
-            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            } else if let deprecatedToken = ServiceContext.current!.environment!
+                .tuistVariables[Constants.EnvironmentVariables.deprecatedToken]
+            {
                 ServiceContext.current?.logger?
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"

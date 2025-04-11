@@ -22,7 +22,7 @@ extension ServiceContext {
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 @Mockable
-public protocol Environmenting: AnyObject, Sendable {
+public protocol Environmenting: Sendable {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
@@ -67,14 +67,7 @@ public protocol Environmenting: AnyObject, Sendable {
 }
 
 /// Local environment controller.
-public final class Environment: Environmenting {
-    public static var shared: Environmenting {
-        _shared.value
-    }
-
-    // swiftlint:disable:next identifier_name
-    static let _shared: ThreadSafe<Environmenting> = ThreadSafe(Environment())
-
+public struct Environment: Environmenting {
     // MARK: - Attributes
 
     /// Default public constructor.
@@ -224,3 +217,51 @@ public final class Environment: Environmenting {
         }
     }
 }
+
+#if DEBUG
+    extension ServiceContext {
+        public var testEnvironment: MockEnvironment? {
+            return environment as? MockEnvironment
+        }
+    }
+
+    public final class MockEnvironment: Environmenting {
+        fileprivate let directory: TemporaryDirectory
+        fileprivate var setupCallCount: UInt = 0
+        fileprivate var setupErrorStub: Error?
+
+        public init() throws {
+            directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        }
+
+        public var isVerbose: Bool = false
+        public var queueDirectoryStub: AbsolutePath?
+        public var shouldOutputBeColoured: Bool = false
+        public var isStandardOutputInteractive: Bool = false
+        public var tuistVariables: [String: String] = [:]
+        public var manifestLoadingVariables: [String: String] = [:]
+        public var isStatsEnabled: Bool = true
+        public var isGitHubActions: Bool = false
+
+        public var automationPath: AbsolutePath? {
+            nil
+        }
+
+        public var cacheDirectory: AbsolutePath {
+            directory.path.appending(components: ".cache")
+        }
+
+        public var stateDirectory: AbsolutePath {
+            directory.path.appending(component: "state")
+        }
+
+        public var queueDirectory: AbsolutePath {
+            queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
+        }
+
+        public var workspacePath: AbsolutePath? { nil }
+        public var schemeName: String? { nil }
+        public var currentExecutablePathStub: AbsolutePath?
+        public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub }
+    }
+#endif

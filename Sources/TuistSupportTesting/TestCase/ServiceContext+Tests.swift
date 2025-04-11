@@ -35,6 +35,7 @@ extension ServiceContext {
         context.ui = NooraMock(terminal: Terminal(isInteractive: false))
         context.alerts = AlertController()
         context.recentPaths = MockRecentPathsStoring()
+        context.environment = try MockEnvironment()
         try await ServiceContext.withValue(context) {
             try await closure()
         }

@@ -4,6 +4,7 @@ import Mockable
 import NIOFileSystem
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import struct TuistCore.Plugins
 import TuistSupport
@@ -184,37 +185,41 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     func test_load_environmentVariablesRemainTheSame() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        environment.manifestLoadingVariables = ["NAME": "A"]
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            ServiceContext.current!.testEnvironment!.manifestLoadingVariables = ["NAME": "A"]
 
-        // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+            // When
+            _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
+            let result = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(result, project)
-        XCTAssertEqual(recordedLoadProjectCalls, 1)
+            // Then
+            XCTAssertEqual(result, project)
+            XCTAssertEqual(recordedLoadProjectCalls, 1)
+        }
     }
 
     func test_load_environmentVariablesChange() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        environment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try await subject.loadProject(at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            ServiceContext.current!.testEnvironment!.manifestLoadingVariables = ["NAME": "A"]
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        environment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try await subject.loadProject(at: path)
+            // When
+            ServiceContext.current!.testEnvironment!.manifestLoadingVariables = ["NAME": "B"]
+            _ = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(recordedLoadProjectCalls, 2)
+            // Then
+            XCTAssertEqual(recordedLoadProjectCalls, 2)
+        }
     }
 
     func test_load_tuistVersionRemainsTheSame() async throws {
@@ -378,7 +383,6 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             helpersDirectoryLocator: helpersDirectoryLocator,
             fileSystem: fileSystem ?? self.fileSystem,
-            environment: environment,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             tuistVersion: tuistVersion
         )

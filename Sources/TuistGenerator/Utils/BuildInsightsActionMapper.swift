@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 
@@ -15,14 +16,6 @@ protocol BuildInsightsActionMapping {
 }
 
 struct BuildInsightsActionMapper: BuildInsightsActionMapping {
-    private let environment: Environmenting
-
-    init(
-        environment: Environmenting = Environment.shared
-    ) {
-        self.environment = environment
-    }
-
     func map(
         _ buildAction: BuildAction,
         buildInsightsDisabled: Bool
@@ -33,7 +26,7 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
         buildAction.postActions.append(
             ExecutionAction(
                 title: "Push build insights",
-                scriptText: "\(environment.currentExecutablePath()?.pathString ?? "tuist") inspect build",
+                scriptText: "\(ServiceContext.current!.environment!.currentExecutablePath()?.pathString ?? "tuist") inspect build",
                 target: nil,
                 shellPath: nil
             )

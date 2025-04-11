@@ -15,10 +15,8 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        let temporaryDirectory = try! temporaryPath()
         dateService = MockDateServicing()
         subject = AsyncQueuePersistor(
-            directory: temporaryDirectory,
             dateService: dateService
         )
 
@@ -55,7 +53,6 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
     func test_write_whenDirectoryDoesntExist_itCreatesDirectory() async throws {
         let temporaryDirectory = try! temporaryPath()
         subject = AsyncQueuePersistor(
-            directory: temporaryDirectory.appending(try RelativePath(validating: "test/")),
             dateService: dateService
         )
 

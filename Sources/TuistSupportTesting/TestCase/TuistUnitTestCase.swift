@@ -43,10 +43,6 @@ open class TuistUnitTestCase: TuistTestCase {
         xcodeController = nil
         XcodeController._shared.mutate { $0 = XcodeController() }
 
-        // Environment
-        environment = nil
-        Environment._shared.mutate { $0 = Environment() }
-
         // Developer environment
         developerEnvironment = nil
         DeveloperEnvironment._shared.mutate { $0 = DeveloperEnvironment() }

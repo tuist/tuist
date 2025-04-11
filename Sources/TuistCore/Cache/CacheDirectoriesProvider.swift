@@ -1,6 +1,7 @@
 import FileSystem
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 
 @Mockable
@@ -12,20 +13,16 @@ public protocol CacheDirectoriesProviding {
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     private let fileHandler: FileHandling
-    private let environment: Environmenting
 
     init(
         fileHandler: FileHandling,
-        environment: Environmenting
     ) {
         self.fileHandler = fileHandler
-        self.environment = environment
     }
 
     public convenience init() {
         self.init(
-            fileHandler: FileHandler.shared,
-            environment: Environment.shared
+            fileHandler: FileHandler.shared
         )
     }
 
@@ -34,7 +31,7 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory() -> Path.AbsolutePath {
-        environment.cacheDirectory
+        return ServiceContext.current!.environment!.cacheDirectory
     }
 
     public static func bootstrap() async throws {

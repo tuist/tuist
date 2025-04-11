@@ -27,7 +27,6 @@ struct InspectBuildCommandServiceTests {
 
     init() {
         subject = InspectBuildCommandService(
-            environment: environment,
             derivedDataLocator: derivedDataLocator,
             fileSystem: fileSystem,
             ciChecker: ciChecker,

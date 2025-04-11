@@ -112,7 +112,6 @@ public class ManifestLoader: ManifestLoading {
 
     let resourceLocator: ResourceLocating
     let manifestFilesLocator: ManifestFilesLocating
-    let environment: Environmenting
     private let decoder: JSONDecoder
     private var plugins: Plugins = .none
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
@@ -126,7 +125,6 @@ public class ManifestLoader: ManifestLoading {
 
     public convenience init() {
         self.init(
-            environment: Environment.shared,
             resourceLocator: ResourceLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
@@ -138,7 +136,6 @@ public class ManifestLoader: ManifestLoading {
     }
 
     init(
-        environment: Environmenting,
         resourceLocator: ResourceLocating,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
@@ -148,7 +145,6 @@ public class ManifestLoader: ManifestLoading {
         packageInfoLoader: PackageInfoLoading,
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.environment = environment
         self.resourceLocator = resourceLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
@@ -326,7 +322,11 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            let string = try System.shared.capture(
+                arguments,
+                verbose: false,
+                environment: ServiceContext.current!.environment!.manifestLoadingVariables
+            )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)

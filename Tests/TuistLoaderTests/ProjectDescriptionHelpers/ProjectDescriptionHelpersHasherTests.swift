@@ -1,5 +1,6 @@
 import Mockable
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XCTest
@@ -33,16 +34,18 @@ final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
     }
 
     func test_hash() async throws {
-        // Given
-        let temporaryDir = try temporaryPath()
-        let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
-        try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
-        environment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let temporaryDir = try temporaryPath()
+            let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
+            try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
+            ServiceContext.current!.testEnvironment!.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
-        // Then
-        for _ in 0 ..< 20 {
-            let got = try await subject.hash(helpersDirectory: temporaryDir)
-            XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
+            // Then
+            for _ in 0 ..< 20 {
+                let got = try await subject.hash(helpersDirectory: temporaryDir)
+                XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
+            }
         }
     }
 }

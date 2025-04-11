@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import ServiceContextModule
 import TuistSupport
 
 public enum EnvKey: String, CaseIterable {
@@ -256,18 +257,18 @@ public enum EnvKey: String, CaseIterable {
 }
 
 extension EnvKey {
-    var envValueString: String? {
-        Environment.shared.tuistVariables[rawValue]
+    func envValueString() -> String? {
+        return ServiceContext.current!.environment!.tuistVariables[rawValue]
     }
 
     func envValue<T: ExpressibleByArgument>() -> T? {
-        guard let envValueString else {
+        guard let envValueString = envValueString() else {
             return nil
         }
         return T(argument: envValueString)
     }
 
     func envValue<T: ExpressibleByArgument>() -> [T]? {
-        return envValueString?.split(separator: ",").compactMap { T(argument: String($0)) }
+        return envValueString()?.split(separator: ",").compactMap { T(argument: String($0)) }
     }
 }

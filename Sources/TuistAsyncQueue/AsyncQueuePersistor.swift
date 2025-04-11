@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -27,7 +28,6 @@ public protocol AsyncQueuePersisting {
 final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Attributes
 
-    private let directory: AbsolutePath
     private let jsonEncoder = JSONEncoder()
     private let fileSystem: FileSystem
     private let dateService: DateServicing
@@ -35,17 +35,19 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Init
 
     init(
-        directory: AbsolutePath = Environment.shared.queueDirectory,
         fileSystem: FileSystem = FileSystem(),
         dateService: DateServicing = DateService()
     ) {
-        self.directory = directory
         self.fileSystem = fileSystem
         self.dateService = dateService
     }
 
+    private func directory() -> AbsolutePath {
+        return ServiceContext.current!.environment!.queueDirectory
+    }
+
     func write(event: some AsyncQueueEvent) throws {
-        let path = directory.appending(component: filename(event: event))
+        let path = directory().appending(component: filename(event: event))
         try createDirectoryIfNeeded()
         let data = try jsonEncoder.encode(event)
         try data.write(to: path.url)
@@ -56,7 +58,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     func delete(filename: String) async throws {
-        let path = directory.appending(component: filename)
+        let path = directory().appending(component: filename)
         guard try await fileSystem.exists(path) else { return }
         try await fileSystem.remove(path)
     }
@@ -64,7 +66,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     func readAll() async throws -> [AsyncQueueEventTuple] {
         let dateService = dateService
         let fileSystem = fileSystem
-        let paths = try await fileSystem.glob(directory: directory, include: ["*.json"]).collect()
+        let paths = try await fileSystem.glob(directory: directory(), include: ["*.json"]).collect()
         let events: [AsyncQueueEventTuple] = await paths.concurrentCompactMap { eventPath in
             let fileName = eventPath.basenameWithoutExt
             let components = fileName.split(separator: ".")
@@ -111,7 +113,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     private func createDirectoryIfNeeded() throws {
-        guard !FileManager.default.fileExists(atPath: directory.pathString) else { return }
-        try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
+        guard !FileManager.default.fileExists(atPath: directory().pathString) else { return }
+        try FileManager.default.createDirectory(atPath: directory().pathString, withIntermediateDirectories: true)
     }
 }

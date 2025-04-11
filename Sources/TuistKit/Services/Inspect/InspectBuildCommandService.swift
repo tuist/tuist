@@ -29,7 +29,6 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
 }
 
 struct InspectBuildCommandService {
-    private let environment: Environmenting
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
     private let ciChecker: CIChecking
@@ -43,7 +42,6 @@ struct InspectBuildCommandService {
     private let serverURLService: ServerURLServicing
 
     init(
-        environment: Environmenting = Environment.shared,
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
         ciChecker: CIChecking = CIChecker(),
@@ -56,7 +54,6 @@ struct InspectBuildCommandService {
         dateService: DateServicing = DateService(),
         serverURLService: ServerURLServicing = ServerURLService()
     ) {
-        self.environment = environment
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
         self.ciChecker = ciChecker
@@ -76,8 +73,8 @@ struct InspectBuildCommandService {
         let referenceDate = dateService.now()
         guard let executablePath = Bundle.main.executablePath else { throw InspectBuildCommandServiceError.executablePathMissing }
 
-        if environment.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
-           environment.workspacePath != nil
+        if ServiceContext.current!.environment!.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+           ServiceContext.current!.environment!.workspacePath != nil
         {
             var environment = ProcessInfo.processInfo.environment
             environment["TUIST_INSPECT_BUILD_WAIT"] = "YES"
@@ -131,7 +128,7 @@ struct InspectBuildCommandService {
             isCI: ciChecker.isCI(),
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
-            scheme: environment.schemeName,
+            scheme: ServiceContext.current!.environment!.schemeName,
             xcodeVersion: try await xcodeBuildController.version()?.description,
             status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
@@ -152,7 +149,7 @@ struct InspectBuildCommandService {
             .readPlistFile(at: logManifestPlistPath)
 
         guard let latestLog = plist.logs.values.sorted(by: { $0.timeStoppedRecording > $1.timeStoppedRecording }).first,
-              environment
+              ServiceContext.current!.environment!
               .workspacePath == nil ||
               (referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate + 10) ~=
               latestLog.timeStoppedRecording
@@ -164,7 +161,7 @@ struct InspectBuildCommandService {
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
-        if let workspacePath = environment.workspacePath {
+        if let workspacePath = ServiceContext.current!.environment!.workspacePath {
             if workspacePath.parentDirectory.extension == "xcodeproj" {
                 return workspacePath.parentDirectory
             } else {

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 
 public protocol ProjectDescriptionHelpersHashing: AnyObject {
@@ -38,7 +39,8 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
             .sorted()
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
-        let tuistEnvVariables = Environment.shared.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = ServiceContext.current!.environment!.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }
+            .sorted()
         let swiftVersion = try swiftVersionProvider.swiftVersion()
         let macosVersion = machineEnvironment.macOSVersion
         #if DEBUG

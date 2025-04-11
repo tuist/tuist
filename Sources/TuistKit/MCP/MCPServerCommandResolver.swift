@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistSupport
 
 @Mockable
@@ -9,13 +10,9 @@ protocol MCPServerCommandResolving {
 }
 
 struct MCPServerCommandResolver: MCPServerCommandResolving {
-    private let executablePath: String
-
-    init(executablePath: String = Environment.shared.currentExecutablePath()?.pathString ?? "tuist") {
-        self.executablePath = executablePath
-    }
 
     func resolve() -> (String, [String]) {
+        let executablePath = ServiceContext.current!.environment!.currentExecutablePath()?.pathString ?? "tuist"
         return (executablePath, ["mcp", "start"])
     }
 }

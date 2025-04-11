@@ -71,7 +71,7 @@ final class TuistService: NSObject {
 
         try System.shared.runAndPrint(
             arguments,
-            verbose: Environment.shared.isVerbose,
+            verbose: ServiceContext.current!.environment!.isVerbose,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
             ].merging(System.shared.env) { tuistEnv, _ in tuistEnv }

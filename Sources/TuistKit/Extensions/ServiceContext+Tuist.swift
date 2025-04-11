@@ -38,7 +38,9 @@ extension ServiceContext {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.quiet, value: "true")
         }
 
-        try await LogsController().setup(stateDirectory: Environment.shared.stateDirectory) { loggerHandler, logFilePath in
+        let environment = Environment()
+
+        try await LogsController().setup(stateDirectory: environment.stateDirectory) { loggerHandler, logFilePath in
             /// This is the old initialization method and will eventually go away.
             LoggingSystem.bootstrap(loggerHandler)
 
@@ -54,7 +56,8 @@ extension ServiceContext {
                 context.ui = Noora()
             }
             context.alerts = AlertController()
-            context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
+            context.recentPaths = RecentPathsStore(storageDirectory: environment.stateDirectory)
+            context.environment = environment
 
             try await ServiceContext.withValue(context) {
                 try await action(logFilePath)

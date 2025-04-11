@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TSCUtility
 
 @Mockable
@@ -65,14 +66,11 @@ public protocol GitControlling {
 /// Uses the system to execute git commands.
 public final class GitController: GitControlling {
     private let system: Systeming
-    private let environment: Environmenting
 
     public init(
-        system: Systeming = System.shared,
-        environment: Environmenting = Environment.shared
+        system: Systeming = System.shared
     ) {
         self.system = system
-        self.environment = environment
     }
 
     public func clone(url: String, into path: AbsolutePath) throws {
@@ -179,7 +177,7 @@ public final class GitController: GitControlling {
     }
 
     private func run(command: String...) throws {
-        if environment.isVerbose {
+        if ServiceContext.current!.environment!.isVerbose {
             try system.runAndPrint(command, verbose: true, environment: System.shared.env)
         } else {
             try system.run(command)
@@ -187,7 +185,7 @@ public final class GitController: GitControlling {
     }
 
     private func capture(command: String...) throws -> String {
-        if environment.isVerbose {
+        if ServiceContext.current!.environment!.isVerbose {
             return try system.capture(command, verbose: true, environment: System.shared.env)
         } else {
             return try system.capture(command)

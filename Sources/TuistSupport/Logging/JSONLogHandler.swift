@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import ServiceContextModule
 
 public struct JSONLogHandler: LogHandler {
     public var logLevel: Logger.Level
@@ -29,13 +30,13 @@ public struct JSONLogHandler: LogHandler {
         default:
             switch level {
             case .critical:
-                if Environment.shared.shouldOutputBeColoured {
+                if ServiceContext.current!.environment!.shouldOutputBeColoured {
                     string = message.description.bold()
                 } else {
                     string = message.description
                 }
             case .error:
-                if Environment.shared.shouldOutputBeColoured {
+                if ServiceContext.current!.environment!.shouldOutputBeColoured {
                     string = message.description.red()
                 } else {
                     string = message.description
