@@ -23,7 +23,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       end)
     else
       TuistWeb.RateLimit
-      |> stub(:hit, fn _, _, _, _ ->
+      |> stub(:hit, fn _, _, _ ->
         {:allow, 1000}
       end)
     end

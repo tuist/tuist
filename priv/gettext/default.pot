@@ -3461,3 +3461,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
 msgstr ""
+
+#: lib/tuist_web/controllers/user_session_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "You've exceeded the rate limit. Try again later."
+msgstr ""

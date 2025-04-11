@@ -1,10 +1,33 @@
 defmodule TuistWeb.UserSessionControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
-
+  alias TuistWeb.RemoteIp
+  alias TuistWeb.RateLimit
+  use Gettext, backend: TuistWeb.Gettext
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup do
+  setup context do
+    if Map.get(context, :rate_limited, false) do
+      remote_ip = "127.0.0.1"
+      rate_limit_key = "users_log_in:#{remote_ip}"
+      rate_limit_scale = :timer.minutes(1)
+      rate_limit_limit = 10
+      RemoteIp |> stub(:get, fn _ -> remote_ip end)
+
+      RateLimit
+      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+        {:allow, 1}
+      end)
+      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+        {:deny, 1}
+      end)
+    else
+      RateLimit
+      |> stub(:hit, fn _, _, _ ->
+        {:allow, 1000}
+      end)
+    end
+
     %{user: user_fixture(preload: [:account])}
   end
 
@@ -97,6 +120,31 @@ defmodule TuistWeb.UserSessionControllerTest do
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
       assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    @tag rate_limited: true
+    test "errors when it hits the rate limit", %{conn: conn, user: user} do
+      # When under the rate limit
+      first_conn =
+        post(conn, ~p"/users/log_in", %{
+          "user[email]" => user.email,
+          "user[password]" => valid_user_password()
+        })
+
+      assert get_session(first_conn, :user_token)
+      assert redirected_to(first_conn) == ~p"/#{user.account.name}/projects"
+
+      # When above the rate limit
+      second_conn =
+        post(conn, ~p"/users/log_in", %{
+          "user[email]" => user.email,
+          "user[password]" => valid_user_password()
+        })
+
+      assert Phoenix.Flash.get(second_conn.assigns.flash, :error) ==
+               gettext("You've exceeded the rate limit. Try again later.")
+
+      assert redirected_to(second_conn) == ~p"/users/log_in"
     end
   end
 

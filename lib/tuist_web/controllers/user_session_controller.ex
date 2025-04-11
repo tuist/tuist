@@ -3,6 +3,8 @@ defmodule TuistWeb.UserSessionController do
 
   alias Tuist.Accounts
   alias TuistWeb.Authentication
+  alias TuistWeb.RateLimit
+  alias TuistWeb.RemoteIp
 
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
@@ -19,6 +21,23 @@ defmodule TuistWeb.UserSessionController do
   end
 
   defp create(conn, params, info) do
+    case RateLimit.hit(
+           "users_log_in:#{RemoteIp.get(conn)}",
+           :timer.minutes(1),
+           10
+         ) do
+      {:allow, count} ->
+        do_create(conn, params, info)
+
+      {:deny, _limit} ->
+        conn
+        |> put_flash(:error, gettext("You've exceeded the rate limit. Try again later."))
+        |> redirect(to: ~p"/users/log_in")
+        |> halt()
+    end
+  end
+
+  defp do_create(conn, params, info) do
     user_params =
       %{"email" => email, "password" => password} =
       if Map.has_key?(params, "user") do
