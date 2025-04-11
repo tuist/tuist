@@ -11,6 +11,6 @@ let project = Project(
             sources: ["GeneratediOSStaticLibraryWithStringResources/Sources/**"],
             resources: ["GeneratediOSStaticLibraryWithStringResources/Resources/**"],
             dependencies: []
-        )
+        ),
     ]
 )
