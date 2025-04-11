@@ -27,7 +27,7 @@ public struct CacheStorableItem: Hashable, Equatable {
     public let name: String
     public let hash: String
     public let metadata: CacheStorableItemMetadata
-    
+
     public init(name: String, hash: String, metadata: CacheStorableItemMetadata = CacheStorableItemMetadata()) {
         self.name = name
         self.hash = hash
@@ -85,7 +85,14 @@ extension CacheStoring {
         let items = Dictionary(
             uniqueKeysWithValues: targets.map {
                 target, paths -> (CacheStorableItem, [AbsolutePath]) in
-                (CacheStorableItem(name: target.name, hash: target.hash, metadata: CacheStorableItemMetadata(time: target.time)), paths)
+                (
+                    CacheStorableItem(
+                        name: target.name,
+                        hash: target.hash,
+                        metadata: CacheStorableItemMetadata(time: target.time)
+                    ),
+                    paths
+                )
             }
         )
         try await store(items, cacheCategory: cacheCategory)
