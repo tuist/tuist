@@ -1,6 +1,6 @@
 import Foundation
 
-struct ActivityLog: Codable {
+public struct ActivityLog: Codable {
     let fileName: String
     let timeStartedRecording: Double
     let timeStoppedRecording: Double
