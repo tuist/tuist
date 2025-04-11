@@ -152,7 +152,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() async throws {
         // Given
-        let dependency = TargetDependency.xcframework(path: filePath1, status: .required)
+        let dependency = TargetDependency.xcframework(path: filePath1, expectedSignature: nil, status: .required)
         given(contentHasher)
             .hash(path: .value(filePath1))
             .willReturn("file-hashed")
