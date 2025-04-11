@@ -58,6 +58,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                         "CODE_SIGNING_ALLOWED": "NO",
                         "SKIP_INSTALL": "YES",
                         "GENERATE_MASTER_OBJECT_FILE": "NO",
+                        "VERSIONING_SYSTEM": "",
                     ],
                     configurations: [:]
                 ),
