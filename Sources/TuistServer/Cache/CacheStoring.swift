@@ -26,17 +26,24 @@ public struct CacheStorableTarget: Hashable, Equatable {
 public struct CacheStorableItem: Hashable, Equatable {
     public let name: String
     public let hash: String
-    public let time: Double?
+    public let metadata: CacheStorableItemMetadata
     
-    public init(name: String, hash: String, time: Double? = nil) {
+    public init(name: String, hash: String, metadata: CacheStorableItemMetadata = CacheStorableItemMetadata()) {
         self.name = name
         self.hash = hash
-        self.time = time
+        self.metadata = metadata
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine("cache-storable")
         hasher.combine(hash)
+    }
+}
+
+public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
+    public let time: Double?
+    public init(time: Double? = nil) {
+        self.time = time
     }
 }
 
@@ -78,7 +85,7 @@ extension CacheStoring {
         let items = Dictionary(
             uniqueKeysWithValues: targets.map {
                 target, paths -> (CacheStorableItem, [AbsolutePath]) in
-                (CacheStorableItem(name: target.name, hash: target.hash, time: target.time), paths)
+                (CacheStorableItem(name: target.name, hash: target.hash, metadata: CacheStorableItemMetadata(time: target.time)), paths)
             }
         )
         try await store(items, cacheCategory: cacheCategory)
