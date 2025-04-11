@@ -1,5 +1,5 @@
 import Foundation
 
-struct LogStoreManifest: Codable {
-    let logs: [String: ActivityLog]
+public struct LogStoreManifest: Codable {
+    public let logs: [String: ActivityLog]
 }
