@@ -3,6 +3,21 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
+
+private enum EnvironmentServiceContextKey: ServiceContextKey {
+    typealias Value = Environmenting
+}
+
+extension ServiceContext {
+    public var environment: Environmenting? {
+        get {
+            self[EnvironmentServiceContextKey.self]
+        } set {
+            self[EnvironmentServiceContextKey.self] = newValue
+        }
+    }
+}
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
@@ -62,23 +77,8 @@ public final class Environment: Environmenting {
 
     // MARK: - Attributes
 
-    /// File handler instance.
-    private let fileHandler: FileHandling
-
     /// Default public constructor.
-    convenience init() {
-        self.init(
-            fileHandler: FileHandler.shared
-        )
-    }
-
-    /// Default environment constructor.
-    ///
-    /// - Parameters:
-    ///   - fileHandler: File handler instance to perform file operations.
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
-    }
+    public init() {}
 
     // MARK: - EnvironmentControlling
 
