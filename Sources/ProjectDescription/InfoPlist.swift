@@ -12,6 +12,24 @@ public enum InfoPlist: Codable, Equatable, Sendable {
     /// dictionary.
     case extendingDefault(with: [String: Plist.Value])
 
+    /**
+       A user defined xcconfig variable map to Info.plist file.
+
+       This should be used when the project has different Info.plist files per config (aka: debug,release,staging,etc)
+
+       .target(
+           ...
+           infoPlist: .variable("$(INFO_PLIST_FILE_VARIABLE)"),
+       )
+
+       Or as literal string
+      .target(
+          ...
+          infoPlist: $(INFO_PLIST_FILE_VARIABLE),
+      )
+     */
+    case variable(String)
+
     /// Generate the default content for the target the InfoPlist belongs to.
     public static var `default`: InfoPlist {
         .extendingDefault(with: [:])
