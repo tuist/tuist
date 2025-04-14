@@ -87,16 +87,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        if !target.sources.isEmpty {
-            try generateSourcesBuildPhase(
-                files: target.sources,
-                coreDataModels: target.coreDataModels,
-                target: target,
-                pbxTarget: pbxTarget,
-                fileElements: fileElements,
-                pbxproj: pbxproj
-            )
-        }
+        try generateSourcesBuildPhase(
+            files: target.sources,
+            coreDataModels: target.coreDataModels,
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         try generateResourcesBuildPhase(
             path: path,
@@ -256,8 +254,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj: PBXProj
     ) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
-        pbxproj.add(object: sourcesBuildPhase)
-        pbxTarget.buildPhases.append(sourcesBuildPhase)
 
         var buildFilesCache = Set<AbsolutePath>()
         let sortedFiles = files
@@ -312,6 +308,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
+        
+        if !pbxBuildFiles.isEmpty {
+            pbxproj.add(object: sourcesBuildPhase)
+            pbxTarget.buildPhases.append(sourcesBuildPhase)
+        }
     }
 
     func generateHeadersBuildPhase(
