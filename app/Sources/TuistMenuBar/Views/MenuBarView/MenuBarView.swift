@@ -3,7 +3,7 @@ import Foundation
 import Sparkle
 import SwiftUI
 
-struct MenuBarView: View {
+public struct MenuBarView: View {
     @State var isExpanded = false
     @State var canCheckForUpdates = false
     private let errorHandling: ErrorHandling
@@ -15,7 +15,7 @@ struct MenuBarView: View {
     private let taskStatusReporter: TaskStatusReporter
     private let updater: SPUUpdater
 
-    init(
+    public init(
         appDelegate: AppDelegate,
         updaterController: SPUStandardUpdaterController
     ) {
@@ -64,7 +64,7 @@ struct MenuBarView: View {
             .store(in: &cancellables)
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             MenuHeader(
                 accountHandle: appCredentialsService.accountHandle

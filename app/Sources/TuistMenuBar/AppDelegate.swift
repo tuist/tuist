@@ -3,10 +3,10 @@ import Combine
 import Foundation
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+public final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let onChangeOfURLs = PassthroughSubject<[URL], Never>()
 
-    func application(_: NSApplication, open urls: [URL]) {
+    public func application(_: NSApplication, open urls: [URL]) {
         onChangeOfURLs.send(urls)
     }
 }
