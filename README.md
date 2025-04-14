@@ -275,6 +275,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/rbkbusiness.svg" alt="rbkbusiness_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://snoonu.com/" target="_blank">
+          <img src="assets/companies/snoonu.svg" alt="rbkbusiness_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
