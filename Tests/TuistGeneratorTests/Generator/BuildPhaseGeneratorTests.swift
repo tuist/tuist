@@ -189,7 +189,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "resource.metal",
         ])
     }
-    
+
     func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")

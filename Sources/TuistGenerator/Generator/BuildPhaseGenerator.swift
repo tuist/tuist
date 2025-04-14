@@ -308,7 +308,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
-        
+
         if !pbxBuildFiles.isEmpty {
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
