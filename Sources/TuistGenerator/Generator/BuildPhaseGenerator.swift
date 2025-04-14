@@ -87,14 +87,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        try generateSourcesBuildPhase(
-            files: target.sources,
-            coreDataModels: target.coreDataModels,
-            target: target,
-            pbxTarget: pbxTarget,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )
+        if !target.sources.isEmpty {
+            try generateSourcesBuildPhase(
+                files: target.sources,
+                coreDataModels: target.coreDataModels,
+                target: target,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
 
         try generateResourcesBuildPhase(
             path: path,
