@@ -2,17 +2,17 @@ import ProjectDescription
 
 func tuistAppDependencies() -> [TargetDependency] {
     [
-        .external(name: "Path"),
-        .project(target: "TuistSupport", path: "../"),
-        .project(target: "TuistCore", path: "../"),
-        .project(target: "TuistServer", path: "../"),
-        .project(target: "TuistAutomation", path: "../"),
-        .external(name: "XcodeGraph"),
-        .external(name: "Command"),
-        .external(name: "Sparkle"),
-        .external(name: "FileSystem"),
-        .external(name: "Mockable"),
-        .external(name: "Collections"),
+        .external(name: "Path", condition: .when([.macos])),
+        .project(target: "TuistSupport", path: "../", condition: .when([.macos])),
+        .project(target: "TuistCore", path: "../", condition: .when([.macos])),
+        .project(target: "TuistServer", path: "../", condition: .when([.macos])),
+        .project(target: "TuistAutomation", path: "../", condition: .when([.macos])),
+        .external(name: "XcodeGraph", condition: .when([.macos])),
+        .external(name: "Command", condition: .when([.macos])),
+        .external(name: "Sparkle", condition: .when([.macos])),
+        .external(name: "FileSystem", condition: .when([.macos])),
+        .external(name: "Mockable", condition: .when([.macos])),
+        .external(name: "Collections", condition: .when([.macos])),
         .external(name: "OpenAPIRuntime"),
     ]
 }
@@ -27,7 +27,7 @@ let project = Project(
     targets: [
         .target(
             name: "TuistApp",
-            destinations: .macOS,
+            destinations: [.mac, .iPhone],
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTargets: .macOS("14.0.0"),
