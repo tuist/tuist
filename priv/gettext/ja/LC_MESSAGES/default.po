@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Japanese\n"
-"PO-Revision-Date: 2025-04-11 08:42\n"
+"PO-Revision-Date: 2025-04-11 16:08\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:418
 #, elixir-autogen, elixir-format
@@ -2924,7 +2924,7 @@ msgid "Platform"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:769
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
 
@@ -2939,7 +2939,7 @@ msgid "Share app previews in one click"
 msgstr ""
 
 #: lib/tuist_web/components/terminal.ex:17
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "bash"
 msgstr ""
 
@@ -2966,7 +2966,7 @@ msgstr ""
 
 #: lib/tuist_web/live/test_runs_live.ex:80
 #: lib/tuist_web/live/test_runs_live.html.heex:69
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed run count"
 msgstr ""
 
@@ -2978,13 +2978,13 @@ msgstr ""
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #: lib/tuist_web/live/test_runs_live.ex:15
 #: lib/tuist_web/live/test_runs_live.html.heex:179
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
 #: lib/tuist_web/live/test_runs_live.ex:72
 #: lib/tuist_web/live/test_runs_live.html.heex:54
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Test run count"
 msgstr ""
 
@@ -2995,31 +2995,31 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:49
 #: lib/tuist_web/live/generate_runs_live.html.heex:49
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:87
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/run_detail_live.html.heex:98
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:251
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Binary Cache"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:240
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Binary cache misses"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.ex:14
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #: lib/tuist_web/live/run_detail_live.html.heex:16
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr ""
 
@@ -3042,7 +3042,7 @@ msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:201
 #: lib/tuist_web/live/run_detail_live.html.heex:272
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
 
@@ -3054,7 +3054,7 @@ msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:197
 #: lib/tuist_web/live/run_detail_live.html.heex:268
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
 
@@ -3064,12 +3064,12 @@ msgid "Run duration"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:177
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Selective Testing"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:152
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Selective test hits"
 msgstr ""
 
@@ -3084,7 +3084,7 @@ msgid "Selective test hits represents the number of test modules that were skipp
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:165
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Selective test misses"
 msgstr ""
 
@@ -3110,7 +3110,7 @@ msgid "Test Optimizations"
 msgstr ""
 
 #: lib/tuist_web/live/layout_live.ex:204
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
 
@@ -3140,7 +3140,7 @@ msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
 
 #: lib/tuist_web/live/user_reset_password_live.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Change your password"
 msgstr ""
 
@@ -3150,7 +3150,7 @@ msgid "Check your email"
 msgstr ""
 
 #: lib/tuist_web/live/user_reset_password_live.ex:46
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Confirm password"
 msgstr ""
 
@@ -3165,27 +3165,27 @@ msgid "If your email exists in our records, you'll receive reset instructions sh
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:129
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:113
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:148
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invitation rejected"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:121
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please try again."
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:140
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
 msgstr ""
 
@@ -3215,17 +3215,17 @@ msgid "%{average_build_time}s"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:406
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:455
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Last 30 runs"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:401
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr ""
 
@@ -3273,7 +3273,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.ex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:2
 #: lib/tuist_web/live/run_detail_live.html.heex:30
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Generate Runs"
 msgstr ""
 
@@ -3283,7 +3283,7 @@ msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:11
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
@@ -3308,7 +3308,7 @@ msgid "Explore Tuist features like binary caching and selective testing to speed
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:37
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Install Tuist CLI"
 msgstr ""
 
@@ -3328,7 +3328,7 @@ msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:39
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Run the following command to install Tuist CLI."
 msgstr ""
 
@@ -3378,12 +3378,12 @@ msgid "Settings"
 msgstr ""
 
 #: lib/tuist_web/live/noora_preview_live.html.heex:92
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Created by"
 msgstr ""
 
 #: lib/tuist_web/live/noora_preview_live.html.heex:79
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Details"
 msgstr ""
 
@@ -3393,7 +3393,7 @@ msgid "Don't have the Tuist app installed?"
 msgstr ""
 
 #: lib/tuist_web/live/noora_preview_live.html.heex:129
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Install App"
 msgstr ""
 
@@ -3452,7 +3452,7 @@ msgid "No data yet"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:337
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No previews yet"
 msgstr ""
 
@@ -3464,5 +3464,10 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
+msgstr ""
+
+#: lib/tuist_web/controllers/user_session_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "You've exceeded the rate limit. Try again later."
 msgstr ""
 
