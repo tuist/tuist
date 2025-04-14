@@ -42,7 +42,7 @@ defmodule Tuist.Accounts.User do
 
   defp encrypt_password(changeset) do
     case changeset do
-      %Ecto.Changeset{valid?: true, changes: %{password: password}} ->
+      %Ecto.Changeset{valid?: true, changes: _changes} ->
         password_to_hash =
           "#{get_change(changeset, :password)}#{Tuist.Environment.secret_key_password()}"
 

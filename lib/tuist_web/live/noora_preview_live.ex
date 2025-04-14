@@ -1,7 +1,6 @@
 defmodule TuistWeb.NooraPreviewLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.Previews.RunButton
   import TuistWeb.Previews.RanByBadge
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Components.Terminal

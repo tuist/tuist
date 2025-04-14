@@ -41,6 +41,7 @@ defmodule Tuist do
       API.Pipeline,
       Accounts,
       Accounts.Account,
+      Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.User,
       Authentication,
@@ -63,9 +64,11 @@ defmodule Tuist do
       # a good rule of thumb is to ask if they can work as a standalone library.
       Analytics,
       Environment,
+      Ecto.Utils,
       GitHub.Releases,
       Incidents,
       License,
+      PubSub,
       # We should not be exposing this one
       Repo,
       Storage,

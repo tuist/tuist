@@ -220,8 +220,8 @@ defmodule Tuist.Accounts do
   end
 
   defp create_organization_multi(
-         %{name: name, creator: %User{id: user_id, email: user_email}} = attrs,
-         opts \\ []
+         %{name: name, creator: %User{id: user_id, email: user_email}},
+         opts
        ) do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)

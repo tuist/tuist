@@ -2,13 +2,12 @@ defmodule TuistWeb.RunDetailLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Runs.RanByBadge
-  alias Tuist.CommandEvents
   alias Tuist.Projects
 
   @table_page_size 20
 
   def mount(
-        params,
+        _params,
         _session,
         %{assigns: %{selected_project: project, selected_run: run}} = socket
       ) do

@@ -9,7 +9,6 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias Tuist.Storage
   alias TuistWeb.API.Schemas.ArtifactUploadId
-  alias Tuist.Repo
   alias Tuist.CommandEvents
   alias TuistWeb.Authentication
   alias OpenApiSpex.Schema

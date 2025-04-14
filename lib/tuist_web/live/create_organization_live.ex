@@ -2,9 +2,7 @@ defmodule TuistWeb.CreateOrganizationLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
-  alias Tuist.Authorization
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.Accounts.Organization
 
   @impl true
@@ -40,6 +38,7 @@ defmodule TuistWeb.CreateOrganizationLive do
               phx-submit="create_organization"
             >
               <.text_input
+                id="organization-name"
                 field={@form[:name]}
                 type="basic"
                 label={gettext("Name")}
@@ -73,7 +72,7 @@ defmodule TuistWeb.CreateOrganizationLive do
   @impl true
   def handle_event(
         "create_organization",
-        %{"organization" => %{"name" => name}} = params,
+        %{"organization" => %{"name" => name}},
         socket
       ) do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
@@ -88,7 +87,7 @@ defmodule TuistWeb.CreateOrganizationLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
 
-      error ->
+      _error ->
         {:noreply, socket}
     end
   end

@@ -55,7 +55,7 @@ msgstr ""
 msgid "%{current_remote_cache_hits_count} of %{remote_cache_hit_threshold} remote cache hits"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.ex:45
+#: lib/tuist_web/live/noora_preview_live.ex:44
 #: lib/tuist_web/live/preview_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
@@ -407,7 +407,7 @@ msgid "Cacheable targets"
 msgstr ""
 
 #: lib/tuist_web/live/account_billing_live.ex:192
-#: lib/tuist_web/live/create_organization_live.ex:51
+#: lib/tuist_web/live/create_organization_live.ex:50
 #: lib/tuist_web/live/project_dashboard_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -1141,7 +1141,7 @@ msgstr ""
 msgid "Most popular"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:45
+#: lib/tuist_web/live/create_organization_live.ex:44
 #: lib/tuist_web/live/create_project_live.ex:64
 #: lib/tuist_web/live/noora_previews_live.html.heex:41
 #: lib/tuist_web/live/previews_live.html.heex:13
@@ -1493,7 +1493,7 @@ msgstr ""
 #: lib/tuist_web/live/noora_preview_live.html.heex:71
 #: lib/tuist_web/live/preview_live.html.heex:42
 #: lib/tuist_web/live/project_run_detail_live.ex:61
-#: lib/tuist_web/live/run_detail_live.ex:38
+#: lib/tuist_web/live/run_detail_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr ""
@@ -2847,7 +2847,7 @@ msgid "Sign up for Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:81
-#: lib/tuist_web/live/create_organization_live.ex:25
+#: lib/tuist_web/live/create_organization_live.ex:23
 #: lib/tuist_web/live/create_project_live.ex:49
 #: lib/tuist_web/live/user_confirmation_live.ex:23
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
@@ -3240,17 +3240,17 @@ msgstr ""
 msgid "Create a Tuist project to continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:34
+#: lib/tuist_web/live/create_organization_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Create a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:32
+#: lib/tuist_web/live/create_organization_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Create an organization account to continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:50
+#: lib/tuist_web/live/create_organization_live.ex:49
 #: lib/tuist_web/live/create_project_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Create organization"

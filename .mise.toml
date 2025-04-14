@@ -1,7 +1,7 @@
 [tools]
-"elixir" = "1.18.1"
+"elixir" = "1.18.3"
 "flyctl" = "0.3.41"
-"erlang" = "27.2"
+"erlang" = "27.3.2"
 "npm:prettier" = "3.4.2"
 "pnpm" = "10.5.2"
 

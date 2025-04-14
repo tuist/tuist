@@ -11,7 +11,7 @@ defmodule TuistWeb.Noora.TextInput do
   import TuistWeb.Noora.Label
   alias Phoenix.LiveView.JS
 
-  attr :id, :string, required: true
+  attr :id, :string, required: false
 
   attr :field, Phoenix.HTML.FormField, doc: "A Phoenix form field"
 
