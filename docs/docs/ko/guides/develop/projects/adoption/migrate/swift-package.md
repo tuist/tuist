@@ -58,10 +58,10 @@ let tuist = Tuist()
 
 ## 프로젝트 편집하기 {#editing-the-project}
 
-<LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> 명령어를 사용하면 Xcode에서 프로젝트를 편집할 수 있습니다. 이 명령어는 Xcode 프로젝트를 생성하고 생성된 프로젝트를 열어 작업을 시작할 수 있게 합니다.
+<LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> 명령어를 사용하면 Xcode에서 프로젝트를 편집할 수 있습니다. 이 명령어는 Xcode 프로젝트를 생성하며, 이를 열어 바로 작업을 시작할 수 있게 합니다.
 
 ```bash
 tuist edit
 ```
 
-프로젝트 규모에 따라 한 번에 사용하거나 점진적으로 사용할 수 있습니다. DSL과 워크플로우에 익숙해지기 위해 작은 프로젝트로 시작하는 것을 권장합니다. 우리의 조언은 가장 많은 의존성을 가진 타겟부터 시작하여 최상위 타겟까지 차례대로 작업하라는 것입니다.
+프로젝트 규모에 따라, 한 번에 전체를 마이그레이션 할 수도 있고 점진적으로 진행할 수도 있습니다. 먼저 작은 프로젝트를 통해 DSL과 작업흐름에 익숙해지는 것을 권장합니다. 항상 가장 많은 의존성을 가진 타겟부터 시작해서 최상위 타겟까지 순차적으로 전환하는 방식이 바람직합니다.
