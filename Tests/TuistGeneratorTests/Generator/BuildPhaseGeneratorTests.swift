@@ -189,6 +189,30 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "resource.metal",
         ])
     }
+    
+    func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test(product: .watch2App)
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: [],
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+
+        XCTAssertNil(buildPhase)
+    }
 
     func test_generateScripts() throws {
         // Given
