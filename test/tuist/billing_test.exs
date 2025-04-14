@@ -522,7 +522,15 @@ defmodule Tuist.BillingTest do
 
       Stripe.PaymentMethod
       |> stub(:retrieve, fn ^payment_method_id ->
-        {:ok, %Stripe.PaymentMethod{id: payment_method_id, card: card, type: "card"}}
+        {:ok,
+         %Stripe.PaymentMethod{
+           id: payment_method_id,
+           billing_details: %{
+             name: "Carl"
+           },
+           card: card,
+           type: "card"
+         }}
       end)
 
       # When
@@ -533,6 +541,7 @@ defmodule Tuist.BillingTest do
                id: payment_method_id,
                type: "card",
                card: %Card{
+                 cardholder_name: "Carl",
                  brand: "visa",
                  last4: "4242",
                  exp_month: 12,

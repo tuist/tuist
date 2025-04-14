@@ -43,7 +43,7 @@
   --noora-orange-300: oklch(81.9% 0.111 48.6);
   --noora-orange-400: oklch(76.9% 0.149 48.6);
   --noora-orange-500: oklch(71.9% 0.185 48.7);
-  --noora-orange-600: oklch(61.7% 0.166 48.8);
+  --noora-orange-600: oklch(54.8%, 28%, 85.89%);
   --noora-orange-700: oklch(48% 0.129 49);
   --noora-orange-800: oklch(33.7% 0.091 48.5);
   --noora-orange-900: oklch(20.9% 0.057 48.2);
@@ -324,6 +324,7 @@
   --noora-icon-success-label: light-dark(var(--noora-green-700), var(--noora-green-500));
   --noora-icon-info-background: light-dark(var(--noora-azure-50), var(--noora-alpha-azure));
   --noora-icon-info-label: light-dark(var(--noora-azure-700), var(--noora-azure-400));
+  --noora-icon-primary-label: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 
   /* Spacing */
   --noora-spacing-0: 0rem;
@@ -413,7 +414,6 @@
   --noora-font-heading-2xlarge: 2rem/2.375rem var(--noora-font-heading);
   --noora-font-heading-xlarge: 1.5rem/2rem var(--noora-font-heading);
   --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
-  --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
   --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
   --noora-font-body-large: 1rem/1.5rem var(--noora-font-body);
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);

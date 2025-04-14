@@ -22,7 +22,12 @@ export default {
   mounted() {
     this.dialog = new Dialog(this.el, this.context());
     this.dialog.init();
-    this.handleEvent(`close-modal-${this.el.id}`, () => this.dialog.api.setOpen(false));
+    this.handleCloseModal = (event) => {
+      if (event.detail.id == this.el.id) {
+        this.dialog.api.setOpen(false);
+      }
+    };
+    window.addEventListener("phx:close-modal", this.handleCloseModal);
   },
 
   updated() {
@@ -31,6 +36,12 @@ export default {
 
   beforeDestroy() {
     this.dialog.destroy();
+  },
+
+  destroyed() {
+    if (this.handleCloseModal) {
+      window.removeEventListener("phx:close-modal", this.handleCloseModal);
+    }
   },
 
   context() {

@@ -10,7 +10,7 @@ defmodule TuistWeb.Noora.Modal do
 
   attr :id, :string, required: true, doc: "The modal's unique identifier."
 
-  attr :title, :string, required: true, doc: "Title of the modal"
+  attr :title, :string, default: nil, doc: "Title of the modal"
 
   attr :description, :string,
     default: nil,
@@ -33,6 +33,7 @@ defmodule TuistWeb.Noora.Modal do
       "The modal's trigger. Should be a button that accepts the attributes provided by the slot."
 
   slot :header_icon, doc: "Icon to be rendered in the header when type is 'icon'"
+  slot :header_button
   slot :footer, required: false, doc: "The modal's footer element."
   slot :inner_block
 
@@ -51,11 +52,13 @@ defmodule TuistWeb.Noora.Modal do
       <div data-part="positioner">
         <div data-part="content">
           <.modal_header
+            :if={@title}
             title={@title}
             description={@description}
             type={@header_type}
             size={@header_size}
           >
+            <:header_button>{render_slot(@header_button)}</:header_button>
             {render_slot(@header_icon)}
           </.modal_header>
           <div data-part="body">{render_slot(@inner_block)}</div>
@@ -80,6 +83,7 @@ defmodule TuistWeb.Noora.Modal do
   attr :size, :string, values: ~w(small large), default: "large", doc: "Size of the header"
 
   slot :inner_block, doc: "Icon to be rendered in the header when type is 'icon'"
+  slot :header_button
 
   defp modal_header(assigns) do
     ~H"""
@@ -90,13 +94,17 @@ defmodule TuistWeb.Noora.Modal do
       <div data-part="header-content">
         <div data-part="row">
           <span data-part="title">{@title}</span>
-          <.dismiss_icon data-part="close-trigger" />
+          <%= if not has_slot_content?(@header_button, assigns) do %>
+            <.dismiss_icon data-part="close-trigger" />
+          <% end %>
         </div>
-
         <div :if={@size == "large"} data-part="description">
           {@description}
         </div>
       </div>
+      <%= if has_slot_content?(@header_button, assigns) do %>
+        {render_slot(@header_button)}
+      <% end %>
     </div>
     """
   end

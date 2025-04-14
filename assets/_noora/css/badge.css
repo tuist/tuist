@@ -27,10 +27,10 @@
   );
   --noora-badge-light-fill-warning-label: light-dark(var(--noora-orange-600), var(--noora-orange-500));
   --noora-badge-light-fill-attention-background: light-dark(
-    var(--noora-azure-50),
-    color-mix(in oklch, var(--noora-azure-500) 16%, transparent)
+    var(--noora-yellow-50),
+    color-mix(in oklch, var(--noora-yellow-500) 16%, transparent)
   );
-  --noora-badge-light-fill-attention-label: light-dark(var(--noora-azure-700), var(--noora-azure-500));
+  --noora-badge-light-fill-attention-label: light-dark(var(--noora-yellow-700), var(--noora-yellow-500));
   --noora-badge-light-fill-success-background: light-dark(
     var(--noora-green-50),
     color-mix(in oklch, var(--noora-green-500) 16%, transparent)

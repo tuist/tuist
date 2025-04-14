@@ -302,6 +302,7 @@ defmodule Tuist.Billing do
       if is_nil(payment_method.card),
         do: nil,
         else: %Card{
+          cardholder_name: payment_method.billing_details.name,
           brand: payment_method.card.brand,
           last4: payment_method.card.last4,
           exp_month: payment_method.card.exp_month,

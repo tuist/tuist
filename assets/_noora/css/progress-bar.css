@@ -1,0 +1,72 @@
+.noora-progress-bar {
+  --noora-progress-bar-empty: light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700));
+  --noora-progress-bar-purple: var(--noora-purple-500);
+  --noora-border-progress-bar-empty: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
+    0px 1px 2px 0px oklch(0% 0 0 / 0.05) inset;
+  --noora-border-progress-bar-line: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.2) inset,
+    0px 1px 0px 0px oklch(100% 0 0 / 0.35) inset;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-4);
+  html[data-theme="dark"] & {
+    --noora-border-progress-bar-empty: 0px 0px 0px 1px oklch(31.6% 0.01 260.7 / 0.75),
+      0px 1px 2px 0px oklch(0% 0 0 / 0.4) inset;
+    --noora-border-progress-bar-line: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.2) inset,
+      0px 1px 0px 0px oklch(100% 0 0 / 0.35) inset;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    & > [data-part="title"] {
+      padding-right: var(--noora-spacing-1);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="value"] {
+      flex-grow: 1;
+      padding-right: var(--noora-spacing-3);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="max-value"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  #story-live & {
+    width: 75%;
+  }
+
+  & > [data-part="progress-bar"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+    margin-bottom: var(--noora-spacing-1);
+    height: 6px;
+
+    & > [data-part="max-bar"] {
+      box-shadow: var(--noora-border-progress-bar-empty);
+      border-radius: var(--noora-radius-large);
+      background: var(--noora-progress-bar-empty);
+      height: 100%;
+    }
+    & > [data-part="value-bar"] {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      box-shadow: var(--noora-border-progress-bar-line);
+      border-radius: var(--noora-radius-large);
+      background: var(--noora-progress-bar-purple);
+    }
+  }
+}

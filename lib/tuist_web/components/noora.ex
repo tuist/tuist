@@ -23,6 +23,7 @@ defmodule TuistWeb.Noora do
       import TuistWeb.Noora.LineDivider
       import TuistWeb.Noora.Modal
       import TuistWeb.Noora.PaginationGroup
+      import TuistWeb.Noora.ProgressBar
       import TuistWeb.Noora.Select
       import TuistWeb.Noora.ShortcutKey
       import TuistWeb.Noora.TabMenu
