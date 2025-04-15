@@ -20,6 +20,29 @@ defmodule Tuist.Accounts.UserTest do
       assert got.valid? == false
       assert "should be at least 6 character(s)" in errors_on(got).password
     end
+
+    test "validates password strength" do
+      # Given/When
+      got = User.create_user_changeset(%User{}, %{password: "6789"})
+
+      # Then
+      assert got.valid? == false
+      assert "Avoid sequences" in errors_on(got).password
+      assert "Add another word or two. Uncommon words are better." in errors_on(got).password
+    end
+  end
+
+  describe "password_changeset/2" do
+    test "validates the password strength" do
+      # Given/When
+      got = User.password_changeset(%User{}, %{password: "6789"})
+
+      # Then
+      assert got.valid? == false
+
+      assert "Add another word or two. Uncommon words are better." in errors_on(got).password
+      assert "Avoid sequences" in errors_on(got).password
+    end
   end
 
   describe "gravatar_url/1" do

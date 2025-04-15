@@ -118,12 +118,25 @@ defmodule TuistWeb.UserRegistrationLive do
                 show_prefix={false}
                 required
               />
+              <% password_errors =
+                case Map.get(@errors, :password) do
+                  nil ->
+                    nil
+
+                  errors when is_binary(errors) ->
+                    String.trim_trailing(errors, ".")
+
+                  errors when is_list(errors) ->
+                    (errors
+                     |> Enum.map(&String.trim_trailing(&1, "."))
+                     |> Enum.join(". ")) <> "."
+                end %>
               <.text_input
                 field={@form[:password]}
                 label={gettext("Password")}
                 id="password"
                 type="password"
-                error={Map.get(@errors, :password)}
+                error={password_errors}
                 show_prefix={false}
                 required
               />

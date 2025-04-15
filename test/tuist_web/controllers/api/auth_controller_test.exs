@@ -226,13 +226,14 @@ defmodule TuistWeb.API.AuthControllerTest do
   describe "POST /api/auth" do
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(password: "password") |> Tuist.Repo.preload(:account)
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password) |> Tuist.Repo.preload(:account)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post("/api/auth", %{email: user.email, password: "password"})
+        |> post("/api/auth", %{email: user.email, password: password})
 
       # Then
       response = json_response(conn, :ok)
@@ -258,7 +259,8 @@ defmodule TuistWeb.API.AuthControllerTest do
 
     test "returns unauthorized when the password is invalid", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(password: "password")
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password)
 
       # When
       conn =
@@ -285,13 +287,14 @@ defmodule TuistWeb.API.AuthControllerTest do
 
     test "returns unauthorized when the user is not confirmed", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(password: "password", confirmed_at: nil)
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password, confirmed_at: nil)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post("/api/auth", %{email: user.email, password: "password"})
+        |> post("/api/auth", %{email: user.email, password: password})
 
       # Then
       response = json_response(conn, :unauthorized)
@@ -301,7 +304,10 @@ defmodule TuistWeb.API.AuthControllerTest do
     @tag :rate_limited
     test "fails the requests that go above the rate limit", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(password: "password") |> Tuist.Repo.preload(:account)
+      password = UUIDv7.generate()
+
+      user =
+        AccountsFixtures.user_fixture(password: password) |> Tuist.Repo.preload(:account)
 
       # When
       conn =
@@ -310,7 +316,7 @@ defmodule TuistWeb.API.AuthControllerTest do
 
       # Then
       first_response =
-        json_response(conn |> post("/api/auth", %{email: user.email, password: "password"}), :ok)
+        json_response(conn |> post("/api/auth", %{email: user.email, password: password}), :ok)
 
       {:ok, access_token_claims} =
         assert Tuist.Authentication.decode_and_verify(first_response["access_token"], %{

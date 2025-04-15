@@ -46,7 +46,7 @@ defmodule TuistWeb.UserLoginLiveTest do
 
   describe "user login" do
     test "redirects if user login with valid credentials", %{conn: conn} do
-      password = "123456789abcd"
+      password = UUIDv7.generate()
       user = user_fixture(password: password, preload: [:account])
 
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")

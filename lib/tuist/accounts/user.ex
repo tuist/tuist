@@ -34,7 +34,7 @@ defmodule Tuist.Accounts.User do
     |> cast(attrs, [:token, :email, :password, :encrypted_password, :confirmed_at, :created_at])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
-    |> validate_length(:password, min: 6)
+    |> validate_password_strength()
     |> encrypt_password()
     |> unique_constraint(:token, name: "index_users_on_token")
     |> unique_constraint(:email, name: "index_users_on_email")
@@ -81,8 +81,33 @@ defmodule Tuist.Accounts.User do
     user
     |> cast(attrs, [:password])
     |> validate_required([:password])
+    |> validate_password_strength()
     |> validate_confirmation(:password, message: gettext("Passwords don't match"))
     |> encrypt_password()
+  end
+
+  def validate_password_strength(changeset) do
+    changeset
+    |> validate_length(:password, min: 6)
+    |> validate_change(:password, fn _field, value ->
+      case ZXCVBN.zxcvbn(value) do
+        %{score: score} = value when score < 3 ->
+          password_strength_to_messages(value) |> Enum.map(&{:password, &1})
+
+        _ ->
+          []
+      end
+    end)
+  end
+
+  defp password_strength_to_messages(%{feedback: feedback}) do
+    messages = []
+
+    if feedback.warning != "" do
+      messages = messages ++ [feedback.warning]
+    end
+
+    messages ++ feedback.suggestions
   end
 
   @doc """

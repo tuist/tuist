@@ -252,7 +252,7 @@ msgstr ""
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:323
+#: lib/tuist_web/live/user_registration_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "A confirmation email has been sent to you, check your inbox"
 msgstr ""
@@ -299,7 +299,7 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:333
+#: lib/tuist_web/live/user_registration_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr ""
@@ -358,12 +358,12 @@ msgstr ""
 msgid "All systems are normal"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:273
+#: lib/tuist_web/live/user_registration_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Already an account?"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:144
+#: lib/tuist_web/live/user_registration_live.ex:157
 #, elixir-autogen, elixir-format
 msgid "Already have an account?"
 msgstr ""
@@ -726,7 +726,7 @@ msgstr ""
 msgid "Check your email"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:172
+#: lib/tuist_web/live/user_registration_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
@@ -836,7 +836,7 @@ msgstr ""
 msgid "Confirm upgrade to the Pro plan"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:170
+#: lib/tuist_web/live/user_registration_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
 msgstr ""
@@ -924,7 +924,7 @@ msgstr ""
 msgid "Create a project"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:205
+#: lib/tuist_web/live/user_registration_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Create an account"
 msgstr ""
@@ -1182,7 +1182,7 @@ msgstr ""
 #: lib/tuist_web/live/noora_billing_live.html.heex:278
 #: lib/tuist_web/live/user_forgot_password_live.ex:99
 #: lib/tuist_web/live/user_login_live.ex:203
-#: lib/tuist_web/live/user_registration_live.ex:226
+#: lib/tuist_web/live/user_registration_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
@@ -1194,7 +1194,7 @@ msgstr ""
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:341
+#: lib/tuist_web/live/user_registration_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr ""
@@ -1216,13 +1216,13 @@ msgstr ""
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:100
 #: lib/tuist_web/live/user_login_live.ex:204
-#: lib/tuist_web/live/user_registration_live.ex:227
+#: lib/tuist_web/live/user_registration_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "Enter your email"
 msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:211
-#: lib/tuist_web/live/user_registration_live.ex:234
+#: lib/tuist_web/live/user_registration_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Enter your password"
 msgstr ""
@@ -1723,7 +1723,7 @@ msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:15
 #: lib/tuist_web/live/user_login_live.ex:143
-#: lib/tuist_web/live/user_registration_live.ex:149
+#: lib/tuist_web/live/user_registration_live.ex:162
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Log in"
@@ -2071,8 +2071,8 @@ msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:122
 #: lib/tuist_web/live/user_login_live.ex:210
-#: lib/tuist_web/live/user_registration_live.ex:123
-#: lib/tuist_web/live/user_registration_live.ex:233
+#: lib/tuist_web/live/user_registration_live.ex:136
+#: lib/tuist_web/live/user_registration_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr ""
@@ -2082,7 +2082,7 @@ msgstr ""
 msgid "Password reset successfully."
 msgstr ""
 
-#: lib/tuist/accounts/user.ex:84
+#: lib/tuist/accounts/user.ex:85
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr ""
@@ -2589,7 +2589,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:200
 #: lib/tuist_web/live/user_login_live.ex:229
-#: lib/tuist_web/live/user_registration_live.ex:276
+#: lib/tuist_web/live/user_registration_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Sign in"
 msgstr ""
@@ -2611,9 +2611,9 @@ msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:152
 #: lib/tuist_web/live/user_login_live.ex:267
-#: lib/tuist_web/live/user_registration_live.ex:140
-#: lib/tuist_web/live/user_registration_live.ex:240
-#: lib/tuist_web/live/user_registration_live.ex:292
+#: lib/tuist_web/live/user_registration_live.ex:153
+#: lib/tuist_web/live/user_registration_live.ex:253
+#: lib/tuist_web/live/user_registration_live.ex:305
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -2623,17 +2623,17 @@ msgstr ""
 msgid "Sign up for Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:249
+#: lib/tuist_web/live/user_registration_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Sign up with GitHub"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:257
+#: lib/tuist_web/live/user_registration_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "Sign up with Google"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:265
+#: lib/tuist_web/live/user_registration_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "Sign up with Okta"
 msgstr ""
@@ -2752,7 +2752,7 @@ msgstr ""
 msgid "Start learning"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:208
+#: lib/tuist_web/live/user_registration_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Start your Tuist journey."
 msgstr ""
@@ -3117,7 +3117,7 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:244
 #: lib/tuist_web/live/account_projects_live.html.heex:28
 #: lib/tuist_web/live/user_login_live.ex:178
-#: lib/tuist_web/live/user_registration_live.ex:201
+#: lib/tuist_web/live/user_registration_live.ex:214
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -3132,7 +3132,7 @@ msgstr ""
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
 #: lib/tuist_web/live/user_login_live.ex:40
 #: lib/tuist_web/live/user_registration_live.ex:58
-#: lib/tuist_web/live/user_registration_live.ex:164
+#: lib/tuist_web/live/user_registration_live.ex:177
 #: lib/tuist_web/live/user_reset_password_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
@@ -3366,12 +3366,12 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:169
 #: lib/tuist_web/live/account_settings_live.html.heex:235
-#: lib/tuist_web/live/user_registration_live.ex:132
+#: lib/tuist_web/live/user_registration_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:135
+#: lib/tuist_web/live/user_registration_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
 msgstr ""
