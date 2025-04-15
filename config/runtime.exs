@@ -262,6 +262,7 @@ config :tuist, Oban,
          if(not Tuist.Environment.on_premise?() and env == :prod,
            do: [
              {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
              {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
              {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker}
            ],

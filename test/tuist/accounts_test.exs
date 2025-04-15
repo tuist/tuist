@@ -28,6 +28,44 @@ defmodule Tuist.AccountsTest do
     :ok
   end
 
+  describe "new_organizations_in_last_hour/0" do
+    test "returns organizations created less than an hour ago" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      assert Accounts.new_organizations_in_last_hour() == [organization]
+    end
+
+    test "doesn't return organizations created more than an hour ago" do
+      # Given
+      AccountsFixtures.organization_fixture(
+        created_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+      )
+
+      # When
+      assert Accounts.new_organizations_in_last_hour() == []
+    end
+  end
+
+  describe "new_users_in_last_hour/0" do
+    test "returns organizations created less than an hour ago" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      assert Accounts.new_users_in_last_hour() == [user]
+    end
+
+    test "doesn't return organizations created more than an hour ago" do
+      # Given
+      AccountsFixtures.user_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
+
+      # When
+      assert Accounts.new_users_in_last_hour() == []
+    end
+  end
+
   describe "create_customer_when_absent/1" do
     test "doesn't create the customer if it's already present" do
       # Given
@@ -730,7 +768,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -743,7 +781,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -757,7 +795,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -778,7 +816,7 @@ defmodule Tuist.AccountsTest do
         )
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [:account])
       assert organization.sso_provider == :google
       assert organization.sso_organization_id == "tuist.io"
       assert Accounts.organization_admin?(user, organization) == true
@@ -793,7 +831,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [])
+      assert organization == Accounts.get_organization_by_id(organization.id)
       assert Accounts.get_account_from_organization(organization).customer_id != ""
       assert Accounts.organization_admin?(user, organization) == true
     end

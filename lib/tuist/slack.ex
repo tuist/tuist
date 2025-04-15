@@ -7,28 +7,30 @@ defmodule Tuist.Slack do
   @api_url "https://slack.com/api/chat.postMessage"
 
   def send_message(blocks, opts \\ []) do
-    token = Environment.slack_tuist_token()
-    channel = Keyword.get(opts, :channel, "#notifications")
+    if not Environment.on_premise?() and Environment.prod?() do
+      token = Environment.slack_tuist_token()
+      channel = Keyword.get(opts, :channel, "#notifications")
 
-    headers = [
-      {"Authorization", "Bearer #{token}"},
-      {"Content-Type", "application/json"}
-    ]
+      headers = [
+        {"Authorization", "Bearer #{token}"},
+        {"Content-Type", "application/json"}
+      ]
 
-    body =
-      %{
-        channel: channel,
-        blocks: blocks
-      }
-      |> Jason.encode!()
+      body =
+        %{
+          channel: channel,
+          blocks: blocks
+        }
+        |> Jason.encode!()
 
-    response =
-      Req.post(@api_url, headers: headers, body: body)
-      |> handle_response()
+      response =
+        Req.post(@api_url, headers: headers, body: body)
+        |> handle_response()
 
-    case response do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+      case response do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 

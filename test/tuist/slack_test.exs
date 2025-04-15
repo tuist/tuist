@@ -4,6 +4,12 @@ defmodule Tuist.SlackTest do
   alias Tuist.Environment
   alias Tuist.Slack
 
+  setup do
+    Environment |> stub(:prod?, fn -> true end)
+    Environment |> stub(:on_premise?, fn -> false end)
+    :ok
+  end
+
   describe "send_message" do
     test "when the response is successful" do
       # Given

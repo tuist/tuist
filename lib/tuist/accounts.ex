@@ -27,6 +27,22 @@ defmodule Tuist.Accounts do
 
   require Logger
 
+  def new_organizations_in_last_hour() do
+    from(o in Organization,
+      where: o.created_at > ago(1, "hour"),
+      preload: [:account]
+    )
+    |> Repo.all()
+  end
+
+  def new_users_in_last_hour() do
+    from(u in User,
+      where: u.created_at > ago(1, "hour"),
+      preload: [:account]
+    )
+    |> Repo.all()
+  end
+
   def create_customer_when_absent(%Account{} = account) do
     if is_nil(account.customer_id) do
       customer_id =
@@ -194,6 +210,8 @@ defmodule Tuist.Accounts do
     |> Repo.transaction()
     |> case do
       {:ok, %{organization: organization}} ->
+        organization = organization |> Repo.preload(:account)
+
         {:ok, organization}
 
       {:error, part, changeset, _changes} when part in [:organization, :account] ->
@@ -441,9 +459,10 @@ defmodule Tuist.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
+        user = user |> Repo.preload(:account)
         Tuist.Analytics.user_create(user)
 
-        {:ok, user |> Repo.preload(:account)}
+        {:ok, user}
 
       {:error, :account, %Changeset{} = changeset, _} ->
         parse_account_changeset_error(changeset, email, opts)
