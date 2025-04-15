@@ -550,6 +550,9 @@ defmodule TuistWeb.Router do
       :analytics
     ]
 
+    get "/:account_handle/billing/manage", BillingController, :manage
+    get "/:account_handle/billing/upgrade", BillingController, :upgrade
+
     live_session :noora_account,
       layout: {TuistWeb.Layouts, :noora_account},
       on_mount: [{TuistWeb.LayoutLive, :account}, {TuistWeb.Authentication, :mount_current_user}] do
@@ -557,12 +560,13 @@ defmodule TuistWeb.Router do
       live "/projects", NooraProjectsLive
       live "/members", NooraMembersLive
       live "/billing", NooraBillingLive
-      live "/settings", NooraSettingsLive
+      live "/settings", AccountSettingsLive
     end
   end
 
   scope "/", TuistWeb do
     pipe_through [
+      :redirect_to_noora_when_enabled,
       :open_api,
       :browser_app,
       :require_authenticated_user,

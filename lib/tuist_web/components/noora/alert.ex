@@ -8,7 +8,7 @@ defmodule TuistWeb.Noora.Alert do
   alias TuistWeb.Noora.Icon
   alias Phoenix.LiveView.JS
 
-  attr :id, :string, required: true
+  attr :id, :string, default: nil
 
   attr :type, :string,
     values: ~w(primary secondary),

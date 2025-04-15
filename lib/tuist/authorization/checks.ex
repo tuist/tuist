@@ -9,9 +9,30 @@ defmodule Tuist.Authorization.Checks do
   alias Tuist.Accounts
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role)
-      when role in [:user, :admin] do
+      when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
       id: project.account_id
+    })
+  end
+
+  def user_role(%User{} = authenticated_user, %Project{} = project, role)
+      when role == :admin do
+    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
+      id: project.account_id
+    })
+  end
+
+  def user_role(%User{} = authenticated_user, %Account{} = account, role)
+      when role == :user do
+    Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
+      id: account.id
+    })
+  end
+
+  def user_role(%User{} = authenticated_user, %Account{} = account, role)
+      when role == :admin do
+    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
+      id: account.id
     })
   end
 

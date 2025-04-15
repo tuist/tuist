@@ -5,6 +5,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
 
+  alias Tuist.Accounts.Account
   alias Tuist.Authorization
   alias TuistWeb.Authentication
 

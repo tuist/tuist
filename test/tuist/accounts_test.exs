@@ -888,7 +888,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_organization(organization)
 
       # When
-      Accounts.delete_organization(organization)
+      Accounts.delete_organization!(organization)
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == nil

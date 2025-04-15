@@ -22,11 +22,13 @@
         navigate={~p"/noora/#{@selected_account.name}/members"}
       />
       <.tab_menu_horizontal_item
+        :if={Tuist.Authorization.can?(:account_settings_update, @current_user, @selected_account)}
         label={gettext("Billing")}
         selected={@selected_tab == "billing"}
         navigate={~p"/noora/#{@selected_account.name}/billing"}
       />
       <.tab_menu_horizontal_item
+        :if={Tuist.Authorization.can?(:account_settings_update, @current_user, @selected_account)}
         label={gettext("Settings")}
         selected={@selected_tab == "settings"}
         navigate={~p"/noora/#{@selected_account.name}/settings"}

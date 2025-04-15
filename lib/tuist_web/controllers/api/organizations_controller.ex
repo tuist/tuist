@@ -189,7 +189,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       !is_nil(organization) ->
-        Accounts.delete_organization(organization)
+        Accounts.delete_organization!(organization)
 
         conn
         |> put_status(:no_content)

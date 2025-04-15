@@ -1,7 +1,7 @@
 .account-dropdown {
   display: flex;
   flex-direction: column;
-  z-index: var(--noora-z-index-10);
+  z-index: var(--noora-z-index-9);
   padding: unset;
 
   & [data-part="trigger"] {

@@ -92,7 +92,7 @@ defmodule Tuist.Accounts.Account do
       |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/,
         message: "must contain only alphanumeric characters"
       )
-      |> validate_length(:name, min: 6, max: 32)
+      |> validate_length(:name, min: 3, max: 32)
       |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
       |> unique_constraint(:name, name: "index_accounts_on_name")
     else

@@ -83,6 +83,13 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :account_settings do
+    action :update do
+      desc "Allows the admin of an account to update its settings."
+      allow [:authenticated_as_user, user_role: :admin]
+    end
+  end
+
   object :account_token do
     action :create do
       desc "Allows users of an account to create an account token."

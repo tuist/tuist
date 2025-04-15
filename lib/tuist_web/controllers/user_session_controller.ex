@@ -26,7 +26,7 @@ defmodule TuistWeb.UserSessionController do
            :timer.minutes(1),
            10
          ) do
-      {:allow, count} ->
+      {:allow, _count} ->
         do_create(conn, params, info)
 
       {:deny, _limit} ->

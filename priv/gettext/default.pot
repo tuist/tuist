@@ -304,7 +304,7 @@ msgid "Back to log in"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:59
-#: lib/tuist_web/components/layouts/noora_account.html.heex:25
+#: lib/tuist_web/components/layouts/noora_account.html.heex:26
 #: lib/tuist_web/live/account_billing_live.ex:62
 #: lib/tuist_web/live/account_billing_live.html.heex:9
 #: lib/tuist_web/live/noora_billing_live.ex:70
@@ -413,6 +413,10 @@ msgid "Cacheable targets"
 msgstr ""
 
 #: lib/tuist_web/live/account_billing_live.ex:192
+#: lib/tuist_web/live/account_settings_live.html.heex:53
+#: lib/tuist_web/live/account_settings_live.html.heex:115
+#: lib/tuist_web/live/account_settings_live.html.heex:177
+#: lib/tuist_web/live/account_settings_live.html.heex:243
 #: lib/tuist_web/live/create_organization_live.ex:50
 #: lib/tuist_web/live/project_dashboard_live.html.heex:65
 #, elixir-autogen, elixir-format
@@ -2235,6 +2239,7 @@ msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
 msgstr ""
 
 #: lib/tuist_web/live/account_billing_live.ex:20
+#: lib/tuist_web/live/account_settings_live.ex:16
 #: lib/tuist_web/live/noora_billing_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
@@ -2892,6 +2897,8 @@ msgstr ""
 msgid "Tuist Logo"
 msgstr ""
 
+#: lib/tuist_web/live/account_settings_live.html.heex:169
+#: lib/tuist_web/live/account_settings_live.html.heex:235
 #: lib/tuist_web/live/user_registration_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Username"
@@ -3401,7 +3408,9 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/noora_account.html.heex:30
+#: lib/tuist_web/components/layouts/noora_account.html.heex:32
+#: lib/tuist_web/live/account_settings_live.ex:28
+#: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -3733,4 +3742,104 @@ msgstr ""
 #: lib/tuist_web/live/noora_billing_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "xxxx xxxx xxxx %{card_number}"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:85
+#: lib/tuist_web/live/account_settings_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to delete this?"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:121
+#: lib/tuist_web/live/account_settings_live.html.heex:249
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:194
+#: lib/tuist_web/live/account_settings_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Delete account"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:70
+#: lib/tuist_web/live/account_settings_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Delete organization"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "Deleting the organization will delete all of its projects"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:226
+#, elixir-autogen, elixir-format
+msgid "Deleting your account will also delete all the projects that belong to it"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "Enter this organization's name to confirm"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:232
+#, elixir-autogen, elixir-format
+msgid "Enter your username to confirm"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:45
+#: lib/tuist_web/live/account_settings_live.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "Organization name"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:59
+#: lib/tuist_web/live/account_settings_live.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "Rename"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:9
+#: lib/tuist_web/live/account_settings_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Rename organization"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Rename your organization?"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:40
+#: lib/tuist_web/live/account_settings_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Renaming can have unexpected consequences"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Renaming your organization can have unintended side effects."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:73
+#: lib/tuist_web/live/account_settings_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "This action cannot be undone."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:133
+#: lib/tuist_web/live/account_settings_live.html.heex:153
+#, elixir-autogen, elixir-format
+msgid "Update username"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Update your username?"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:136
+#, elixir-autogen, elixir-format
+msgid "Updating your username can have unintended consequences."
 msgstr ""

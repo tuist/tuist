@@ -51,7 +51,7 @@ defmodule TuistWeb.AccountDropdown do
             <.line_divider />
             <div data-part="actions">
               <.button
-                navigate={~p"/#{@current_user.account.name}/billing"}
+                navigate={~p"/#{@current_user.account.name}/settings"}
                 label={gettext("Account settings")}
                 variant="secondary"
               >

@@ -295,7 +295,7 @@ defmodule Tuist.Accounts do
       |> Repo.transaction()
   end
 
-  def delete_organization(%Organization{} = organization) do
+  def delete_organization!(%Organization{} = organization) do
     Repo.delete!(organization)
   end
 

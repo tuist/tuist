@@ -19,6 +19,50 @@ defmodule Tuist.Authorization.ChecksTest do
       user: user
     } do
       # Given
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then
+      assert Checks.user_role(user, organization.account, :user) == true
+    end
+
+    test "returns false for role admin when the user is a user of the organization", %{
+      organization: organization,
+      user: user
+    } do
+      # Given
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then
+      assert Checks.user_role(user, organization.account, :admin) == false
+    end
+
+    test "returns true for role user when the user is an admin of the organization", %{
+      organization: organization,
+      user: user
+    } do
+      # Given
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # Then
+      assert Checks.user_role(user, organization.account, :user) == true
+    end
+
+    test "returns false for role user when the user doesn't belong to the organization",
+         %{
+           user: user
+         } do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+
+      # Then
+      assert Checks.user_role(user, organization.account, :user) == false
+    end
+
+    test "returns true for role user when the user is a user of the project's organization", %{
+      organization: organization,
+      user: user
+    } do
+      # Given
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
       Accounts.add_user_to_organization(user, organization, role: :user)
 
@@ -26,7 +70,19 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.user_role(user, project, :user) == true
     end
 
-    test "returns true for role user when the user is an admin of the organization", %{
+    test "returns false for role admin when the user is a user of the project's organization", %{
+      organization: organization,
+      user: user
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then
+      assert Checks.user_role(user, project, :admin) == false
+    end
+
+    test "returns true for role user when the user is an admin of the project's organization", %{
       organization: organization,
       user: user
     } do
@@ -38,10 +94,11 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.user_role(user, project, :user) == true
     end
 
-    test "returns true for role user when the user doesn't belong to the organization", %{
-      organization: organization,
-      user: user
-    } do
+    test "returns false for role user when the user doesn't belong to the project's organization",
+         %{
+           organization: organization,
+           user: user
+         } do
       # Given
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
 
