@@ -186,14 +186,18 @@ defmodule TuistWeb.API.RunsControllerTest do
     test "returns not found response when the project is not found", %{conn: conn, user: user} do
       # Given
       non_existent_project_name = "non-existent-project"
+      project_slug = "#{user.account.name}/#{non_existent_project_name}"
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
+      {404, _, response_json_string} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> get("/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
+        end
 
-      # Then
-      assert response(conn, :not_found)
+      assert Jason.decode!(response_json_string) == %{
+               "message" => "The project #{project_slug} was not found."
+             }
     end
   end
 
@@ -369,24 +373,29 @@ defmodule TuistWeb.API.RunsControllerTest do
     test "returns :not_found when project doesn't exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
-      non_existent_project_name = "non-existent-project"
-      non_existent_account_name = "non-existent-account"
+      non_existent_project_name = UUIDv7.generate()
+      non_existent_account_name = UUIDv7.generate()
+      project_slug = "#{non_existent_account_name}/#{non_existent_project_name}"
 
-      # When
       conn =
         conn
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
-          id: UUIDv7.generate(),
-          duration: 1000,
-          is_ci: false
-        )
 
-      # Then
-      assert json_response(conn, :not_found) == %{
-               "message" => "The project non-existent-account/non-existent-project was not found."
+      # When
+      {404, _, response_json_string} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> post(
+            ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+            id: UUIDv7.generate(),
+            duration: 1000,
+            is_ci: false
+          )
+        end
+
+      assert Jason.decode!(response_json_string) == %{
+               "message" => "The project #{project_slug} was not found."
              }
     end
 

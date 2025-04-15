@@ -14,7 +14,7 @@ defmodule TuistWeb.API.RunsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.API.EnsureProjectPresencePlug)
+  plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
   tags ["Runs"]

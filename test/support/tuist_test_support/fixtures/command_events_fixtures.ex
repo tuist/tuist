@@ -12,33 +12,36 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
       end)
 
-    CommandEvents.create_command_event(%{
-      name: Keyword.get(attrs, :name, "generate"),
-      subcommand: "",
-      command_arguments: Keyword.get(attrs, :command_arguments, []),
-      duration: Keyword.get(attrs, :duration, 0),
-      tuist_version: "4.1.0",
-      swift_version: "5.2",
-      macos_version: "10.15",
-      project_id: project_id,
-      cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
-      local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
-      remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
-      test_targets: Keyword.get(attrs, :test_targets, []),
-      local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
-      remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      client_id: "client-id",
-      user_id: Keyword.get(attrs, :user_id, 1),
-      status: Keyword.get(attrs, :status, :success),
-      error_message: Keyword.get(attrs, :error_message),
-      preview_id: Keyword.get(attrs, :preview_id),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha),
-      git_ref: Keyword.get(attrs, :git_ref),
-      git_branch: Keyword.get(attrs, :git_branch),
-      created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
-      ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now())
-    })
+    CommandEvents.create_command_event(
+      %{
+        name: Keyword.get(attrs, :name, "generate"),
+        subcommand: "",
+        command_arguments: Keyword.get(attrs, :command_arguments, []),
+        duration: Keyword.get(attrs, :duration, 0),
+        tuist_version: "4.1.0",
+        swift_version: "5.2",
+        macos_version: "10.15",
+        project_id: project_id,
+        cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
+        local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
+        remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
+        test_targets: Keyword.get(attrs, :test_targets, []),
+        local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
+        remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        client_id: "client-id",
+        user_id: Keyword.get(attrs, :user_id, 1),
+        status: Keyword.get(attrs, :status, :success),
+        error_message: Keyword.get(attrs, :error_message),
+        preview_id: Keyword.get(attrs, :preview_id),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+        git_ref: Keyword.get(attrs, :git_ref),
+        git_branch: Keyword.get(attrs, :git_branch),
+        created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
+        ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now())
+      },
+      preload: Keyword.get(attrs, :preload, [])
+    )
   end
 
   def test_case_fixture(attrs \\ []) do

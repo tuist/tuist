@@ -3843,3 +3843,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid " Version %{version}"
 msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:97
+#, elixir-autogen, elixir-format
+msgid "The project %{project_slug} was not found."
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:49
+#, elixir-autogen, elixir-format
+msgid "The run with ID %{run_id} was not found."
+msgstr ""

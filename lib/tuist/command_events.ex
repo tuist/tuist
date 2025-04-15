@@ -274,7 +274,8 @@ defmodule Tuist.CommandEvents do
           git_ref: git_ref,
           git_branch: git_branch,
           ran_at: ran_at
-        } = event
+        } = event,
+        opts \\ []
       ) do
     command_event =
       %Event{}
@@ -308,6 +309,7 @@ defmodule Tuist.CommandEvents do
         ran_at: ran_at
       })
       |> Repo.insert!()
+      |> Repo.preload(Keyword.get(opts, :preload, []))
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_run_command(),
