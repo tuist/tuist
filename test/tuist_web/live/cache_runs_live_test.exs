@@ -42,7 +42,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
       |> live(~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
 
     # Then
-    assert has_element?(lv, "span", "cache App")
-    assert has_element?(lv, "span", "cache AppTwo")
+    assert has_element?(lv, "span", "tuist cache App")
+    assert has_element?(lv, "span", "tuist cache AppTwo")
   end
 end
