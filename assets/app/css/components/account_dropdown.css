@@ -66,6 +66,11 @@
         flex-direction: row;
         align-self: stretch;
         gap: var(--noora-spacing-4);
+        @media (max-width: 768px) {
+          & {
+            flex-direction: column;
+          }
+        }
 
         & span {
           flex-shrink: 0;
@@ -81,7 +86,16 @@
       }
 
       & [data-part="theme-switcher-section"] {
-        display: flex;
+        @media (max-width: 768px) {
+          & {
+            display: none;
+          }
+        }
+        @media (min-width: 768px) {
+          & {
+            display: flex;
+          }
+        }
         flex-direction: column;
         gap: var(--noora-spacing-5);
 

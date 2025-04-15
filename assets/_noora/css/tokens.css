@@ -414,6 +414,7 @@
   --noora-font-heading-2xlarge: 2rem/2.375rem var(--noora-font-heading);
   --noora-font-heading-xlarge: 1.5rem/2rem var(--noora-font-heading);
   --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
+  --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
   --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
   --noora-font-body-large: 1rem/1.5rem var(--noora-font-body);
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);

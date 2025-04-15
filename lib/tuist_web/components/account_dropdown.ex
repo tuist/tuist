@@ -7,13 +7,15 @@ defmodule TuistWeb.AccountDropdown do
   alias Tuist.Accounts
   alias Tuist.Accounts.User
 
+  attr :id, :string, required: true
   attr :latest_app_release, :map, required: true
   attr :current_user, :map, required: true
+  attr :avatar_size, :string, default: "medium"
 
   def account_dropdown(assigns) do
     ~H"""
     <div
-      id="account-dropdown"
+      id={@id}
       class="account-dropdown"
       phx-hook="NooraDropdown"
       data-loop-focus
@@ -23,7 +25,8 @@ defmodule TuistWeb.AccountDropdown do
     >
       <button data-part="trigger">
         <.avatar
-          id="headerbar-account-dropdown-avatar"
+          id={"#{@id}-dropdown-avatar"}
+          size={@avatar_size}
           name={@current_user.account.name}
           image_href={User.gravatar_url(@current_user)}
           color={Accounts.avatar_color(@current_user.account)}
@@ -33,7 +36,7 @@ defmodule TuistWeb.AccountDropdown do
         <div data-part="content">
           <div data-part="header">
             <.avatar
-              id="headerbar-account-dropdown-content-avatar"
+              id={"#{@id}-dropdown-content-avatar"}
               name={@current_user.account.name}
               image_href={User.gravatar_url(@current_user)}
               color={Accounts.avatar_color(@current_user.account)}
@@ -69,9 +72,9 @@ defmodule TuistWeb.AccountDropdown do
             <div data-part="theme-switcher-section">
               <p data-part="theme-switcher-title">{gettext("Switch to your preferred theme")}</p>
               <div data-part="theme-switcher">
-                <.theme_light />
-                <.theme_dark />
-                <.theme_system />
+                <.theme_light id={"#{@id}-theme-switcher-light"} />
+                <.theme_dark id={"#{@id}-theme-switcher-dark"} />
+                <.theme_system id={"#{@id}-theme-switcher-system"} />
               </div>
             </div>
             <.link href={~p"/users/log_out"} method="delete">
@@ -86,12 +89,14 @@ defmodule TuistWeb.AccountDropdown do
     """
   end
 
+  attr :id, :string, required: true
+
   defp theme_light(assigns) do
     ~H"""
-    <input type="radio" id="theme-switcher-light" name="theme" value="light" phx-hook="ThemeSwitcher" />
-    <label for="theme-switcher-light">
+    <input type="radio" id={@id} name="theme" value="light" phx-hook="ThemeSwitcher" />
+    <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g clip-path="url(#clip0_856_2618)">
+        <g clip-path={"url(##{@id}-clip0_856_2618)"}>
           <path
             d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
             fill="#FDFDFD"
@@ -162,7 +167,7 @@ defmodule TuistWeb.AccountDropdown do
           stroke="#D8DBDF"
         />
         <defs>
-          <clipPath id="clip0_856_2618">
+          <clipPath id={"#{@id}-clip0_856_2618"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="white"
@@ -174,12 +179,14 @@ defmodule TuistWeb.AccountDropdown do
     """
   end
 
+  attr :id, :string, required: true
+
   defp theme_dark(assigns) do
     ~H"""
-    <input type="radio" id="theme-switcher-dark" name="theme" value="dark" phx-hook="ThemeSwitcher" />
-    <label for="theme-switcher-dark">
+    <input type="radio" id={@id} name="theme" value="dark" phx-hook="ThemeSwitcher" />
+    <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g clip-path="url(#clip0_856_2644)">
+        <g clip-path={"url(##{@id}-clip0_856_2644)"}>
           <path
             d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
             fill="#16181C"
@@ -250,7 +257,7 @@ defmodule TuistWeb.AccountDropdown do
           stroke="#4E5157"
         />
         <defs>
-          <clipPath id="clip0_856_2644">
+          <clipPath id={"#{@id}-clip0_856_2644"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="white"
@@ -262,24 +269,20 @@ defmodule TuistWeb.AccountDropdown do
     """
   end
 
+  attr :id, :string, required: true
+
   defp theme_system(assigns) do
     ~H"""
-    <input
-      type="radio"
-      id="theme-switcher-system"
-      name="theme"
-      value="system"
-      phx-hook="ThemeSwitcher"
-    />
-    <label for="theme-switcher-system">
+    <input type="radio" id={@id} name="theme" value="system" phx-hook="ThemeSwitcher" />
+    <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g clip-path="url(#clip0_856_2670)">
-          <g clip-path="url(#clip1_856_2670)">
+        <g clip-path={"url(##{@id}-clip0_856_2670)"}>
+          <g clip-path={"url(##{@id}-clip1_856_2670)"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H61V84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="#FDFDFD"
             />
-            <g clip-path="url(#clip2_856_2670)">
+            <g clip-path={"url(##{@id}-clip2_856_2670)"}>
               <path
                 d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
                 fill="#FDFDFD"
@@ -334,12 +337,12 @@ defmodule TuistWeb.AccountDropdown do
               stroke="#D8DBDF"
             />
           </g>
-          <g clip-path="url(#clip3_856_2670)">
+          <g clip-path={"url(##{@id}-clip3_856_2670)"}>
             <path
               d="M61 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H61V0Z"
               fill="#16181C"
             />
-            <g clip-path="url(#clip4_856_2670)">
+            <g clip-path={"url(##{@id}-clip4_856_2670)"}>
               <path
                 d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
                 fill="#16181C"
@@ -384,25 +387,25 @@ defmodule TuistWeb.AccountDropdown do
           </g>
         </g>
         <defs>
-          <clipPath id="clip0_856_2670">
+          <clipPath id={"#{@id}-clip0_856_2670"}>
             <rect width="122" height="84" fill="white" />
           </clipPath>
-          <clipPath id="clip1_856_2670">
+          <clipPath id={"#{@id}-clip1_856_2670"}>
             <path d="M0 8C0 3.58172 3.58172 0 8 0H61V84H8C3.58172 84 0 80.4183 0 76V8Z" fill="white" />
           </clipPath>
-          <clipPath id="clip2_856_2670">
+          <clipPath id={"#{@id}-clip2_856_2670"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="white"
             />
           </clipPath>
-          <clipPath id="clip3_856_2670">
+          <clipPath id={"#{@id}-clip3_856_2670"}>
             <path
               d="M61 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H61V0Z"
               fill="white"
             />
           </clipPath>
-          <clipPath id="clip4_856_2670">
+          <clipPath id={"#{@id}-clip4_856_2670"}>
             <path
               d="M0 8C0 3.58172 3.58172 0 8 0H114C118.418 0 122 3.58172 122 8V76C122 80.4183 118.418 84 114 84H8C3.58172 84 0 80.4183 0 76V8Z"
               fill="white"

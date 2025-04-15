@@ -220,7 +220,6 @@ defmodule TuistWeb.AppLayoutComponents do
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
             <img src="/images/tuist_dashboard.png" alt={gettext("Tuist Icon")} class="headerbar__logo" />
           </.link>
-          <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} />
         </div>
         <div data-part="right-section">
           <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
@@ -229,8 +228,39 @@ defmodule TuistWeb.AppLayoutComponents do
             </.button>
           </.link>
           <%= if not is_nil(@current_user) do %>
-            <.account_dropdown latest_app_release={@latest_app_release} current_user={@current_user} />
+            <.account_dropdown
+              id="account-dropdown"
+              latest_app_release={@latest_app_release}
+              current_user={@current_user}
+            />
           <% end %>
+        </div>
+      </header>
+      <header class="mobile-headerbar">
+        <div data-part="first-row">
+          <div data-part="left-section">
+            <.link navigate={~p"/#{@selected_account.name}/projects"}>
+              <img
+                src="/images/tuist_dashboard.png"
+                alt={gettext("Tuist Icon")}
+                class="headerbar__logo"
+              />
+            </.link>
+          </div>
+          <div data-part="right-section">
+            <%= if not is_nil(@current_user) do %>
+              <.account_dropdown
+                id="mobile-account-dropdown"
+                avatar_size="xsmall"
+                latest_app_release={@latest_app_release}
+                current_user={@current_user}
+              />
+            <% end %>
+          </div>
+        </div>
+        <.line_divider />
+        <div data-part="second-row">
+          <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="mobile-headerbar-breadcrumbs" />
         </div>
       </header>
       <.line_divider />
@@ -300,6 +330,7 @@ defmodule TuistWeb.AppLayoutComponents do
     end
   end
 
+  attr :id, :string, required: true
   attr :breadcrumbs, :list, required: true
 
   def headerbar_breadcrumbs(assigns) do
@@ -308,7 +339,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.breadcrumbs>
         <%= for {breadcrumb, index} <- Enum.with_index(@breadcrumbs) do %>
           <.breadcrumb
-            id={"app-breadcrumb-#{index}"}
+            id={"#{@id}-#{index}"}
             label={breadcrumb.label}
             show_avatar={Map.get(breadcrumb, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb, :avatar_color)}

@@ -24,10 +24,12 @@ defmodule TuistWeb.Noora.Card do
     ~H"""
     <div class="noora-card" {@rest}>
       <div data-part="header">
-        <div data-part="icon">
-          <.icon name={@icon} />
+        <div data-part="icon-with-title">
+          <div data-part="icon">
+            <.icon name={@icon} />
+          </div>
+          <span data-part="title">{@title}</span>
         </div>
-        <span data-part="title">{@title}</span>
         <div :if={has_slot_content?(@actions, assigns)} data-part="actions">
           {render_slot(@actions)}
         </div>

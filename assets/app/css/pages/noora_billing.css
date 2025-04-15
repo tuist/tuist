@@ -27,6 +27,11 @@
       flex-direction: row;
       align-items: stretch;
       gap: var(--noora-spacing-4);
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
 
       & > * {
         flex: 1;
@@ -141,6 +146,11 @@
     flex-direction: row;
     align-self: center;
     gap: var(--noora-spacing-9);
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
   }
 
   & > [data-part="billing-email-card-section"],
@@ -168,6 +178,11 @@
       flex-direction: column;
       gap: var(--noora-spacing-5);
       width: 530px;
+      @media (max-width: 768px) {
+        & {
+          flex-direction: 40vw;
+        }
+      }
     }
   }
   & > [data-part="billing-payment-method-card-section"] {

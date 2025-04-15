@@ -117,8 +117,6 @@ defmodule TuistWeb.NooraBillingLive do
           socket
       end
 
-    send(self(), :hide_modal)
-
     {
       :noreply,
       socket

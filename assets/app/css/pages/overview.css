@@ -11,6 +11,12 @@
     & > * {
       flex: 1;
     }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
   }
 
   & .noora-card {
@@ -96,6 +102,11 @@
     flex-direction: row;
     align-items: stretch;
     gap: var(--noora-spacing-4);
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
 
     & > .noora-card__section {
       flex: 1;
