@@ -29,27 +29,53 @@ public struct AppBundle: Equatable {
     }
 
     public struct InfoPlist: Codable, Equatable {
-        public struct PrimaryBundleIcon: Codable, Equatable {
+        public enum PrimaryBundleIcon: Codable, Equatable {
             enum CodingKeys: String, CodingKey {
                 case name = "CFBundleIconName"
                 case iconFiles = "CFBundleIconFiles"
             }
 
-            public let name: String
-            public let iconFiles: [String]
+            case dictionary(name: String, iconFiles: [String])
+            case string(String)
 
-            public init(
-                name: String,
-                iconFiles: [String]
-            ) {
-                self.name = name
-                self.iconFiles = iconFiles
+            public var name: String {
+                switch self {
+                case .dictionary(let name, _), .string(let name):
+                    return name
+                }
+            }
+
+            public var iconFiles: [String] {
+                switch self {
+                case .dictionary(_, let iconFiles):
+                    return iconFiles
+                case .string:
+                    return []
+                }
             }
 
             public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                name = try container.decode(String.self, forKey: .name)
-                iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                    let name = try container.decode(String.self, forKey: .name)
+                    let iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                    self = .dictionary(name: name, iconFiles: iconFiles)
+                } else {
+                    let container = try decoder.singleValueContainer()
+                    let name = try container.decode(String.self)
+                    self = .string(name)
+                }
+            }
+
+            public func encode(to encoder: any Encoder) throws {
+                switch self {
+                case .dictionary(let name, let iconFiles):
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(name, forKey: .name)
+                    try container.encode(iconFiles, forKey: .iconFiles)
+                case .string(let string):
+                    var container = encoder.singleValueContainer()
+                    try container.encode(string)
+                }
             }
         }
 
@@ -197,7 +223,7 @@ public struct AppBundle: Equatable {
             name: String = "AppIcon",
             iconFiles: [String] = ["AppIcon60x60"]
         ) -> Self {
-            .init(
+            .dictionary(
                 name: name,
                 iconFiles: iconFiles
             )

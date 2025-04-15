@@ -42,7 +42,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.simulator(.iOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon.dictionary(
                             name: "AppIcon",
                             iconFiles: ["AppIcon60x60"]
                         )
@@ -73,6 +73,33 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.device(.iOS)],
                     bundleIcons: nil
+                )
+            )
+        )
+    }
+
+    // TODO: Ask for signed tvOS app
+    func test_load_appletv_app_bundle() async throws {
+        // Given
+        let appBundlePath = fixturePath(path: try RelativePath(validating: "tvOS-App.app"))
+
+        // When
+        let appBundle = try await subject.load(appBundlePath)
+
+        // Then
+        XCTAssertBetterEqual(
+            appBundle,
+            AppBundle(
+                path: appBundlePath,
+                infoPlist: AppBundle.InfoPlist(
+                    version: "1.0",
+                    name: "App",
+                    bundleId: "io.tuist.App",
+                    minimumOSVersion: Version("18.2"),
+                    supportedPlatforms: [.device(.tvOS)],
+                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon.string("App Icon")
+                    )
                 )
             )
         )
