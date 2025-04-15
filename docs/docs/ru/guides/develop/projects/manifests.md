@@ -1,5 +1,5 @@
 ---
-title: Manifests
+title: Манифесты
 titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process.
 ---
