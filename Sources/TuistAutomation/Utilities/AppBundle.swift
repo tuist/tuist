@@ -40,14 +40,14 @@ public struct AppBundle: Equatable {
 
             public var name: String {
                 switch self {
-                case .dictionary(let name, _), .string(let name):
+                case let .dictionary(name, _), let .string(name):
                     return name
                 }
             }
 
             public var iconFiles: [String] {
                 switch self {
-                case .dictionary(_, let iconFiles):
+                case let .dictionary(_, iconFiles):
                     return iconFiles
                 case .string:
                     return []
@@ -68,11 +68,11 @@ public struct AppBundle: Equatable {
 
             public func encode(to encoder: any Encoder) throws {
                 switch self {
-                case .dictionary(let name, let iconFiles):
+                case let .dictionary(name, iconFiles):
                     var container = encoder.container(keyedBy: CodingKeys.self)
                     try container.encode(name, forKey: .name)
                     try container.encode(iconFiles, forKey: .iconFiles)
-                case .string(let string):
+                case let .string(string):
                     var container = encoder.singleValueContainer()
                     try container.encode(string)
                 }
