@@ -259,8 +259,10 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          version: v0.22.0
       - name: Docker build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
