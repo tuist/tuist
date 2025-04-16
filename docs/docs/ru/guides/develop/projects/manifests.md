@@ -1,17 +1,17 @@
 ---
 title: Манифесты
 titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process.
+description: Узнайте про манифест файлы, которые Tuist использует, чтобы описать проекты и рабочие пространства и настроить процесс генерации.
 ---
 
 # Манифесты {#manifests}
 
-Tuist defaults to Swift files as the primary way to define projects and workspaces and configure the generation process. These files are referred to as **manifest files** throughout the documentation.
+Tuist по умолчанию использует Swift файлы в качестве основного способа определения проектов и рабочих пространств, а также настройки процесса генерации. В документации эти файлы называются **манифест файлами**.
 
-The decision of using Swift was inspired by the [Swift Package Manager](https://www.swift.org/documentation/package-manager/), which also uses Swift files to define packages. Thanks to the usage of Swift, we can leverage the compiler to validate the correctness of the content and reuse code across different manifest files, and Xcode to provide a first-class editing experience thanks to the syntax highlighting, auto-completion, and validation.
+Решение использовать Swift было вдохновлено менеджером пакетов [Swift Package Manager](https://www.swift.org/documentation/package-manager/), который также использует Swift файлы для описания пакетов. Благодаря использованию Swift мы можем использовать компилятор для валидации содержимого и повторного использования кода в различных манифест файлах, а также Xcode для предоставления первоклассного опыта редактирования благодаря подсветке синтаксиса, автодополнению и валидации.
 
-> [!NOTE] CACHING
-> Since manifest files are Swift files that need to be compiled, Tuist caches the compilation results to speed up the parsing process. Therefore, you'll notice that the first time you run Tuist, it might take a bit longer to generate the project. Subsequent runs will be faster.
+> [!NOTE] Кэширование
+> Поскольку манифест файлы представляют собой файлы Swift, которые необходимо скомпилировать, Tuist кэширует результаты компиляции, чтобы ускорить процесс анализа. Поэтому вы заметите, что при первом запуске Tuist генерация проекта может занять немного больше времени. Последующие запуски будут быстрее.
 
 ## Project.swift {#projectswift}
 
