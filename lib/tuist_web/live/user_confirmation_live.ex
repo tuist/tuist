@@ -115,7 +115,7 @@ defmodule TuistWeb.UserConfirmationLive do
   end
 
   def handle_info(:redirect, socket) do
-    {:noreply, redirect(socket, to: ~p"/auth/create-project")}
+    {:noreply, redirect(socket, to: ~p"/projects/new")}
   end
 
   # Do not log in the user after confirmation to avoid a
