@@ -1967,6 +1967,26 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_organization_members_with_role/1" do
+    test "returns members of an organization" do
+      user_one = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user_one)
+      user_two = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_two, organization, role: :user)
+      user_three = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_three, organization, role: :admin)
+
+      organization_two = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
+
+      # When
+      got = Accounts.get_organization_members_with_role(organization)
+
+      # Then
+      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
+    end
+  end
+
   describe "account_token/1" do
     test "returns account token" do
       # Given

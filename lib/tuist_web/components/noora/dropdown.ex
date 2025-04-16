@@ -9,11 +9,13 @@ defmodule TuistWeb.Noora.Dropdown do
   import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "Unique identifier for the dropdown component"
-  attr :label, :string, required: true, doc: "Main text displayed in the dropdown trigger"
+  attr :label, :string, default: nil, doc: "Main text displayed in the dropdown trigger"
 
   attr :secondary_text, :string,
     default: nil,
     doc: "Secondary text displayed to the left of the main label"
+
+  attr :icon_only, :boolean, default: false, doc: "Whether the dropdown trigger is icon-only"
 
   attr :hint, :string, default: nil, doc: "Hint text for the dropdown"
 
@@ -63,7 +65,7 @@ defmodule TuistWeb.Noora.Dropdown do
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
     >
-      <button data-part="trigger" disabled={@disabled}>
+      <button :if={!@icon_only} size="trigger_size" data-part="trigger" disabled={@disabled}>
         <div data-part="label-wrapper">
           <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
             {render_slot(@icon)}
@@ -82,6 +84,11 @@ defmodule TuistWeb.Noora.Dropdown do
           </div>
         </div>
       </button>
+      <button :if={@icon_only} data-part="trigger" data-icon-only disabled={@disabled}>
+        <div data-part="icon">
+          {render_slot(@icon)}
+        </div>
+      </button>
       <div data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
           {render_slot(@inner_block)}
@@ -95,7 +102,80 @@ defmodule TuistWeb.Noora.Dropdown do
     """
   end
 
+  attr :id, :string, required: true, doc: "Unique identifier for the dropdown component"
+  attr :label, :string, default: nil, doc: "Main text displayed in the dropdown trigger"
+
+  attr :disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled"
+
+  attr :on_open_change, :string, default: nil, doc: "Event handler for when the dropdown opens"
+
+  attr :on_highlight_change, :string,
+    default: nil,
+    doc: "Event handler for when the highlighted option changes"
+
+  attr :on_select, :string, default: nil, doc: "Event handler for when an option is selected"
+
+  attr :on_escape_key_down, :string,
+    default: nil,
+    doc: "Event handler for when the escape key is pressed"
+
+  attr :on_pointer_down_outside, :string,
+    default: nil,
+    doc: "Event handler for when the pointer is pressed outside the dropdown"
+
+  attr :on_focus_outside, :string,
+    default: nil,
+    doc: "Function called when the focus is moved outside the component"
+
+  attr :on_interact_outside, :string,
+    default: nil,
+    doc: "Function called when an interaction happens outside the component"
+
+  slot :inner_block, doc: "Content to be rendered inside the dropdown menu"
+
+  def inline_dropdown(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class="noora-inline-dropdown"
+      phx-hook="NooraDropdown"
+      data-loop-focus
+      data-close-on-select
+      data-typeahead
+      data-on-open-change={@on_open_change}
+      data-on-highlight-change={@on_highlight_change}
+      data-on-select={@on_select}
+      data-on-escape-key-down={@on_escape_key_down}
+      data-on-pointer-down-outside={@on_pointer_down_outside}
+      data-on-focus-outside={@on_focus_outside}
+      data-on-interact-outside={@on_interact_outside}
+    >
+      <button data-part="trigger" disabled={@disabled}>
+        <span data-part="label">{@label}</span>
+        <div data-part="indicator">
+          <div data-part="indicator-down">
+            <.chevron_down />
+          </div>
+          <div data-part="indicator-up">
+            <.chevron_up />
+          </div>
+        </div>
+      </button>
+      <div data-part="positioner">
+        <div class="noora-dropdown-content" data-part="content">
+          {render_slot(@inner_block)}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   attr :value, :string, required: false, doc: "Value associated with the dropdown item"
+
+  attr :on_click, :string,
+    default: nil,
+    doc: "Event handler for when the dropdown item is clicked"
+
   attr :patch, :string, default: nil, doc: "Phoenix LiveView patch navigation path"
   attr :navigate, :string, default: nil, doc: "Phoenix LiveView navigation path"
   attr :href, :string, default: nil, doc: "Standard URL for navigation"
@@ -127,6 +207,8 @@ defmodule TuistWeb.Noora.Dropdown do
       data-part="item"
       data-value={@value || @label}
       data-label={@label}
+      phx-click={@on_click}
+      phx-value-data={@value}
       patch={@patch}
       navigate={@navigate}
       href={@href}

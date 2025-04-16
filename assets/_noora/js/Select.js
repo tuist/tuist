@@ -1,5 +1,5 @@
 import * as select from "@zag-js/select";
-import { getBooleanOption, getOption, normalizeProps, renderPart, spreadProps } from "./util.js";
+import { getBooleanOption, getOption, getPartSelector, normalizeProps, renderPart, spreadProps } from "./util.js";
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
@@ -13,13 +13,21 @@ class Select extends Component {
   }
 
   render() {
-    const parts = ["root", "control", "label", "trigger", "positioner", "content", "hidden-select"];
+    const parts = [
+      "hidden-select",
+      "root",
+      "root:control",
+      "root:control:label",
+      "root:control:trigger",
+      "root:positioner",
+      "root:positioner:content",
+    ];
     for (const part of parts) renderPart(this.el, part, this.api);
     this.renderItems();
   }
 
   renderItems() {
-    for (const item of this.el.querySelectorAll("[data-part='item']")) {
+    for (const item of this.el.querySelectorAll(getPartSelector("root:positioner:content:item"))) {
       const value = item.dataset.value;
       const label = item.dataset.label;
       if (!value || !label) {

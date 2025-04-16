@@ -13,7 +13,7 @@ class Avatar extends Component {
   }
 
   render() {
-    const parts = ["root", "image", "fallback"];
+    const parts = ["root", "root:image", "root:fallback"];
     for (const part of parts) renderPart(this.el, part, this.api);
   }
 }

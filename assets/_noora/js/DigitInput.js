@@ -1,5 +1,5 @@
 import * as menu from "@zag-js/pin-input";
-import { normalizeProps, spreadProps, renderPart, getOption, getBooleanOption } from "./util.js";
+import { normalizeProps, spreadProps, renderPart, getOption, getBooleanOption, getPartSelector } from "./util.js";
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
@@ -13,13 +13,13 @@ class PinInput extends Component {
   }
 
   render() {
-    const parts = ["root", "label"];
+    const parts = ["root", "root:label"];
     for (const part of parts) renderPart(this.el, part, this.api);
     this.renderInputs();
   }
 
   renderInputs() {
-    for (const input of this.el.querySelectorAll("[data-part='input']")) {
+    for (const input of this.el.querySelectorAll(getPartSelector("root:input"))) {
       const index = input.dataset.index;
       if (!index || Number.isNaN(Number.parseInt(index))) {
         console.error("Missing or non-integer `data-index` attribute on input.");

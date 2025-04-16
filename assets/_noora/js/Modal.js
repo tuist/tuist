@@ -13,7 +13,15 @@ class Dialog extends Component {
   }
 
   render() {
-    const parts = ["trigger", "backdrop", "positioner", "content", "title", "description", "close-trigger"];
+    const parts = [
+      "trigger",
+      "backdrop",
+      "positioner",
+      "positioner:content",
+      "positioner:content:title",
+      "positioner:content:description",
+      "positioner:content:close-trigger",
+    ];
     for (const part of parts) renderPart(this.el, part, this.api);
   }
 }

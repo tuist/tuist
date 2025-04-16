@@ -196,7 +196,7 @@ defmodule TuistWeb.AcceptInvitationLive do
   end
 
   def handle_event("decline_invitation", _, socket) do
-    Accounts.decline_invitation(%{invitation: socket.assigns.invitation})
+    Accounts.delete_invitation(%{invitation: socket.assigns.invitation})
 
     {:noreply, assign(socket, declined: true)}
   end

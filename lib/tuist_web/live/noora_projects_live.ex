@@ -43,7 +43,11 @@ defmodule TuistWeb.NooraProjectsLive do
     <div id="projects">
       <div data-part="row">
         <h2 data-part="title">{gettext("Projects")}</h2>
-        <.modal id="create-project-modal" title={gettext("Create project")}>
+        <.modal
+          id="create-project-modal"
+          title={gettext("Create project")}
+          on_dismiss="close-create-project"
+        >
           <:trigger :let={attrs}>
             <.button variant="primary" label={gettext("New project")} {attrs} />
           </:trigger>
@@ -53,7 +57,11 @@ defmodule TuistWeb.NooraProjectsLive do
       <div data-part="grid">
         <div :if={Enum.empty?(@projects)} data-part="empty-state">
           <.project_background />
-          <.modal id="create-project-modal-empty-state" title={gettext("Create project")}>
+          <.modal
+            id="create-project-modal-empty-state"
+            title={gettext("Create project")}
+            on_dismiss="close-create-project"
+          >
             <:trigger :let={attrs}>
               <.button
                 variant="secondary"
@@ -137,8 +145,8 @@ defmodule TuistWeb.NooraProjectsLive do
   def handle_event("close-create-project", _, socket) do
     socket =
       socket
-      |> push_event("close-modal-create-project-modal", %{})
-      |> push_event("close-modal-create-project-modal-empty-state", %{})
+      |> push_event("close-modal", %{id: "create-project-modal"})
+      |> push_event("close-modal", %{id: "create-project-modal-empty-state"})
 
     {:noreply, socket}
   end

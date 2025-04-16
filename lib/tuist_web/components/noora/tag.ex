@@ -13,13 +13,14 @@ defmodule TuistWeb.Noora.Tag do
   attr :label, :string, required: true, doc: "The label of the tag."
   attr :dismissible, :boolean, default: false, doc: "Whether the tag can be dismissed."
   attr :on_dismiss, :string, default: nil, doc: "The event to trigger when the tag is dismissed."
+  attr :dismiss_value, :string, default: nil, doc: "Value to pass to the dismiss event."
   attr :icon, :string, default: nil, doc: "An icon to render in front of the label."
   attr :disabled, :boolean, default: false, doc: "Whether the tag is disabled."
   attr :rest, :global
 
   def tag(assigns) do
     ~H"""
-    <div class="noora-tag" data-disabled={@disabled} aria-disabled={@disabled}>
+    <div class="noora-tag" data-disabled={@disabled} aria-disabled={@disabled} {@rest}>
       <div :if={@icon} data-part="icon">
         <.icon name={@icon} />
       </div>
@@ -30,6 +31,36 @@ defmodule TuistWeb.Noora.Tag do
         disabled={@disabled}
         size="small"
         data-part="dismiss-icon"
+        phx-value-data={@dismiss_value}
+      />
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true, doc: "The label of the tag."
+  attr :dismissible, :boolean, default: false, doc: "Whether the tag can be dismissed."
+  attr :on_dismiss, :string, default: nil, doc: "The event to trigger when the tag is dismissed."
+  attr :dismiss_value, :string, default: nil, doc: "Value to pass to the dismiss event."
+  attr :disabled, :boolean, default: false, doc: "Whether the tag is disabled."
+  attr :rest, :global
+
+  def input_tag(assigns) do
+    ~H"""
+    <div
+      class="noora-tag"
+      data-part="item"
+      data-disabled={@disabled}
+      aria-disabled={@disabled}
+      {@rest}
+    >
+      <span data-part="item-preview">{@label}</span>
+      <.dismiss_icon
+        :if={@dismissible}
+        on_dismiss={@on_dismiss}
+        disabled={@disabled}
+        size="small"
+        data-part="item-delete-trigger"
+        phx-value-data={@dismiss_value}
       />
     </div>
     """

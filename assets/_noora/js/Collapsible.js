@@ -13,7 +13,7 @@ class Collapsible extends Component {
   }
 
   render() {
-    const parts = ["root", "trigger", "content"];
+    const parts = ["root", "root:trigger", "root:content"];
     for (const part of parts) renderPart(this.el, part, this.api);
   }
 }

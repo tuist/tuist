@@ -106,17 +106,50 @@ export const spreadProps = (node, attrs) => {
 };
 
 /**
- * Renders a specific part of the component
- * @param {HTMLElement} root - Root element
- * @param {string} name - Part name
- * @param {Object} api - Component API
+ * Generates a CSS selector string for a part name, handling nesting.
+ *
+ * @param {string} name The name of the part. Use ':' as a separator for nested parts (e.g., "dialog:title").
+ * @returns {string} The CSS selector string (e.g., ":scope > [data-part='dialog'] > [data-part='title']").
+ */
+export const getPartSelector = (name) => {
+  if (typeof name !== "string" || name.trim() === "") {
+    console.warn("[getPartSelector] Invalid name provided.");
+    return;
+  }
+
+  if (name.includes(":")) {
+    const nameParts = name.split(":");
+    return ":scope" + nameParts.map((part) => ` > [data-part='${part}']`).join("");
+  } else {
+    return `:scope > [data-part='${name}']`;
+  }
+};
+
+/**
+ * Spreads props onto a specific part element within a root container.
+ * Handles simple names (e.g., "button") and nested names (e.g., "root:list").
+ *
+ * @param {Element} root The root container element.
+ * @param {string} name The name of the part. Use ':' as a separator for nested parts (e.g., "dialog:title").
+ * @param {object} api An object containing getter functions for props (e.g., { getButtonProps: () => ({...}), getListProps: () => ({...}) }).
  */
 export const renderPart = (root, name, api) => {
-  const camelizedName = name.replace(/(^|-)([a-z])/g, (_match, _prefix, letter) => letter.toUpperCase());
-  const part = root.querySelector(`[data-part='${name}']`);
-  const getterName = `get${camelizedName}Props`;
+  const selector = getPartSelector(name);
 
-  if (part) spreadProps(part, api[getterName]());
+  const getterNamePart = name.includes(":") ? name.substring(name.lastIndexOf(":") + 1) : name;
+
+  const camelizedGetterPart = getterNamePart.replace(/(^|-)([a-z])/g, (_match, _prefix, letter) =>
+    letter.toUpperCase(),
+  );
+  const getterName = `get${camelizedGetterPart}Props`;
+
+  const part = root.querySelector(selector);
+
+  if (part && typeof api[getterName] === "function") {
+    spreadProps(part, api[getterName]());
+  } else if (part && typeof api[getterName] !== "function") {
+    console.warn(`[renderPart] Getter function '${getterName}' not found in API for part name '${name}'.`);
+  }
 };
 
 /**
@@ -186,7 +219,7 @@ export const getAttributes = (root, name) => {
  * @param {Array} attributeMaps - Array of attribute maps to restore
  */
 export const restoreAttributes = (root, attributeMaps) => {
-  for (const attributeMap of attributeMaps) {
+  for (const attributeMap of attributeMaps.filter((val) => Boolean(val))) {
     const part = root.querySelector(`[data-part='${attributeMap.part}']`);
     if (!part) return;
 

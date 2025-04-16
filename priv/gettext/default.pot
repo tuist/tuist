@@ -1180,6 +1180,7 @@ msgid "Effortlessly share your app with a single URL."
 msgstr ""
 
 #: lib/tuist_web/live/noora_billing_live.html.heex:278
+#: lib/tuist_web/live/noora_members_live.ex:158
 #: lib/tuist_web/live/user_forgot_password_live.ex:99
 #: lib/tuist_web/live/user_login_live.ex:203
 #: lib/tuist_web/live/user_registration_live.ex:239
@@ -1187,6 +1188,7 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
+#: lib/tuist_web/live/noora_members_live.ex:217
 #: lib/tuist_web/live/user_forgot_password_live.ex:50
 #: lib/tuist_web/live/user_login_live.ex:112
 #: lib/tuist_web/live/user_registration_live.ex:115
@@ -1778,6 +1780,7 @@ msgid "Measure"
 msgstr ""
 
 #: lib/tuist_web/components/layouts/noora_account.html.heex:20
+#: lib/tuist_web/live/noora_members_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
@@ -1839,7 +1842,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:44
 #: lib/tuist_web/live/create_project_live.ex:64
 #: lib/tuist_web/live/noora_previews_live.html.heex:41
-#: lib/tuist_web/live/noora_projects_live.ex:103
+#: lib/tuist_web/live/noora_projects_live.ex:111
 #: lib/tuist_web/live/previews_live.html.heex:13
 #: lib/tuist_web/live/project_run_detail_live.ex:279
 #, elixir-autogen, elixir-format
@@ -2760,6 +2763,7 @@ msgstr ""
 msgid "Start your Tuist journey."
 msgstr ""
 
+#: lib/tuist_web/live/noora_members_live.ex:161
 #: lib/tuist_web/live/project_run_detail_live.html.heex:95
 #: lib/tuist_web/live/project_runs_live.html.heex:16
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:27
@@ -3859,28 +3863,100 @@ msgstr ""
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:61
+#: lib/tuist_web/live/noora_projects_live.ex:69
 #, elixir-autogen, elixir-format
 msgid "Create new project"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:46
-#: lib/tuist_web/live/noora_projects_live.ex:56
+#: lib/tuist_web/live/noora_projects_live.ex:48
+#: lib/tuist_web/live/noora_projects_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:92
+#: lib/tuist_web/live/noora_projects_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:89
+#: lib/tuist_web/live/noora_projects_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:48
+#: lib/tuist_web/live/noora_projects_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "New project"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:89
+#, elixir-autogen, elixir-format
+msgid "All members"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "Invitations"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:54
+#: lib/tuist_web/live/noora_members_live.ex:196
+#, elixir-autogen, elixir-format
+msgid "Invite member"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "Member"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "Pending"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "Role"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:35
+#, elixir-autogen, elixir-format
+msgid "Search members..."
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:50
+#: lib/tuist_web/live/noora_members_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "Invite member to organization"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:123
+#, elixir-autogen, elixir-format
+msgid "E-mail"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "No members found"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Revoke invite"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Try changing your search term"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "Invite members to your organization"
+msgstr ""
+
+#: lib/tuist_web/live/noora_members_live.ex:185
+#, elixir-autogen, elixir-format
+msgid "No invitations created"
 msgstr ""

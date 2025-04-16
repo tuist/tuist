@@ -48,6 +48,8 @@ defmodule TuistWeb.Noora.Table do
     default: nil,
     doc: "A function to generate the link to navigate to when clicking on a row."
 
+  slot :empty_state, required: false
+
   slot :col, required: true do
     attr :label, :string, required: false, doc: "The label of the column"
     attr :icon, :string, doc: "An icon to render next to the label"
@@ -93,6 +95,11 @@ defmodule TuistWeb.Noora.Table do
               <% else %>
                 {render_slot(col, row)}
               <% end %>
+            </td>
+          </tr>
+          <tr :if={has_slot_content?(@empty_state, assigns) and Enum.empty?(@rows)}>
+            <td colspan={length(@col)}>
+              {render_slot(@empty_state)}
             </td>
           </tr>
         </tbody>

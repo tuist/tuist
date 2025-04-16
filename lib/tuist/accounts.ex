@@ -103,6 +103,19 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
+  def get_organization_members_with_role(%Organization{id: organization_id}) do
+    from(u in User,
+      preload: [:account],
+      join: ur in UserRole,
+      on: ur.user_id == u.id,
+      join: r in Role,
+      on: ur.role_id == r.id,
+      where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+      select: [u, r.name]
+    )
+    |> Repo.all()
+  end
+
   def get_organization_members(%Organization{id: organization_id}, role) do
     query =
       from(user_role in UserRole,
@@ -772,6 +785,16 @@ defmodule Tuist.Accounts do
     Repo.all(query) ++ Repo.all(oauth_query)
   end
 
+  def list_invitations(organization) do
+    from(o in Organization,
+      join: i in Invitation,
+      on: i.organization_id == o.id,
+      where: o.id == ^organization.id,
+      select: i
+    )
+    |> Repo.one()
+  end
+
   def invite_user_to_organization(
         email,
         %{
@@ -805,6 +828,56 @@ defmodule Tuist.Accounts do
     invitation
   end
 
+  def invite_users_to_organization(
+        emails,
+        %{
+          inviter: %User{id: user_id} = inviter,
+          to: %Organization{id: organization_id} = organization,
+          url: url_fun
+        }
+      ) do
+    account = get_account_from_organization(organization)
+
+    multi =
+      Enum.reduce(emails, Ecto.Multi.new(), fn email, multi_acc ->
+        token = Tuist.Tokens.generate_token(16)
+
+        invitation_changeset =
+          Invitation.create_changeset(%Invitation{}, %{
+            token: token,
+            invitee_email: email,
+            inviter_id: user_id,
+            organization_id: organization_id
+          })
+
+        Ecto.Multi.insert(multi_acc, {:invitation, email}, invitation_changeset)
+      end)
+
+    case Repo.transaction(multi) do
+      {:ok, results} ->
+        if Environment.mail_configured?() do
+          send_invitation_emails(results, inviter, organization, account, url_fun)
+        end
+
+        {:ok, results}
+
+      {:error, _failed_operation_key, _failed_value, _changes_so_far} = error ->
+        error
+    end
+  end
+
+  defp send_invitation_emails(results, inviter, organization, account, url_fun) do
+    Enum.each(results, fn {{:invitation, email}, invitation} ->
+      token = invitation.token
+
+      UserNotifier.deliver_invitation(email, %{
+        inviter: inviter,
+        to: %{organization: organization, account: account},
+        url: url_fun.(token)
+      })
+    end)
+  end
+
   def accept_invitation(%{
         invitation: %Invitation{} = invitation,
         invitee: %User{} = invitee,
@@ -814,7 +887,7 @@ defmodule Tuist.Accounts do
     Repo.delete(invitation)
   end
 
-  def decline_invitation(%{invitation: %Invitation{} = invitation}) do
+  def delete_invitation(%{invitation: %Invitation{} = invitation}) do
     Repo.delete(invitation)
   end
 

@@ -13,6 +13,7 @@
     "@zag-js/select": "^1.8.2",
     "@zag-js/store": "^1.8.2",
     "@zag-js/tabs": "^1.8.2",
+    "@zag-js/tags-input": "^1.9.3",
     "@zag-js/tooltip": "^1.8.2",
     "@zag-js/types": "^1.8.2",
     "@zag-js/utils": "^1.8.2",

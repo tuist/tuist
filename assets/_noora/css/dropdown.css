@@ -8,7 +8,6 @@
   position: relative;
   flex-direction: column;
   gap: var(--noora-spacing-3);
-  z-index: 100;
 
   & [data-part="trigger"] {
     --background-base: var(--noora-dropdown-default-background);
@@ -34,6 +33,14 @@
     html[data-theme="dark"] {
       --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.3), 0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45),
         0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+    }
+
+    &[data-icon-only] {
+      box-sizing: content-box;
+      border-radius: var(--noora-radius-medium);
+      padding: var(--noora-spacing-3);
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
     }
 
     & [data-part="icon"] {
@@ -136,6 +143,55 @@
     }
   }
 }
+
+.noora-inline-dropdown {
+  display: flex;
+
+  & > [data-part="trigger"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    cursor: pointer;
+    outline: unset;
+    box-shadow: var(--noora-border-light-default);
+    border: 0;
+    border-radius: var(--noora-radius-small);
+    background: transparent;
+    padding: var(--noora-spacing-1) var(--noora-spacing-2);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & [data-part="indicator"] {
+      display: inline-flex;
+      color: var(--noora-surface-label-secondary);
+
+      & > div {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        width: var(--noora-icon-size-small);
+        height: var(--noora-icon-size-small);
+
+        & svg {
+          width: 100%;
+          height: 100%;
+        }
+      }
+
+      &:not([data-state="open"]) [data-part="indicator-up"] {
+        display: none;
+      }
+
+      &[data-state="open"] [data-part="indicator-down"] {
+        display: none;
+      }
+    }
+  }
+}
+
 .noora-dropdown-content {
   --border: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08) inset,
     0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset, 0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
@@ -144,10 +200,10 @@
   display: none;
   flex-direction: column;
   justify-content: center;
-
   align-items: flex-start;
   align-self: stretch;
   gap: var(--noora-spacing-2);
+  z-index: var(--noora-z-index-10);
   outline: none;
   box-shadow: var(--border);
   border-radius: var(--noora-radius-large);

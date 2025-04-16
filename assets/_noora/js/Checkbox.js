@@ -13,7 +13,7 @@ class Checkbox extends Component {
   }
 
   render() {
-    const parts = ["root", "control", "label", "hidden-input"];
+    const parts = ["root", "root:control", "root:label", "root:hidden-input"];
     for (const part of parts) renderPart(this.el, part, this.api);
   }
 }

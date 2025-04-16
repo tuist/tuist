@@ -22,6 +22,7 @@ defmodule TuistWeb.Noora.Modal do
     doc: "Type of the header"
 
   attr :header_size, :string, values: ~w(small large), default: "large", doc: "Size of the header"
+  attr :on_dismiss, :string, default: nil, doc: "Event to emit when the dismiss icon is clicked."
 
   attr :on_open_change, :string,
     default: nil,
@@ -57,6 +58,7 @@ defmodule TuistWeb.Noora.Modal do
             description={@description}
             type={@header_type}
             size={@header_size}
+            on_dismiss={@on_dismiss}
           >
             <:header_button>{render_slot(@header_button)}</:header_button>
             {render_slot(@header_icon)}
@@ -82,6 +84,8 @@ defmodule TuistWeb.Noora.Modal do
 
   attr :size, :string, values: ~w(small large), default: "large", doc: "Size of the header"
 
+  attr :on_dismiss, :string, default: nil, doc: "Event to emit when the dismiss icon is clicked."
+
   slot :inner_block, doc: "Icon to be rendered in the header when type is 'icon'"
   slot :header_button
 
@@ -95,7 +99,7 @@ defmodule TuistWeb.Noora.Modal do
         <div data-part="row">
           <span data-part="title">{@title}</span>
           <%= if not has_slot_content?(@header_button, assigns) do %>
-            <.dismiss_icon data-part="close-trigger" />
+            <.dismiss_icon data-part="close-trigger" phx-click={@on_dismiss} />
           <% end %>
         </div>
         <div :if={@size == "large"} data-part="description">

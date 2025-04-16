@@ -205,6 +205,10 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
 
+  def can(%User{} = user, :read, %Account{} = account, :invitation) do
+    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+  end
+
   def can(%User{} = user, :delete, %Account{} = account, :invitation) do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
   end
