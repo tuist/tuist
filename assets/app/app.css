@@ -943,10 +943,6 @@ input:checked + .slider:before {
     font: var(--noora-font-weight-medium) var(--noora-font-body-large);
   }
 
-  & > * {
-    z-index: var(--noora-z-index-2);
-  }
-
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
