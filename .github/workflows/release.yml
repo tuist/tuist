@@ -86,8 +86,10 @@ jobs:
             org.opencontainers.image.source=https://github.com/tuist/registry
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          version: v0.22.0
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
