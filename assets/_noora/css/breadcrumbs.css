@@ -2,11 +2,11 @@
   --noora-breadcrumb-icon: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-300));
   --noora-breadcrumb-label: light-dark(var(--nora-neutral-light-1100), var(--noora-neutral-dark-50));
   --noora-breadcrumb-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
+
   display: flex;
   flex-direction: row;
-
   align-items: center;
-  z-index: 100;
+  z-index: var(--noora-z-index-10);
 
   & [data-part="slash"],
   & [data-part="arrow"] {
