@@ -47,7 +47,8 @@ html[data-noora] {
   #forgot-password,
   #reset-password,
   #create-project,
-  #create-organization {
+  #create-organization,
+  #error-page {
     display: flex;
     position: relative;
     justify-content: center;

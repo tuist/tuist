@@ -1,5 +1,7 @@
 defmodule TuistWeb.ErrorHTML do
+  alias Tuist.Accounts
   use TuistWeb, :html
+  use TuistWeb.Noora
 
   # If you want to customize your error pages,
   # uncomment the embed_templates/1 call below
@@ -14,14 +16,14 @@ defmodule TuistWeb.ErrorHTML do
     render_error_page(
       assigns
       |> Map.put(:head_title, gettext("Unauthorized"))
-      |> Map.put(:title, gettext("You are not authorized to view this page."))
+      |> Map.put(:title, gettext("You are not authorized to view this page"))
       |> Map.put(
         :message,
         gettext(
           "Please, make sure you are accessing the right resource and that you have the permissions to access it."
         )
       )
-      |> Map.put(:error_name, gettext("401 error"))
+      |> Map.put(:error_name, gettext("401"))
     )
   end
 
@@ -38,12 +40,12 @@ defmodule TuistWeb.ErrorHTML do
     render_error_page(
       assigns
       |> Map.put(:head_title, gettext("Not found"))
-      |> Map.put(:title, gettext("We can't find that page."))
+      |> Map.put(:title, gettext("Oops, we couldn't find that page"))
       |> Map.put(
         :message,
         reason_message
       )
-      |> Map.put(:error_name, gettext("404 error"))
+      |> Map.put(:error_name, gettext("404"))
     )
   end
 
@@ -65,7 +67,7 @@ defmodule TuistWeb.ErrorHTML do
         :message,
         reason_message
       )
-      |> Map.put(:error_name, gettext("429 error"))
+      |> Map.put(:error_name, gettext("429"))
     )
   end
 
@@ -73,14 +75,14 @@ defmodule TuistWeb.ErrorHTML do
     render_error_page(
       assigns
       |> Map.put(:head_title, gettext("Server error"))
-      |> Map.put(:title, gettext("Oops! Something went wrong."))
+      |> Map.put(:title, gettext("Oops! Something went wrong"))
       |> Map.put(
         :message,
         gettext(
           "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
         )
       )
-      |> Map.put(:error_name, gettext("500 error"))
+      |> Map.put(:error_name, gettext("500"))
     )
   end
 
@@ -92,6 +94,14 @@ defmodule TuistWeb.ErrorHTML do
   end
 
   def render_error_page(assigns) do
+    if FunWithFlags.enabled?(:noora) do
+      render_noora_error_page(assigns)
+    else
+      render_legacy_error_page(assigns)
+    end
+  end
+
+  defp render_legacy_error_page(assigns) do
     ~H"""
     <!DOCTYPE html>
     <html lang="en" class="[scrollbar-gutter:stable]">
@@ -110,6 +120,53 @@ defmodule TuistWeb.ErrorHTML do
           <.legacy_button variant="secondary" class="error-page__home-button">
             <a href={~p"/"}>{gettext("Take me home")}</a>
           </.legacy_button>
+        </div>
+      </body>
+    </html>
+    """
+  end
+
+  defp render_noora_error_page(assigns) do
+    ~H"""
+    <!DOCTYPE html>
+    <html lang="en" class="[scrollbar-gutter:stable]" data-noora>
+      <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
+      </script>
+      <script nonce={get_csp_nonce()}>
+        function cssvar(name) {
+          return getComputedStyle(document.documentElement).getPropertyValue(name);
+        }
+      </script>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="csp-nonce" content={get_csp_nonce()} />
+        <meta name="csrf-token" content={get_csrf_token()} />
+        <.live_title>{"#{@head_title || gettext("Error")} · Tuist"}</.live_title>
+        <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
+      </head>
+      <body>
+        <div id="error-page">
+          <div data-part="header">
+            <h1 data-part="title">
+              {@error_name}
+            </h1>
+            <h2 data-part="subtitle">
+              {@title}
+            </h2>
+          </div>
+          <img src="/images/error_image_light.png" data-theme="light" />
+          <img src="/images/error_image_dark.png" data-theme="dark" />
+          <div data-part="background">
+            <div data-part="top-right-gradient"></div>
+            <div data-part="bottom-left-gradient"></div>
+          </div>
+          <.button
+            variant="primary"
+            size="large"
+            label={gettext("Go to dashboard")}
+            navigate={~p"/dashboard"}
+          />
         </div>
       </body>
     </html>

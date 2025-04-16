@@ -204,26 +204,6 @@ msgstr ""
 msgid "30 days"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:24
-#, elixir-autogen, elixir-format
-msgid "401 error"
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:46
-#, elixir-autogen, elixir-format
-msgid "404 error"
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:68
-#, elixir-autogen, elixir-format
-msgid "429 error"
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:83
-#, elixir-autogen, elixir-format
-msgid "500 error"
-msgstr ""
-
 #: lib/tuist_web/live/overview_live.html.heex:45
 #: lib/tuist_web/live/overview_live.html.heex:381
 #: lib/tuist_web/live/project_dashboard_live.html.heex:9
@@ -1255,7 +1235,8 @@ msgid "Environment:"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:490
-#: lib/tuist_web/controllers/error_html.ex:102
+#: lib/tuist_web/controllers/error_html.ex:112
+#: lib/tuist_web/controllers/error_html.ex:145
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
@@ -1950,7 +1931,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:40
+#: lib/tuist_web/controllers/error_html.ex:42
 #, elixir-autogen, elixir-format
 msgid "Not found"
 msgstr ""
@@ -1985,11 +1966,6 @@ msgstr ""
 #: lib/tuist_web/authorization.ex:61
 #, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:76
-#, elixir-autogen, elixir-format
-msgid "Oops! Something went wrong."
 msgstr ""
 
 #: lib/tuist_web/live/noora_billing_live.html.heex:53
@@ -2129,7 +2105,7 @@ msgstr ""
 msgid "Platform"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:20
+#: lib/tuist_web/controllers/error_html.ex:22
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
@@ -2545,7 +2521,7 @@ msgstr ""
 msgid "Self-host your instance of Tuist"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:75
+#: lib/tuist_web/controllers/error_html.ex:77
 #, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr ""
@@ -2671,17 +2647,17 @@ msgstr ""
 msgid "Social Media Links"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:79
+#: lib/tuist_web/controllers/error_html.ex:81
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:33
+#: lib/tuist_web/controllers/error_html.ex:35
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:55
+#: lib/tuist_web/controllers/error_html.ex:57
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
@@ -2862,7 +2838,7 @@ msgstr ""
 msgid "Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:111
+#: lib/tuist_web/controllers/error_html.ex:121
 #, elixir-autogen, elixir-format
 msgid "Take me home"
 msgstr ""
@@ -3044,12 +3020,12 @@ msgstr ""
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:62
+#: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:63
+#: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
 msgstr ""
@@ -3234,7 +3210,7 @@ msgstr ""
 msgid "Type: %{payment_method_type}"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:16
+#: lib/tuist_web/controllers/error_html.ex:18
 #, elixir-autogen, elixir-format
 msgid "Unauthorized"
 msgstr ""
@@ -3468,11 +3444,6 @@ msgstr ""
 msgid "We believe the best tools are shaped openly, and Tuist GmbH exists to fund and support this vision. Guided by the same principles, we're committed to creating a tool that stands out in the Apple developer space. Our approach to openness is one of curiosity, not caution—driving a shift in perspectives."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:41
-#, elixir-autogen, elixir-format
-msgid "We can't find that page."
-msgstr ""
-
 #: lib/tuist_web/live/accept_invitation_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please try again."
@@ -3574,11 +3545,6 @@ msgstr ""
 #: lib/tuist_web/live/noora_billing_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:17
-#, elixir-autogen, elixir-format
-msgid "You are not authorized to view this page."
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:140
@@ -3989,4 +3955,44 @@ msgstr ""
 #: lib/tuist_web/live/noora_members_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Invite members"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:26
+#, elixir-autogen, elixir-format
+msgid "401"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:48
+#, elixir-autogen, elixir-format
+msgid "404"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:70
+#, elixir-autogen, elixir-format
+msgid "429"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:85
+#, elixir-autogen, elixir-format
+msgid "500"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:167
+#, elixir-autogen, elixir-format
+msgid "Go to dashboard"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:78
+#, elixir-autogen, elixir-format
+msgid "Oops! Something went wrong"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:43
+#, elixir-autogen, elixir-format
+msgid "Oops, we couldn't find that page"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:19
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to view this page"
 msgstr ""
