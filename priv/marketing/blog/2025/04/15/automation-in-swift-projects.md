@@ -129,7 +129,7 @@ Perhaps the most obvious approach, but still worth mentioning, is writing your s
 
 The primary challenge with bash scripts is, well... writing bash. It's not the most enjoyable scripting language to use for complex tasks. The syntax might feel too verbose, and pieces of logic can be difficult to encapsulate and reuse effectively. However, Large Language Models (LLMs) are changing this landscape dramatically.
 
-As previously mentioned, LLMs are becoming increasingly capable of writing code, and scripting code is something they can do very well, including bash. This approach is becoming so popular that developers have coined a term for it: ["vibe coding."](https://en.wikipedia.org/wiki/Vibe_coding) You can effectively "vibe code" your bash scripts, and it's easier than you might think. These scripts generally require low maintenance, but even when maintenance is needed—for example, to add functionality or optimize performance—you can also leverage LLM solutions to assist with these tasks.
+LLMs are becoming increasingly capable of writing code, and scripting code is something they can do very well, including bash. This approach is becoming so popular that developers have coined a term for it: ["vibe coding."](https://en.wikipedia.org/wiki/Vibe_coding) You can effectively "vibe code" your bash scripts, and it's easier than you might think. These scripts generally require low maintenance, but even when maintenance is needed—for example, to add functionality or optimize performance—you can also leverage LLM solutions to assist with these tasks.
 
 Here's a simple bash script example that performs the same build operation:
 
@@ -206,7 +206,7 @@ This shifting landscape means you might want to lean toward the side of portabil
 
 What factors remain, then, in making your decision? The joy and efficiency of writing and maintaining those scripts is a significant consideration, which many teams might find in using Swift. With Swift, you'd be trading away the instant launch time of interpreted languages, but hopefully, this is something that Apple will address in the future, meaning it won't be as much of an issue long-term. However, don't expect the immediate responsiveness of running a bash, Ruby, or Python script.
 
-If you're curious about our approach at Tuist, we leaned into the portability and instant launch time of bash, while leveraging LLMs to help us write and maintain our scripts. This combination has proven effective for our specific needs and workflow.
+Note that you can mix-and-match. For example, you can use Bash scripts for small workflows, and use Swift for more advanced ones such that you can leverage the expressiveness of the language. If you're curious about our approach at Tuist, we leaned into the portability and instant launch time of bash, while leveraging LLMs to help us write and maintain our scripts. This combination has proven effective for our specific needs and workflows.
 
 Our final advice: Don't feel tempted to simply adopt what everyone else is doing, and don't be afraid to pursue a path that feels unconventional for your team. The low-level building blocks have become more capable over the years, so some of the abstractions the community has settled on might no longer be necessary for your specific use case. You'll often be surprised by how far you can go with a simple bash script and an LLM helping you in the process.
 
