@@ -44,12 +44,10 @@ defmodule TuistWeb.Noora.Select do
       id={@id}
       class="noora-dropdown"
       phx-hook="NooraSelect"
+      data-name={@name}
       data-on-value-change={@on_value_change}
     >
-      <select name={@name} data-part="hidden-select">
-        <option :for={item <- @item} value={item.value}>{item.label}</option>
-      </select>
-      <button data-part="trigger" disabled={@disabled}>
+      <button data-part="trigger" disabled={@disabled} type="button">
         <div data-part="label-wrapper">
           <div :if={Enum.find(@item, &(&1.value == @value))[:icon]} data-part="icon">
             <.icon name={Enum.find(@item, &(&1.value == @value))[:icon]} />

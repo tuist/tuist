@@ -731,7 +731,7 @@ msgstr ""
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:74
+#: lib/tuist_web/live/create_project_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Choose an account to create your project or set up a new organization."
 msgstr ""
@@ -893,7 +893,7 @@ msgstr ""
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:91
+#: lib/tuist_web/live/create_project_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -935,7 +935,7 @@ msgid "Create an organization account to continue"
 msgstr ""
 
 #: lib/tuist_web/live/create_organization_live.ex:49
-#: lib/tuist_web/live/create_project_live.ex:94
+#: lib/tuist_web/live/create_project_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -2012,7 +2012,7 @@ msgstr ""
 msgid "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:92
+#: lib/tuist_web/live/create_project_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "Or set up a new organization"
 msgstr ""
@@ -3959,4 +3959,9 @@ msgstr ""
 #: lib/tuist_web/live/noora_members_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Account"
 msgstr ""

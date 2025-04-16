@@ -1,5 +1,5 @@
 import * as select from "@zag-js/select";
-import { getBooleanOption, getOption, getPartSelector, normalizeProps, renderPart, spreadProps } from "./util.js";
+import { getOption, getPartSelector, normalizeProps, renderPart, spreadProps } from "./util.js";
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
@@ -13,21 +13,13 @@ class Select extends Component {
   }
 
   render() {
-    const parts = [
-      "hidden-select",
-      "root",
-      "root:control",
-      "root:control:label",
-      "root:control:trigger",
-      "root:positioner",
-      "root:positioner:content",
-    ];
+    const parts = ["hidden-select", "trigger", "trigger:indicator", "positioner", "positioner:content"];
     for (const part of parts) renderPart(this.el, part, this.api);
     this.renderItems();
   }
 
   renderItems() {
-    for (const item of this.el.querySelectorAll(getPartSelector("root:positioner:content:item"))) {
+    for (const item of this.el.querySelectorAll(getPartSelector("positioner:content:item"))) {
       const value = item.dataset.value;
       const label = item.dataset.label;
       if (!value || !label) {
@@ -58,8 +50,8 @@ export default {
     return {
       id: this.el.id,
       collection: this.collection(),
+      name: getOption(this.el, "name"),
       // Zag.js expects the controlled value to always be an array.
-      value: [getOption(this.el, "value")],
       onValueChange: (details) => {
         if (this.el.dataset.onValueChange) {
           this.pushEvent(this.el.dataset.onValueChange, details);

@@ -68,8 +68,9 @@ defmodule TuistWeb.CreateProjectLive do
               <div data-part="dropdown">
                 <.label label={gettext("Select account")} />
                 <.select
-                  field={@form[:account_id]}
-                  label="Account"
+                  id="account-selection"
+                  name="account_id"
+                  label={gettext("Account")}
                   hint={
                     gettext("Choose an account to create your project or set up a new organization.")
                   }
@@ -122,8 +123,7 @@ defmodule TuistWeb.CreateProjectLive do
         %{"project" => params},
         socket
       ) do
-    with {:ok, account_id} <- Map.fetch(params, "account_id"),
-         %Account{} = account <- Accounts.get_account_by_id(account_id),
+    with %Account{} = account <- Accounts.get_account_by_id(socket.assigns.selected_account),
          true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
          {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
       {:noreply,
