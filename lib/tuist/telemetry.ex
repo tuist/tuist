@@ -58,4 +58,8 @@ defmodule Tuist.Telemetry do
   def event_name_cache() do
     [:tuist, :cache, :event]
   end
+
+  def event_name_repo_pool_metrics() do
+    [:tuist, :repo, :pool, :metrics]
+  end
 end
