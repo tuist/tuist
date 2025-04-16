@@ -999,8 +999,9 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:156
 #: lib/tuist_web/live/accept_invitation_live.ex:166
-#: lib/tuist_web/live/accept_invitation_live.ex:227
-#: lib/tuist_web/live/device_codes_success_live.ex:42
+#: lib/tuist_web/live/accept_invitation_live.ex:226
+#: lib/tuist_web/live/device_codes_success_live.ex:64
+#: lib/tuist_web/live/device_codes_success_live.ex:109
 #: lib/tuist_web/live/project_dashboard_live.ex:21
 #: lib/tuist_web/live/project_dashboard_live.html.heex:4
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:95
@@ -1597,7 +1598,7 @@ msgstr ""
 msgid "Invalid test case identifier"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:216
+#: lib/tuist_web/live/accept_invitation_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted 🎉"
 msgstr ""
@@ -1613,7 +1614,7 @@ msgid "Invitation not found"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:61
-#: lib/tuist_web/live/accept_invitation_live.ex:209
+#: lib/tuist_web/live/accept_invitation_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "Invitation not found or expired"
 msgstr ""
@@ -3104,7 +3105,7 @@ msgstr ""
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:22
+#: lib/tuist_web/live/device_codes_success_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected"
 msgstr ""
@@ -3137,6 +3138,7 @@ msgstr ""
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #: lib/tuist_web/live/create_organization_live.ex:23
 #: lib/tuist_web/live/create_project_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/user_confirmation_live.ex:23
 #: lib/tuist_web/live/user_forgot_password_live.ex:22
 #: lib/tuist_web/live/user_login_live.ex:40
@@ -3168,7 +3170,7 @@ msgstr ""
 msgid "Tuist Tests"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:21
+#: lib/tuist_web/live/device_codes_success_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected"
 msgstr ""
@@ -3193,7 +3195,7 @@ msgstr ""
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:23
+#: lib/tuist_web/live/device_codes_success_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected"
 msgstr ""
@@ -3476,7 +3478,7 @@ msgstr ""
 msgid "We could not find the invitation you are trying to accept. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:211
+#: lib/tuist_web/live/accept_invitation_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please, try again."
 msgstr ""
@@ -3584,22 +3586,22 @@ msgstr ""
 msgid "You are now a part of %{organization} organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:218
+#: lib/tuist_web/live/accept_invitation_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "You are now a part of the %{organization_name} organization"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:28
+#: lib/tuist_web/live/device_codes_success_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app 🎉"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:29
+#: lib/tuist_web/live/device_codes_success_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal 🎉"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:30
+#: lib/tuist_web/live/device_codes_success_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue 🎉"
 msgstr ""
@@ -3964,4 +3966,34 @@ msgstr ""
 #: lib/tuist_web/live/create_project_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Account"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "Tuist CLI is connected!"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "Tuist app is connected!"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Tuist is connected!"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue in the app"
+msgstr ""
+
+#: lib/tuist_web/live/device_codes_success_live.ex:54
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue in the terminal"
 msgstr ""

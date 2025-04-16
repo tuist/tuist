@@ -111,6 +111,9 @@ html[data-noora] {
             text-align: center;
           }
         }
+        & > [data-part="dashboard-button"] {
+          align-self: stretch;
+        }
       }
 
       &:not(:has([data-part="bottom-link"])) {

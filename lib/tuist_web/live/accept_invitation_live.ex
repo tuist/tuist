@@ -169,7 +169,6 @@ defmodule TuistWeb.AcceptInvitationLive do
                     TuistWeb.Authentication.current_user(assigns)
                   )
                 }
-                }
               />
             </div>
           </div>
