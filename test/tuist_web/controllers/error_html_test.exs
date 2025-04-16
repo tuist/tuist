@@ -2,6 +2,12 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
   use ExUnit.Case, async: true
   use Gettext, backend: TuistWeb.Gettext
 
+  setup do
+    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
+
+    :ok
+  end
+
   test "render 401.html" do
     # Given/When
     html =
