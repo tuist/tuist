@@ -3,12 +3,12 @@ defmodule TuistWeb.NooraProjectsLive do
   use TuistWeb.Noora
 
   import TuistWeb.Previews.PlatformIcon
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.ProjectAccount
   alias Tuist.Authorization
+  alias Tuist.Previews
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Accounts.ProjectAccount
-  alias Tuist.Previews
-  alias Tuist.Accounts.Account
 
   @impl true
   def mount(_params, _uri, socket) do
@@ -43,35 +43,16 @@ defmodule TuistWeb.NooraProjectsLive do
     <div id="projects">
       <div data-part="row">
         <h2 data-part="title">{gettext("Projects")}</h2>
-        <.modal
-          id="create-project-modal"
-          title={gettext("Create project")}
-          on_dismiss="close-create-project"
-        >
-          <:trigger :let={attrs}>
-            <.button variant="primary" label={gettext("New project")} {attrs} />
-          </:trigger>
-          <.create_project_form form={@form} />
-        </.modal>
+        <.create_project_form id="create-project-form" form={@form} source="header" />
       </div>
       <div data-part="grid">
         <div :if={Enum.empty?(@projects)} data-part="empty-state">
+          <.create_project_form
+            id="create-project-form-empty-state"
+            form={@form}
+            source="empty-state"
+          />
           <.project_background />
-          <.modal
-            id="create-project-modal-empty-state"
-            title={gettext("Create project")}
-            on_dismiss="close-create-project"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                variant="secondary"
-                size="medium"
-                label={gettext("Create new project")}
-                {attrs}
-              />
-            </:trigger>
-            <.create_project_form form={@form} />
-          </.modal>
         </div>
         <div
           :for={project <- @projects}
@@ -107,16 +88,37 @@ defmodule TuistWeb.NooraProjectsLive do
 
   defp create_project_form(assigns) do
     ~H"""
-    <.form id="create-project-form" for={@form} phx-submit="create-project">
-      <.text_input field={@form[:name]} label={gettext("Name")} />
-      <.modal_footer>
-        <:action>
-          <.button label="Cancel" variant="secondary" type="button" phx-click="close-create-project" />
-        </:action>
-        <:action>
-          <.button label="Save" type="submit" />
-        </:action>
-      </.modal_footer>
+    <.form id={@id} for={@form} phx-submit="create-project">
+      <.modal id={"#{@id}-modal"} title={gettext("Create project")} on_dismiss="close-create-project">
+        <:trigger :let={attrs}>
+          <.button :if={@source == "header"} variant="primary" label={gettext("New project")} {attrs} />
+          <.button
+            :if={@source == "empty-state"}
+            variant="secondary"
+            size="medium"
+            label={gettext("Create a new project")}
+            {attrs}
+          />
+        </:trigger>
+        <.line_divider />
+        <.text_input id={"#{@id}-input"} field={@form[:name]} label={gettext("Name")} />
+        <.line_divider />
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                label="Cancel"
+                variant="secondary"
+                type="button"
+                phx-click="close-create-project"
+              />
+            </:action>
+            <:action>
+              <.button label="Save" type="submit" />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
     </.form>
     """
   end
@@ -134,7 +136,11 @@ defmodule TuistWeb.NooraProjectsLive do
 
     with true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
          {:ok, project} <- Projects.create_project(%{name: name, account: account}) do
-      socket = assign(socket, projects: [project | socket.assigns.projects])
+      socket =
+        assign(socket, projects: [project | socket.assigns.projects])
+        |> push_event("close-modal", %{id: "create-project-form-modal"})
+        |> push_event("close-modal", %{id: "create-project-form-empty-state-modal"})
+
       {:noreply, socket}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -145,8 +151,8 @@ defmodule TuistWeb.NooraProjectsLive do
   def handle_event("close-create-project", _, socket) do
     socket =
       socket
-      |> push_event("close-modal", %{id: "create-project-modal"})
-      |> push_event("close-modal", %{id: "create-project-modal-empty-state"})
+      |> push_event("close-modal", %{id: "create-project-form-modal"})
+      |> push_event("close-modal", %{id: "create-project-form-empty-state-modal"})
 
     {:noreply, socket}
   end

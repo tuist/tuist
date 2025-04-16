@@ -92,7 +92,6 @@ defmodule TuistWeb.Noora.TextInput do
           <.prefix type={@type} prefix={@prefix} />
         </span>
         <input
-          id={@id}
           name={@name}
           value={@value}
           type={type(@type)}

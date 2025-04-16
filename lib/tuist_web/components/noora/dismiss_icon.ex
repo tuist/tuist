@@ -17,6 +17,7 @@ defmodule TuistWeb.Noora.DismissIcon do
       phx-click={@on_dismiss}
       data-size={@size}
       aria-label="Dismiss"
+      type="button"
       {@rest}
     >
       <.close />

@@ -39,8 +39,8 @@
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-8);
-        padding: var(--noora-spacing-0) var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7);
         min-width: 392px;
+
         @media (max-width: 768px) {
           & {
             min-width: 80vw;

@@ -10,9 +10,10 @@ defmodule TuistWeb.NooraMembersLive do
   def mount(_params, _uri, socket) do
     socket =
       assign(socket,
+        form: to_form(%{}),
         selected_tab: "members",
         # NOTE: This should preferably done on the client. Moved this to the server for now because LiveView went into `phx-skip` mode and elements disappeared.
-        selected_inner_tab: "invitations"
+        selected_inner_tab: "members"
         # invite_role: :user,
         # invite_emails: []
       )
@@ -37,7 +38,8 @@ defmodule TuistWeb.NooraMembersLive do
           />
         </.form>
         <div :if={@selected_inner_tab == "invitations"} />
-        <.modal
+
+        <.invite_member_form
           :if={
             Authorization.can(
               @current_user,
@@ -46,41 +48,9 @@ defmodule TuistWeb.NooraMembersLive do
               :invitation
             )
           }
-          id="invite-member"
-          title={gettext("Invite member to organization")}
-          on_dismiss="close-invite-member"
-        >
-          <:trigger :let={attrs}>
-            <.button variant="primary" label={gettext("Invite member")} {attrs} />
-          </:trigger>
-          <.invite_member_form />
-          <%!-- <div id="invite-members-input" phx-hook="NooraTagsInput"> --%>
-          <%!--   <div data-part="root"> --%>
-          <%!--     <span data-part="placeholder">{gettext("Email, comma separated")}</span> --%>
-          <%!--     <.input_tag --%>
-          <%!--       :for={{email, index} <- Enum.with_index(@invite_emails)} --%>
-          <%!--       label={email} --%>
-          <%!--       data-value={email} --%>
-          <%!--       data-index={index} --%>
-          <%!--       dismissible --%>
-          <%!--       on_dismiss="remove-invite-email" --%>
-          <%!--       dismiss_value={email} --%>
-          <%!--       data-invalid={!String.contains?(email, "@")} --%>
-          <%!--     /> --%>
-          <%!--     <input --%>
-          <%!--       id="invite-members-text" --%>
-          <%!--       name="invite-members-text" --%>
-          <%!--       data-part="input" --%>
-          <%!--       phx-keydown="add-invite-email" --%>
-          <%!--     /> --%>
-          <% # NOTE: This doesn't work. The dropdown items disappear once one is selected, and for some reason the modal closes as well. %>
-          <%!-- <.inline_dropdown id="invite-members-role" label={Macro.camelize(Atom.to_string(@invite_role))}> --%>
-          <%!--   <.dropdown_item label={gettext("User")} on_click="select-invite-role" value="user" /> --%>
-          <%!--   <.dropdown_item label={gettext("Admin")} on_click="select-invite-role" value="admin" /> --%>
-          <%!-- </.inline_dropdown> --%>
-          <%!-- </div> --%>
-          <%!-- </div> --%>
-        </.modal>
+          id="invite-member-form"
+          form={@form}
+        />
       </div>
       <div id="members-tabs">
         <div data-part="root">
@@ -187,16 +157,7 @@ defmodule TuistWeb.NooraMembersLive do
                   <div data-part="subtitle">
                     {gettext("Invite members to your organization")}
                   </div>
-                  <.modal
-                    id="invite-member-empty-state"
-                    title={gettext("Invite member to organization")}
-                    on_dismiss="close-invite-member"
-                  >
-                    <:trigger :let={attrs}>
-                      <.button variant="primary" label={gettext("Invite member")} {attrs} />
-                    </:trigger>
-                    <.invite_member_form />
-                  </.modal>
+                  <.invite_member_form id="invite-member-form-empty-state" form={@form} />
                 </div>
               </:empty_state>
             </.table>
@@ -209,23 +170,64 @@ defmodule TuistWeb.NooraMembersLive do
 
   defp invite_member_form(assigns) do
     ~H"""
-    <.form id="invite-member-form" for={%{}} phx-submit="invite-members">
-      <.text_input
-        id="email"
-        name="email"
-        type="email"
-        label={gettext("Email address")}
-        show_prefix={false}
-      />
-      <.modal_footer>
-        <:action>
-          <.button label="Cancel" variant="secondary" type="button" phx-click="close-invite-member" />
-        </:action>
-        <:action>
-          <.button label="Save" type="submit" />
-        </:action>
-      </.modal_footer>
+    <.form id={@id} for={@form} phx-submit="invite-members">
+      <.modal id={"#{@id}-modal"} title={gettext("Create project")} on_dismiss="close-invite-members">
+        <:trigger :let={attrs}>
+          <.button variant="primary" label={gettext("Invite members")} {attrs} />
+        </:trigger>
+        <.line_divider />
+        <.text_input
+          id={"#{@id}-input"}
+          field={@form[:email]}
+          type="email"
+          label={gettext("Email address")}
+          show_prefix={false}
+        />
+        <.line_divider />
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                label="Cancel"
+                variant="secondary"
+                type="button"
+                phx-click="close-invite-members"
+              />
+            </:action>
+            <:action>
+              <.button label="Save" type="submit" />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
     </.form>
+
+    <%!-- <div id="invite-members-input" phx-hook="NooraTagsInput"> --%>
+    <%!--   <div data-part="root"> --%>
+    <%!--     <span data-part="placeholder">{gettext("Email, comma separated")}</span> --%>
+    <%!--     <.input_tag --%>
+    <%!--       :for={{email, index} <- Enum.with_index(@invite_emails)} --%>
+    <%!--       label={email} --%>
+    <%!--       data-value={email} --%>
+    <%!--       data-index={index} --%>
+    <%!--       dismissible --%>
+    <%!--       on_dismiss="remove-invite-email" --%>
+    <%!--       dismiss_value={email} --%>
+    <%!--       data-invalid={!String.contains?(email, "@")} --%>
+    <%!--     /> --%>
+    <%!--     <input --%>
+    <%!--       id="invite-members-text" --%>
+    <%!--       name="invite-members-text" --%>
+    <%!--       data-part="input" --%>
+    <%!--       phx-keydown="add-invite-email" --%>
+    <%!--     /> --%>
+    <% # NOTE: This doesn't work. The dropdown items disappear once one is selected, and for some reason the modal closes as well. %>
+    <%!-- <.inline_dropdown id="invite-members-role" label={Macro.camelize(Atom.to_string(@invite_role))}> --%>
+    <%!--   <.dropdown_item label={gettext("User")} on_click="select-invite-role" value="user" /> --%>
+    <%!--   <.dropdown_item label={gettext("Admin")} on_click="select-invite-role" value="admin" /> --%>
+    <%!-- </.inline_dropdown> --%>
+    <%!-- </div> --%>
+    <%!-- </div> --%>
     """
   end
 
@@ -268,11 +270,11 @@ defmodule TuistWeb.NooraMembersLive do
   #   {:noreply, socket}
   # end
 
-  def handle_event("close-invite-member", _, socket) do
+  def handle_event("close-invite-members", _, socket) do
     socket =
       socket
-      |> push_event("close-modal", %{id: "invite-member"})
-      |> push_event("close-modal", %{id: "invite-member-empty-state"})
+      |> push_event("close-modal", %{id: "invite-member-form-modal"})
+      |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
 
     {:noreply, socket}
   end
@@ -305,8 +307,13 @@ defmodule TuistWeb.NooraMembersLive do
       )
 
     socket =
-      assign(socket, invitations: organization.invitations, invite_emails: [])
-      |> push_event("close-modal-invite-member", %{})
+      assign(socket,
+        invitations: organization.invitations,
+        invite_emails: [],
+        selected_inner_tab: "invitations"
+      )
+      |> push_event("close-modal", %{id: "invite-member-form-modal"})
+      |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
 
     # |> push_event("clear-tags-input-invite-members-input", %{})
 
