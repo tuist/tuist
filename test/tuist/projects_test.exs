@@ -7,6 +7,7 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Accounts.ProjectAccount
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Projects
@@ -443,6 +444,38 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == nil
+    end
+  end
+
+  describe "platforms/1" do
+    test "returns the platforms for a project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      # Then
+      assert Projects.platforms(project) == [:ios]
+    end
+  end
+
+  describe "get_last_command_event_date/1" do
+    test "returns the last command event date" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id
+        )
+
+      # Then
+      assert Projects.get_last_command_event_date(project) == command_event.ran_at
     end
   end
 end

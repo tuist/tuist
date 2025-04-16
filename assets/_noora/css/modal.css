@@ -10,9 +10,15 @@
     background: var(--noora-surface-overlay);
     width: 100dvw;
     height: 100dvh;
+    pointer-events: none;
+
+    /* Prevent flashing of the component before script load */
+    &:not([data-state]) {
+      display: none;
+    }
   }
 
-  & [data-part="positioner"] {
+  & > [data-part="positioner"] {
     display: flex;
     position: fixed;
     top: 50%;
@@ -20,6 +26,11 @@
     transform: translateY(-50%) translateX(-50%);
     z-index: var(--noora-z-index-10);
     box-sizing: border-box;
+
+    /* Prevent flashing of the component before script load */
+    &:not(:has(> div[data-state])) {
+      display: none;
+    }
   }
 
   & [data-part="trigger"] ~ [data-part="positioner"],
@@ -142,7 +153,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7);
+    padding: var(--noora-spacing-6) var(--noora-spacing-0) var(--noora-spacing-0);
 
     & [data-part="actions"] {
       display: flex;

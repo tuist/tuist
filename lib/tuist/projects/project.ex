@@ -5,6 +5,7 @@ defmodule Tuist.Projects.Project do
   use Ecto.Schema
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
+  alias Tuist.Previews.Preview
   import Ecto.Changeset
 
   schema "projects" do
@@ -15,6 +16,8 @@ defmodule Tuist.Projects.Project do
     field :vcs_repository_full_handle, :string
     field :vcs_provider, Ecto.Enum, values: [github: 0]
     belongs_to :account, Account
+
+    has_many :previews, Preview
 
     has_many :users_with_last_visited_projects, User,
       foreign_key: :last_visited_project_id,

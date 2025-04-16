@@ -287,4 +287,23 @@ defmodule Tuist.Projects do
         nil
     end
   end
+
+  def platforms(project) do
+    project
+    |> Repo.preload(:previews)
+    |> Map.get(:previews)
+    |> Enum.map(& &1.supported_platforms)
+    |> List.flatten()
+    |> Enum.uniq()
+  end
+
+  def get_last_command_event_date(project) do
+    from(ce in Event,
+      where: ce.project_id == ^project.id,
+      order_by: [desc: ce.ran_at],
+      limit: 1,
+      select: ce.ran_at
+    )
+    |> Repo.one()
+  end
 end

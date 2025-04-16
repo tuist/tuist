@@ -1839,6 +1839,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:44
 #: lib/tuist_web/live/create_project_live.ex:64
 #: lib/tuist_web/live/noora_previews_live.html.heex:41
+#: lib/tuist_web/live/noora_projects_live.ex:103
 #: lib/tuist_web/live/previews_live.html.heex:13
 #: lib/tuist_web/live/project_run_detail_live.ex:279
 #, elixir-autogen, elixir-format
@@ -2247,6 +2248,8 @@ msgstr ""
 #: lib/tuist_web/components/layouts/noora_account.html.heex:14
 #: lib/tuist_web/live/account_projects_live.ex:20
 #: lib/tuist_web/live/account_projects_live.html.heex:4
+#: lib/tuist_web/live/noora_projects_live.ex:37
+#: lib/tuist_web/live/noora_projects_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -2979,6 +2982,7 @@ msgstr ""
 #: lib/tuist_web/authorization.ex:77
 #: lib/tuist_web/authorization.ex:93
 #: lib/tuist_web/live/account_projects_live.ex:11
+#: lib/tuist_web/live/noora_projects_live.ex:20
 #: lib/tuist_web/live/project_run_detail_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
@@ -3853,4 +3857,30 @@ msgstr ""
 #: lib/tuist_web/plugs/loader_plug.ex:49
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
+msgstr ""
+
+#: lib/tuist_web/live/noora_projects_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "Create new project"
+msgstr ""
+
+#: lib/tuist_web/live/noora_projects_live.ex:46
+#: lib/tuist_web/live/noora_projects_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "Create project"
+msgstr ""
+
+#: lib/tuist_web/live/noora_projects_live.ex:92
+#, elixir-autogen, elixir-format
+msgid "Created %{time}"
+msgstr ""
+
+#: lib/tuist_web/live/noora_projects_live.ex:89
+#, elixir-autogen, elixir-format
+msgid "Last interacted with %{time}"
+msgstr ""
+
+#: lib/tuist_web/live/noora_projects_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "New project"
 msgstr ""
