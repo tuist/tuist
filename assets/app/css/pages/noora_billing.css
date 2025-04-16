@@ -276,8 +276,10 @@
         gap: var(--noora-spacing-3);
 
         & > [data-part="billing-email"] {
+          cursor: not-allowed;
           box-shadow: var(--noora-border-light-default);
           border-radius: var(--noora-radius-medium);
+          background: var(--noora-surface-background-tertiary);
           padding: var(--noora-spacing-3) var(--noora-spacing-4);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
