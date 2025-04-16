@@ -430,18 +430,20 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_run_throws_when_the_manifest_loading_fails() async throws {
-        for manifest in DumpableManifest.allCases {
-            let tmpDir = try temporaryPath()
-            try "invalid config".write(
-                toFile: tmpDir.appending(component: manifest.manifest.fileName(tmpDir)).pathString,
-                atomically: true,
-                encoding: .utf8
-            )
-            do {
-                try await subject.run(path: tmpDir.pathString, manifest: manifest)
-                XCTFail("Expected error not thrown")
-            } catch {
-                // can't use XCTAssertError because it doesn't support async
+        try await ServiceContext.withTestingDependencies {
+            for manifest in DumpableManifest.allCases {
+                let tmpDir = try temporaryPath()
+                try "invalid config".write(
+                    toFile: tmpDir.appending(component: manifest.manifest.fileName(tmpDir)).pathString,
+                    atomically: true,
+                    encoding: .utf8
+                )
+                do {
+                    try await subject.run(path: tmpDir.pathString, manifest: manifest)
+                    XCTFail("Expected error not thrown")
+                } catch {
+                    // can't use XCTAssertError because it doesn't support async
+                }
             }
         }
     }

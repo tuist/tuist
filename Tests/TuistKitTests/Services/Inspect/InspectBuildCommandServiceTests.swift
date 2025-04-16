@@ -7,12 +7,14 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import TuistSupportTesting
+import ServiceContextModule
 
 @testable import TuistKit
 
+@Suite(.mocked)
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
-    private let environment = MockEnvironmenting()
     private let ciChecker = MockCIChecking()
     private let configLoader = MockConfigLoading()
     private let xcactivityParser = MockXCActivityParsing()
@@ -74,17 +76,12 @@ struct InspectBuildCommandServiceTests {
             .macOSVersion
             .willReturn("13.2.0")
 
-        given(environment)
-            .schemeName
-            .willReturn("App")
-
         given(xcodeBuildController)
             .version()
             .willReturn(Version(16, 0, 0))
 
-        given(environment)
-            .tuistVariables
-            .willReturn(["TUIST_INSPECT_BUILD_WAIT": "YES"])
+        ServiceContext.current!.testEnvironment?.tuistVariables = ["TUIST_INSPECT_BUILD_WAIT": "YES"]
+        ServiceContext.current!.testEnvironment?.schemeName = "App"
 
         given(dateService)
             .now()
@@ -98,9 +95,8 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            given(environment)
-                .workspacePath
-                .willReturn(projectPath)
+            ServiceContext.current!.testEnvironment?.workspacePath =  projectPath
+
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -153,13 +149,8 @@ struct InspectBuildCommandServiceTests {
     @Test
     func test_when_should_not_wait() async throws {
         // Given
-        environment.reset()
-        given(environment)
-            .tuistVariables
-            .willReturn([:])
-        given(environment)
-            .workspacePath
-            .willReturn("/tmp/path")
+        ServiceContext.current!.testEnvironment?.tuistVariables = [:]
+        ServiceContext.current!.testEnvironment?.workspacePath =  "/tmp/path"
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -178,15 +169,14 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
-    @Test
     func test_createsBuild_with_path_from_cli() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
+            ServiceContext.current!.testEnvironment?.tuistVariables = [:]
+            ServiceContext.current!.testEnvironment?.workspacePath =  nil
+
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -222,9 +212,8 @@ struct InspectBuildCommandServiceTests {
             try await fileSystem.makeDirectory(at: workspacePath)
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
+            ServiceContext.current!.testEnvironment?.workspacePath =  nil
+            
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -261,10 +250,8 @@ struct InspectBuildCommandServiceTests {
     func test_when_no_project_exists_at_a_given_path() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
-            // When / Then
+            ServiceContext.current!.testEnvironment?.workspacePath =  nil
+
             // When / Then
             await #expect(
                 throws: InspectBuildCommandServiceError.projectNotFound(
@@ -281,9 +268,8 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            given(environment)
-                .workspacePath
-                .willReturn(projectPath)
+            ServiceContext.current!.testEnvironment?.workspacePath =  projectPath
+            
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -307,9 +293,8 @@ struct InspectBuildCommandServiceTests {
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
+            ServiceContext.current!.testEnvironment?.workspacePath =  nil
+            
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)

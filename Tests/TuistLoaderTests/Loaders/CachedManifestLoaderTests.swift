@@ -98,90 +98,100 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     // MARK: - Tests
 
     func test_load_manifestNotCached() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
 
-        // When
-        let result = try await subject.loadProject(at: path)
+            // When
+            let result = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(result, project)
-        XCTAssertEqual(result.name, "App")
+            // Then
+            XCTAssertEqual(result, project)
+            XCTAssertEqual(result.name, "App")
+        }
     }
 
     func test_load_manifestCached() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
 
-        // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+            // When
+            _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
+            let result = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(result, project)
-        XCTAssertEqual(recordedLoadProjectCalls, 1)
+            // Then
+            XCTAssertEqual(result, project)
+            XCTAssertEqual(recordedLoadProjectCalls, 1)
+        }
     }
 
     func test_load_manifestHashChanged() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let originalProject = Project.test(name: "Original")
-        try await stubProject(originalProject, at: path)
-        _ = try await subject.loadProject(at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let originalProject = Project.test(name: "Original")
+            try await stubProject(originalProject, at: path)
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        let modifiedProject = Project.test(name: "Modified")
-        try await stubProject(modifiedProject, at: path)
-        let result = try await subject.loadProject(at: path)
+            // When
+            let modifiedProject = Project.test(name: "Modified")
+            try await stubProject(modifiedProject, at: path)
+            let result = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(result, modifiedProject)
-        XCTAssertEqual(result.name, "Modified")
+            // Then
+            XCTAssertEqual(result, modifiedProject)
+            XCTAssertEqual(result.name, "Modified")
+        }
     }
 
     func test_load_helpersHashChanged() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        try stubHelpers(withHash: "hash")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            try stubHelpers(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        try stubHelpers(withHash: "updatedHash")
-        subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+            // When
+            try stubHelpers(withHash: "updatedHash")
+            subject = createSubject() // we need to re-create the subject as it internally caches hashes
+            _ = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(recordedLoadProjectCalls, 2)
+            // Then
+            XCTAssertEqual(recordedLoadProjectCalls, 2)
+        }
     }
 
     func test_load_pluginsHashChanged() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        given(manifestLoader)
-            .register(plugins: .any)
-            .willReturn()
-        try stubPlugins(withHash: "hash")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            given(manifestLoader)
+                .register(plugins: .any)
+                .willReturn()
+            try stubPlugins(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        try stubPlugins(withHash: "updatedHash")
-        subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+            // When
+            try stubPlugins(withHash: "updatedHash")
+            subject = createSubject() // we need to re-create the subject as it internally caches hashes
+            _ = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(recordedLoadProjectCalls, 2)
+            // Then
+            XCTAssertEqual(recordedLoadProjectCalls, 2)
+        }
     }
 
     func test_load_environmentVariablesRemainTheSame() async throws {
@@ -223,156 +233,174 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     func test_load_tuistVersionRemainsTheSame() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            subject = createSubject(tuistVersion: "1.0")
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+            // When
+            subject = createSubject(tuistVersion: "1.0")
+            _ = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(recordedLoadProjectCalls, 1)
+            // Then
+            XCTAssertEqual(recordedLoadProjectCalls, 1)
+        }
     }
 
     func test_load_tuistVersionChanged() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            subject = createSubject(tuistVersion: "1.0")
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        subject = createSubject(tuistVersion: "2.0")
-        _ = try await subject.loadProject(at: path)
+            // When
+            subject = createSubject(tuistVersion: "2.0")
+            _ = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(recordedLoadProjectCalls, 2)
+            // Then
+            XCTAssertEqual(recordedLoadProjectCalls, 2)
+        }
     }
 
     func test_load_corruptedCache() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-        _ = try await subject.loadProject(at: path)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+            _ = try await subject.loadProject(at: path)
 
-        // When
-        try corruptFiles(at: cacheDirectory)
-        let result = try await subject.loadProject(at: path)
+            // When
+            try corruptFiles(at: cacheDirectory)
+            let result = try await subject.loadProject(at: path)
 
-        // Then
-        XCTAssertEqual(result, project)
-        XCTAssertEqual(recordedLoadProjectCalls, 2)
+            // Then
+            XCTAssertEqual(result, project)
+            XCTAssertEqual(recordedLoadProjectCalls, 2)
+        }
     }
 
     func test_load_missingManifest() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
 
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: path) },
-            ManifestLoaderError.manifestNotFound(.project, path)
-        )
+            // When / Then
+            await XCTAssertThrowsSpecific(
+                { try await self.subject.loadProject(at: path) },
+                ManifestLoaderError.manifestNotFound(.project, path)
+            )
+        }
     }
 
     func test_validate_projectExists() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        given(manifestLoader)
-            .manifests(at: .any)
-            .willReturn([.project])
-        given(manifestLoader)
-            .validateHasRootManifest(at: .value(path))
-            .willReturn()
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            given(manifestLoader)
+                .manifests(at: .any)
+                .willReturn([.project])
+            given(manifestLoader)
+                .validateHasRootManifest(at: .value(path))
+                .willReturn()
 
-        // When / Then
-        try await subject.validateHasRootManifest(at: path)
+            // When / Then
+            try await subject.validateHasRootManifest(at: path)
+        }
     }
 
     func test_validate_workspaceExists() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        given(manifestLoader)
-            .validateHasRootManifest(at: .value(path))
-            .willReturn()
-        given(manifestLoader)
-            .manifests(at: .any)
-            .willReturn([.workspace])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            given(manifestLoader)
+                .validateHasRootManifest(at: .value(path))
+                .willReturn()
+            given(manifestLoader)
+                .manifests(at: .any)
+                .willReturn([.workspace])
 
-        // When / Then
-        try await subject.validateHasRootManifest(at: path)
+            // When / Then
+            try await subject.validateHasRootManifest(at: path)
+        }
     }
 
     func test_validate_manifestDoesNotExist() async throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        given(manifestLoader)
-            .validateHasRootManifest(at: .value(path))
-            .willThrow(ManifestLoaderError.manifestNotFound(path))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath().appending(component: "App")
+            given(manifestLoader)
+                .validateHasRootManifest(at: .value(path))
+                .willThrow(ManifestLoaderError.manifestNotFound(path))
 
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.validateHasRootManifest(at: path),
-            ManifestLoaderError.manifestNotFound(path)
-        )
+            // When / Then
+            await XCTAssertThrowsSpecific(
+                try await subject.validateHasRootManifest(at: path),
+                ManifestLoaderError.manifestNotFound(path)
+            )
+        }
     }
 
     func test_notThrowing_fileAlreadyExistsNIOError() async throws {
-        // Given
-        let fileSystem = MockFileSystem()
-        fileSystem.writeTextOverride = { _, _, _ in
-            throw NIOFileSystem.FileSystemError(
-                code: .fileAlreadyExists,
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let fileSystem = MockFileSystem()
+            fileSystem.writeTextOverride = { _, _, _ in
+                throw NIOFileSystem.FileSystemError(
+                    code: .fileAlreadyExists,
+                    message: "",
+                    cause: nil,
+                    location: .init(function: "", file: "", line: 0)
+                )
+            }
+
+            subject = createSubject(fileSystem: fileSystem)
+
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+
+            // When
+            let result = try await subject.loadProject(at: path)
+
+            // Then
+            XCTAssertEqual(result, project)
+            XCTAssertEqual(result.name, "App")
+        }
+    }
+
+    func test_throwing_otherNIOErrors() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedError = NIOFileSystem.FileSystemError(
+                code: .invalidArgument,
                 message: "",
                 cause: nil,
                 location: .init(function: "", file: "", line: 0)
             )
+            let fileSystem = MockFileSystem()
+            fileSystem.writeTextOverride = { _, _, _ in
+                throw expectedError
+            }
+
+            subject = createSubject(fileSystem: fileSystem)
+
+            let path = try temporaryPath().appending(component: "App")
+            let project = Project.test(name: "App")
+            try await stubProject(project, at: path)
+
+            // When/Then
+            await XCTAssertThrowsSpecific(
+                { try await self.subject.loadProject(at: path) },
+                expectedError
+            )
         }
-
-        subject = createSubject(fileSystem: fileSystem)
-
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When
-        let result = try await subject.loadProject(at: path)
-
-        // Then
-        XCTAssertEqual(result, project)
-        XCTAssertEqual(result.name, "App")
-    }
-
-    func test_throwing_otherNIOErrors() async throws {
-        // Given
-        let expectedError = NIOFileSystem.FileSystemError(
-            code: .invalidArgument,
-            message: "",
-            cause: nil,
-            location: .init(function: "", file: "", line: 0)
-        )
-        let fileSystem = MockFileSystem()
-        fileSystem.writeTextOverride = { _, _, _ in
-            throw expectedError
-        }
-
-        subject = createSubject(fileSystem: fileSystem)
-
-        let path = try temporaryPath().appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When/Then
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: path) },
-            expectedError
-        )
     }
 
     // MARK: - Helpers

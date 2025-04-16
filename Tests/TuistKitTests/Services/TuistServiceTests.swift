@@ -5,6 +5,7 @@ import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
 import XCTest
+import ServiceContextModule
 
 @testable import TuistKit
 
@@ -75,25 +76,27 @@ final class TuistServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_command_is_global() async throws {
-        // Given
-        var whichCommand: String?
-        system.whichStub = { invokedWhichCommand in
-            whichCommand = invokedWhichCommand
-            return ""
-        }
-        system.succeedCommand(["tuist-my-command", "argument-one"])
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.default)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            var whichCommand: String?
+            system.whichStub = { invokedWhichCommand in
+                whichCommand = invokedWhichCommand
+                return ""
+            }
+            system.succeedCommand(["tuist-my-command", "argument-one"])
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
 
-        // When/Then
-        var _error: Error?
-        do {
-            try await subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
-        } catch {
-            _error = error
+            // When/Then
+            var _error: Error?
+            do {
+                try await subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
+            } catch {
+                _error = error
+            }
+            XCTAssertNil(_error)
+            XCTAssertEqual(whichCommand, "tuist-my-command")
         }
-        XCTAssertNil(_error)
-        XCTAssertEqual(whichCommand, "tuist-my-command")
     }
 }

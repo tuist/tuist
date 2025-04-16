@@ -4,17 +4,21 @@ import ServiceContextModule
 import TuistSupport
 import XCTest
 
+func _fixturePath(path: RelativePath) -> AbsolutePath {
+    // swiftlint:disable:next force_try
+    try! AbsolutePath(
+        validating: ProcessInfo.processInfo
+            .environment["TUIST_CONFIG_SRCROOT"]!
+    )
+    .appending(components: "Tests", "Fixtures")
+    .appending(path)
+}
+
 extension XCTestCase {
     // MARK: - Fixtures
 
     public func fixturePath(path: RelativePath) -> AbsolutePath {
-        // swiftlint:disable:next force_try
-        try! AbsolutePath(
-            validating: ProcessInfo.processInfo
-                .environment["TUIST_CONFIG_SRCROOT"]!
-        )
-        .appending(components: "Tests", "Fixtures")
-        .appending(path)
+        return _fixturePath(path: path)
     }
 
     // MARK: - XCTAssertions

@@ -14,13 +14,15 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
         system.succeedCommand(["/usr/bin/xcrun", "swift", "-version"], output: "Swift Version 5.2.1")
     }
 
-    func test_create_default_cached_manifest_loader() {
-        // Given
-        let sut = ManifestLoaderFactory()
-        // When
-        let result = sut.createManifestLoader()
-        // Then
-        XCTAssert(type(of: result) is CachedManifestLoader.Type)
+    func test_create_default_cached_manifest_loader() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let sut = ManifestLoaderFactory()
+            // When
+            let result = sut.createManifestLoader()
+            // Then
+            XCTAssert(type(of: result) is CachedManifestLoader.Type)
+        }
     }
 
     func test_create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable() async throws {

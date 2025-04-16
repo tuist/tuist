@@ -1,6 +1,7 @@
 import Path
 import TuistSupport
 import XCTest
+import ServiceContextModule
 @testable import TuistLoader
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -31,76 +32,80 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
     }
 
     func test_build_dylid_once_for_unique_path_when_built_many_times() async throws {
-        // Given
-        let paths: [AbsolutePath] = [
-            "/path/to/helpers/1",
-            "/path/to/helpers/2",
-            "/path/to/helpers/3",
-        ].flatMap { path in
-            Array(repeating: path, count: 5)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let paths: [AbsolutePath] = [
+                "/path/to/helpers/1",
+                "/path/to/helpers/2",
+                "/path/to/helpers/3",
+            ].flatMap { path in
+                Array(repeating: path, count: 5)
+            }
+            .shuffled()
+
+            let projectDescriptionPath = try await resourceLocator.projectDescription()
+            let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+
+            system.defaultCaptureStubs = (nil, nil, 0)
+            projectDescriptionHelpersHasher.stubHash = { $0.basename }
+
+            // When
+            var allModules: [ProjectDescriptionHelpersModule] = []
+
+            for path in paths {
+                helpersDirectoryLocator.locateStub = path
+                let modules = try await subject.build(
+                    at: path,
+                    projectDescriptionSearchPaths: searchPaths,
+                    projectDescriptionHelperPlugins: []
+                )
+                allModules.append(contentsOf: modules)
+            }
+
+            // Then
+            XCTAssertEqual(system.calls.count, 3)
+            XCTAssertEqual(allModules.uniqued().count, 3)
         }
-        .shuffled()
-
-        let projectDescriptionPath = try await resourceLocator.projectDescription()
-        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
-
-        system.defaultCaptureStubs = (nil, nil, 0)
-        projectDescriptionHelpersHasher.stubHash = { $0.basename }
-
-        // When
-        var allModules: [ProjectDescriptionHelpersModule] = []
-
-        for path in paths {
-            helpersDirectoryLocator.locateStub = path
-            let modules = try await subject.build(
-                at: path,
-                projectDescriptionSearchPaths: searchPaths,
-                projectDescriptionHelperPlugins: []
-            )
-            allModules.append(contentsOf: modules)
-        }
-
-        // Then
-        XCTAssertEqual(system.calls.count, 3)
-        XCTAssertEqual(allModules.uniqued().count, 3)
     }
 
     func test_build_dylid_once_for_unique_path_when_built_many_times_when_new_builder_created_between_runs() async throws {
-        // Given
-        let paths: [AbsolutePath] = [
-            "/path/to/helpers/1",
-            "/path/to/helpers/2",
-            "/path/to/helpers/3",
-        ].flatMap { path in
-            Array(repeating: path, count: 5)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let paths: [AbsolutePath] = [
+                "/path/to/helpers/1",
+                "/path/to/helpers/2",
+                "/path/to/helpers/3",
+            ].flatMap { path in
+                Array(repeating: path, count: 5)
+            }
+            .shuffled()
+
+            let projectDescriptionPath = try await resourceLocator.projectDescription()
+            let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+
+            system.defaultCaptureStubs = (nil, nil, 0)
+            projectDescriptionHelpersHasher.stubHash = { $0.basename }
+
+            // When
+            var allModules: [ProjectDescriptionHelpersModule] = []
+            for path in paths {
+                helpersDirectoryLocator.locateStub = path
+                let modules = try await subject.build(
+                    at: path,
+                    projectDescriptionSearchPaths: searchPaths,
+                    projectDescriptionHelperPlugins: []
+                )
+                allModules.append(contentsOf: modules)
+
+                try initSubject() // next iteration would be using a different subject, no runtime cache
+                try prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time this
+                // path is checked, no build action should be released
+            }
+
+            // Then
+            XCTAssertEqual(system.calls.count, 3) // one per path
+            XCTAssertEqual(allModules.uniqued().count, 3)
         }
-        .shuffled()
-
-        let projectDescriptionPath = try await resourceLocator.projectDescription()
-        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
-
-        system.defaultCaptureStubs = (nil, nil, 0)
-        projectDescriptionHelpersHasher.stubHash = { $0.basename }
-
-        // When
-        var allModules: [ProjectDescriptionHelpersModule] = []
-        for path in paths {
-            helpersDirectoryLocator.locateStub = path
-            let modules = try await subject.build(
-                at: path,
-                projectDescriptionSearchPaths: searchPaths,
-                projectDescriptionHelperPlugins: []
-            )
-            allModules.append(contentsOf: modules)
-
-            try initSubject() // next iteration would be using a different subject, no runtime cache
-            try prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time this
-            // path is checked, no build action should be released
-        }
-
-        // Then
-        XCTAssertEqual(system.calls.count, 3) // one per path
-        XCTAssertEqual(allModules.uniqued().count, 3)
     }
 
     private func prepareProjectDescriptionHelpersCacheDirectory(for path: AbsolutePath) throws {

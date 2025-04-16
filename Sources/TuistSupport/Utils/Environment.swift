@@ -259,8 +259,8 @@ public struct Environment: Environmenting {
             queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
         }
 
-        public var workspacePath: AbsolutePath? { nil }
-        public var schemeName: String? { nil }
+        public var workspacePath: AbsolutePath? = nil
+        public var schemeName: String? = nil
         public var currentExecutablePathStub: AbsolutePath?
         public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub }
     }

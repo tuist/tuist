@@ -1,31 +1,20 @@
 import FileSystem
 import Foundation
 import XcodeGraph
-import XCTest
+import Testing
+import ServiceContextModule
 
 @testable import TuistLoader
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class ManifestLoaderTests: TuistTestCase {
-    private var subject: ManifestLoader!
-    private var fileSystem: FileSysteming!
+struct ManifestLoaderTests {
+    private var subject: ManifestLoader = ManifestLoader()
+    private var fileSystem: FileSysteming = FileSystem()
 
-    override func setUp() {
-        super.setUp()
-        fileSystem = FileSystem()
-        subject = ManifestLoader()
-    }
-
-    override func tearDown() {
-        fileSystem = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_loadConfig() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadConfig() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         import ProjectDescription
         let config = Config()
@@ -42,9 +31,9 @@ final class ManifestLoaderTests: TuistTestCase {
         _ = try await subject.loadConfig(at: temporaryPath)
     }
 
-    func test_loadPlugin() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadPlugin() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         import ProjectDescription
         let plugin = Plugin(name: "TestPlugin")
@@ -57,9 +46,9 @@ final class ManifestLoaderTests: TuistTestCase {
         _ = try await subject.loadPlugin(at: temporaryPath)
     }
 
-    func test_loadProject() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadProject() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         import ProjectDescription
         let project = Project(name: "tuist")
@@ -76,12 +65,12 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadProject(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got.name, "tuist")
+        #expect(got.name == "tuist")
     }
 
-    func test_loadPackage() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadPackage() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         // swift-tools-version: 5.9
         import PackageDescription
@@ -125,8 +114,8 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadPackage(at: manifestPath.parentDirectory)
 
         // Then
-        XCTAssertBetterEqual(
-            got,
+        #expect(
+            got ==
             .test(
                 name: "tuist",
                 products: [
@@ -152,9 +141,9 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_loadPackageSettings() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadPackageSettings() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         // swift-tools-version: 5.9
         import PackageDescription
@@ -191,8 +180,8 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadPackageSettings(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(
-            got,
+        #expect(
+            got ==
             .init(
                 targetSettings: [
                     "TargetA": .settings(base: [
@@ -203,9 +192,9 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
-    func test_loadPackageSettings_without_package_settings() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadPackageSettings_without_package_settings() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         // swift-tools-version: 5.9
         import PackageDescription
@@ -231,15 +220,15 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadPackageSettings(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(
-            got,
+        #expect(
+            got ==
             .init()
         )
     }
 
-    func test_loadWorkspace() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadWorkspace() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         import ProjectDescription
         let workspace = Workspace(name: "tuist", projects: [])
@@ -256,13 +245,13 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadWorkspace(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got.name, "tuist")
+        #expect(got.name == "tuist")
     }
 
-    func test_loadTemplate() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_loadTemplate() async throws {
         // Given
-        let temporaryPath = try temporaryPath().appending(component: "folder")
-        try fileHandler.createFolder(temporaryPath)
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!.appending(component: "folder")
+        try await fileSystem.makeDirectory(at: temporaryPath)
         let content = """
         import ProjectDescription
 
@@ -283,12 +272,12 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.loadTemplate(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got.description, "Template description")
+        #expect(got.description == "Template description")
     }
 
-    func test_load_invalidFormat() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_load_invalidFormat() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let content = """
         import ABC
         let project
@@ -302,66 +291,53 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When / Then
-        var _error: Error?
-        do {
-            _ = try await subject.loadProject(at: temporaryPath)
-        } catch {
-            _error = error
-        }
-        XCTAssertNotNil(_error)
+        await #expect(throws: Error.self, performing: { try await subject.loadProject(at: temporaryPath) })
     }
 
-    func test_load_missingManifest() async throws {
-        let temporaryPath = try temporaryPath()
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: temporaryPath) },
-            ManifestLoaderError.manifestNotFound(.project, temporaryPath)
-        )
+    @Test(.mocked, .temporaryDirectory) func test_load_missingManifest() async throws {
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
+        await #expect(throws: ManifestLoaderError.manifestNotFound(.project, temporaryPath), performing: { try await self.subject.loadProject(at: temporaryPath) })
     }
 
-    func test_manifestsAt() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_manifestsAt() async throws {
         // Given
-        let fileHandler = FileHandler()
-        let temporaryPath = try temporaryPath()
-        try fileHandler.touch(temporaryPath.appending(component: "Project.swift"))
-        try fileHandler.touch(temporaryPath.appending(component: "Workspace.swift"))
-        try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
+        try await fileSystem.touch(temporaryPath.appending(component: "Project.swift"))
+        try await fileSystem.touch(temporaryPath.appending(component: "Workspace.swift"))
+        try await fileSystem.touch(temporaryPath.appending(component: "Config.swift"))
 
         // When
         let got = try await subject.manifests(at: temporaryPath)
 
         // Then
-        XCTAssertTrue(got.contains(.project))
-        XCTAssertTrue(got.contains(.workspace))
-        XCTAssertTrue(got.contains(.config))
+        #expect(got.contains(.project) == true)
+        #expect(got.contains(.workspace) == true)
+        #expect(got.contains(.config) == true)
     }
 
-    func test_manifestLoadError() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_manifestLoadError() async throws {
         // Given
-        let fileHandler = FileHandler()
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = ServiceContext.current!.temporaryDirectory!
         let configPath = temporaryPath.appending(component: "Config.swift")
-        try fileHandler.touch(configPath)
-        let data = try fileHandler.readFile(configPath)
+        try await fileSystem.touch(configPath)
+        let data = try await fileSystem.readFile(at: configPath)
 
         // When
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.loadConfig(at: temporaryPath) },
-            ManifestLoaderError.manifestLoadingFailed(
-                path: temporaryPath.appending(component: "Config.swift"),
-                data: data,
-                context: """
-                The encoded data for the manifest is corrupted.
-                The given data was not valid JSON.
-                """
-            )
-        )
+        await #expect(throws: ManifestLoaderError.manifestLoadingFailed(
+            path: temporaryPath.appending(component: "Config.swift"),
+            data: data,
+            context: """
+            The encoded data for the manifest is corrupted.
+            The given data was not valid JSON.
+            """
+        ), performing: { try await self.subject.loadConfig(at: temporaryPath) })
     }
 
-    func test_validate_projectExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_validate_projectExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Project.swift")
         )
 
@@ -369,10 +345,11 @@ final class ManifestLoaderTests: TuistTestCase {
         try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_workspaceExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_validate_workspaceExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
 
@@ -380,10 +357,10 @@ final class ManifestLoaderTests: TuistTestCase {
         try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_packageExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_validate_packageExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
+        try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )
 
@@ -391,20 +368,17 @@ final class ManifestLoaderTests: TuistTestCase {
         try await subject.validateHasRootManifest(at: path)
     }
 
-    func test_validate_manifestDoesNotExist() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_validate_manifestDoesNotExist() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.validateHasRootManifest(at: path),
-            ManifestLoaderError.manifestNotFound(path)
-        )
+        await #expect(throws: ManifestLoaderError.manifestNotFound(path), performing: { try await subject.validateHasRootManifest(at: path) })
     }
 
-    func test_hasRootManifest_projectExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_hasRootManifest_projectExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
         try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Project.swift")
@@ -414,13 +388,13 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.hasRootManifest(at: path)
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got == true)
     }
 
-    func test_hasRootManifest_workspaceExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_hasRootManifest_workspaceExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
+        try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
 
@@ -428,13 +402,13 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.hasRootManifest(at: path)
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got == true)
     }
 
-    func test_hasRootManifest_packageExists() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_hasRootManifest_packageExists() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
+        try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )
 
@@ -442,17 +416,17 @@ final class ManifestLoaderTests: TuistTestCase {
         let got = try await subject.hasRootManifest(at: path)
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got == true)
     }
 
-    func test_hasRootManifest_manifestDoesNotExist() async throws {
+    @Test(.mocked, .temporaryDirectory) func test_hasRootManifest_manifestDoesNotExist() async throws {
         // Given
-        let path = try temporaryPath().appending(component: "App")
+        let path = ServiceContext.current!.temporaryDirectory!.appending(component: "App")
 
         // When
         let got = try await subject.hasRootManifest(at: path)
 
         // Then
-        XCTAssertFalse(got)
+        #expect(got == false)
     }
 }

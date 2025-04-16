@@ -5,30 +5,20 @@ import TuistCoreTesting
 import TuistLoaderTesting
 import TuistSupport
 import XcodeProj
-import XCTest
+import Testing
+import ServiceContextModule
 
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class StableXcodeProjIntegrationTests: TuistTestCase {
-    private var fileSystem: FileSysteming!
+struct StableXcodeProjIntegrationTests {
+    private var fileSystem: FileSysteming = FileSystem()
 
-    override func setUp() {
-        super.setUp()
-
-        fileSystem = FileSystem()
-    }
-
-    override func tearDown() {
-        fileSystem = nil
-
-        super.tearDown()
-    }
-
+    @Test(.mocked, .temporaryDirectory)
     func testXcodeProjStructureDoesNotChangeAfterRegeneration() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryDirectory = ServiceContext.current!.temporaryDirectory!
         var capturedProjects = [[XcodeProj]]()
         var capturedWorkspaces = [XCWorkspace]()
         var capturedSharedSchemes = [[XCScheme]]()
@@ -49,7 +39,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                 resources: 100,
                 headers: 100
             )
-            let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
+            let modelGenerator = TestModelGenerator(rootPath: temporaryDirectory, config: config)
             let graph = try await modelGenerator.generate()
             let graphTraverser = GraphTraverser(graph: graph)
 
@@ -59,9 +49,9 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
             // unfortunately they are not equatable, however once serialized & deserialized back they are
             try await writer.write(workspace: workspaceDescriptor)
             let xcworkspace = try XCWorkspace(path: workspaceDescriptor.xcworkspacePath.path)
-            let xcodeProjs = try findXcodeProjs(in: xcworkspace)
-            let sharedSchemes = try await findSharedSchemes(in: xcworkspace)
-            let userSchemes = try await findUserSchemes(in: xcworkspace)
+            let xcodeProjs = try findXcodeProjs(in: xcworkspace, temporaryDirectory: temporaryDirectory)
+            let sharedSchemes = try await findSharedSchemes(in: xcworkspace, temporaryDirectory: temporaryDirectory)
+            let userSchemes = try await findUserSchemes(in: xcworkspace, temporaryDirectory: temporaryDirectory)
 
             capturedProjects.append(xcodeProjs)
             capturedWorkspaces.append(xcworkspace)
@@ -75,32 +65,30 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         let unstableSharedSchemes = capturedSharedSchemes.dropFirst().filter { $0 != capturedSharedSchemes.first }
         let unstableUserSchemes = capturedUserSchemes.dropFirst().filter { $0 != capturedUserSchemes.first }
 
-        XCTAssertEqual(unstableProjects.count, 0)
-        XCTAssertEqual(unstableWorkspaces.count, 0)
-        XCTAssertEqual(unstableSharedSchemes.count, 0)
-        XCTAssertEqual(unstableUserSchemes.count, 0)
+        #expect(unstableProjects.count == 0)
+        #expect(unstableWorkspaces.count == 0)
+        #expect(unstableSharedSchemes.count == 0)
+        #expect(unstableUserSchemes.count == 0)
     }
 
     // MARK: - Helpers
 
-    private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
-        let temporaryPath = try temporaryPath()
-        let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
+    private func findXcodeProjs(in workspace: XCWorkspace, temporaryDirectory: AbsolutePath) throws -> [XcodeProj] {
+        let projectsPaths = try workspace.projectPaths.map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
     }
 
-    private func findSharedSchemes(in workspace: XCWorkspace) async throws -> [XCScheme] {
-        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcshareddata"))
+    private func findSharedSchemes(in workspace: XCWorkspace, temporaryDirectory: AbsolutePath) async throws -> [XCScheme] {
+        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcshareddata"), temporaryDirectory: temporaryDirectory)
     }
 
-    private func findUserSchemes(in workspace: XCWorkspace) async throws -> [XCScheme] {
-        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcuserdata"))
+    private func findUserSchemes(in workspace: XCWorkspace, temporaryDirectory: AbsolutePath) async throws -> [XCScheme] {
+        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcuserdata"), temporaryDirectory: temporaryDirectory)
     }
 
-    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) async throws -> [XCScheme] {
-        let temporaryPath = try temporaryPath()
-        let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
+    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath, temporaryDirectory: AbsolutePath) async throws -> [XCScheme] {
+        let projectsPaths = try workspace.projectPaths.map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
         let schemes: [XCScheme] = try await parentDir.concurrentMap {
             try await self.fileSystem.glob(
