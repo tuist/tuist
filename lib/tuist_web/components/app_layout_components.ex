@@ -220,6 +220,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
             <img src="/images/tuist_dashboard.png" alt={gettext("Tuist Icon")} class="headerbar__logo" />
           </.link>
+          <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
         </div>
         <div data-part="right-section">
           <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
