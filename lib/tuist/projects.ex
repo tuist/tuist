@@ -294,6 +294,7 @@ defmodule Tuist.Projects do
     |> Map.get(:previews)
     |> Enum.map(& &1.supported_platforms)
     |> List.flatten()
+    |> Enum.uniq()
   end
 
   def get_last_command_event_date(project) do
