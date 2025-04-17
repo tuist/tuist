@@ -2643,6 +2643,7 @@ msgid "Unauthorized"
 msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:25
+#: lib/tuist_web/components/runs/ran_by_badge.ex:22
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:40
 #: lib/tuist_web/live/run_detail_live.html.heex:205
 #: lib/tuist_web/live/run_detail_live.html.heex:276
