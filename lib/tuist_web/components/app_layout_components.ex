@@ -11,72 +11,12 @@ defmodule TuistWeb.AppLayoutComponents do
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.LineDivider
 
-  defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
-
-  attr(:current_path, :string, required: true)
-  attr(:current_user, :map, required: true)
-  attr(:selected_account, :map, required: true)
-  attr(:current_user_accounts, :list, required: true)
-  attr(:can_read_billing, :boolean, required: true)
-
-  def account_sidebar(assigns) do
-    ~H"""
-    <nav class="sidebar">
-      <.dropdown_picker
-        :if={length(@current_user_accounts) > 0}
-        class="sidebar__dropdown"
-        menu_id="account-projects"
-        menu_class="sidebar__dropdown__menu"
-      >
-        {@selected_account.name}
-        <:content>
-          <a :for={account <- @current_user_accounts} href={~p"/#{account.name}/projects"}>
-            {account.name}
-          </a>
-        </:content>
-      </.dropdown_picker>
-      <ul class="sidebar__navigation-list">
-        <% projects_path = ~p"/#{@selected_account.name}/projects" %>
-        <li
-          class="sidebar__navigation-list__item"
-          aria-selected={if projects_path == @current_path, do: "true", else: "false"}
-          aria-current={if projects_path == @current_path, do: "page", else: nil}
-        >
-          <a href={projects_path}>
-            <.briefcase_icon />
-            <p class="text-md semibold">{gettext("Projects")}</p>
-          </a>
-        </li>
-        <%= if @can_read_billing do %>
-          <% billing_path = ~p"/#{@selected_account.name}/billing" %>
-          <li
-            class="sidebar__navigation-list__item"
-            aria-selected={if billing_path == @current_path, do: "true", else: "false"}
-            aria-current={if billing_path == @current_path, do: "page", else: nil}
-          >
-            <a href={billing_path}>
-              <.credit_card_icon />
-              <p class="text-md semibold">{gettext("Billing")}</p>
-            </a>
-          </li>
-        <% end %>
-      </ul>
-    </nav>
-    """
-  end
-
-  def project_sidebar(assigns) do
-    ~H"""
-    <.noora_project_sidebar {assigns} />
-    """
-  end
-
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
   attr(:selected_run, :map, required: true)
   attr(:current_path, :string, required: true)
 
-  defp noora_project_sidebar(assigns) do
+  def project_sidebar(assigns) do
     ~H"""
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>

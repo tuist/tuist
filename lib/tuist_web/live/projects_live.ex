@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraProjectsLive do
+defmodule TuistWeb.ProjectsLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
 

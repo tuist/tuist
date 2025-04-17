@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraPreviewLiveTest do
+defmodule TuistWeb.PreviewLiveTest do
   alias TuistWeb.Authentication
   alias TuistTestSupport.Fixtures.PreviewsFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
@@ -9,8 +9,6 @@ defmodule TuistWeb.NooraPreviewLiveTest do
 
   setup %{project: project} do
     preview = PreviewsFixtures.preview_fixture(project: project)
-
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
 
     %{preview: preview}
   end

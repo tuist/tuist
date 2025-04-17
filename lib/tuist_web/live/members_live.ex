@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraMembersLive do
+defmodule TuistWeb.MembersLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   alias Tuist.Accounts

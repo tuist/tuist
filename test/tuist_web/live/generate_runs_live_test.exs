@@ -8,11 +8,6 @@ defmodule TuistWeb.GenerateRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  setup %{conn: conn} do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-    %{conn: conn}
-  end
-
   test "lists latest generate runs", %{
     conn: conn,
     user: user,

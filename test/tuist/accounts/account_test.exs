@@ -90,12 +90,7 @@ defmodule Tuist.AccountTest do
     end
   end
 
-  describe "noora changes: create_changeset/2" do
-    setup do
-      FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-      :ok
-    end
-
+  describe "create_changeset/2" do
     test "valid name passes all validations" do
       changeset =
         Account.create_changeset(%Account{}, %{

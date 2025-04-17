@@ -1,4 +1,3 @@
-@import "./layouts/navigation_bar.css";
 @import "./layouts/header_bar.css";
 @import "./layouts/account.css";
 
@@ -16,9 +15,7 @@
   overflow: hidden;
 
   & .noora-sidebar {
-    html[data-noora] & {
-      margin-top: var(--noora-spacing-5);
-    }
+    margin-top: var(--noora-spacing-5);
   }
 }
 
@@ -32,17 +29,7 @@
 
 .layout__content {
   flex: 1;
+
+  padding: var(--noora-spacing-5);
   overflow-y: scroll;
-
-  html[data-noora] & {
-    padding: var(--noora-spacing-5);
-  }
-}
-
-.page {
-  padding: var(--spacing-4xl);
-
-  @media (max-width: 1024px) {
-    padding: var(--spacing-4xl) var(--spacing-xl);
-  }
 }

@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraBillingLive do
+defmodule TuistWeb.BillingLive do
   alias Tuist.Accounts
   use TuistWeb, :live_view
   use TuistWeb.Noora

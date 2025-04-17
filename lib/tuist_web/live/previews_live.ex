@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraPreviewsLive do
+defmodule TuistWeb.PreviewsLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Previews.AppPreview

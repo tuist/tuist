@@ -8,8 +8,6 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-
     user = AccountsFixtures.user_fixture()
 
     %{account: account} =

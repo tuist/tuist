@@ -107,7 +107,6 @@ defmodule TuistWeb do
       import TuistWeb.HeadlessComponents
       import TuistWeb.AppAuthComponents
       import TuistWeb.Components.IconComponents
-      import TuistWeb.AppCommandEventComponents
       use Gettext, backend: TuistWeb.Gettext
 
       # Shortcut for generating JS commands

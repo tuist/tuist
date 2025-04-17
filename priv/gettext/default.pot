@@ -22,7 +22,7 @@ msgid "\"We approach openness with curiosity, not fear.\""
 msgstr ""
 
 #: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/noora_billing_live.ex:218
+#: lib/tuist_web/live/billing_live.ex:218
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:46
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr ""
 msgid "$0.5"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:172
+#: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "$0.50"
 msgstr ""
@@ -62,7 +62,7 @@ msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/noora_preview_live.ex:44
+#: lib/tuist_web/live/preview_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
@@ -84,7 +84,7 @@ msgstr ""
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:240
+#: lib/tuist_web/live/billing_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
 msgstr ""
@@ -111,7 +111,7 @@ msgstr ""
 msgid "%{test_runs_average_duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:36
+#: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "/per month"
 msgstr ""
@@ -167,11 +167,6 @@ msgstr ""
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:6
-#, elixir-autogen, elixir-format
-msgid "A list of tests that Tuist has identified as flaky."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "A selfie of Marek and Pedro in Seoul, South Korea"
@@ -219,14 +214,14 @@ msgstr ""
 msgid "Account settings"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:228
+#: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Add payment method"
 msgstr ""
 
 #: lib/tuist/billing.ex:34
-#: lib/tuist_web/live/noora_billing_live.ex:193
-#: lib/tuist_web/live/noora_billing_live.html.heex:52
+#: lib/tuist_web/live/billing_live.ex:193
+#: lib/tuist_web/live/billing_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr ""
@@ -237,13 +232,13 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:261
+#: lib/tuist_web/live/billing_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "All billing correspondence will go to this email"
 msgstr ""
 
 #: lib/tuist/billing.ex:41
-#: lib/tuist_web/live/noora_billing_live.ex:198
+#: lib/tuist_web/live/billing_live.ex:198
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr ""
@@ -333,15 +328,14 @@ msgstr ""
 msgid "Back to log in"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:59
-#: lib/tuist_web/components/layouts/noora_account.html.heex:26
-#: lib/tuist_web/live/noora_billing_live.ex:70
-#: lib/tuist_web/live/noora_billing_live.html.heex:3
+#: lib/tuist_web/components/layouts/account.html.heex:26
+#: lib/tuist_web/live/billing_live.ex:70
+#: lib/tuist_web/live/billing_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:258
+#: lib/tuist_web/live/billing_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Billing email"
 msgstr ""
@@ -424,8 +418,8 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:70
 #: lib/tuist_web/live/generate_runs_live.html.heex:70
-#: lib/tuist_web/live/noora_preview_live.html.heex:112
-#: lib/tuist_web/live/noora_previews_live.html.heex:50
+#: lib/tuist_web/live/preview_live.html.heex:112
+#: lib/tuist_web/live/previews_live.html.heex:50
 #: lib/tuist_web/live/test_runs_live.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -436,18 +430,16 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/noora_previews_live.html.heex:69
+#: lib/tuist_web/live/previews_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:98
+#: lib/tuist_web/live/preview_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
 msgstr ""
 
-#: lib/tuist_web/components/app_command_event_components.ex:21
-#: lib/tuist_web/components/app_command_event_components.ex:40
 #: lib/tuist_web/live/overview_live.ex:258
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:371
@@ -482,7 +474,7 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:117
+#: lib/tuist_web/live/billing_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
 msgstr ""
@@ -492,7 +484,7 @@ msgstr ""
 msgid "Change your password"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:116
+#: lib/tuist_web/live/billing_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
 msgstr ""
@@ -544,15 +536,14 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:44
 #: lib/tuist_web/live/generate_runs_live.html.heex:44
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:24
 #: lib/tuist_web/live/run_detail_live.html.heex:67
 #: lib/tuist_web/live/test_runs_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:119
-#: lib/tuist_web/live/noora_previews_live.html.heex:59
+#: lib/tuist_web/live/preview_live.html.heex:119
+#: lib/tuist_web/live/previews_live.html.heex:59
 #: lib/tuist_web/live/test_runs_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
@@ -569,12 +560,12 @@ msgstr ""
 msgid "Community support"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:199
+#: lib/tuist_web/live/billing_live.ex:199
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:92
+#: lib/tuist_web/live/billing_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Community support: Support via community forum"
 msgstr ""
@@ -589,7 +580,7 @@ msgstr ""
 msgid "Compilation Optimizations"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:111
+#: lib/tuist_web/live/billing_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
 msgstr ""
@@ -650,7 +641,7 @@ msgid "Contact"
 msgstr ""
 
 #: lib/tuist/billing.ex:71
-#: lib/tuist_web/live/noora_billing_live.ex:249
+#: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr ""
@@ -696,18 +687,18 @@ msgstr ""
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:240
+#: lib/tuist_web/live/billing_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr ""
 
 #: lib/tuist/billing.ex:69
-#: lib/tuist_web/live/noora_billing_live.html.heex:79
+#: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:92
+#: lib/tuist_web/live/preview_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Created by"
 msgstr ""
@@ -717,27 +708,27 @@ msgstr ""
 msgid "Cube outline icon"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:203
-#: lib/tuist_web/live/noora_billing_live.ex:227
-#: lib/tuist_web/live/noora_billing_live.html.heex:6
+#: lib/tuist_web/live/billing_live.ex:203
+#: lib/tuist_web/live/billing_live.ex:227
+#: lib/tuist_web/live/billing_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr ""
 
 #: lib/tuist/billing.ex:70
-#: lib/tuist_web/live/noora_billing_live.ex:241
-#: lib/tuist_web/live/noora_billing_live.html.heex:64
+#: lib/tuist_web/live/billing_live.ex:241
+#: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr ""
 
 #: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/noora_billing_live.ex:243
+#: lib/tuist_web/live/billing_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:105
+#: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
@@ -787,7 +778,7 @@ msgstr ""
 msgid "Design systems"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:79
+#: lib/tuist_web/live/preview_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Details"
 msgstr ""
@@ -837,7 +828,7 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:10
+#: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
 msgstr ""
@@ -847,13 +838,13 @@ msgstr ""
 msgid "Don’t have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:206
+#: lib/tuist_web/live/billing_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:18
-#: lib/tuist_web/live/noora_preview_live.html.heex:60
+#: lib/tuist_web/live/preview_live.html.heex:18
+#: lib/tuist_web/live/preview_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
@@ -888,13 +879,13 @@ msgstr ""
 msgid "Effortlessly share your app with a single URL."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:278
-#: lib/tuist_web/live/noora_members_live.ex:128
+#: lib/tuist_web/live/billing_live.html.heex:278
+#: lib/tuist_web/live/members_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:183
+#: lib/tuist_web/live/members_live.ex:183
 #: lib/tuist_web/live/user_forgot_password_live.ex:46
 #: lib/tuist_web/live/user_login_live.ex:102
 #: lib/tuist_web/live/user_registration_live.ex:111
@@ -928,8 +919,8 @@ msgid "Enter your username to confirm"
 msgstr ""
 
 #: lib/tuist/billing.ex:67
-#: lib/tuist_web/live/noora_billing_live.ex:239
-#: lib/tuist_web/live/noora_billing_live.html.heex:55
+#: lib/tuist_web/live/billing_live.ex:239
+#: lib/tuist_web/live/billing_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
 msgstr ""
@@ -946,7 +937,6 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:490
 #: lib/tuist_web/controllers/error_html.ex:112
 #, elixir-autogen, elixir-format
 msgid "Error"
@@ -1021,11 +1011,6 @@ msgstr ""
 msgid "Features"
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:4
-#, elixir-autogen, elixir-format
-msgid "Flaky tests"
-msgstr ""
-
 #: lib/tuist_web/live/user_login_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
@@ -1053,19 +1038,19 @@ msgid "Founder & CTO"
 msgstr ""
 
 #: lib/tuist/billing.ex:37
-#: lib/tuist_web/live/noora_billing_live.ex:195
-#: lib/tuist_web/live/noora_billing_live.html.heex:61
-#: lib/tuist_web/live/noora_billing_live.html.heex:62
+#: lib/tuist_web/live/billing_live.ex:195
+#: lib/tuist_web/live/billing_live.html.heex:61
+#: lib/tuist_web/live/billing_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:19
+#: lib/tuist_web/live/billing_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Free tier exceeded"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:197
+#: lib/tuist_web/live/billing_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr ""
@@ -1093,7 +1078,7 @@ msgstr ""
 msgid "Generous base price"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:96
+#: lib/tuist_web/live/billing_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr ""
@@ -1103,7 +1088,7 @@ msgstr ""
 msgid "Generous free monthly tier"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:87
+#: lib/tuist_web/live/billing_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr ""
@@ -1123,13 +1108,13 @@ msgstr ""
 msgid "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:194
+#: lib/tuist_web/live/billing_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr ""
 
 #: lib/tuist/billing.ex:36
-#: lib/tuist_web/live/noora_billing_live.html.heex:73
+#: lib/tuist_web/live/billing_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
 msgstr ""
@@ -1221,12 +1206,7 @@ msgstr ""
 msgid "Included for free"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:489
-#, elixir-autogen, elixir-format
-msgid "Info"
-msgstr ""
-
-#: lib/tuist_web/live/noora_preview_live.html.heex:129
+#: lib/tuist_web/live/preview_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Install App"
 msgstr ""
@@ -1254,11 +1234,6 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Interviewee or author's avatar"
-msgstr ""
-
-#: lib/tuist_web/live/project_test_case_detail_live.ex:15
-#, elixir-autogen, elixir-format
-msgid "Invalid test case identifier"
 msgstr ""
 
 #: lib/tuist_web/live/accept_invitation_live.ex:96
@@ -1316,19 +1291,14 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:31
-#, elixir-autogen, elixir-format
-msgid "Last flaky run"
-msgstr ""
-
-#: lib/tuist_web/live/noora_previews_live.html.heex:20
 #: lib/tuist_web/live/overview_live.html.heex:327
+#: lib/tuist_web/live/previews_live.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
 msgstr ""
 
 #: lib/tuist_web/components/empty_state.ex:41
-#: lib/tuist_web/live/noora_billing_live.html.heex:34
+#: lib/tuist_web/live/billing_live.html.heex:34
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Learn more"
@@ -1339,7 +1309,7 @@ msgstr ""
 msgid "Like, totally free"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:90
+#: lib/tuist_web/live/billing_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Like, totally free: All features, no credit card required"
 msgstr ""
@@ -1382,7 +1352,7 @@ msgstr ""
 msgid "Longevity manifesto"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:4
+#: lib/tuist_web/live/billing_live.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Manage your billing and payment details"
 msgstr ""
@@ -1404,8 +1374,8 @@ msgstr ""
 msgid "Measure"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/noora_account.html.heex:20
-#: lib/tuist_web/live/noora_members_live.ex:29
+#: lib/tuist_web/components/layouts/account.html.heex:20
+#: lib/tuist_web/live/members_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
@@ -1426,24 +1396,13 @@ msgstr ""
 msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:25
 #: lib/tuist_web/live/run_detail_live.html.heex:185
 #: lib/tuist_web/live/run_detail_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr ""
 
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:38
-#, elixir-autogen, elixir-format
-msgid "Module hash"
-msgstr ""
-
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:11
-#, elixir-autogen, elixir-format
-msgid "Module: %{module_name}"
-msgstr ""
-
-#: lib/tuist_web/live/noora_billing_live.ex:155
+#: lib/tuist_web/live/billing_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr ""
@@ -1455,8 +1414,8 @@ msgstr ""
 
 #: lib/tuist_web/live/create_organization_live.ex:44
 #: lib/tuist_web/live/create_project_live.ex:64
-#: lib/tuist_web/live/noora_previews_live.html.heex:41
-#: lib/tuist_web/live/noora_projects_live.ex:104
+#: lib/tuist_web/live/previews_live.html.heex:41
+#: lib/tuist_web/live/projects_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1486,8 +1445,7 @@ msgstr ""
 msgid "Newsletter issues are sent bi-weekly and you can unsubscribe at any time."
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:777
-#: lib/tuist_web/components/app_components.ex:830
+#: lib/tuist_web/components/app_components.ex:159
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -1516,11 +1474,6 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:18
-#, elixir-autogen, elixir-format
-msgid "No flaky tests"
-msgstr ""
-
 #: lib/tuist_web/live/overview_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "No previews yet"
@@ -1531,12 +1484,7 @@ msgstr ""
 msgid "No recent builds yet"
 msgstr ""
 
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "No runs"
-msgstr ""
-
-#: lib/tuist_web/live/noora_preview_live.html.heex:115
+#: lib/tuist_web/live/preview_live.html.heex:115
 #: lib/tuist_web/live/run_detail_live.html.heex:109
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:83
@@ -1555,12 +1503,12 @@ msgid "OR"
 msgstr ""
 
 #: lib/tuist/billing.ex:74
-#: lib/tuist_web/live/noora_billing_live.ex:244
+#: lib/tuist_web/live/billing_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:107
+#: lib/tuist_web/live/billing_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
 msgstr ""
@@ -1581,7 +1529,7 @@ msgstr ""
 msgid "Only operations roles can access this page."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:53
+#: lib/tuist_web/live/billing_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Open source"
 msgstr ""
@@ -1607,7 +1555,7 @@ msgstr ""
 msgid "Or set up a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:160
+#: lib/tuist_web/live/preview_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Or share using CLI"
 msgstr ""
@@ -1674,23 +1622,23 @@ msgid "Passwords don't match"
 msgstr ""
 
 #: lib/tuist/billing.ex:57
-#: lib/tuist_web/live/noora_billing_live.ex:221
+#: lib/tuist_web/live/billing_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr ""
 
 #: lib/tuist/billing.ex:58
-#: lib/tuist_web/live/noora_billing_live.ex:222
+#: lib/tuist_web/live/billing_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:195
+#: lib/tuist_web/live/billing_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Payment method"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:198
+#: lib/tuist_web/live/billing_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
 msgstr ""
@@ -1700,7 +1648,7 @@ msgstr ""
 msgid "Pedro Piñera"
 msgstr ""
 
-#: lib/tuist_web/live/noora_previews_live.html.heex:44
+#: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -1725,12 +1673,12 @@ msgstr ""
 msgid "Posts"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:768
+#: lib/tuist_web/components/app_components.ex:150
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:46
+#: lib/tuist_web/live/preview_live.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Preview icon"
 msgstr ""
@@ -1740,22 +1688,17 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:23
-#: lib/tuist_web/live/noora_previews_live.ex:25
-#: lib/tuist_web/live/noora_previews_live.html.heex:18
-#: lib/tuist_web/live/noora_previews_live.html.heex:28
 #: lib/tuist_web/live/overview_live.html.heex:316
+#: lib/tuist_web/live/preview_live.html.heex:23
+#: lib/tuist_web/live/previews_live.ex:25
+#: lib/tuist_web/live/previews_live.html.heex:18
+#: lib/tuist_web/live/previews_live.html.heex:28
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:823
-#, elixir-autogen, elixir-format
-msgid "Previous"
-msgstr ""
-
-#: lib/tuist_web/live/noora_billing_live.html.heex:183
+#: lib/tuist_web/live/billing_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Price"
 msgstr ""
@@ -1773,7 +1716,7 @@ msgstr ""
 msgid "Pricing"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:129
+#: lib/tuist_web/live/billing_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Pricing details"
 msgstr ""
@@ -1783,12 +1726,12 @@ msgstr ""
 msgid "Priority support"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:245
+#: lib/tuist_web/live/billing_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:108
+#: lib/tuist_web/live/billing_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Priority support: Via shared Slack channel"
 msgstr ""
@@ -1799,15 +1742,10 @@ msgid "Privacy policy"
 msgstr ""
 
 #: lib/tuist/billing.ex:50
-#: lib/tuist_web/live/noora_billing_live.ex:216
-#: lib/tuist_web/live/noora_billing_live.html.heex:54
+#: lib/tuist_web/live/billing_live.ex:216
+#: lib/tuist_web/live/billing_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Pro"
-msgstr ""
-
-#: lib/tuist_web/live/project_tests_live.html.heex:28
-#, elixir-autogen, elixir-format
-msgid "Project"
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:76
@@ -1815,15 +1753,9 @@ msgstr ""
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:6
-#, elixir-autogen, elixir-format
-msgid "Project: %{project_name}"
-msgstr ""
-
-#: lib/tuist_web/components/app_layout_components.ex:47
-#: lib/tuist_web/components/layouts/noora_account.html.heex:14
-#: lib/tuist_web/live/noora_projects_live.ex:37
-#: lib/tuist_web/live/noora_projects_live.ex:45
+#: lib/tuist_web/components/layouts/account.html.heex:14
+#: lib/tuist_web/live/projects_live.ex:37
+#: lib/tuist_web/live/projects_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -1833,7 +1765,7 @@ msgstr ""
 msgid "Pulling cache binaries..."
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:143
+#: lib/tuist_web/live/preview_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
@@ -1844,8 +1776,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:10
 #: lib/tuist_web/live/generate_runs_live.html.heex:25
 #: lib/tuist_web/live/generate_runs_live.html.heex:97
-#: lib/tuist_web/live/noora_preview_live.html.heex:104
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:43
+#: lib/tuist_web/live/preview_live.html.heex:104
 #: lib/tuist_web/live/run_detail_live.html.heex:89
 #: lib/tuist_web/live/test_runs_live.html.heex:223
 #, elixir-autogen, elixir-format
@@ -1854,8 +1785,7 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:73
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
-#: lib/tuist_web/live/noora_previews_live.html.heex:66
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:35
+#: lib/tuist_web/live/previews_live.html.heex:66
 #: lib/tuist_web/live/run_detail_live.html.heex:85
 #: lib/tuist_web/live/test_runs_live.html.heex:220
 #, elixir-autogen, elixir-format
@@ -1889,12 +1819,12 @@ msgstr ""
 msgid "Remote"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:177
+#: lib/tuist_web/live/billing_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:28
+#: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits:"
 msgstr ""
@@ -1953,7 +1883,7 @@ msgstr ""
 msgid "Reset your password"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:71
+#: lib/tuist_web/live/preview_live.html.heex:71
 #: lib/tuist_web/live/run_detail_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -1969,7 +1899,7 @@ msgstr ""
 msgid "Run the following command to install Tuist CLI."
 msgstr ""
 
-#: lib/tuist_web/live/noora_previews_live.html.heex:6
+#: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
 msgstr ""
@@ -1999,12 +1929,12 @@ msgstr ""
 msgid "Scale your Swift App development"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:133
+#: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:136
+#: lib/tuist_web/live/preview_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr ""
@@ -2071,7 +2001,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/noora_account.html.heex:32
+#: lib/tuist_web/components/layouts/account.html.heex:32
 #: lib/tuist_web/live/account_settings_live.ex:28
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -2085,7 +2015,7 @@ msgstr ""
 msgid "Share"
 msgstr ""
 
-#: lib/tuist_web/live/noora_previews_live.html.heex:5
+#: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
 msgstr ""
@@ -2199,12 +2129,12 @@ msgstr ""
 msgid "Standard support"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:223
+#: lib/tuist_web/live/billing_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:101
+#: lib/tuist_web/live/billing_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
 msgstr ""
@@ -2231,8 +2161,7 @@ msgstr ""
 msgid "Start for free, pay as you benefit"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:131
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:27
+#: lib/tuist_web/live/members_live.ex:131
 #: lib/tuist_web/live/run_detail_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Status"
@@ -2272,7 +2201,7 @@ msgstr ""
 msgid "Support via community forum"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:84
+#: lib/tuist_web/live/preview_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -2356,17 +2285,6 @@ msgstr ""
 msgid "Test Runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_test_case_detail_live.ex:32
-#: lib/tuist_web/live/project_tests_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Test case"
-msgstr ""
-
-#: lib/tuist_web/live/project_test_case_detail_live.ex:21
-#, elixir-autogen, elixir-format
-msgid "Test case not found"
-msgstr ""
-
 #: lib/tuist_web/live/test_runs_live.ex:72
 #: lib/tuist_web/live/test_runs_live.html.heex:54
 #, elixir-autogen, elixir-format
@@ -2421,7 +2339,7 @@ msgstr ""
 
 #: lib/tuist_web/authorization.ex:77
 #: lib/tuist_web/authorization.ex:93
-#: lib/tuist_web/live/noora_projects_live.ex:20
+#: lib/tuist_web/live/projects_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -2452,17 +2370,17 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:154
+#: lib/tuist_web/live/preview_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:151
+#: lib/tuist_web/live/preview_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:12
+#: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
 msgstr ""
@@ -2482,7 +2400,7 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:186
+#: lib/tuist_web/live/billing_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Total"
 msgstr ""
@@ -2545,8 +2463,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:144
-#: lib/tuist_web/components/app_layout_components.ex:169
+#: lib/tuist_web/components/app_layout_components.ex:84
+#: lib/tuist_web/components/app_layout_components.ex:109
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -2642,9 +2560,7 @@ msgstr ""
 msgid "Unauthorized"
 msgstr ""
 
-#: lib/tuist_web/components/app_command_event_components.ex:25
 #: lib/tuist_web/components/runs/ran_by_badge.ex:22
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:40
 #: lib/tuist_web/live/run_detail_live.html.heex:205
 #: lib/tuist_web/live/run_detail_live.html.heex:276
 #, elixir-autogen, elixir-format
@@ -2662,12 +2578,12 @@ msgstr ""
 msgid "Unlimited projects"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:269
+#: lib/tuist_web/live/billing_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Update billing email"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:206
+#: lib/tuist_web/live/billing_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Update payment method"
 msgstr ""
@@ -2694,17 +2610,17 @@ msgstr ""
 msgid "Updating your username can have unintended consequences."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:230
+#: lib/tuist_web/live/billing_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:122
+#: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Upgrade plan"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:159
+#: lib/tuist_web/live/billing_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""
@@ -2714,7 +2630,7 @@ msgstr ""
 msgid "Usage capped at free tier limits"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:16
+#: lib/tuist_web/live/billing_live.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Usage details"
 msgstr ""
@@ -2724,7 +2640,7 @@ msgstr ""
 msgid "Usage unit"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:63
+#: lib/tuist_web/live/billing_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Usage-based"
 msgstr ""
@@ -2734,23 +2650,23 @@ msgstr ""
 msgid "Usage-based pricing"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.ex:217
+#: lib/tuist_web/live/billing_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr ""
 
 #: lib/tuist/billing.ex:52
-#: lib/tuist_web/live/noora_billing_live.html.heex:76
+#: lib/tuist_web/live/billing_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:99
+#: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:82
+#: lib/tuist_web/live/billing_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Use all Tuist features as long as you stay open source."
 msgstr ""
@@ -2787,7 +2703,7 @@ msgstr ""
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
 msgstr ""
 
-#: lib/tuist_web/live/noora_preview_live.html.heex:55
+#: lib/tuist_web/live/preview_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "V %{version}"
 msgstr ""
@@ -2863,11 +2779,6 @@ msgstr ""
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
 msgstr ""
 
-#: lib/tuist_web/live/project_tests_live.html.heex:19
-#, elixir-autogen, elixir-format
-msgid "We haven't uncovered any flaky tests – keep it up!"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "We planted the first seeds of Tuist in 2017, and in 2023 we embarked on a journey to turn it into a full-time job."
@@ -2934,7 +2845,7 @@ msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:16
-#: lib/tuist_web/live/noora_billing_live.ex:15
+#: lib/tuist_web/live/billing_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -3042,23 +2953,23 @@ msgstr ""
 msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:163
+#: lib/tuist_web/live/billing_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:41
+#: lib/tuist_web/live/billing_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "about remote cache hits"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:180
+#: lib/tuist_web/live/billing_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "above free tier"
 msgstr ""
 
 #: lib/tuist/billing.ex:54
-#: lib/tuist_web/live/noora_billing_live.ex:219
+#: lib/tuist_web/live/billing_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr ""
@@ -3068,19 +2979,9 @@ msgstr ""
 msgid "bash"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:12
+#: lib/tuist_web/live/billing_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "charged on %{next_charge_date}"
-msgstr ""
-
-#: lib/tuist_web/components/app_components.ex:399
-#, elixir-autogen, elixir-format
-msgid "close"
-msgstr ""
-
-#: lib/tuist_web/live/project_test_case_detail_live.html.heex:31
-#, elixir-autogen, elixir-format
-msgid "flaky"
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:43
@@ -3126,7 +3027,7 @@ msgstr ""
 msgid "using CLI"
 msgstr ""
 
-#: lib/tuist_web/live/noora_billing_live.html.heex:247
+#: lib/tuist_web/live/billing_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
@@ -3141,83 +3042,83 @@ msgstr ""
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:174
-#: lib/tuist_web/live/noora_projects_live.ex:92
+#: lib/tuist_web/live/members_live.ex:174
+#: lib/tuist_web/live/projects_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:81
+#: lib/tuist_web/live/projects_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:78
+#: lib/tuist_web/live/projects_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:94
+#: lib/tuist_web/live/projects_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:59
+#: lib/tuist_web/live/members_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "All members"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:73
+#: lib/tuist_web/live/members_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:81
+#: lib/tuist_web/live/members_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Member"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:132
+#: lib/tuist_web/live/members_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:96
+#: lib/tuist_web/live/members_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "Role"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:36
+#: lib/tuist_web/live/members_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Search members..."
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:93
+#: lib/tuist_web/live/members_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "E-mail"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:106
+#: lib/tuist_web/live/members_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "No members found"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:138
+#: lib/tuist_web/live/members_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:109
+#: lib/tuist_web/live/members_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:158
+#: lib/tuist_web/live/members_live.ex:158
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:155
+#: lib/tuist_web/live/members_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
 msgstr ""
@@ -3257,12 +3158,12 @@ msgstr ""
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
-#: lib/tuist_web/live/noora_projects_live.ex:99
+#: lib/tuist_web/live/projects_live.ex:99
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/noora_members_live.ex:176
+#: lib/tuist_web/live/members_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""

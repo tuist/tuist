@@ -10,8 +10,6 @@ defmodule TuistWeb.OverviewLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
 
     %{account: account} =

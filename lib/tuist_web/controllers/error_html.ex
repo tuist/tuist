@@ -96,7 +96,7 @@ defmodule TuistWeb.ErrorHTML do
   def render_error_page(assigns) do
     ~H"""
     <!DOCTYPE html>
-    <html lang="en" class="[scrollbar-gutter:stable]" data-noora>
+    <html lang="en" class="[scrollbar-gutter:stable]">
       <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
       </script>
       <script nonce={get_csp_nonce()}>

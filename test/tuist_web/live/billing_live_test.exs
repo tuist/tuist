@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraBillingLiveTest do
+defmodule TuistWeb.BillingLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
   use Mimic
@@ -9,8 +9,6 @@ defmodule TuistWeb.NooraBillingLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} = context do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-
     user = AccountsFixtures.user_fixture()
     account_without_customer = Map.get(context, :account_without_customer, true)
 

@@ -11,7 +11,6 @@ defmodule TuistWeb.RunDetailLiveTest do
   import Phoenix.LiveViewTest
 
   setup %{conn: conn} do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
     user = AccountsFixtures.user_fixture()
     %{conn: conn, user: user}
   end

@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraPreviewLive do
+defmodule TuistWeb.PreviewLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
   import TuistWeb.Previews.RanByBadge

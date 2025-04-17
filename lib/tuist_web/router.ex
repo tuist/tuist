@@ -495,7 +495,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
-      live "/", NooraPreviewLive
+      live "/", PreviewLive
     end
   end
 
@@ -512,13 +512,13 @@ defmodule TuistWeb.Router do
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
 
-    live_session :noora_account,
-      layout: {TuistWeb.Layouts, :noora_account},
+    live_session :account,
+      layout: {TuistWeb.Layouts, :account},
       on_mount: [{TuistWeb.LayoutLive, :account}, {TuistWeb.Authentication, :mount_current_user}] do
-      live "/", NooraProjectsLive
-      live "/projects", NooraProjectsLive
-      live "/members", NooraMembersLive
-      live "/billing", NooraBillingLive
+      live "/", ProjectsLive
+      live "/projects", ProjectsLive
+      live "/members", MembersLive
+      live "/billing", BillingLive
       live "/settings", AccountSettingsLive
     end
   end
@@ -534,7 +534,7 @@ defmodule TuistWeb.Router do
       TuistWeb.RedirectToRunsPlug
     ]
 
-    live_session :noora_project,
+    live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
         {TuistWeb.LayoutLive, :project},
@@ -546,7 +546,7 @@ defmodule TuistWeb.Router do
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
-      live "/previews", NooraPreviewsLive
+      live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
     end
   end

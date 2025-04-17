@@ -1,4 +1,4 @@
-defmodule TuistWeb.NooraPreviewsLiveTest do
+defmodule TuistWeb.PreviewsLiveTest do
   alias TuistTestSupport.Fixtures.PreviewsFixtures
 
   use TuistTestSupport.Cases.ConnCase, async: false
@@ -7,11 +7,6 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
-
-  setup %{conn: conn} do
-    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
-    %{conn: conn}
-  end
 
   test "renders empty view when no previews are available", %{
     conn: conn,

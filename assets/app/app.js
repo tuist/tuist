@@ -21,8 +21,6 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
-import "./js/Chart.js";
-import "./js/Stack.js";
 import * as NooraComponents from "../_noora/noora.js";
 import "./app.css";
 import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
@@ -37,45 +35,6 @@ let Hooks = {};
 Hooks.ImageFallback = ImageFallback;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
-Hooks.Chart = {
-  mounted() {
-    this.render();
-  },
-
-  updated() {
-    this.render();
-  },
-
-  render() {
-    this.el.formatter = this.el.dataset.formatter;
-
-    const data = JSON.parse(this.el.dataset.series);
-    const labels = JSON.parse(this.el.dataset.labels);
-
-    this.el.data = {
-      name: this.el.dataset.name,
-      data: data,
-      labels: labels,
-    };
-
-    if (this.el.dataset.config) {
-      const config = JSON.parse(this.el.dataset.config);
-      this.el.totalLabel = config.totalLabel;
-      if (config.colors) {
-        this.el.colors = config.colors.map((color) => cssvar(color));
-      }
-
-      if (config.stroke) {
-        this.el.stroke = {
-          ...config.stroke,
-          colors: config.stroke.colors.map((color) => cssvar(color)),
-        };
-      }
-    }
-
-    this.el.render();
-  },
-};
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
