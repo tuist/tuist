@@ -63,4 +63,28 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
     assert has_element?(lv, "span", "AppOne")
     assert has_element?(lv, "span", "AppTwo")
   end
+
+  test "lists previews when a preview has no git metadata", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    _preview_one =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        display_name: "AppOne",
+        supported_platforms: [:ios],
+        git_branch: nil,
+        git_commit_sha: nil
+      )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
+
+    # Then
+    assert has_element?(lv, "span", "AppOne")
+  end
 end

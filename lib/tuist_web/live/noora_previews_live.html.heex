@@ -50,12 +50,16 @@
           <:col :let={preview} label={gettext("Branch")}>
             <.text_cell
               icon="git_branch"
-              label={preview.git_branch || preview.command_event.git_branch || "None"}
+              label={
+                preview.git_branch || (preview.command_event && preview.command_event.git_branch) ||
+                  "None"
+              }
             />
           </:col>
           <:col :let={preview} label={gettext("Commit SHA")}>
             <.text_cell label={
-              (preview.git_commit_sha || preview.command_event.git_commit_sha || "None")
+              (preview.git_commit_sha ||
+                 (preview.command_event && preview.command_event.git_commit_sha) || "None")
               |> String.slice(0, 7)
             } />
           </:col>

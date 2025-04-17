@@ -436,7 +436,7 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/noora_previews_live.html.heex:65
+#: lib/tuist_web/live/noora_previews_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
@@ -552,7 +552,7 @@ msgid "Command"
 msgstr ""
 
 #: lib/tuist_web/live/noora_preview_live.html.heex:119
-#: lib/tuist_web/live/noora_previews_live.html.heex:56
+#: lib/tuist_web/live/noora_previews_live.html.heex:59
 #: lib/tuist_web/live/test_runs_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
@@ -1854,7 +1854,7 @@ msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:73
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
-#: lib/tuist_web/live/noora_previews_live.html.heex:62
+#: lib/tuist_web/live/noora_previews_live.html.heex:66
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:35
 #: lib/tuist_web/live/run_detail_live.html.heex:85
 #: lib/tuist_web/live/test_runs_live.html.heex:220
