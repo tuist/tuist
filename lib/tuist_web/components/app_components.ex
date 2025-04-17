@@ -66,7 +66,7 @@ defmodule TuistWeb.AppComponents do
         </span>
       </.card_section>
     <% else %>
-      <.link :if={@patch} href={@patch} data-selected={@selected} class="tuist-widget-link">
+      <.link :if={@patch} patch={@patch} data-selected={@selected} class="tuist-widget-link">
         <.static_widget {assigns} />
       </.link>
       <.static_widget :if={!@patch} {assigns} />
