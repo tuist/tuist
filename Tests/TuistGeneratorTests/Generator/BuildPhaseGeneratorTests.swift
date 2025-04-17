@@ -214,6 +214,30 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertNil(buildPhase)
     }
 
+    func test_generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test(product: .framework)
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: [],
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+        let files = try XCTUnwrap(buildPhase?.files)
+        XCTAssertEmpty(files)
+    }
+
     func test_generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
