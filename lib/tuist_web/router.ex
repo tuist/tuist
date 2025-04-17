@@ -104,29 +104,6 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
-  pipeline :noora do
-    plug :check_noora_enabled
-  end
-
-  def check_noora_enabled(conn, _opts) do
-    if FunWithFlags.enabled?(:noora) do
-      conn
-    else
-      raise TuistWeb.Errors.NotFoundError,
-            "The page you are looking for doesn't exist or has been moved."
-    end
-  end
-
-  defp redirect_to_noora_when_enabled(conn, _opts) do
-    if FunWithFlags.enabled?(:noora) do
-      conn
-      |> redirect(to: "/noora#{current_path(conn)}")
-      |> halt()
-    else
-      conn
-    end
-  end
-
   scope "/" do
     storybook_assets()
   end
@@ -505,10 +482,8 @@ defmodule TuistWeb.Router do
     get "/download", PreviewController, :download_preview
   end
 
-  # TODO: Remove when Noora becomes the default
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
-      :redirect_to_noora_when_enabled,
       :open_api,
       :browser_app,
       :require_authenticated_user_for_previews,
@@ -520,39 +495,22 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
       ] do
-      live "/", PreviewLive
-    end
-  end
-
-  scope "/noora/:account_handle/:project_handle/previews/:id", TuistWeb do
-    pipe_through [
-      :check_noora_enabled,
-      :open_api,
-      :browser_app,
-      :require_authenticated_user_for_previews,
-      :analytics
-    ]
-
-    live_session :overriden_preview_detail,
-      on_mount: [
-        {TuistWeb.Authentication, :mount_current_user},
-        {TuistWeb.LayoutLive, :optional_project}
-      ] do
       live "/", NooraPreviewLive
     end
   end
 
-  scope "/noora/:account_handle", TuistWeb do
+  get "/download", TuistWeb.DownloadController, :download
+
+  scope "/:account_handle", TuistWeb do
     pipe_through [
-      :check_noora_enabled,
       :open_api,
       :browser_app,
       :require_authenticated_user,
       :analytics
     ]
 
-    get "/:account_handle/billing/manage", BillingController, :manage
-    get "/:account_handle/billing/upgrade", BillingController, :upgrade
+    get "/billing/manage", BillingController, :manage
+    get "/billing/upgrade", BillingController, :upgrade
 
     live_session :noora_account,
       layout: {TuistWeb.Layouts, :noora_account},
@@ -565,60 +523,8 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/", TuistWeb do
-    pipe_through [
-      :redirect_to_noora_when_enabled,
-      :open_api,
-      :browser_app,
-      :require_authenticated_user,
-      :analytics
-    ]
-
-    get "/:account_handle/billing/manage", BillingController, :manage
-    get "/:account_handle/billing/upgrade", BillingController, :upgrade
-
-    live_session :dashboard,
-      layout: {TuistWeb.Layouts, :account},
-      on_mount: [
-        {TuistWeb.LayoutLive, :account},
-        {TuistWeb.Authentication, :mount_current_user}
-      ] do
-      live "/:account_handle/billing", AccountBillingLive
-      live "/:account_handle/projects", AccountProjectsLive
-    end
-  end
-
-  # Old project noora routes
-  scope "/noora/:account_handle/:project_handle", TuistWeb do
-    pipe_through [
-      :check_noora_enabled,
-      :open_api,
-      :browser_app,
-      :rate_limit,
-      :require_authenticated_user_for_private_projects,
-      :analytics,
-      :require_user_can_read_project,
-      TuistWeb.RedirectToRunsPlug
-    ]
-
-    live_session :override_noora_project,
-      layout: {TuistWeb.Layouts, :project},
-      on_mount: [
-        {TuistWeb.LayoutLive, :project},
-        {TuistWeb.Authentication, :mount_current_user}
-      ] do
-      live "/connect", ConnectLive
-      live "/", OverviewLive
-      live "/analytics", OverviewLive
-      live "/previews", NooraPreviewsLive
-      live "/runs/:run_id", RunDetailLive
-    end
-  end
-
-  # New project noora routes
   scope "/:account_handle/:project_handle", TuistWeb do
     pipe_through [
-      :check_noora_enabled,
       :open_api,
       :browser_app,
       :rate_limit,
@@ -637,42 +543,13 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs", TestRunsLive
       live "/binary-cache/cache-runs", CacheRunsLive
       live "/binary-cache/generate-runs", GenerateRunsLive
+      live "/connect", ConnectLive
+      live "/", OverviewLive
+      live "/analytics", OverviewLive
+      live "/previews", NooraPreviewsLive
+      live "/runs/:run_id", RunDetailLive
     end
   end
-
-  # Project routes
-  scope "/:account_handle/:project_handle", TuistWeb do
-    pipe_through [
-      :redirect_to_noora_when_enabled,
-      :open_api,
-      :browser_app,
-      :rate_limit,
-      :require_authenticated_user_for_private_projects,
-      :analytics,
-      :require_user_can_read_project,
-      TuistWeb.RedirectToRunsPlug
-    ]
-
-    live_session :project,
-      layout: {TuistWeb.Layouts, :project},
-      on_mount: [
-        {TuistWeb.LayoutLive, :project},
-        {TuistWeb.Authentication, :mount_current_user}
-      ] do
-      live "/", ProjectDashboardLive
-      live "/runs", ProjectRunsLive
-      get "/runs/:id/download", RunsController, :download
-      live "/runs/:id", ProjectRunDetailLive
-      # Temporarily disabled due to performance issues
-      # live "/tests", ProjectTestsLive
-      # live "/tests/cases/:identifier", ProjectTestCaseDetailLive
-      live "/previews", PreviewsLive
-      # Used in tuist analytics command
-      live "/analytics", ProjectDashboardLive
-    end
-  end
-
-  get "/download", TuistWeb.DownloadController, :download
 
   def assign_current_path(conn, _params) do
     conn |> assign(:current_path, conn.request_path)

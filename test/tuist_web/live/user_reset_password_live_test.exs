@@ -26,7 +26,7 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
     test "renders reset password with valid token", %{conn: conn, token: token} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
-      assert html =~ "Set new password"
+      assert html =~ "New password"
     end
 
     test "does not render reset password with invalid token", %{conn: conn} do

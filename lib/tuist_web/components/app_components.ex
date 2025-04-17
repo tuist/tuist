@@ -761,40 +761,26 @@ defmodule TuistWeb.AppComponents do
   end
 
   def pagination(assigns) do
-    if FunWithFlags.enabled?(:noora) do
-      ~H"""
-      <div class="tuist-pagination">
-        <.button
-          variant="secondary"
-          label={gettext("Prev")}
-          disabled={not @has_previous_page}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("before", @start_cursor)  |> Map.delete("after"))}"}
-        >
-          <:icon_left><.chevron_left /></:icon_left>
-        </.button>
-        <.button
-          variant="secondary"
-          disabled={not @has_next_page}
-          label={gettext("Next")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("after", @end_cursor) |> Map.delete("before"))}"}
-        >
-          <:icon_right><.chevron_right /></:icon_right>
-        </.button>
-      </div>
-      """
-    else
-      ~H"""
-      <nav class="pagination" aria-label="Pagination">
-        <.pagination_link
-          has_previous_page={@has_previous_page}
-          cursor={@start_cursor}
-          uri={@uri}
-          type={:prev}
-        />
-        <.pagination_link has_next_page={@has_next_page} cursor={@end_cursor} uri={@uri} type={:next} />
-      </nav>
-      """
-    end
+    ~H"""
+    <div class="tuist-pagination">
+      <.button
+        variant="secondary"
+        label={gettext("Prev")}
+        disabled={not @has_previous_page}
+        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("before", @start_cursor)  |> Map.delete("after"))}"}
+      >
+        <:icon_left><.chevron_left /></:icon_left>
+      </.button>
+      <.button
+        variant="secondary"
+        disabled={not @has_next_page}
+        label={gettext("Next")}
+        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("after", @end_cursor) |> Map.delete("before"))}"}
+      >
+        <:icon_right><.chevron_right /></:icon_right>
+      </.button>
+    </div>
+    """
   end
 
   attr(:class, :string, default: nil)

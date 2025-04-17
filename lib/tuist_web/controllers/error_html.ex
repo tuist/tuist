@@ -94,39 +94,6 @@ defmodule TuistWeb.ErrorHTML do
   end
 
   def render_error_page(assigns) do
-    if FunWithFlags.enabled?(:noora) do
-      render_noora_error_page(assigns)
-    else
-      render_legacy_error_page(assigns)
-    end
-  end
-
-  defp render_legacy_error_page(assigns) do
-    ~H"""
-    <!DOCTYPE html>
-    <html lang="en" class="[scrollbar-gutter:stable]">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="csrf-token" content={get_csrf_token()} />
-        <.live_title>{"#{@head_title || gettext("Error")} · Tuist"}</.live_title>
-        <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
-      </head>
-      <body>
-        <div class="page error-page">
-          <p class="text--medium font--semibold color--text-brand-secondary">{@error_name}</p>
-          <h2 class="color--text-primary error-page__title">{@title}</h2>
-          <p class="text--extraLarge font--regular color--text-tertiary">{@message}</p>
-          <.legacy_button variant="secondary" class="error-page__home-button">
-            <a href={~p"/"}>{gettext("Take me home")}</a>
-          </.legacy_button>
-        </div>
-      </body>
-    </html>
-    """
-  end
-
-  defp render_noora_error_page(assigns) do
     ~H"""
     <!DOCTYPE html>
     <html lang="en" class="[scrollbar-gutter:stable]" data-noora>

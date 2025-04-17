@@ -21,7 +21,7 @@ defmodule Tuist.AccountTest do
       Account.create_changeset(%Account{}, %{name: "my.name", user_id: 1})
 
     assert changeset.valid? == false
-    assert "can't contain a dot" in errors_on(changeset).name
+    assert "must contain only alphanumeric characters" in errors_on(changeset).name
   end
 
   describe "handle validity" do

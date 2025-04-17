@@ -128,7 +128,7 @@ defmodule TuistWeb.CreateProjectLive do
          {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
       {:noreply,
        push_navigate(socket,
-         to: ~p"/noora/#{account.name}/#{project.name}/connect"
+         to: ~p"/#{account.name}/#{project.name}/connect"
        )}
     else
       {:error, %Ecto.Changeset{} = changeset} ->

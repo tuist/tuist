@@ -51,7 +51,7 @@ defmodule Tuist.Accounts.UserTest do
       got = AccountsFixtures.user_fixture(email: "tuist@tuist.io") |> User.gravatar_url()
 
       # Then
-      assert got == "https://www.gravatar.com/avatar/0f3e9af754a1574f7b5fb3ab36e9b0b8"
+      assert got == "https://www.gravatar.com/avatar/0f3e9af754a1574f7b5fb3ab36e9b0b8?d=404"
     end
   end
 end

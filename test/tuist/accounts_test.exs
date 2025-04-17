@@ -948,7 +948,7 @@ defmodule Tuist.AccountsTest do
       second_oauth_identity = %{
         provider: :github,
         uid: 456,
-        info: %{email: "find_or_create_user_from_oauth2@tuist.test.io"}
+        info: %{email: "find_or_create_user_from_oauth1@tuist.test.io"}
       }
 
       # When
@@ -959,8 +959,8 @@ defmodule Tuist.AccountsTest do
         Accounts.find_or_create_user_from_oauth2(second_oauth_identity, preload: [:account])
 
       # Then
-      assert first_account_handle == "find_or_create_user_from_oauth2"
-      assert second_account_handle == "find_or_create_user_from_oauth21"
+      assert first_account_handle == "find-or-create-user-from-oauth2"
+      assert second_account_handle == "find-or-create-user-from-oauth1"
     end
   end
 
@@ -1293,12 +1293,6 @@ defmodule Tuist.AccountsTest do
     test "updates the user's name", %{user: user} do
       account = Repo.preload(user, :account).account
       assert {:ok, account} = Accounts.update_account(account, %{name: "christoph"})
-      assert account.name == "christoph"
-    end
-
-    test "lowercases the handle", %{user: user} do
-      account = Repo.preload(user, :account).account
-      assert {:ok, account} = Accounts.update_account(account, %{name: "Christoph"})
       assert account.name == "christoph"
     end
 

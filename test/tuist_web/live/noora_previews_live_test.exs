@@ -21,7 +21,7 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert has_element?(lv, ".tuist-empty-state")
@@ -57,7 +57,7 @@ defmodule TuistWeb.NooraPreviewsLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert has_element?(lv, "span", "AppOne")

@@ -37,7 +37,7 @@ defmodule TuistWeb.OverviewLiveTest do
     # When
     {:ok, _lv, html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+      |> live(~p"/#{organization.account.name}/#{project.name}")
 
     assert html =~ "Overview · tuist-org/tuist · Tuist"
   end
@@ -63,7 +63,7 @@ defmodule TuistWeb.OverviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+      |> live(~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(lv, ".tuist-widget span", "50.0%")
   end
@@ -86,7 +86,7 @@ defmodule TuistWeb.OverviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+      |> live(~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end
@@ -99,7 +99,7 @@ defmodule TuistWeb.OverviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+      |> live(~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(
              lv,

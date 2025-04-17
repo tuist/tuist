@@ -146,12 +146,9 @@ defmodule Tuist.Runs.Analytics do
       total_average_duration: total_average_duration,
       average_durations: average_durations,
       dates:
-        formatted_dates(
-          Enum.map(
-            average_durations,
-            & &1.date
-          ),
-          date_period
+        Enum.map(
+          average_durations,
+          & &1.date
         ),
       values:
         Enum.map(
@@ -201,12 +198,9 @@ defmodule Tuist.Runs.Analytics do
           & &1.count
         ),
       dates:
-        formatted_dates(
-          Enum.map(
-            current_runs,
-            & &1.date
-          ),
-          date_period
+        Enum.map(
+          current_runs,
+          & &1.date
         )
     }
   end
@@ -277,12 +271,9 @@ defmodule Tuist.Runs.Analytics do
         ),
       cache_hit_rate: current_cache_hit_rate,
       dates:
-        formatted_dates(
-          Enum.map(
-            cache_hit_rates,
-            & &1.date
-          ),
-          date_period
+        Enum.map(
+          cache_hit_rates,
+          & &1.date
         ),
       values:
         Enum.map(
@@ -421,12 +412,9 @@ defmodule Tuist.Runs.Analytics do
         ),
       hit_rate: current_selective_testing_hit_rate,
       dates:
-        formatted_dates(
-          Enum.map(
-            selective_testing_hit_rates,
-            & &1.date
-          ),
-          date_period
+        Enum.map(
+          selective_testing_hit_rates,
+          & &1.date
         ),
       values:
         Enum.map(
@@ -578,23 +566,6 @@ defmodule Tuist.Runs.Analytics do
       :month
     else
       :day
-    end
-  end
-
-  defp formatted_dates(dates, date_period) do
-    if FunWithFlags.enabled?(:noora) do
-      dates
-    else
-      Enum.map(
-        dates,
-        case date_period do
-          :month ->
-            &Calendar.strftime(&1, "%b %Y")
-
-          :day ->
-            &Calendar.strftime(&1, "%b %d")
-        end
-      )
     end
   end
 

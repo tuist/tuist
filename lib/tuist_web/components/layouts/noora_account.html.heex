@@ -13,25 +13,25 @@
       <.tab_menu_horizontal_item
         label={gettext("Projects")}
         selected={@selected_tab == "projects"}
-        navigate={~p"/noora/#{@selected_account.name}"}
+        navigate={~p"/#{@selected_account.name}"}
       />
       <.tab_menu_horizontal_item
         :if={Tuist.Accounts.organization?(@selected_account)}
         label={gettext("Members")}
         selected={@selected_tab == "members"}
-        navigate={~p"/noora/#{@selected_account.name}/members"}
+        navigate={~p"/#{@selected_account.name}/members"}
       />
       <.tab_menu_horizontal_item
         :if={Tuist.Authorization.can?(:account_settings_update, @current_user, @selected_account)}
         label={gettext("Billing")}
         selected={@selected_tab == "billing"}
-        navigate={~p"/noora/#{@selected_account.name}/billing"}
+        navigate={~p"/#{@selected_account.name}/billing"}
       />
       <.tab_menu_horizontal_item
         :if={Tuist.Authorization.can?(:account_settings_update, @current_user, @selected_account)}
         label={gettext("Settings")}
         selected={@selected_tab == "settings"}
-        navigate={~p"/noora/#{@selected_account.name}/settings"}
+        navigate={~p"/#{@selected_account.name}/settings"}
       />
     </.tab_menu_horizontal>
     <div data-part="content">

@@ -35,7 +35,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
     # Then
     assert has_element?(lv, "span", "Test Optimizations")
@@ -74,7 +74,7 @@ defmodule TuistWeb.RunDetailLiveTest do
     {:ok, lv, _html} =
       conn
       |> live(
-        ~p"/noora/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
+        ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
       )
 
     # Then

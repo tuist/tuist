@@ -27,7 +27,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, ".noora-tag span", "iOS")
@@ -49,7 +49,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     refute has_element?(lv, "#preview-run-button span", "Run")
@@ -68,7 +68,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
@@ -88,7 +88,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When
     got =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert got == {:error, {:redirect, %{to: "/users/log_in", flash: %{}}}}
@@ -108,7 +108,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
@@ -118,9 +118,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When / Then
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       conn
-      |> get(
-        ~p"/noora/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9"
-      )
+      |> get(~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9")
     end
   end
 
@@ -134,7 +132,7 @@ defmodule TuistWeb.NooraPreviewLiveTest do
     # When / Then
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       conn
-      |> get(~p"/noora/tuist/ios_app_with_frameworks/previews/#{preview.id}")
+      |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
     end
   end
 end

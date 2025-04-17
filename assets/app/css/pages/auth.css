@@ -40,6 +40,7 @@ html:not([data-noora]) {
 }
 
 html[data-noora] {
+  #accept-invitation,
   #login,
   #signup,
   #signup-success,

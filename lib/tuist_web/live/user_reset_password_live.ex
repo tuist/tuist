@@ -6,11 +6,7 @@ defmodule TuistWeb.UserResetPasswordLive do
 
   def render(assigns) do
     ~H"""
-    <%= if FunWithFlags.enabled?(:noora) do %>
-      <.noora_reset_password {assigns} />
-    <% else %>
-      <.legacy_reset_password {assigns} />
-    <% end %>
+    <.noora_reset_password {assigns} />
     """
   end
 
@@ -60,46 +56,6 @@ defmodule TuistWeb.UserResetPasswordLive do
         <div data-part="shell"><.shell /></div>
       </div>
     </div>
-    """
-  end
-
-  def legacy_reset_password(assigns) do
-    ~H"""
-    <.stack class="auth-page" gap="4xl">
-      <.auth_header
-        title={gettext("Set new password")}
-        subtitle={gettext("Your new password must be different to previously used passwords.")}
-      >
-        <:icon>
-          <.featured_icon>
-            <.lock_icon />
-          </.featured_icon>
-        </:icon>
-      </.auth_header>
-
-      <.simple_form for={@form} id="reset_password_form" phx-submit="reset_password" class="auth-form">
-        <.stack gap="3xl">
-          <.input field={@form[:password]} type="password" label={gettext("New password")} required />
-          <.input
-            field={@form[:password_confirmation]}
-            type="password"
-            label={gettext("Confirm new password")}
-            required
-          />
-          <.stack gap="xl">
-            <.legacy_button type="submit" variant="primary" class="auth-form__primary-action">
-              {gettext("Reset password")}
-            </.legacy_button>
-          </.stack>
-        </.stack>
-      </.simple_form>
-
-      <.link href={~p"/users/log_in"} class="text--small font--semibold">
-        {gettext("Back to log in")}
-      </.link>
-
-      <.flash_group flash={@flash} />
-    </.stack>
     """
   end
 

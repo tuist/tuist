@@ -16,16 +16,6 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
 
   def render(assigns) do
     ~H"""
-    <%= if FunWithFlags.enabled?(:noora) do %>
-      <.noora_device_codes_success {assigns} />
-    <% else %>
-      <.legacy_device_codes_success {assigns} />
-    <% end %>
-    """
-  end
-
-  def noora_device_codes_success(assigns) do
-    ~H"""
     <div id="confirmation">
       <div data-part="wrapper">
         <div data-part="frame">
@@ -76,41 +66,6 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
         <div data-part="shell"><.shell /></div>
       </div>
     </div>
-    """
-  end
-
-  def legacy_device_codes_success(assigns) do
-    ~H"""
-    <.stack class="auth-page" gap="4xl">
-      <.auth_header
-        title={
-          case @type do
-            "app" -> gettext("Tuist app is connected")
-            "cli" -> gettext("Tuist CLI is connected")
-            _ -> gettext("Tuist is connected")
-          end
-        }
-        subtitle={
-          case @type do
-            "app" -> gettext("You can close the tab and continue in the app 🎉")
-            "cli" -> gettext("You can close the tab and continue in the terminal 🎉")
-            _ -> gettext("You can close the tab and continue 🎉")
-          end
-        }
-      />
-      <div>
-        <.legacy_button>
-          <a
-            href={
-              TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))
-            }
-            class="color--text-primary"
-          >
-            {gettext("Dashboard")}
-          </a>
-        </.legacy_button>
-      </div>
-    </.stack>
     """
   end
 end

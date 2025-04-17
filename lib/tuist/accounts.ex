@@ -412,6 +412,7 @@ defmodule Tuist.Accounts do
          |> String.split("@")
          |> List.first()
          |> String.replace(".", "-")
+         |> String.replace("_", "-")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")

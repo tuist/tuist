@@ -21,7 +21,7 @@ defmodule Tuist.DownloadControllerTest do
     end)
 
     # When
-    conn = get(conn, "/download")
+    conn = get(conn, ~p"/download")
 
     # Then
     assert redirected_to(conn) ==

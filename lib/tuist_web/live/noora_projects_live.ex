@@ -126,7 +126,7 @@ defmodule TuistWeb.NooraProjectsLive do
   @impl true
   def handle_event("navigate", %{"project" => project}, socket) do
     socket =
-      push_navigate(socket, to: ~p"/noora/#{socket.assigns.selected_account.name}/#{project}")
+      push_navigate(socket, to: ~p"/#{socket.assigns.selected_account.name}/#{project}")
 
     {:noreply, socket}
   end

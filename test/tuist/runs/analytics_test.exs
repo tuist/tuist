@@ -100,7 +100,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       assert got.values == [0, 1, 2]
-      assert got.dates == ["Apr 28", "Apr 29", "Apr 30"]
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
       assert got.trend == 200
       assert got.count == 3
     end
@@ -243,7 +243,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then
       assert got.values == [0, 1, 2]
-      assert got.dates == ["Apr 28", "Apr 29", "Apr 30"]
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
       assert got.trend == 200
       assert got.count == 3
     end
@@ -293,18 +293,18 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]
 
       assert got.dates == [
-               "May 2023",
-               "Jun 2023",
-               "Jul 2023",
-               "Aug 2023",
-               "Sep 2023",
-               "Oct 2023",
-               "Nov 2023",
-               "Dec 2023",
-               "Jan 2024",
-               "Feb 2024",
-               "Mar 2024",
-               "Apr 2024"
+               ~D[2023-05-01],
+               ~D[2023-06-01],
+               ~D[2023-07-01],
+               ~D[2023-08-01],
+               ~D[2023-09-01],
+               ~D[2023-10-01],
+               ~D[2023-11-01],
+               ~D[2023-12-01],
+               ~D[2024-01-01],
+               ~D[2024-02-01],
+               ~D[2024-03-01],
+               ~D[2024-04-01]
              ]
 
       assert got.trend == 200

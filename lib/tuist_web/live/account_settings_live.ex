@@ -42,7 +42,7 @@ defmodule TuistWeb.AccountSettingsLive do
       {:ok, account} ->
         socket =
           socket
-          |> push_navigate(to: ~p"/noora/#{account.name}/settings")
+          |> push_navigate(to: ~p"/#{account.name}/settings")
 
         {:noreply, socket}
 

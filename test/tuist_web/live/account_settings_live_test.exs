@@ -31,7 +31,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     # When
     {:ok, _lv, html} =
       conn
-      |> live(~p"/noora/#{account.name}/settings")
+      |> live(~p"/#{account.name}/settings")
 
     assert html =~ "Settings · #{account.name} · Tuist"
   end
@@ -54,7 +54,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     # When / Then
     assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
       conn
-      |> live(~p"/noora/#{organization.account.name}/settings")
+      |> live(~p"/#{organization.account.name}/settings")
     end
   end
 
@@ -66,7 +66,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{account.name}/settings")
+      |> live(~p"/#{account.name}/settings")
 
     # Then
     assert has_element?(lv, "button", "Rename organization")
@@ -80,7 +80,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     # When
     {:ok, lv, _html} =
       conn
-      |> live(~p"/noora/#{user.account.name}/settings")
+      |> live(~p"/#{user.account.name}/settings")
 
     # Then
     assert has_element?(lv, "button", "Update username")

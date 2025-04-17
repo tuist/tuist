@@ -31,7 +31,7 @@ defmodule TuistWeb.UserLoginLiveTest do
 
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
-      assert html =~ "Sign in with Okta"
+      assert html =~ "Okta"
     end
 
     test "does not render Okta button if Okta is not configured", %{conn: conn} do
@@ -40,12 +40,15 @@ defmodule TuistWeb.UserLoginLiveTest do
 
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
-      refute html =~ "Sign in with Okta"
+      refute html =~ "Okta"
     end
   end
 
   describe "user login" do
     test "redirects if user login with valid credentials", %{conn: conn} do
+      Tuist.Environment
+      |> stub(:mail_configured?, fn -> true end)
+
       password = UUIDv7.generate()
       user = user_fixture(password: password, preload: [:account])
 
@@ -62,6 +65,9 @@ defmodule TuistWeb.UserLoginLiveTest do
     test "redirects to login page with a flash error if there are no valid credentials", %{
       conn: conn
     } do
+      Tuist.Environment
+      |> stub(:mail_configured?, fn -> true end)
+
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       form =

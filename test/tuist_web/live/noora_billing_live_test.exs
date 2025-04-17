@@ -63,7 +63,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
     # When
     {:ok, _lv, html} =
       conn
-      |> live(~p"/noora/#{account.name}/billing")
+      |> live(~p"/#{account.name}/billing")
 
     assert html =~ "Billing · #{account.name} · Tuist"
   end
@@ -73,7 +73,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
       # When
       {:ok, lv, _html} =
         conn
-        |> live(~p"/noora/#{account.name}/billing")
+        |> live(~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -97,7 +97,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
       # When
       {:ok, lv, _html} =
         conn
-        |> live(~p"/noora/#{account.name}/billing")
+        |> live(~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -125,7 +125,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
       # When
       {:ok, lv, _html} =
         conn
-        |> live(~p"/noora/#{account.name}/billing")
+        |> live(~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -151,7 +151,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
       # When
       {:ok, lv, _html} =
         conn
-        |> live(~p"/noora/#{account.name}/billing")
+        |> live(~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -175,7 +175,7 @@ defmodule TuistWeb.NooraBillingLiveTest do
       # When
       {:ok, lv, _html} =
         conn
-        |> live(~p"/noora/#{account.name}/billing")
+        |> live(~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Enterprise")

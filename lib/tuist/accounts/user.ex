@@ -123,11 +123,7 @@ defmodule Tuist.Accounts.User do
     hash = :crypto.hash(:md5, email) |> Base.encode16(case: :lower)
     gravatar_url = "https://www.gravatar.com/avatar/" <> hash
 
-    if FunWithFlags.enabled?(:noora) do
-      gravatar_url <> "?d=404"
-    else
-      gravatar_url
-    end
+    gravatar_url <> "?d=404"
   end
 
   def email_valid?(email) do

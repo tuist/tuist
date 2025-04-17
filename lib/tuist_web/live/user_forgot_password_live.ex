@@ -6,11 +6,7 @@ defmodule TuistWeb.UserForgotPasswordLive do
 
   def render(assigns) do
     ~H"""
-    <%= if FunWithFlags.enabled?(:noora) do %>
-      <.noora_forgot_password {assigns} />
-    <% else %>
-      <.legacy_forgot_password {assigns} />
-    <% end %>
+    <.noora_forgot_password {assigns} />
     """
   end
 
@@ -77,46 +73,6 @@ defmodule TuistWeb.UserForgotPasswordLive do
     """
   end
 
-  def legacy_forgot_password(assigns) do
-    ~H"""
-    <.stack class="auth-page" gap="4xl">
-      <.auth_header
-        title={gettext("Forgot your password?")}
-        subtitle={gettext("We'll send a password reset link to your inbox")}
-      >
-        <:icon>
-          <.featured_icon>
-            <.key_icon />
-          </.featured_icon>
-        </:icon>
-      </.auth_header>
-
-      <.simple_form for={@form} id="reset_password_form" phx-submit="send_email" class="auth-form">
-        <.stack gap="3xl">
-          <.input
-            field={@form[:email]}
-            type="email"
-            label={gettext("Email")}
-            placeholder={gettext("Enter your email")}
-            required
-          />
-          <.stack gap="xl">
-            <.legacy_button type="submit" variant="primary" class="auth-form__primary-action">
-              {gettext("Reset password")}
-            </.legacy_button>
-          </.stack>
-        </.stack>
-      </.simple_form>
-
-      <.link href={~p"/users/log_in"} class="text--small font--semibold">
-        {gettext("Back to log in")}
-      </.link>
-
-      <.flash_group flash={@flash} />
-    </.stack>
-    """
-  end
-
   def mount(_params, _session, socket) do
     {:ok, assign(socket, form: to_form(%{}, as: "user"), success: false)}
   end
@@ -129,16 +85,6 @@ defmodule TuistWeb.UserForgotPasswordLive do
       })
     end
 
-    if FunWithFlags.enabled?(:noora) do
-      {:noreply, assign(socket, success: true)}
-    else
-      info =
-        "If your email is in our system, you will receive instructions to reset your password shortly."
-
-      {:noreply,
-       socket
-       |> put_flash(:info, info)
-       |> redirect(to: ~p"/users/log_in")}
-    end
+    {:noreply, assign(socket, success: true)}
   end
 end
