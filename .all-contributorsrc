@@ -1798,6 +1798,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "vkondrashkov",
+      "name": "Vladislav Kondrashkov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16046780?v=4",
+      "profile": "https://github.com/vkondrashkov",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
