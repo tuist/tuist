@@ -833,11 +833,15 @@ extension ProjectDescription.ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription
+        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) async throws -> ProjectDescription
             .ResourceFileElement?
         {
-            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
-                .appending(component: "**")
+            let absolutePathGlob = if try await fileSystem.exists(resourceAbsolutePath, isDirectory: true) {
+                resourceAbsolutePath
+                    .appending(component: "**")
+            } else {
+                resourceAbsolutePath
+            }
             if excludedPaths
                 .contains(where: { absolutePathGlob.isDescendantOfOrEqual(to: $0) })
             {
@@ -860,12 +864,12 @@ extension ProjectDescription.ResourceFileElements {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
                 if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
-                    return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                    return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
                 }
             case .process:
-                return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
         .concurrentFilter {
@@ -878,6 +882,8 @@ extension ProjectDescription.ResourceFileElements {
                 return true
             case .folderReference:
                 return true
+            @unknown default:
+                return true
             }
         }
 
@@ -886,12 +892,14 @@ extension ProjectDescription.ResourceFileElements {
         if sources == nil {
             // Already included resources should not be added as default resource
             let excludedPaths: Set<AbsolutePath> = Set(
-                resourceFileElements.map {
+                resourceFileElements.compactMap {
                     switch $0 {
                     case let .folderReference(path: path, _, _):
                         AbsolutePath(stringLiteral: path.pathString)
                     case let .glob(pattern: path, _, _, _):
                         AbsolutePath(stringLiteral: path.pathString).upToLastNonGlob
+                    @unknown default:
+                        nil
                     }
                 }
             )
@@ -910,7 +918,7 @@ extension ProjectDescription.ResourceFileElements {
                 }
             }
             .sorted()
-            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
+            .concurrentCompactMap { try await handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
