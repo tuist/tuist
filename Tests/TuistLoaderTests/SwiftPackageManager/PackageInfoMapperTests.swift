@@ -1152,6 +1152,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(resource1)
         try fileHandler.createFolder(resource2)
         try fileHandler.createFolder(resource3)
+        try await fileSystem.makeDirectory(at: sourcesPath.appending(components: "Resource", "Base.lproj"))
+        try await fileSystem.touch(sourcesPath.appending(components: "Resource", "Base.lproj", "Localizable.strings"))
 
         // Project declaration
         let project = try await subject.map(
@@ -1170,6 +1172,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                                .init(rule: .process, path: "Resource/Base.lproj"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder/NonExisting"),
                             ],
                             exclude: [
@@ -1220,6 +1223,25 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     basePath
                                         .appending(
                                             try RelativePath(validating: "Package/Sources/Target1/Another/Resource/Folder/**")
+                                        )
+                                        .pathString
+                                ),
+                                excluding: [
+                                    .path(
+                                        basePath
+                                            .appending(
+                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                            )
+                                            .pathString
+                                    ),
+                                ],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: .path(
+                                    basePath
+                                        .appending(
+                                            try RelativePath(validating: "Package/Sources/Target1/Resource/Base.lproj/**")
                                         )
                                         .pathString
                                 ),
