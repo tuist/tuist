@@ -95,6 +95,12 @@ defmodule Tuist.Marketing.Blog do
         "name" => "Andrew Kolean",
         "github_handle" => "ajkolean",
         "image_href" => "/marketing/images/authors/ajkolean.jpg"
+      },
+      "asmitbm" => %{
+        "role" => "Designer at Tuist",
+        "name" => " Asmit Malakannawar ",
+        "mastodon_url" => "https://mastodon.social/@asmitbm",
+        "github_handle" => "asmitbm"
       }
     }
   end

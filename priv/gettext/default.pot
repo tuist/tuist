@@ -2262,11 +2262,6 @@ msgstr ""
 msgid "Subscribe"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
-#, elixir-autogen, elixir-format
-msgid "Supercharge your app development"
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Support"
@@ -2968,7 +2963,7 @@ msgstr ""
 msgid "You have rejected the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:108
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "You might also like"
 msgstr ""
@@ -3309,4 +3304,9 @@ msgstr ""
 #: lib/tuist_web/controllers/error_html.ex:19
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
+msgstr ""
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Supercharge your Swift app development"
 msgstr ""
