@@ -220,7 +220,6 @@ html[data-noora] {
 
       & [data-part="bottom-left-gradient"] {
         position: absolute;
-        position: absolute;
         bottom: 0px;
         left: 0px;
         translate: -50% 20%;
