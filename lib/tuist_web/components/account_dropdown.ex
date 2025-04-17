@@ -72,9 +72,9 @@ defmodule TuistWeb.AccountDropdown do
             <div data-part="theme-switcher-section">
               <p data-part="theme-switcher-title">{gettext("Switch to your preferred theme")}</p>
               <div data-part="theme-switcher">
-                <.theme_light id={"#{@id}-theme-switcher-light"} />
-                <.theme_dark id={"#{@id}-theme-switcher-dark"} />
-                <.theme_system id={"#{@id}-theme-switcher-system"} />
+                <.theme_light name={@id} id={"#{@id}-theme-switcher-light"} />
+                <.theme_dark name={@id} id={"#{@id}-theme-switcher-dark"} />
+                <.theme_system name={@id} id={"#{@id}-theme-switcher-system"} />
               </div>
             </div>
             <.link href={~p"/users/log_out"} method="delete">
@@ -90,10 +90,11 @@ defmodule TuistWeb.AccountDropdown do
   end
 
   attr :id, :string, required: true
+  attr :name, :string, required: true
 
   defp theme_light(assigns) do
     ~H"""
-    <input type="radio" id={@id} name="theme" value="light" phx-hook="ThemeSwitcher" />
+    <input type="radio" id={@id} name={@name} value="light" phx-hook="ThemeSwitcher" />
     <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g clip-path={"url(##{@id}-clip0_856_2618)"}>
@@ -180,10 +181,11 @@ defmodule TuistWeb.AccountDropdown do
   end
 
   attr :id, :string, required: true
+  attr :name, :string, required: true
 
   defp theme_dark(assigns) do
     ~H"""
-    <input type="radio" id={@id} name="theme" value="dark" phx-hook="ThemeSwitcher" />
+    <input type="radio" id={@id} name={@name} value="dark" phx-hook="ThemeSwitcher" />
     <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g clip-path={"url(##{@id}-clip0_856_2644)"}>
@@ -270,10 +272,11 @@ defmodule TuistWeb.AccountDropdown do
   end
 
   attr :id, :string, required: true
+  attr :name, :string, required: true
 
   defp theme_system(assigns) do
     ~H"""
-    <input type="radio" id={@id} name="theme" value="system" phx-hook="ThemeSwitcher" />
+    <input type="radio" id={@id} name={@name} value="system" phx-hook="ThemeSwitcher" />
     <label for={@id}>
       <svg width="122" height="84" viewBox="0 0 122 84" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g clip-path={"url(##{@id}-clip0_856_2670)"}>

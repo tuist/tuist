@@ -104,6 +104,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
     """
   end
 
+  attr :id, :string, required: false
   attr :label, :string, required: true, doc: "Text displayed as the main content of the item"
   attr :value, :string, required: true, doc: "Value associated with the breadcrumb item"
   attr :selected, :boolean, default: false, doc: "Whether the item is selected"
@@ -121,7 +122,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
       <:left_icon>
         <.avatar
           :if={@show_avatar}
-          id={@label <> "-avatar"}
+          id={(@id || @label) <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
