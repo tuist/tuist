@@ -110,6 +110,30 @@ final class ContentHasherTests: TuistUnitTestCase {
         // and .DS_STORE should be ignored
     }
 
+    func test_hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
+        // Given
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            let symbolicPath = temporaryDirectory.appending(component: "symbolic")
+            let destinationPath = temporaryDirectory.appending(component: "destination")
+            try await fileSystem.writeText("destination", at: destinationPath)
+            try await fileSystem.createSymbolicLink(from: symbolicPath, to: RelativePath(validating: "destination"))
+            try await fileSystem.createSymbolicLink(
+                from: temporaryDirectory.appending(component: "non-existent-symbolic"),
+                to: RelativePath(validating: "non-existent")
+            )
+            try await fileSystem.writeText("foo", at: temporaryDirectory.appending(component: "foo.txt"))
+
+            // When
+            let hash = try await subject.hash(path: temporaryDirectory)
+
+            // Then
+            XCTAssertEqual(
+                hash,
+                "6990a54322d9232390a784c5c9247dd6-6990a54322d9232390a784c5c9247dd6-acbd18db4cc2f85cedef654fccc4a4d8"
+            )
+        }
+    }
+
     // MARK: - Private
 
     private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
