@@ -2,13 +2,15 @@ defmodule TuistWeb.OnPremisePlug do
   @moduledoc """
   This module contains plugs specific to on-premise customers.
   """
-  import Plug.Conn
   use TuistWeb, :controller
+
+  import Plug.Conn
+
   alias Tuist.Environment
   alias Tuist.License
   alias Tuist.Time
-  alias TuistWeb.WarningsHeaderPlug
   alias TuistWeb.Authentication
+  alias TuistWeb.WarningsHeaderPlug
 
   def init(:api_license_validation), do: :api_license_validation
   def init(:warn_on_outdated_cli), do: :warn_on_outdated_cli
@@ -78,15 +80,15 @@ defmodule TuistWeb.OnPremisePlug do
       cond do
         # Tuist is 15 days behind (warning)
         diff > 15 ->
-          conn
-          |> WarningsHeaderPlug.put_warning(
+          WarningsHeaderPlug.put_warning(
+            conn,
             "Your version of the Tuist server is 15 days behind the version of the CLI that you are using, #{cli_version}. Please update it to the latest version."
           )
 
         # Tuist is 4 months behind (warning)
         diff < -(30 * 4) ->
-          conn
-          |> WarningsHeaderPlug.put_warning(
+          WarningsHeaderPlug.put_warning(
+            conn,
             "Your version of the Tuist CLI is 4 months behind the version of the Tuist server that you are using. We recommend updating the CLI to the latest version."
           )
 

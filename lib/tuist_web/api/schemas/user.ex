@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.User do
   @moduledoc """
   A schema for a user.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

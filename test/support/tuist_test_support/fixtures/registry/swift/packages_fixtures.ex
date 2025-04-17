@@ -1,10 +1,10 @@
 defmodule TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures do
   @moduledoc false
 
-  alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages
-  alias Tuist.Repo
+  alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages.PackageRelease
+  alias Tuist.Repo
 
   def package_fixture(opts \\ []) do
     scope = Keyword.get(opts, :scope, "#{TuistTestSupport.Utilities.unique_integer()}")

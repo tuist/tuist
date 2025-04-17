@@ -4,7 +4,7 @@ defmodule Tuist.Repo do
     adapter: Ecto.Adapters.Postgres,
     pool_timeout: 15_000
 
-  def timescale_available?() do
+  def timescale_available? do
     query = """
     SELECT EXISTS (
       SELECT 1
@@ -19,11 +19,11 @@ defmodule Tuist.Repo do
     end
   end
 
-  def running?() do
-    Ecto.Repo.all_running() |> Enum.member?(__MODULE__)
+  def running? do
+    Enum.member?(Ecto.Repo.all_running(), __MODULE__)
   end
 
-  def connection_pool_metrics() do
+  def connection_pool_metrics do
     # The connection pool is not registered using a name
     # so we need to introspect the repository instance to
     # get the pid of the DB pool.
@@ -73,7 +73,8 @@ defmodule Tuist.Repo do
     #       ]}, :permanent, false, 5000, :worker, [Ecto.Repo.Supervisor]}
     #   }}, :undefined, 0, 5, [], 0, :never, Ecto.Repo.Supervisor,
     #  {Tuist.Repo, Tuist.Repo, :tuist, Ecto.Adapters.Postgres, []}}
-    :sys.get_state(Tuist.Repo)
+    Tuist.Repo
+    |> :sys.get_state()
     |> elem(3)
     |> elem(1)
     |> Map.get(DBConnection.ConnectionPool)

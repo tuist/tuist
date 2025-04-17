@@ -1,7 +1,8 @@
 defmodule Tuist.Xcode.XcodeGraphTest do
-  alias Tuist.Xcode.XcodeGraph
-  alias Tuist.Repo
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Repo
+  alias Tuist.Xcode.XcodeGraph
 
   describe "create_changeset/1" do
     test "is valid when contains all necessary attributes" do
@@ -44,7 +45,8 @@ defmodule Tuist.Xcode.XcodeGraphTest do
       {:ok, _} = Repo.insert(changeset)
 
       {:error, got} =
-        XcodeGraph.create_changeset(%XcodeGraph{}, %{
+        %XcodeGraph{}
+        |> XcodeGraph.create_changeset(%{
           name: "XcodeGraph",
           command_event_id: 1
         })

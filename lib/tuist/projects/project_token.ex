@@ -2,10 +2,11 @@ defmodule Tuist.Projects.ProjectToken do
   @moduledoc """
   A module that represents a project token.
   """
-  alias Tuist.Projects.Project
-
   use Ecto.Schema
+
   import Ecto.Changeset
+
+  alias Tuist.Projects.Project
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "project_tokens" do

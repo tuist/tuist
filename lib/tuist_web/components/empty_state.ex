@@ -4,6 +4,7 @@ defmodule TuistWeb.EmptyState do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
+
   import TuistWeb.Components.Terminal
 
   attr :id, :string, required: true, doc: "The id of the empty state."

@@ -2,8 +2,10 @@ defmodule TuistWeb.Storybook.Tooltip do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
+  alias TuistWeb.Noora.Icon
+
   def function, do: &TuistWeb.Noora.Tooltip.tooltip/1
-  def imports, do: [{TuistWeb.Noora.Icon, alert_circle: 1}, {TuistWeb.Noora.Icon, category: 1}]
+  def imports, do: [{Icon, alert_circle: 1}, {Icon, category: 1}]
 
   def template do
     """

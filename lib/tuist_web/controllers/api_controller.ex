@@ -1,5 +1,6 @@
 defmodule TuistWeb.APIController do
   use TuistWeb, :controller
+
   import Plug.Conn
 
   def docs(conn, _params) do
@@ -12,8 +13,6 @@ defmodule TuistWeb.APIController do
           )
 
         access_token
-      else
-        nil
       end
 
     conn

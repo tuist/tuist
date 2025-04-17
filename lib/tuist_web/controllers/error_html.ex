@@ -1,7 +1,8 @@
 defmodule TuistWeb.ErrorHTML do
-  alias Tuist.Accounts
   use TuistWeb, :html
   use TuistWeb.Noora
+
+  alias Tuist.Accounts
 
   # If you want to customize your error pages,
   # uncomment the embed_templates/1 call below
@@ -13,18 +14,15 @@ defmodule TuistWeb.ErrorHTML do
   # embed_templates "error_html/*"
 
   def render("401.html", assigns) do
-    render_error_page(
-      assigns
-      |> Map.put(:head_title, gettext("Unauthorized"))
-      |> Map.put(:title, gettext("You are not authorized to view this page"))
-      |> Map.put(
-        :message,
-        gettext(
-          "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-        )
-      )
-      |> Map.put(:error_name, gettext("401"))
+    assigns
+    |> Map.put(:head_title, gettext("Unauthorized"))
+    |> Map.put(:title, gettext("You are not authorized to view this page"))
+    |> Map.put(
+      :message,
+      gettext("Please, make sure you are accessing the right resource and that you have the permissions to access it.")
     )
+    |> Map.put(:error_name, gettext("401"))
+    |> render_error_page()
   end
 
   def render("404.html", assigns) do
@@ -37,16 +35,15 @@ defmodule TuistWeb.ErrorHTML do
         reason.message
       end
 
-    render_error_page(
-      assigns
-      |> Map.put(:head_title, gettext("Not found"))
-      |> Map.put(:title, gettext("Oops, we couldn't find that page"))
-      |> Map.put(
-        :message,
-        reason_message
-      )
-      |> Map.put(:error_name, gettext("404"))
+    assigns
+    |> Map.put(:head_title, gettext("Not found"))
+    |> Map.put(:title, gettext("Oops, we couldn't find that page"))
+    |> Map.put(
+      :message,
+      reason_message
     )
+    |> Map.put(:error_name, gettext("404"))
+    |> render_error_page()
   end
 
   def render("429.html", assigns) do
@@ -59,31 +56,27 @@ defmodule TuistWeb.ErrorHTML do
         reason.message
       end
 
-    render_error_page(
-      assigns
-      |> Map.put(:head_title, gettext("Too many requests"))
-      |> Map.put(:title, gettext("Too many requests."))
-      |> Map.put(
-        :message,
-        reason_message
-      )
-      |> Map.put(:error_name, gettext("429"))
+    assigns
+    |> Map.put(:head_title, gettext("Too many requests"))
+    |> Map.put(:title, gettext("Too many requests."))
+    |> Map.put(
+      :message,
+      reason_message
     )
+    |> Map.put(:error_name, gettext("429"))
+    |> render_error_page()
   end
 
   def render("500.html", assigns) do
-    render_error_page(
-      assigns
-      |> Map.put(:head_title, gettext("Server error"))
-      |> Map.put(:title, gettext("Oops! Something went wrong"))
-      |> Map.put(
-        :message,
-        gettext(
-          "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
-        )
-      )
-      |> Map.put(:error_name, gettext("500"))
+    assigns
+    |> Map.put(:head_title, gettext("Server error"))
+    |> Map.put(:title, gettext("Oops! Something went wrong"))
+    |> Map.put(
+      :message,
+      gettext("Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it.")
     )
+    |> Map.put(:error_name, gettext("500"))
+    |> render_error_page()
   end
 
   # The default is to render a plain text page based on

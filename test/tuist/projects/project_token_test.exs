@@ -1,7 +1,8 @@
 defmodule Tuist.Projects.ProjectTokenTest do
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Projects.ProjectToken
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Projects.ProjectToken
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create_changeset/1" do
     test "ensures a project_id is present" do
@@ -37,7 +38,7 @@ defmodule Tuist.Projects.ProjectTokenTest do
           encrypted_token_hash: "hash"
         })
 
-      changeset |> Repo.insert!()
+      Repo.insert!(changeset)
 
       # When
       {:error, got} =

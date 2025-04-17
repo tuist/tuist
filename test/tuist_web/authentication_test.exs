@@ -1,14 +1,15 @@
 defmodule TuistWeb.AuthenticationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
   alias Phoenix.LiveView
   alias Tuist.Accounts
-  alias TuistWeb.Authentication
-  import TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
 
   @remember_me_cookie "_tuist_web_user_remember_me"
 
@@ -28,7 +29,7 @@ defmodule TuistWeb.AuthenticationTest do
   describe "authenticated_subject_account/1" do
     test "when the authenticated subject is a user", %{user: user, conn: conn} do
       # Given
-      conn = conn |> assign(:current_user, user)
+      conn = assign(conn, :current_user, user)
 
       # Then
       assert Authentication.authenticated_subject_account(conn) == user.account
@@ -36,7 +37,7 @@ defmodule TuistWeb.AuthenticationTest do
 
     test "when the authenticated subject is a project", %{project: project, conn: conn} do
       # Given
-      conn = conn |> assign(:current_project, project)
+      conn = assign(conn, :current_project, project)
 
       # Then
       assert Authentication.authenticated_subject_account(conn) == project.account
@@ -52,7 +53,7 @@ defmodule TuistWeb.AuthenticationTest do
         scopes: ["scope-1", "scope-2"]
       }
 
-      conn = conn |> assign(:current_subject, current_subject)
+      conn = assign(conn, :current_subject, current_subject)
 
       # Then
       assert Authentication.authenticated_subject_account(conn) == current_subject.account
@@ -183,7 +184,7 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     test "assigns nil to current_user assign if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       {:cont, updated_socket} =
         Authentication.on_mount(:mount_current_user, %{}, session, %LiveView.Socket{})
@@ -219,7 +220,7 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     test "redirects to login page if there isn't a user_token", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       socket = %LiveView.Socket{
         endpoint: TuistWeb.Endpoint,
@@ -248,7 +249,7 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     test "doesn't redirect if there is no authenticated user", %{conn: conn} do
-      session = conn |> get_session()
+      session = get_session(conn)
 
       assert {:cont, _updated_socket} =
                Authentication.on_mount(
@@ -322,9 +323,7 @@ defmodule TuistWeb.AuthenticationTest do
   describe "require_authenticated_user_for_private_projects/2" do
     test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       conn = %{
         conn
@@ -348,7 +347,8 @@ defmodule TuistWeb.AuthenticationTest do
     test "does not redirect if a user is anonymous and a project is public", %{conn: conn} do
       # Given
       project =
-        ProjectsFixtures.project_fixture(visibility: :public)
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
       conn = %{
@@ -370,7 +370,8 @@ defmodule TuistWeb.AuthenticationTest do
     test "redirects if a user is anonymous and a project is private", %{conn: conn} do
       # Given
       project =
-        ProjectsFixtures.project_fixture(visibility: :private)
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
       conn = %{
@@ -393,9 +394,7 @@ defmodule TuistWeb.AuthenticationTest do
   describe "require_authenticated_user_for_previews/2" do
     test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       preview = PreviewsFixtures.preview_fixture(project: project)
 
@@ -422,7 +421,8 @@ defmodule TuistWeb.AuthenticationTest do
     test "does not redirect if a user is anonymous and a project is public", %{conn: conn} do
       # Given
       project =
-        ProjectsFixtures.project_fixture(visibility: :public)
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
       preview = PreviewsFixtures.preview_fixture(project: project)
@@ -448,7 +448,8 @@ defmodule TuistWeb.AuthenticationTest do
          %{conn: conn} do
       # Given
       project =
-        ProjectsFixtures.project_fixture(visibility: :private)
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
       preview =
@@ -478,7 +479,8 @@ defmodule TuistWeb.AuthenticationTest do
          %{conn: conn} do
       # Given
       project =
-        ProjectsFixtures.project_fixture(visibility: :private)
+        [visibility: :private]
+        |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
       preview =

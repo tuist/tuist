@@ -19,16 +19,16 @@ defmodule TuistTestSupport.Cases.ConnCase do
 
   using do
     quote do
+      use TuistWeb, :verified_routes
+
+      import Phoenix.ConnTest
+      import Plug.Conn
+      import TuistTestSupport.Cases.ConnCase
+      import TuistTestSupport.Utilities
       # The default endpoint for testing
       @endpoint TuistWeb.Endpoint
 
-      use TuistWeb, :verified_routes
-
       # Import conveniences for testing with connections
-      import Plug.Conn
-      import Phoenix.ConnTest
-      import TuistTestSupport.Cases.ConnCase
-      import TuistTestSupport.Utilities
     end
   end
 

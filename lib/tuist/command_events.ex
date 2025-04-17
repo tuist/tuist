@@ -2,41 +2,32 @@ defmodule Tuist.CommandEvents do
   @moduledoc ~S"""
   A module for operations related to command events.
   """
-  alias Tuist.CommandEvents.TestCase
-  alias Tuist.Xcode.XcodeTarget
-  alias Tuist.CommandEvents.TestCaseRun
-  alias Tuist.CommandEvents.TargetTestSummary
-  alias Tuist.CommandEvents.TestSummary
-
-  alias Tuist.CommandEvents.ResultBundle.{
-    ActionTestSummaryGroup,
-    Reference,
-    ActionTestableSummary,
-    ActionTestPlanRunSummary,
-    ActionTestPlanRunSummaries,
-    ActionResult,
-    ActionsInvocationRecord,
-    ActionRecord,
-    ActionTestMetadata
-  }
-
-  alias Tuist.Storage
-  alias Tuist.Projects.Project
-  alias Tuist.Accounts.Account
-  alias Tuist.Repo
-  alias Tuist.CommandEvents.CacheEvent
-  alias Tuist.CommandEvents.Event
-  alias Tuist.Time
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
+  alias Tuist.CommandEvents.CacheEvent
+  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.ResultBundle.ActionRecord
+  alias Tuist.CommandEvents.ResultBundle.ActionResult
+  alias Tuist.CommandEvents.ResultBundle.ActionsInvocationRecord
+  alias Tuist.CommandEvents.ResultBundle.ActionTestableSummary
+  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
+  alias Tuist.CommandEvents.ResultBundle.ActionTestPlanRunSummaries
+  alias Tuist.CommandEvents.ResultBundle.ActionTestPlanRunSummary
+  alias Tuist.CommandEvents.ResultBundle.ActionTestSummaryGroup
+  alias Tuist.CommandEvents.ResultBundle.Reference
+  alias Tuist.CommandEvents.TargetTestSummary
+  alias Tuist.CommandEvents.TestCase
+  alias Tuist.CommandEvents.TestCaseRun
+  alias Tuist.CommandEvents.TestSummary
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
+  alias Tuist.Storage
+  alias Tuist.Time
+  alias Tuist.Xcode.XcodeTarget
+
   def create_cache_event(
-        %{
-          name: name,
-          event_type: event_type,
-          size: size,
-          hash: hash,
-          project_id: project_id
-        },
+        %{name: name, event_type: event_type, size: size, hash: hash, project_id: project_id},
         attrs \\ []
       ) do
     {:ok, cache_event} =
@@ -75,7 +66,7 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  def update_cache_event_counts() do
+  def update_cache_event_counts do
     start_date = DateTime.add(Time.utc_now(), -30, :day)
 
     query =
@@ -93,27 +84,24 @@ defmodule Tuist.CommandEvents do
     Repo.transaction(fn ->
       query
       |> Repo.stream()
-      |> Stream.each(&update_cache_event_count/1)
-      |> Stream.run()
+      |> Enum.each(&update_cache_event_count/1)
     end)
   end
 
   defp update_cache_event_count({account, event_type, count}) do
     case event_type do
       :download ->
-        Repo.update(account |> Ecto.Changeset.change(cache_download_event_count: count))
+        account |> Ecto.Changeset.change(cache_download_event_count: count) |> Repo.update()
 
       :upload ->
-        Repo.update(account |> Ecto.Changeset.change(cache_upload_event_count: count))
+        account |> Ecto.Changeset.change(cache_upload_event_count: count) |> Repo.update()
     end
   end
 
   def list_command_events(attrs, opts \\ []) do
-    query =
-      Event
-      |> preload(user: :account)
+    query = preload(Event, user: :account)
 
-    preload_preview = Keyword.get(opts, :preload, []) |> Enum.member?(:preview)
+    preload_preview = opts |> Keyword.get(:preload, []) |> Enum.member?(:preview)
 
     query =
       if preload_preview do
@@ -124,53 +112,49 @@ defmodule Tuist.CommandEvents do
         query
       end
 
-    preview_supported_platforms = opts |> Keyword.get(:preview_supported_platforms, nil)
+    preview_supported_platforms = Keyword.get(opts, :preview_supported_platforms, nil)
 
     query =
       if not preload_preview or is_nil(preview_supported_platforms) do
         query
       else
-        query
-        # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
-        # && operator finds rows where arrays have any elements in common.
-        # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
-        # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
-        |> where(
+        where(
+          query,
           [e, p],
           fragment(
             "? && ?",
             p.supported_platforms,
-            ^(preview_supported_platforms
-              |> Enum.map(&Ecto.Enum.mappings(Tuist.Previews.Preview, :supported_platforms)[&1]))
+            ^Enum.map(preview_supported_platforms, &Ecto.Enum.mappings(Tuist.Previews.Preview, :supported_platforms)[&1])
           )
         )
+
+        # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
+        # && operator finds rows where arrays have any elements in common.
+        # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
+        # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
       end
 
     distinct_preview_bundle_identifier =
-      Keyword.get(opts, :distinct, [])
+      opts
+      |> Keyword.get(:distinct, [])
       |> Keyword.get(:preview, [])
       |> Enum.member?(:bundle_identifier)
 
     query =
       if distinct_preview_bundle_identifier do
-        query |> distinct([e, p], p.bundle_identifier)
+        distinct(query, [e, p], p.bundle_identifier)
       else
         query
       end
 
-    query
-    |> Flop.validate_and_run!(attrs, for: Event)
+    Flop.validate_and_run!(query, attrs, for: Event)
   end
 
   def get_command_events_by_name_git_ref_and_project(
-        %{
-          name: name,
-          git_ref: git_ref,
-          project: %Project{id: project_id}
-        },
+        %{name: name, git_ref: git_ref, project: %Project{id: project_id}},
         opts \\ []
       ) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
 
     from(e in Event,
       where:
@@ -183,9 +167,10 @@ defmodule Tuist.CommandEvents do
   end
 
   def get_command_event_by_id(id, opts \\ []) do
-    preload = opts |> Keyword.get(:preload, user: :account)
+    preload = Keyword.get(opts, :preload, user: :account)
 
-    Repo.get(Event, id)
+    Event
+    |> Repo.get(id)
     |> Repo.preload(preload)
   end
 
@@ -198,44 +183,47 @@ defmodule Tuist.CommandEvents do
   end
 
   def get_result_bundle_key(%Event{} = command_event) do
-    command_event = command_event |> Repo.preload(project: :account)
+    command_event = Repo.preload(command_event, project: :account)
 
     "#{get_command_event_artifact_base_path_key(command_event)}/result_bundle.zip"
   end
 
   def get_result_bundle_invocation_record_key(%Event{} = command_event) do
-    command_event = command_event |> Repo.preload(project: :account)
+    command_event = Repo.preload(command_event, project: :account)
 
     "#{get_command_event_artifact_base_path_key(command_event)}/invocation_record.json"
   end
 
   def get_result_bundle_object_key(%Event{} = command_event, result_bundle_object_id) do
-    command_event = command_event |> Repo.preload(project: :account)
+    command_event = Repo.preload(command_event, project: :account)
 
     "#{get_command_event_artifact_base_path_key(command_event)}/#{result_bundle_object_id}.json"
   end
 
   defp get_command_event_artifact_base_path_key(%Event{} = command_event) do
-    command_event = command_event |> Repo.preload(project: :account)
+    command_event = Repo.preload(command_event, project: :account)
 
     "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
   end
 
   def list_flaky_test_cases(%Project{} = project, attrs) do
-    from(t in TestCase,
-      where: t.project_id == ^project.id,
-      where: t.flaky == true,
-      join: t_case_run_1 in TestCaseRun,
-      as: :last_flaky_test_case_run,
-      on: t_case_run_1.test_case_id == t.id and t_case_run_1.flaky == true,
-      preload: [last_flaky_test_case_run: t_case_run_1],
-      left_join: t_case_run_2 in TestCaseRun,
-      on:
-        t_case_run_2.test_case_id == t.id and t_case_run_2.flaky == true and
-          t_case_run_1.inserted_at < t_case_run_2.inserted_at,
-      select: t
+    Flop.validate_and_run!(
+      from(t in TestCase,
+        where: t.project_id == ^project.id,
+        where: t.flaky == true,
+        join: t_case_run_1 in TestCaseRun,
+        as: :last_flaky_test_case_run,
+        on: t_case_run_1.test_case_id == t.id and t_case_run_1.flaky == true,
+        preload: [last_flaky_test_case_run: t_case_run_1],
+        left_join: t_case_run_2 in TestCaseRun,
+        on:
+          t_case_run_2.test_case_id == t.id and t_case_run_2.flaky == true and
+            t_case_run_1.inserted_at < t_case_run_2.inserted_at,
+        select: t
+      ),
+      attrs,
+      for: TestCase
     )
-    |> Flop.validate_and_run!(attrs, for: TestCase)
   end
 
   def list_test_case_runs(attrs) do
@@ -300,7 +288,7 @@ defmodule Tuist.CommandEvents do
         user_id: user_id,
         client_id: client_id,
         status: status,
-        error_message: error_message |> truncate_error_message(),
+        error_message: truncate_error_message(error_message),
         preview_id: preview_id,
         git_commit_sha: git_commit_sha,
         git_branch: git_branch,
@@ -408,9 +396,7 @@ defmodule Tuist.CommandEvents do
     |> Repo.insert!()
   end
 
-  defp get_action_test_plan_run_summaries(action, %{
-         command_event: command_event
-       }) do
+  defp get_action_test_plan_run_summaries(action, %{command_event: command_event}) do
     test_plan_summaries_object_key =
       get_result_bundle_object_key(command_event, action.action_result.tests_ref.id)
 
@@ -418,8 +404,8 @@ defmodule Tuist.CommandEvents do
       test_plan_summaries_string =
         Storage.get_object_as_string(test_plan_summaries_object_key)
 
-      {:ok, test_plan_summaries} = test_plan_summaries_string |> Jason.decode()
-      test_plan_summaries |> get_actions_test_plan_run_summaries()
+      {:ok, test_plan_summaries} = Jason.decode(test_plan_summaries_string)
+      get_actions_test_plan_run_summaries(test_plan_summaries)
     else
       %{summaries: []}
     end
@@ -430,7 +416,7 @@ defmodule Tuist.CommandEvents do
 
     if Storage.object_exists?(invocation_record_key) do
       invocation_record_string = Storage.get_object_as_string(invocation_record_key)
-      {:ok, invocation_record} = invocation_record_string |> Jason.decode()
+      {:ok, invocation_record} = Jason.decode(invocation_record_string)
 
       invocation_record = get_actions_invocation_record(invocation_record)
 
@@ -450,14 +436,15 @@ defmodule Tuist.CommandEvents do
         |> get_project_tests_map()
 
       all_tests =
-        Map.values(project_tests)
+        project_tests
+        |> Map.values()
         |> Enum.flat_map(&Map.values(&1))
         |> Enum.flat_map(& &1.tests)
 
       total_tests_count = length(all_tests)
 
       failed_tests_count =
-        Enum.filter(all_tests, fn test -> test.test_status == :failure end) |> length
+        all_tests |> Enum.filter(fn test -> test.test_status == :failure end) |> length()
 
       successful_tests_count = total_tests_count - failed_tests_count
 
@@ -467,15 +454,10 @@ defmodule Tuist.CommandEvents do
         successful_tests_count: successful_tests_count,
         total_tests_count: total_tests_count
       }
-    else
-      nil
     end
   end
 
-  def create_test_cases(%{
-        test_summary: %TestSummary{} = test_summary,
-        command_event: command_event
-      }) do
+  def create_test_cases(%{test_summary: %TestSummary{} = test_summary, command_event: command_event}) do
     map_project_tests(test_summary.project_tests, fn %{
                                                        project_identifier: project_identifier,
                                                        module_name: module_name,
@@ -490,11 +472,11 @@ defmodule Tuist.CommandEvents do
           where: t.identifier in ^identifiers
         )
         |> Repo.all()
-        |> Enum.map(& &1.identifier)
-        |> MapSet.new()
+        |> MapSet.new(& &1.identifier)
 
       missing_test_cases =
-        Enum.reject(tests, fn test ->
+        tests
+        |> Enum.reject(fn test ->
           MapSet.member?(existing_test_case_identifiers, test.identifier_url)
         end)
         |> Enum.map(fn test ->
@@ -512,10 +494,7 @@ defmodule Tuist.CommandEvents do
     end)
   end
 
-  def create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      }) do
+  def create_test_case_runs(%{test_summary: test_summary, command_event: command_event}) do
     # Note:
     # This is currently behind a feature flag due to slow performance inserting thousands of test case runs.
     # Here are some ideas that we could execute on incrementally to get performance gains.
@@ -553,11 +532,9 @@ defmodule Tuist.CommandEvents do
                 [path, name] -> {path, name}
               end
 
-            project =
-              command_event.xcode_graph.xcode_projects
-              |> Enum.find(&(&1.name == name && &1.path == path))
+            project = Enum.find(command_event.xcode_graph.xcode_projects, &(&1.name == name && &1.path == path))
 
-            target = project.xcode_targets |> Enum.find(&(&1.name == module_name))
+            target = Enum.find(project.xcode_targets, &(&1.name == module_name))
 
             {target.id,
              %{
@@ -565,8 +542,7 @@ defmodule Tuist.CommandEvents do
                command_event_id: command_event.id,
                test_case_id: test_case_ids[test_case.identifier_url],
                xcode_target_id: target.id,
-               inserted_at:
-                 NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+               inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
              }}
           end)
         end)
@@ -581,7 +557,8 @@ defmodule Tuist.CommandEvents do
           # 65535 is the maxium that the postgresql protocol can handle
           # so we divide it by the number of parameters per row, and use that size to determine
           # the chunk size for the inserts
-          Enum.chunk_every(test_case_runs, div(65_535, map_size(elem(first_test_case_run, 1))))
+          test_case_runs
+          |> Enum.chunk_every(div(65_535, map_size(elem(first_test_case_run, 1))))
           # credo:disable-for-next-line
           |> Enum.each(fn batch ->
             batch
@@ -603,15 +580,8 @@ defmodule Tuist.CommandEvents do
 
       flaky_test_case_ids = Repo.all(subquery)
 
-      from(t1 in TestCaseRun,
-        where: t1.test_case_id in ^flaky_test_case_ids
-      )
-      |> Repo.update_all(set: [flaky: true])
-
-      from(t in TestCase,
-        where: t.id in ^flaky_test_case_ids
-      )
-      |> Repo.update_all(set: [flaky: true])
+      Repo.update_all(from(t1 in TestCaseRun, where: t1.test_case_id in ^flaky_test_case_ids), set: [flaky: true])
+      Repo.update_all(from(t in TestCase, where: t.id in ^flaky_test_case_ids), set: [flaky: true])
     end)
   end
 
@@ -628,11 +598,8 @@ defmodule Tuist.CommandEvents do
   end
 
   defp get_project_tests_map(testable_summaries) do
-    testable_summaries
-    |> Enum.reduce(%{}, fn testable_summary, tests_map ->
-      tests =
-        testable_summary.tests
-        |> Enum.flat_map(&get_test_summary_group_tests/1)
+    Enum.reduce(testable_summaries, %{}, fn testable_summary, tests_map ->
+      tests = Enum.flat_map(testable_summary.tests, &get_test_summary_group_tests/1)
 
       target_test_summary = %TargetTestSummary{
         tests: tests,
@@ -665,7 +632,8 @@ defmodule Tuist.CommandEvents do
   defp get_actions_test_plan_run_summaries(json) do
     %ActionTestPlanRunSummaries{
       summaries:
-        get_result_bundle_array(json, "summaries")
+        json
+        |> get_result_bundle_array("summaries")
         |> Enum.map(&get_actions_test_plan_run_summary/1)
     }
   end
@@ -673,7 +641,8 @@ defmodule Tuist.CommandEvents do
   defp get_actions_test_plan_run_summary(json) do
     %ActionTestPlanRunSummary{
       testable_summaries:
-        get_result_bundle_array(json, "testableSummaries")
+        json
+        |> get_result_bundle_array("testableSummaries")
         |> Enum.map(&get_actions_testable_summary/1)
     }
   end
@@ -683,7 +652,8 @@ defmodule Tuist.CommandEvents do
       module_name: get_result_bundle_value(json, "targetName"),
       project_identifier: get_result_bundle_value(json, "projectRelativePath"),
       tests:
-        get_result_bundle_array(json, "tests", type: "ActionTestSummaryGroup")
+        json
+        |> get_result_bundle_array("tests", type: "ActionTestSummaryGroup")
         |> Enum.map(&get_action_test_summary_group/1)
     }
   end
@@ -691,11 +661,13 @@ defmodule Tuist.CommandEvents do
   defp get_action_test_summary_group(json) do
     %ActionTestSummaryGroup{
       subtests:
-        get_result_bundle_array(json, "subtests", type: "ActionTestMetadata")
+        json
+        |> get_result_bundle_array("subtests", type: "ActionTestMetadata")
         |> Enum.map(&get_action_test_metadata/1)
         |> Enum.filter(&(not is_nil(&1))),
       subtest_groups:
-        get_result_bundle_array(json, "subtests", type: "ActionTestSummaryGroup")
+        json
+        |> get_result_bundle_array("subtests", type: "ActionTestSummaryGroup")
         |> Enum.map(&get_action_test_summary_group/1)
     }
   end
@@ -722,7 +694,8 @@ defmodule Tuist.CommandEvents do
   defp get_actions_invocation_record(json) do
     %ActionsInvocationRecord{
       actions:
-        get_result_bundle_array(json, "actions")
+        json
+        |> get_result_bundle_array("actions")
         |> Enum.map(&get_action_record/1)
     }
   end
@@ -764,8 +737,7 @@ defmodule Tuist.CommandEvents do
     if is_nil(type) do
       get_in(json, [key, "_values"]) || []
     else
-      (get_in(json, [key, "_values"]) || [])
-      |> Enum.filter(fn value -> value["_type"]["_name"] == type end)
+      Enum.filter(get_in(json, [key, "_values"]) || [], fn value -> value["_type"]["_name"] == type end)
     end
   end
 end

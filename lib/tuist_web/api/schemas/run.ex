@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.Run do
   @moduledoc """
   The schema for the run response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

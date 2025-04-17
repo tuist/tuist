@@ -4,6 +4,7 @@ defmodule TuistWeb.Components.EmptyCardSection do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
+
   import TuistWeb.Components.EmptyStateBackground
 
   attr :title, :string, required: true, doc: "The title of the empty card section"

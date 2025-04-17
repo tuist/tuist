@@ -1,25 +1,22 @@
 defmodule TuistWeb.API.PreviewsController do
-  alias Tuist.Accounts.User
+  use OpenApiSpex.ControllerSpecs
+  use TuistWeb, :controller
+
+  alias OpenApiSpex.Schema
   alias Tuist.Accounts.AuthenticatedAccount
-  alias TuistWeb.API.Schemas.ArtifactUploadURL
-  alias TuistWeb.API.Schemas
-  alias TuistWeb.API.Schemas.PreviewSupportedPlatform
+  alias Tuist.Accounts.User
   alias Tuist.Previews
   alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
-  alias TuistWeb.Authentication
-
-  alias TuistWeb.API.Schemas.{
-    ArtifactMultipartUploadParts,
-    ArtifactMultipartUploadUrl,
-    ArtifactMultipartUploadPart,
-    Error
-  }
-
   alias Tuist.Storage
-  alias OpenApiSpex.Schema
-  use OpenApiSpex.ControllerSpecs
-  use TuistWeb, :controller
+  alias TuistWeb.API.Schemas
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+  alias TuistWeb.API.Schemas.ArtifactUploadURL
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PreviewSupportedPlatform
+  alias TuistWeb.Authentication
 
   plug TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms]
 
@@ -110,21 +107,15 @@ defmodule TuistWeb.API.PreviewsController do
            },
            required: [:status, :data]
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
 
-  def multipart_start(
-        %{body_params: body_params, assigns: %{selected_project: selected_project}} = conn,
-        _params
-      ) do
+  def multipart_start(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
     account_id =
-      case conn |> Authentication.authenticated_subject() do
+      case Authentication.authenticated_subject(conn) do
         %Project{} = project -> project.account.id
         %User{} = user -> user.account.id
         %AuthenticatedAccount{account: account} -> account.id
@@ -133,7 +124,7 @@ defmodule TuistWeb.API.PreviewsController do
     %Preview{id: preview_id} =
       Previews.create_preview(%{
         project: selected_project,
-        type: Map.get(body_params, :type) |> String.to_atom(),
+        type: body_params |> Map.get(:type) |> String.to_atom(),
         display_name: Map.get(body_params, :display_name),
         bundle_identifier: Map.get(body_params, :bundle_identifier),
         version: Map.get(body_params, :version),
@@ -145,8 +136,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
 
-    conn
-    |> json(%{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
+    json(conn, %{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
   end
 
   operation(:multipart_generate_url,
@@ -183,11 +173,8 @@ defmodule TuistWeb.API.PreviewsController do
        }},
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -196,11 +183,7 @@ defmodule TuistWeb.API.PreviewsController do
         %{
           body_params: %{
             preview_id: preview_id,
-            multipart_upload_part:
-              %{
-                part_number: part_number,
-                upload_id: upload_id
-              } = multipart_upload_part
+            multipart_upload_part: %{part_number: part_number, upload_id: upload_id} = multipart_upload_part
           }
         } = conn,
         _params
@@ -217,13 +200,12 @@ defmodule TuistWeb.API.PreviewsController do
         content_length: content_length
       )
 
-    conn |> json(%{status: "success", data: %{url: url}})
+    json(conn, %{status: "success", data: %{url: url}})
   end
 
   operation(:multipart_complete,
     summary: "It completes a multi-part upload.",
-    description:
-      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     operation_id: "completePreviewsMultipartUpload",
     parameters: [
       account_handle: [
@@ -255,27 +237,18 @@ defmodule TuistWeb.API.PreviewsController do
        }},
     responses: %{
       ok: {"The upload has been completed", "application/json", TuistWeb.API.Schemas.Preview},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project or preview doesn't exist", "application/json", Error}
     }
   )
 
   def multipart_complete(
         %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          },
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
           body_params: %{
             preview_id: preview_id,
-            multipart_upload_parts: %ArtifactMultipartUploadParts{
-              parts: parts,
-              upload_id: upload_id
-            }
+            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: upload_id}
           }
         } = conn,
         _params
@@ -286,8 +259,7 @@ defmodule TuistWeb.API.PreviewsController do
           Storage.multipart_complete_upload(
             get_object_key(conn, preview_id),
             upload_id,
-            parts
-            |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+            Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
               {part_number, etag}
             end)
           )
@@ -309,8 +281,7 @@ defmodule TuistWeb.API.PreviewsController do
         |> json(%{
           id: preview_id,
           url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
-          qr_code_url:
-            url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
+          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
           icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
           bundle_identifier: preview.bundle_identifier,
           display_name: preview.display_name,
@@ -332,8 +303,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   operation(:show,
     summary: "Returns a preview with a given id.",
-    description:
-      "This endpoint returns a preview with a given id, including the url to download the preview.",
+    description: "This endpoint returns a preview with a given id, including the url to download the preview.",
     operation_id: "downloadPreview",
     parameters: [
       account_handle: [
@@ -357,11 +327,8 @@ defmodule TuistWeb.API.PreviewsController do
     ],
     responses: %{
       ok: {"The preview exists and can be downloaded", "application/json", Schemas.Preview},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The preview does not exist", "application/json", Error},
       bad_request: {"The request is invalid", "application/json", Error}
     }
@@ -400,13 +367,11 @@ defmodule TuistWeb.API.PreviewsController do
             }
           end
 
-        conn
-        |> json(%{
+        json(conn, %{
           id: preview_id,
           url: url,
           expires_at: expires_at,
-          qr_code_url:
-            url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
+          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
           icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
           bundle_identifier: preview.bundle_identifier,
           display_name: preview.display_name,
@@ -451,8 +416,7 @@ defmodule TuistWeb.API.PreviewsController do
       specifier: [
         in: :query,
         type: :string,
-        description:
-          "The preview version specifier. Currently, accepts a commit SHA, branch name, or latest."
+        description: "The preview version specifier. Currently, accepts a commit SHA, branch name, or latest."
       ],
       supported_platforms: [
         in: :query,
@@ -489,8 +453,7 @@ defmodule TuistWeb.API.PreviewsController do
           type: :string,
           enum: ["bundle_identifier"]
         },
-        description:
-          "Distinct fields – no two previews will be returned with this field having the same value."
+        description: "Distinct fields – no two previews will be returned with this field having the same value."
       ]
     ],
     responses: %{
@@ -508,11 +471,8 @@ defmodule TuistWeb.API.PreviewsController do
            },
            required: [:previews]
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -520,14 +480,8 @@ defmodule TuistWeb.API.PreviewsController do
         %{
           assigns: %{selected_project: selected_project},
           params:
-            %{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              page_size: page_size,
-              page: page
-            } = params
-        } =
-          conn,
+            %{account_handle: account_handle, project_handle: project_handle, page_size: page_size, page: page} = params
+        } = conn,
         _params
       ) do
     filters = get_filters(selected_project, params)
@@ -535,7 +489,7 @@ defmodule TuistWeb.API.PreviewsController do
     distinct =
       case Map.get(params, :distinct_field) do
         nil -> []
-        field -> [field |> String.to_atom()]
+        field -> [String.to_atom(field)]
       end
 
     {previews, _meta} =
@@ -552,21 +506,18 @@ defmodule TuistWeb.API.PreviewsController do
         preload: [:command_event]
       )
 
-    conn
-    |> json(%{
+    json(conn, %{
       previews:
-        previews
-        |> Enum.map(
+        Enum.map(
+          previews,
           &%{
             id: &1.id,
             url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}"),
-            qr_code_url:
-              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/qr-code.png"),
+            qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/qr-code.png"),
             icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/icon.png"),
             bundle_identifier: &1.bundle_identifier,
             display_name: &1.display_name,
-            git_commit_sha:
-              &1.git_commit_sha || (&1.command_event && &1.command_event.git_commit_sha),
+            git_commit_sha: &1.git_commit_sha || (&1.command_event && &1.command_event.git_commit_sha),
             git_branch: &1.git_branch || (&1.command_event && &1.command_event.git_branch)
           }
         )
@@ -626,23 +577,14 @@ defmodule TuistWeb.API.PreviewsController do
     ],
     responses: %{
       ok: {"The presigned upload URL", "application/json", ArtifactUploadURL},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project or preview doesn't exist", "application/json", Error}
     }
   )
 
   def upload_icon(
-        %{
-          params: %{
-            account_handle: account_handle,
-            project_handle: project_handle,
-            preview_id: preview_id
-          }
-        } = conn,
+        %{params: %{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}} = conn,
         _params
       ) do
     case Previews.get_preview_by_id(preview_id) do
@@ -659,8 +601,7 @@ defmodule TuistWeb.API.PreviewsController do
             expires_in: expires_in
           )
 
-        conn
-        |> json(%{url: upload_url, expires_at: System.system_time(:second) + expires_in})
+        json(conn, %{url: upload_url, expires_at: System.system_time(:second) + expires_in})
 
       {:error, :not_found} ->
         conn
@@ -679,12 +620,7 @@ defmodule TuistWeb.API.PreviewsController do
   end
 
   defp get_object_key(
-         %{
-           path_params: %{
-             "account_handle" => account_handle,
-             "project_handle" => project_handle
-           }
-         } = _conn,
+         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = _conn,
          preview_id
        ) do
     Previews.get_storage_key(%{

@@ -1,8 +1,9 @@
 defmodule Tuist.ProjectTest do
+  use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Projects.Project
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Projects.Project
-  use TuistTestSupport.Cases.DataCase
 
   test "name cannot contain dots" do
     changeset =
@@ -10,9 +11,7 @@ defmodule Tuist.ProjectTest do
 
     assert changeset.valid? == false
 
-    assert "Project name can't contain a dot. Please use a different name, such as project-name." in errors_on(
-             changeset
-           ).name
+    assert "Project name can't contain a dot. Please use a different name, such as project-name." in errors_on(changeset).name
   end
 
   describe "validation of handle validity" do

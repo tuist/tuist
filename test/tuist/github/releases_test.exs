@@ -1,15 +1,16 @@
 defmodule Tuist.GitHub.ReleasesTest do
   use ExUnit.Case, async: false
-  setup :set_mimic_from_context
-
   use Mimic
+
   alias Tuist.GitHub.Releases
+
+  setup :set_mimic_from_context
 
   describe "get_latest_cli_release/0" do
     test "returns a release if the response is successful" do
       # Given
-      published_at = Timex.now()
-      cache = UUIDv7.generate() |> String.to_atom()
+      published_at = DateTime.utc_now()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
@@ -21,8 +22,8 @@ defmodule Tuist.GitHub.ReleasesTest do
 
       releases_url = Releases.releases_url()
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn ^releases_url ->
           {:ok, %Req.Response{status: 200, body: [release]}}
@@ -39,8 +40,8 @@ defmodule Tuist.GitHub.ReleasesTest do
 
     test "returns the latest CLI release if the latest release is an App release" do
       # Given
-      published_at = Timex.now()
-      cache = UUIDv7.generate() |> String.to_atom()
+      published_at = DateTime.utc_now()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
@@ -50,16 +51,15 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "tuist.zip",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
       }
 
       releases_url = Releases.releases_url()
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn ^releases_url ->
           {:ok,
@@ -90,11 +90,11 @@ defmodule Tuist.GitHub.ReleasesTest do
   test "returns nil when the status is in the range 500..599" do
     # Given
     releases_url = Releases.releases_url()
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
 
-    Req
-    |> stub(
+    stub(
+      Req,
       :get,
       fn ^releases_url ->
         {:ok, %Req.Response{status: 502}}
@@ -111,8 +111,8 @@ defmodule Tuist.GitHub.ReleasesTest do
   describe "get_latest_app_release/0" do
     test "returns latest release if the response is successful" do
       # Given
-      published_at = Timex.now()
-      cache = UUIDv7.generate() |> String.to_atom()
+      published_at = DateTime.utc_now()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
@@ -122,21 +122,19 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "SHASUMS512.txt",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
           },
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" =>
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
           }
         ]
       }
 
       releases_url = Releases.releases_url()
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn ^releases_url ->
           {:ok, %Req.Response{status: 200, body: [release]}}
@@ -153,14 +151,14 @@ defmodule Tuist.GitHub.ReleasesTest do
 
     test "returns the latest App release if the latest release is a CLI release" do
       # Given
-      published_at = Timex.now()
-      cache = UUIDv7.generate() |> String.to_atom()
+      published_at = DateTime.utc_now()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       releases_url = Releases.releases_url()
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn ^releases_url ->
           {:ok,
@@ -180,13 +178,11 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -204,14 +200,14 @@ defmodule Tuist.GitHub.ReleasesTest do
 
     test "returns the latest App release with a DMG asset" do
       # Given
-      published_at = Timex.now()
-      cache = UUIDv7.generate() |> String.to_atom()
+      published_at = DateTime.utc_now()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       releases_url = Releases.releases_url()
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn ^releases_url ->
           {:ok,
@@ -225,8 +221,7 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
                    }
                  ]
                },
@@ -237,13 +232,11 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" =>
-                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }

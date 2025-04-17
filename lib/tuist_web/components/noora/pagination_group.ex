@@ -3,6 +3,7 @@ defmodule TuistWeb.Noora.PaginationGroup do
   Pagination group component for paginating with a defined set of pages. Do not use this component for cursor-based pagination.
   """
   use Phoenix.Component
+
   import TuistWeb.Noora.Button
   import TuistWeb.Noora.Icon
 
@@ -70,11 +71,11 @@ defmodule TuistWeb.Noora.PaginationGroup do
 
     cond do
       !show_left_ellipsis && show_right_ellipsis ->
-        left_range = 1..item_count |> Enum.to_list()
+        left_range = Enum.to_list(1..item_count)
         left_range ++ [:ellipsis, last_page_index]
 
       show_left_ellipsis && !show_right_ellipsis ->
-        right_range = (last_page_index - item_count + 1)..last_page_index |> Enum.to_list()
+        right_range = Enum.to_list((last_page_index - item_count + 1)..last_page_index)
         [first_page_index, :ellipsis | right_range]
 
       show_left_ellipsis && show_right_ellipsis ->

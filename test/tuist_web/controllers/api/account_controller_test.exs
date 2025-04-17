@@ -1,9 +1,11 @@
 defmodule TuistWeb.API.AccountControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
   alias Tuist.Accounts
   alias Tuist.Repo
-  import TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "PATCH /api/accounts" do
     setup [:register_and_log_in_user]
@@ -24,7 +26,7 @@ defmodule TuistWeb.API.AccountControllerTest do
 
       assert response == %{"id" => user.account.id, "handle" => new_handle}
 
-      assert (Repo.reload(user) |> Repo.preload(:account) |> Map.get(:account)).name ==
+      assert (user |> Repo.reload() |> Repo.preload(:account) |> Map.get(:account)).name ==
                String.downcase(new_handle)
     end
 
@@ -45,7 +47,7 @@ defmodule TuistWeb.API.AccountControllerTest do
 
       assert response == %{"id" => organization.account.id, "handle" => new_handle}
 
-      assert (Repo.reload(organization) |> Repo.preload(:account) |> Map.get(:account)).name ==
+      assert (organization |> Repo.reload() |> Repo.preload(:account) |> Map.get(:account)).name ==
                String.downcase(new_handle)
     end
 
@@ -53,7 +55,7 @@ defmodule TuistWeb.API.AccountControllerTest do
       conn: conn,
       user: user
     } do
-      other_user = user_fixture() |> Repo.preload(:account)
+      other_user = Repo.preload(user_fixture(), :account)
       new_handle = "test#{System.unique_integer()}"
 
       conn

@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.ArtifactMultipartUploadParts do
   The schema for the artifact multipart upload parts.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

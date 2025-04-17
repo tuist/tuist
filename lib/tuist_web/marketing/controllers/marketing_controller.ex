@@ -1,13 +1,21 @@
 defmodule TuistWeb.Marketing.MarketingController do
   use TuistWeb, :controller
+
   import TuistWeb.Marketing.StructuredMarkup
+
+  alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Changelog
+  alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Pages
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Marketing.Localization
 
   plug(:assign_default_head_tags)
   plug(:put_resp_header_cache_control)
   plug(:put_resp_header_server)
 
   def home(conn, _params) do
-    read_more_posts = Tuist.Marketing.Blog.get_posts() |> Enum.take(3)
+    read_more_posts = Enum.take(Blog.get_posts(), 3)
     testimonials = home_testimonials()
 
     conn
@@ -61,7 +69,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
       :head_description,
-      Tuist.Marketing.Newsletter.description()
+      Newsletter.description()
     )
     |> render(:newsletter, layout: false)
   end
@@ -72,17 +80,17 @@ defmodule TuistWeb.Marketing.MarketingController do
     issue =
       with {issue_number, _} <- Integer.parse(issue_number),
            issue when not is_nil(issue) <-
-             Enum.find(Tuist.Marketing.Newsletter.issues(), &(&1.number == issue_number)) do
+             Enum.find(Newsletter.issues(), &(&1.number == issue_number)) do
         issue
       else
         :error ->
-          raise TuistWeb.Errors.NotFoundError,
+          raise NotFoundError,
                 gettext("The newsletter issue number %{issue_number} is not a valid number.",
                   issue_number: issue_number
                 )
 
         nil ->
-          raise TuistWeb.Errors.NotFoundError,
+          raise NotFoundError,
                 gettext("The newsletter issue %{issue_number} was not found.",
                   issue_number: issue_number
                 )
@@ -99,15 +107,14 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> put_resp_header("Content-Type", "text/plain; charset=utf-8")
         |> PlugMinifyHtml.call(PlugMinifyHtml.init([]))
       else
-        conn |> put_resp_header("Content-Type", "text/html")
+        put_resp_header(conn, "Content-Type", "text/html")
       end
 
-    conn
-    |> render(String.to_atom("newsletter_issue"), issue: issue, email_version?: email_version?)
+    render(conn, String.to_atom("newsletter_issue"), issue: issue, email_version?: email_version?)
   end
 
   def blog_rss(conn, _params) do
-    posts = Tuist.Marketing.Blog.get_posts()
+    posts = Blog.get_posts()
     last_build_date = posts |> List.last() |> Map.get(:date)
 
     conn
@@ -117,7 +124,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def blog_atom(conn, _params) do
-    posts = Tuist.Marketing.Blog.get_posts()
+    posts = Blog.get_posts()
     last_build_date = posts |> List.last() |> Map.get(:date)
 
     conn
@@ -127,7 +134,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def changelog_rss(conn, _params) do
-    entries = Tuist.Marketing.Changelog.get_entries()
+    entries = Changelog.get_entries()
     last_build_date = entries |> List.last() |> Map.get(:date)
 
     conn
@@ -137,7 +144,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def changelog_atom(conn, _params) do
-    entries = Tuist.Marketing.Changelog.get_entries()
+    entries = Changelog.get_entries()
     last_build_date = entries |> List.last() |> Map.get(:date)
 
     conn
@@ -147,7 +154,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def newsletter_rss(conn, _params) do
-    issues = Tuist.Marketing.Newsletter.issues()
+    issues = Newsletter.issues()
     last_build_date = issues |> List.last() |> Map.get(:date)
 
     conn
@@ -157,7 +164,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def newsletter_atom(conn, _params) do
-    issues = Tuist.Marketing.Newsletter.issues()
+    issues = Newsletter.issues()
     last_build_date = issues |> List.last() |> Map.get(:date)
 
     conn
@@ -167,17 +174,12 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def sitemap(conn, _params) do
-    page_urls =
-      Tuist.Marketing.Pages.get_pages()
-      |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+    page_urls = Enum.map(Pages.get_pages(), &Tuist.Environment.app_url(path: &1.slug))
 
-    post_urls =
-      Tuist.Marketing.Blog.get_posts()
-      |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+    post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
 
     newsletter_issue_urls =
-      Tuist.Marketing.Newsletter.issues()
-      |> Enum.map(&Tuist.Environment.app_url(path: ~p"/newsletter/issue/#{&1.number}"))
+      Enum.map(Newsletter.issues(), &Tuist.Environment.app_url(path: ~p"/newsletter/issue/#{&1.number}"))
 
     entries =
       [
@@ -193,23 +195,15 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def blog_post(%{request_path: request_path} = conn, _params) do
-    request_path = TuistWeb.Marketing.Localization.path_without_locale(request_path)
+    request_path = Localization.path_without_locale(request_path)
 
-    post =
-      Tuist.Marketing.Blog.get_posts()
-      |> Enum.find(
-        &(&1.slug ==
-            String.trim_trailing(
-              request_path,
-              "/"
-            ))
-      )
+    post = Enum.find(Blog.get_posts(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
     if is_nil(post) do
-      raise TuistWeb.Errors.NotFoundError
+      raise NotFoundError
     else
-      related_posts = Tuist.Marketing.Blog.get_posts() |> Enum.take_random(3)
-      author = Tuist.Marketing.Blog.get_authors()[post.author]
+      related_posts = Enum.take_random(Blog.get_posts(), 3)
+      author = Blog.get_authors()[post.author]
 
       conn
       |> assign(:head_title, post.title)
@@ -247,25 +241,20 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {gettext(
-         "Why is your pricing model more accessible compared to traditional enterprise models?"
-       ),
+      {gettext("Why is your pricing model more accessible compared to traditional enterprise models?"),
        gettext(
          ~S"""
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more:
-           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
+         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
        )},
       {gettext("How can I estimate the cost of my project?"),
        gettext(
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
        )},
       {gettext("Is there a free trial on paid plans?"),
-       gettext(
-         "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-       )},
+       gettext("We have a generous free tier on every paid plan so you can try out the features before paying any money.")},
       {gettext("Do you offer discounts for non-profits and open-source?"),
        gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
@@ -299,11 +288,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def page(conn, _params) do
-    request_path = TuistWeb.Marketing.Localization.path_without_locale(conn.request_path)
+    request_path = Localization.path_without_locale(conn.request_path)
 
-    page =
-      Tuist.Marketing.Pages.get_pages()
-      |> Enum.find(&(&1.slug == String.trim_trailing(request_path, "/")))
+    page = Enum.find(Pages.get_pages(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
     conn
     |> assign(:head_title, "#{page.title}")
@@ -311,8 +298,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path:
-          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+        path: "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -326,7 +312,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:page, layout: false)
   end
 
-  defp home_testimonials() do
+  defp home_testimonials do
     [
       [
         %{

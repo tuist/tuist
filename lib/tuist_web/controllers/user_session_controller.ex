@@ -23,7 +23,7 @@ defmodule TuistWeb.UserSessionController do
   defp create(conn, params, info) do
     case RateLimit.hit(
            "users_log_in:#{RemoteIp.get(conn)}",
-           :timer.minutes(1),
+           to_timeout(minute: 1),
            10
          ) do
       {:allow, _count} ->
@@ -73,7 +73,6 @@ defmodule TuistWeb.UserSessionController do
   end
 
   def delete(conn, _params) do
-    conn
-    |> Authentication.log_out_user()
+    Authentication.log_out_user(conn)
   end
 end

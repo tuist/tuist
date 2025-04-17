@@ -1,18 +1,19 @@
 defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
-  alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Repo
-  alias TuistWeb.API.Authorization.AuthorizationPlug
-  alias Tuist.Accounts
-  alias Tuist.Authorization
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Authorization
+  alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.API.Authorization.AuthorizationPlug
 
   setup :set_mimic_global
 
   setup do
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     %{cache: cache}
   end
@@ -24,7 +25,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     opts = AuthorizationPlug.init(:registry)
 
     conn =
-      build_conn(:get, ~p"/api/accounts/#{account.name}/registry/swift/availability")
+      :get
+      |> build_conn(~p"/api/accounts/#{account.name}/registry/swift/availability")
       |> assign(:url_account, account)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
@@ -32,7 +34,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
       })
 
     # When
-    got = conn |> AuthorizationPlug.call(opts)
+    got = AuthorizationPlug.call(conn, opts)
 
     # Then
     assert conn == got
@@ -42,20 +44,19 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     # Given
     project = ProjectsFixtures.project_fixture()
 
-    user =
-      AccountsFixtures.user_fixture()
-      |> Repo.preload(:account)
+    user = Repo.preload(AccountsFixtures.user_fixture(), :account)
 
     account = Accounts.get_account_by_id(project.account_id)
     opts = AuthorizationPlug.init(:cache)
 
     conn =
-      build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
+      :get
+      |> build_conn(~p"/api/cache", project_id: account.name <> "/" <> project.name)
       |> assign(:selected_project, project)
       |> TuistWeb.Authentication.put_current_user(user)
 
     # When
-    conn = conn |> AuthorizationPlug.call(opts)
+    conn = AuthorizationPlug.call(conn, opts)
 
     # Then
     assert conn.halted == true
@@ -72,12 +73,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     opts = AuthorizationPlug.init(:cache)
 
     conn =
-      build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
+      :get
+      |> build_conn(~p"/api/cache", project_id: account.name <> "/" <> project.name)
       |> assign(:selected_project, project)
       |> TuistWeb.Authentication.put_current_project(project)
 
     # When
-    got = conn |> AuthorizationPlug.call(opts)
+    got = AuthorizationPlug.call(conn, opts)
 
     # Then
     assert conn == got
@@ -87,13 +89,12 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     test "caches authorization responses", %{cache: cache} do
       # Given
       project =
-        %{account: %{name: account_handle}} =
-        ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+        %{account: %{name: account_handle}} = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
-      opts = AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: :timer.minutes(5))
+      opts = AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
       # We check that the authorization API, which hits the DB, is onnly invoked once.
-      Authorization |> expect(:can?, 1, fn :project_cache_read, _, _ -> false end)
+      expect(Authorization, :can?, 1, fn :project_cache_read, _, _ -> false end)
 
       conn =
         build_conn()
@@ -103,7 +104,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
       # When/Then
       for _ <- 1..10 do
-        assert json_response(conn |> AuthorizationPlug.call(opts), :forbidden) == %{
+        assert conn |> AuthorizationPlug.call(opts) |> json_response(:forbidden) == %{
                  "message" => "#{account_handle} is not authorized to read cache"
                }
       end

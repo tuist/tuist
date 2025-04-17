@@ -21,8 +21,7 @@ defmodule TuistWeb.Noora.Button do
   attr :size, :string,
     values: @button_sizes,
     default: "large",
-    doc:
-      "Determines the overall size of the elements, including padding, font size, and other items"
+    doc: "Determines the overall size of the elements, including padding, font size, and other items"
 
   attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
   attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"
@@ -91,8 +90,7 @@ defmodule TuistWeb.Noora.Button do
   attr :size, :string,
     values: @button_sizes,
     default: "large",
-    doc:
-      "Determines the overall size of the elements, including padding, font size, and other items"
+    doc: "Determines the overall size of the elements, including padding, font size, and other items"
 
   attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
   attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"
@@ -134,8 +132,7 @@ defmodule TuistWeb.Noora.Button do
   attr :size, :string,
     values: @button_sizes,
     default: "large",
-    doc:
-      "Determines the overall size of the elements, including padding, font size, and other items"
+    doc: "Determines the overall size of the elements, including padding, font size, and other items"
 
   attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
   attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"

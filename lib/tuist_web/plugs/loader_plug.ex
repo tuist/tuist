@@ -4,21 +4,15 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   """
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
-  alias Tuist.Projects
+
   alias Tuist.CommandEvents
+  alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
 
   def init(opts), do: opts
 
-  def call(
-        %{
-          path_params: %{
-            "run_id" => run_id
-          }
-        } = conn,
-        opts
-      ) do
-    cache_ttl = Map.get(conn.assigns, :cache_ttl, :timer.minutes(1))
+  def call(%{path_params: %{"run_id" => run_id}} = conn, opts) do
+    cache_ttl = Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1))
     cache = Map.get(conn.assigns, :cache, :tuist)
 
     cache_key = [
@@ -55,15 +49,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
   end
 
-  def call(
-        %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_name
-          }
-        } = conn,
-        _opts
-      ) do
+  def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
     project_slug = "#{account_handle}/#{project_name}"
 
     fetch_project = fn ->
@@ -71,19 +57,17 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
 
     project =
-      case Map.get(conn.assigns, :caching, true) do
-        true ->
-          Tuist.Cache.get_value(
-            [Atom.to_string(__MODULE__), "project", project_slug],
-            [
-              ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
-              cache: Map.get(conn.assigns, :cache, :tuist)
-            ],
-            fetch_project
-          )
-
-        false ->
-          fetch_project.()
+      if Map.get(conn.assigns, :caching, true) do
+        Tuist.Cache.get_value(
+          [Atom.to_string(__MODULE__), "project", project_slug],
+          [
+            ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
+            cache: Map.get(conn.assigns, :cache, :tuist)
+          ],
+          fetch_project
+        )
+      else
+        fetch_project.()
       end
 
     case project do

@@ -1,11 +1,13 @@
 defmodule TuistWeb.PreviewLiveTest do
-  alias TuistWeb.Authentication
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
 
   import Phoenix.LiveViewTest
+
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
 
   setup %{project: project} do
     preview = PreviewsFixtures.preview_fixture(project: project)
@@ -23,9 +25,7 @@ defmodule TuistWeb.PreviewLiveTest do
       PreviewsFixtures.preview_fixture(project: project, supported_platforms: [:ios, :macos])
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, ".noora-tag span", "iOS")
@@ -41,13 +41,10 @@ defmodule TuistWeb.PreviewLiveTest do
     # Given
     preview = PreviewsFixtures.preview_fixture(project: project, type: :app_bundle)
 
-    UAParser
-    |> stub(:parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "iOS"}} end)
+    stub(UAParser, :parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "iOS"}} end)
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     refute has_element?(lv, "#preview-run-button span", "Run")
@@ -60,13 +57,10 @@ defmodule TuistWeb.PreviewLiveTest do
     preview: preview
   } do
     # Given
-    UAParser
-    |> stub(:parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}} end)
+    stub(UAParser, :parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}} end)
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
@@ -78,15 +72,11 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    conn
-    |> Authentication.log_out_user()
-
+    Authentication.log_out_user(conn)
     preview = PreviewsFixtures.preview_fixture(project: project, type: :app_bundle)
 
     # When
-    got =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    got = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert got == {:error, {:redirect, %{to: "/users/log_in", flash: %{}}}}
@@ -98,15 +88,11 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    conn
-    |> Authentication.log_out_user()
-
+    Authentication.log_out_user(conn)
     preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
@@ -114,9 +100,8 @@ defmodule TuistWeb.PreviewLiveTest do
 
   test "raises not found error when the preview does not exist", %{conn: conn} do
     # When / Then
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      conn
-      |> get(~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9")
+    assert_raise NotFoundError, fn ->
+      get(conn, ~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9")
     end
   end
 
@@ -128,9 +113,8 @@ defmodule TuistWeb.PreviewLiveTest do
       PreviewsFixtures.preview_fixture()
 
     # When / Then
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      conn
-      |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
+    assert_raise NotFoundError, fn ->
+      get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
     end
   end
 end

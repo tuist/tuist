@@ -1,7 +1,8 @@
 defmodule Tuist.CacheEventTest do
-  alias Tuist.CommandEvents.CacheEvent
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.CommandEvents.CacheEvent
 
   describe "create_changeset" do
     test "ensures the hash is present" do

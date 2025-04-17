@@ -4,6 +4,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
   which are then sent as a base64 encoded JSON in the `x-tuist-cloud-warnings` header.
   """
   use TuistWeb, :controller
+
   alias TuistWeb.Headers
 
   @assign_key :warnings
@@ -37,7 +38,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
   end
 
   def put_warning(conn, warning) do
-    conn |> assign(@assign_key, [warning | conn.assigns[@assign_key] || []])
+    assign(conn, @assign_key, [warning | conn.assigns[@assign_key] || []])
   end
 
   def get_warnings(conn) do

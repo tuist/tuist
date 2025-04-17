@@ -93,9 +93,9 @@ defmodule TuistWeb.CSP do
         // ...
       </style>
   """
-  require Logger
-
   import Plug.Conn
+
+  require Logger
 
   @doc """
   Sets a content security policy header.
@@ -179,19 +179,14 @@ defmodule TuistWeb.CSP do
   @doc """
   Loads the CSP nonce into the LiveView process.
   """
-  def on_mount(
-        :default,
-        _params,
-        _session,
-        %{private: %{connect_params: %{"_csp_nonce" => nonce}}} = socket
-      ) do
+  def on_mount(:default, _params, _session, %{private: %{connect_params: %{"_csp_nonce" => nonce}}} = socket) do
     Process.put(:plug_csp_nonce, nonce)
 
     {:cont, socket}
   end
 
   def on_mount(:default, _params, _session, socket) do
-    unless Process.get(:plug_csp_nonce) do
+    if !Process.get(:plug_csp_nonce) do
       Logger.debug("""
       LiveView session was misconfigured.
 

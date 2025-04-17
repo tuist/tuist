@@ -1,4 +1,5 @@
 defmodule TuistWeb.UserResetPasswordLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
@@ -65,7 +66,8 @@ defmodule TuistWeb.UserResetPasswordLive do
 
     {
       :ok,
-      assign_user_and_token(socket, params)
+      socket
+      |> assign_user_and_token(params)
       |> assign(:form, form),
       temporary_assigns: [form: form]
     }

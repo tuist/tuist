@@ -1,22 +1,25 @@
 defmodule Tuist.AuthorizationTest do
-  alias Tuist.Accounts.AuthenticatedAccount
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias TuistTestSupport.Fixtures.BillingFixtures
-  alias Tuist.VCS
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Authorization
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Environment
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Permission
+  alias Tuist.VCS.Repositories.Repository
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "can.update.account.billing when the subject is the same account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -26,7 +29,7 @@ defmodule Tuist.AuthorizationTest do
     # Given
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == true
@@ -37,7 +40,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     user_two = AccountsFixtures.user_fixture()
     account_two = Accounts.get_account_from_user(user_two)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :update, account_two, :billing) == false
@@ -48,7 +51,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     user_two = AccountsFixtures.user_fixture()
     account_two = Accounts.get_account_from_user(user_two)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account_two, :billing) == false
@@ -60,7 +63,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :admin)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -72,7 +75,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :admin)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == true
@@ -85,7 +88,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :admin)
     BillingFixtures.subscription_fixture(plan: :open_source, account_id: account.id)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -97,7 +100,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :user)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -109,7 +112,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     Accounts.add_user_to_organization(user, organization, role: :user)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :update, account, :billing) == false
@@ -473,7 +476,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     user = AccountsFixtures.user_fixture()
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -491,7 +494,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization)
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -509,12 +512,11 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
-    VCS
-    |> stub(:get_user_permission, fn _ ->
-      {:ok, %VCS.Repositories.Permission{permission: "write"}}
+    stub(VCS, :get_user_permission, fn _ ->
+      {:ok, %Permission{permission: "write"}}
     end)
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -532,12 +534,11 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
-    VCS
-    |> stub(:get_user_permission, fn _ ->
-      {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+    stub(VCS, :get_user_permission, fn _ ->
+      {:ok, %Permission{permission: "admin"}}
     end)
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -555,12 +556,11 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
-    VCS
-    |> stub(:get_user_permission, fn _ ->
-      {:ok, %VCS.Repositories.Permission{permission: "read"}}
+    stub(VCS, :get_user_permission, fn _ ->
+      {:ok, %Permission{permission: "read"}}
     end)
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -578,12 +578,11 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
 
-    VCS
-    |> stub(:get_user_permission, fn _ ->
+    stub(VCS, :get_user_permission, fn _ ->
       {:error, :not_found}
     end)
 
-    repository = %VCS.Repositories.Repository{
+    repository = %Repository{
       full_handle: "tuist/tuist",
       provider: :github,
       default_branch: "main"
@@ -720,7 +719,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
@@ -732,7 +731,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
@@ -743,7 +742,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
@@ -754,7 +753,7 @@ defmodule Tuist.AuthorizationTest do
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
@@ -766,7 +765,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == false
@@ -778,7 +777,7 @@ defmodule Tuist.AuthorizationTest do
     account = Accounts.get_account_from_organization(organization)
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :admin)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, account, :billing) == true
@@ -787,7 +786,7 @@ defmodule Tuist.AuthorizationTest do
   test "can.read.account.billing when the subject is interacting with its account and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture(preload: [:account])
-    Environment |> stub(:on_premise?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> true end)
 
     # When
     assert Authorization.can(user, :read, user.account, :billing) == false
@@ -796,7 +795,7 @@ defmodule Tuist.AuthorizationTest do
   test "can.read.account.billing when the subject is interacting with its account and it's not on-premise" do
     # Given
     user = AccountsFixtures.user_fixture(preload: [:account])
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, user.account, :billing) == true
@@ -808,7 +807,7 @@ defmodule Tuist.AuthorizationTest do
 
     BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :open_source)
 
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :on_premise?, fn -> false end)
 
     # When
     assert Authorization.can(user, :read, user.account, :billing) == false
@@ -1339,7 +1338,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.read.preview when the subject is a creator of the project and the preview is app_bundle" do
     # Given
-    user = AccountsFixtures.user_fixture() |> Repo.preload(:account)
+    user = Repo.preload(AccountsFixtures.user_fixture(), :account)
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
     preview =
@@ -1414,7 +1413,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.user.read.ops when the environment is :dev" do
     # Given
-    Environment |> stub(:env, fn -> :dev end)
+    stub(Environment, :env, fn -> :dev end)
     user = AccountsFixtures.user_fixture()
 
     # Then
@@ -1423,9 +1422,9 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
     # Given
-    Environment |> stub(:env, fn -> :prod end)
+    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    Environment |> stub(:ops_user_handles, fn -> [] end)
+    stub(Environment, :ops_user_handles, fn -> [] end)
 
     # Then
     assert Authorization.can(user, :read, :ops) == false
@@ -1433,9 +1432,9 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
     # Given
-    Environment |> stub(:env, fn -> :prod end)
+    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    Environment |> stub(:ops_user_handles, fn -> [user.account.name] end)
+    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
 
     # Then
     assert Authorization.can(user, :read, :ops) == true

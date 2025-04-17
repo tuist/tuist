@@ -2,10 +2,12 @@ defmodule Tuist.CommandEvents.TestCase do
   @moduledoc """
   Test case represents a test case (represented by a function in Swift) from an arbitrary test suite, such as `testExample()`.
   """
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Projects.Project
-  use Ecto.Schema
-  import Ecto.Changeset
 
   @derive {
     Flop.Schema,

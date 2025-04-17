@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.Project do
   @moduledoc """
   The schema for the project response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

@@ -2,10 +2,11 @@ defmodule Tuist.Previews.Preview do
   @moduledoc """
   A module that represents a preview.
   """
-  alias Tuist.Projects.Project
-
   use Ecto.Schema
+
   import Ecto.Changeset
+
+  alias Tuist.Projects.Project
 
   @derive {
     Flop.Schema,

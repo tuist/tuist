@@ -1,17 +1,18 @@
 defmodule TuistWeb.AuthorizationTest do
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias TuistWeb.Errors.NotFoundError
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistWeb.Authorization
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use Gettext, backend: TuistWeb.Gettext
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
-  use Gettext, backend: TuistWeb.Gettext
+  alias TuistWeb.Authorization
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
-  use TuistTestSupport.Cases.ConnCase, async: true
-
-  use Mimic
 
   setup %{conn: conn} do
     %{user: AccountsFixtures.user_fixture(preload: [:account]), conn: conn}
@@ -32,8 +33,8 @@ defmodule TuistWeb.AuthorizationTest do
       user: user
     } do
       # Given
-      conn = conn |> Authentication.put_current_user(user)
-      Tuist.Authorization |> expect(:can, fn ^user, :read, :ops -> true end)
+      conn = Authentication.put_current_user(conn, user)
+      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> true end)
 
       # When
       got = Authorization.call(conn, Authorization.init([:current_user, :read, :ops]))
@@ -47,8 +48,8 @@ defmodule TuistWeb.AuthorizationTest do
       user: user
     } do
       # Given
-      conn = conn |> Authentication.put_current_user(user)
-      Tuist.Authorization |> expect(:can, fn ^user, :read, :ops -> false end)
+      conn = Authentication.put_current_user(conn, user)
+      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> false end)
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -63,7 +64,7 @@ defmodule TuistWeb.AuthorizationTest do
     test "raises an error when the user is not authenticated", %{conn: conn} do
       # Given
       preview = PreviewsFixtures.preview_fixture()
-      conn = conn |> assign(:current_preview, preview)
+      conn = assign(conn, :current_preview, preview)
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -88,7 +89,7 @@ defmodule TuistWeb.AuthorizationTest do
         |> Authentication.put_current_user(user)
         |> assign(:current_preview, preview)
 
-      Tuist.Authorization |> expect(:can, fn ^user, :read, ^preview -> true end)
+      expect(Tuist.Authorization, :can, fn ^user, :read, ^preview -> true end)
 
       # When
       got = Authorization.call(conn, Authorization.init([:current_user, :read, :preview]))
@@ -109,7 +110,7 @@ defmodule TuistWeb.AuthorizationTest do
         |> Authentication.put_current_user(user)
         |> assign(:current_preview, preview)
 
-      Tuist.Authorization |> expect(:can, fn ^user, :read, ^preview -> false end)
+      expect(Tuist.Authorization, :can, fn ^user, :read, ^preview -> false end)
 
       # When/Then
       assert_raise NotFoundError,
@@ -127,7 +128,7 @@ defmodule TuistWeb.AuthorizationTest do
     test "raises an error if the socket doesn't have an authenticated user" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
-      socket = %Phoenix.LiveView.Socket{assigns: %{current_command_event: command_event}}
+      socket = %Socket{assigns: %{current_command_event: command_event}}
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -147,11 +148,11 @@ defmodule TuistWeb.AuthorizationTest do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
 
-      socket = %Phoenix.LiveView.Socket{
-        assigns: %{current_command_event: command_event} |> Authentication.put_current_user(user)
+      socket = %Socket{
+        assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
       }
 
-      Tuist.Authorization |> expect(:can, fn ^user, :read, ^command_event -> true end)
+      expect(Tuist.Authorization, :can, fn ^user, :read, ^command_event -> true end)
 
       # When/Then
       assert Authorization.on_mount([:current_user, :read, :command_event], %{}, %{}, socket) ==
@@ -163,11 +164,11 @@ defmodule TuistWeb.AuthorizationTest do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
 
-      socket = %Phoenix.LiveView.Socket{
-        assigns: %{current_command_event: command_event} |> Authentication.put_current_user(user)
+      socket = %Socket{
+        assigns: Authentication.put_current_user(%{current_command_event: command_event}, user)
       }
 
-      Tuist.Authorization |> expect(:can, fn ^user, :read, ^command_event -> false end)
+      expect(Tuist.Authorization, :can, fn ^user, :read, ^command_event -> false end)
 
       # When/Then
       assert_raise NotFoundError,
@@ -186,7 +187,7 @@ defmodule TuistWeb.AuthorizationTest do
   describe "on_mount with options [:current_user, :read, :ops]" do
     test "raises an error if the socket doesn't have an authenticated user" do
       # Given
-      socket = %Phoenix.LiveView.Socket{assigns: %{}}
+      socket = %Socket{assigns: %{}}
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -199,8 +200,8 @@ defmodule TuistWeb.AuthorizationTest do
     test "continues the socket connection if the user is authorized to read the ops page",
          %{user: user} do
       # Given
-      socket = %Phoenix.LiveView.Socket{assigns: %{} |> Authentication.put_current_user(user)}
-      Tuist.Authorization |> expect(:can, fn ^user, :read, :ops -> true end)
+      socket = %Socket{assigns: Authentication.put_current_user(%{}, user)}
+      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> true end)
 
       # When/Then
       assert Authorization.on_mount([:current_user, :read, :ops], %{}, %{}, socket) ==
@@ -210,8 +211,8 @@ defmodule TuistWeb.AuthorizationTest do
     test "raises an error if the socket has an authenticated user and they don't have access to ops",
          %{user: user} do
       # Given
-      socket = %Phoenix.LiveView.Socket{assigns: %{} |> Authentication.put_current_user(user)}
-      Tuist.Authorization |> expect(:can, fn ^user, :read, :ops -> false end)
+      socket = %Socket{assigns: Authentication.put_current_user(%{}, user)}
+      expect(Tuist.Authorization, :can, fn ^user, :read, :ops -> false end)
 
       # When/Then
       assert_raise UnauthorizedError,
@@ -235,7 +236,7 @@ defmodule TuistWeb.AuthorizationTest do
         |> assign(:current_user, user)
 
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         Authorization.require_user_can_read_project(conn, [])
       end
     end
@@ -264,7 +265,7 @@ defmodule TuistWeb.AuthorizationTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         Authorization.require_user_can_read_project(%{
           user: user,
           account_handle: account.name,

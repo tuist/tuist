@@ -2,19 +2,22 @@ defmodule TuistWeb.Authentication do
   @moduledoc ~s"""
   A module that provides functions for authenticating requests.
   """
-  import Plug.Conn
+  use TuistWeb, :verified_routes
+
   import Phoenix.Controller
+  import Plug.Conn
+
+  alias Phoenix.LiveView
+  alias Phoenix.LiveView.Socket
+  alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.User
+  alias Tuist.Analytics
   alias Tuist.Authorization
   alias Tuist.Previews
-  alias Tuist.Repo
   alias Tuist.Projects
-  alias Phoenix.LiveView
-  alias Tuist.Analytics
-  alias Tuist.Accounts
-  alias Tuist.Accounts.User
   alias Tuist.Projects.Project
-  alias Tuist.Accounts.AuthenticatedAccount
-  use TuistWeb, :verified_routes
+  alias Tuist.Repo
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -25,13 +28,10 @@ defmodule TuistWeb.Authentication do
   @remember_me_cookie "_tuist_web_user_remember_me"
   @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax"]
 
-  def authenticated?(%Plug.Conn{} = conn),
-    do: authenticated?(conn.assigns)
+  def authenticated?(%Plug.Conn{} = conn), do: authenticated?(conn.assigns)
 
   def authenticated?(assigns) when is_map(assigns),
-    do:
-      current_user(assigns) != nil or current_project(assigns) != nil or
-        assigns[:current_subject] != nil
+    do: current_user(assigns) != nil or current_project(assigns) != nil or assigns[:current_subject] != nil
 
   def current_user(%Plug.Conn{} = conn) do
     current_user(conn.assigns)
@@ -74,7 +74,7 @@ defmodule TuistWeb.Authentication do
     assign(conn, @current_user_key, user)
   end
 
-  def put_current_user(%Phoenix.LiveView.Socket{} = socket, user) do
+  def put_current_user(%Socket{} = socket, user) do
     Phoenix.Component.assign(socket, @current_user_key, user)
   end
 
@@ -90,7 +90,7 @@ defmodule TuistWeb.Authentication do
     )
   end
 
-  def put_current_project(%Phoenix.LiveView.Socket{} = socket, project) do
+  def put_current_project(%Socket{} = socket, project) do
     Phoenix.Component.assign(
       socket,
       @current_project_key,
@@ -107,14 +107,14 @@ defmodule TuistWeb.Authentication do
   end
 
   def account_token(conn) do
-    case conn |> get_req_header("authorization") do
+    case get_req_header(conn, "authorization") do
       ["Bearer " <> token] -> Accounts.account_token(token)
       _ -> {:error, :not_found}
     end
   end
 
   def get_app_installation_token_for_repository(conn) do
-    case conn |> get_req_header("authorization") do
+    case get_req_header(conn, "authorization") do
       ["Bearer " <> token] -> token
       _ -> nil
     end
@@ -325,12 +325,7 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_authenticated_user_for_private_projects(
-        %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          }
-        } = conn,
+        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
         opts
       ) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
@@ -340,20 +335,13 @@ defmodule TuistWeb.Authentication do
       else: conn
   end
 
-  def require_authenticated_user_for_previews(
-        %{
-          path_params: %{
-            "id" => preview_id
-          }
-        } = conn,
-        opts
-      ) do
+  def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
     case Previews.get_preview_by_id(preview_id) do
       {:error, _} ->
         require_authenticated_user(conn, opts)
 
       {:ok, preview} ->
-        if Authorization.can(nil, :read, preview |> Repo.preload(:project)) do
+        if Authorization.can(nil, :read, Repo.preload(preview, :project)) do
           conn
         else
           require_authenticated_user(conn, opts)
@@ -376,7 +364,7 @@ defmodule TuistWeb.Authentication do
   def signed_in_path(user) do
     project =
       if is_nil(user.last_visited_project_id) do
-        Projects.get_all_project_accounts(user) |> List.first()
+        user |> Projects.get_all_project_accounts() |> List.first()
       else
         Projects.get_project_account_by_project_id(user.last_visited_project_id)
       end

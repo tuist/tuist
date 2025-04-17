@@ -2,11 +2,11 @@ defmodule Tuist.Runs do
   @moduledoc """
     Module for interacting with runs.
   """
-  alias Tuist.Runs.Build
   alias Tuist.Repo
+  alias Tuist.Runs.Build
 
   def get_build(id) do
-    Build |> Repo.get(id)
+    Repo.get(Build, id)
   end
 
   def create_build(attrs) do
@@ -16,7 +16,6 @@ defmodule Tuist.Runs do
   end
 
   def list_build_runs(attrs) do
-    Build
-    |> Flop.validate_and_run!(attrs, for: Build)
+    Flop.validate_and_run!(Build, attrs, for: Build)
   end
 end

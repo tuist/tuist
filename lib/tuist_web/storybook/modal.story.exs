@@ -2,11 +2,13 @@ defmodule TuistWeb.Storybook.Modal do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.Modal.modal/1
+  alias TuistWeb.Noora.Modal
+
+  def function, do: &Modal.modal/1
 
   def imports,
     do: [
-      {TuistWeb.Noora.Modal, [modal_footer: 1]},
+      {Modal, [modal_footer: 1]},
       {TuistWeb.Noora.Button, [button: 1]},
       {TuistWeb.Noora.Icon, [mail: 1]},
       {TuistWeb.Noora.Label, [label: 1]},

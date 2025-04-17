@@ -2,13 +2,11 @@ defmodule TuistWeb.Storybook.Dropdown do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.Dropdown.dropdown/1
+  alias TuistWeb.Noora.Dropdown
 
-  def imports,
-    do: [
-      {TuistWeb.Noora.Dropdown, [dropdown_item: 1]},
-      {TuistWeb.Noora.Icon, [category: 1, chevron_right: 1]}
-    ]
+  def function, do: &Dropdown.dropdown/1
+
+  def imports, do: [{Dropdown, [dropdown_item: 1]}, {TuistWeb.Noora.Icon, [category: 1, chevron_right: 1]}]
 
   def variations do
     [

@@ -3,6 +3,7 @@ defmodule Tuist.Xcode.XcodeTarget do
   Xcode graph target
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key {:id, UUIDv7, autogenerate: true}

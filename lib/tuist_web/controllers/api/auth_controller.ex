@@ -1,12 +1,12 @@
 defmodule TuistWeb.API.AuthController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias TuistWeb.API.Schemas.AuthenticationTokens
-  alias TuistWeb.Authentication
-  alias Tuist.Authentication
+
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Authentication
   alias Tuist.Time
+  alias TuistWeb.API.Schemas.AuthenticationTokens
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -19,6 +19,7 @@ defmodule TuistWeb.API.AuthController do
   tags ["Authentication"]
 
   defmodule Error do
+    @moduledoc false
     require OpenApiSpex
 
     OpenApiSpex.schema(%{
@@ -33,8 +34,7 @@ defmodule TuistWeb.API.AuthController do
 
   operation(:device_code,
     summary: "Get a specific device code.",
-    description:
-      "This endpoint returns a token for a given device code if the device code is authenticated.",
+    description: "This endpoint returns a token for a given device code if the device code is authenticated.",
     operation_id: "getDeviceCode",
     parameters: [
       device_code: [
@@ -67,18 +67,12 @@ defmodule TuistWeb.API.AuthController do
              }
            }
          }},
-      accepted:
-        {"The device code is not authenticated", "application/json", %Schema{type: :object}},
-      bad_request:
-        {"The request was not accepted, e.g., when the device code is expired",
-         "application/json", Error}
+      accepted: {"The device code is not authenticated", "application/json", %Schema{type: :object}},
+      bad_request: {"The request was not accepted, e.g., when the device code is expired", "application/json", Error}
     }
   )
 
-  def device_code(
-        %{path_params: %{"device_code" => device_code_string}} = conn,
-        _params
-      ) do
+  def device_code(%{path_params: %{"device_code" => device_code_string}} = conn, _params) do
     device_code = Accounts.get_device_code(device_code_string)
 
     cond do
@@ -134,8 +128,7 @@ defmodule TuistWeb.API.AuthController do
 
   operation(:refresh_token,
     summary: "Request new tokens.",
-    description:
-      "This endpoint returns new tokens for a given refresh token if the refresh token is valid.",
+    description: "This endpoint returns new tokens for a given refresh token if the refresh token is valid.",
     operation_id: "refreshToken",
     request_body:
       {"Token params", "application/json",
@@ -155,19 +148,11 @@ defmodule TuistWeb.API.AuthController do
         "application/json",
         AuthenticationTokens
       },
-      unauthorized:
-        {"You need to be authenticated to issue new tokens", "application/json", Error}
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error}
     }
   )
 
-  def refresh_token(
-        %{
-          body_params: %{
-            refresh_token: refresh_token
-          }
-        } = conn,
-        _params
-      ) do
+  def refresh_token(%{body_params: %{refresh_token: refresh_token}} = conn, _params) do
     case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
       {:error, _} ->
         conn
@@ -221,7 +206,7 @@ defmodule TuistWeb.API.AuthController do
   def authenticate(conn, params) do
     case TuistWeb.RateLimit.hit(
            "api_auth_authenticate:#{TuistWeb.RemoteIp.get(conn)}",
-           :timer.minutes(1),
+           to_timeout(minute: 1),
            10
          ) do
       {:allow, count} ->
@@ -234,15 +219,7 @@ defmodule TuistWeb.API.AuthController do
     end
   end
 
-  def do_authenticate(
-        %{
-          body_params: %{
-            email: email,
-            password: password
-          }
-        } = conn,
-        _params
-      ) do
+  def do_authenticate(%{body_params: %{email: email, password: password}} = conn, _params) do
     case Accounts.get_user_by_email_and_password(email, password) do
       {:error, :not_confirmed} ->
         conn

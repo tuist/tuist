@@ -2,12 +2,14 @@ defmodule TuistWeb.Storybook.Table do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.Table.table/1
+  alias TuistWeb.Noora.Table
+
+  def function, do: &Table.table/1
   def layout, do: :one_column
 
   def imports,
     do: [
-      {TuistWeb.Noora.Table,
+      {Table,
        text_cell: 1,
        text_and_description_cell: 1,
        badge_cell: 1,

@@ -1,20 +1,17 @@
 defmodule TuistWeb.PreviewLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.Previews.RanByBadge
-  import TuistWeb.Previews.PlatformIcon
+
   import TuistWeb.Components.Terminal
+  import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Previews.RanByBadge
 
   alias Tuist.Authorization
   alias Tuist.Previews
+  alias TuistWeb.Errors.NotFoundError
 
-  def mount(
-        %{
-          "id" => preview_id
-        } = _params,
-        _session,
-        socket
-      ) do
+  def mount(%{"id" => preview_id} = _params, _session, socket) do
     preview =
       get_current_preview(preview_id)
 
@@ -30,7 +27,7 @@ defmodule TuistWeb.PreviewLive do
          :read,
          preview
        ) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             "Preview not found."
     end
 
@@ -82,7 +79,7 @@ defmodule TuistWeb.PreviewLive do
   defp run_button_href(preview, user_agent) do
     case {user_agent.os.family, preview.type} do
       {"iOS", :ipa} ->
-        {"itms-services" |> String.to_atom(),
+        {String.to_atom("itms-services"),
          "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
 
       {"iOS", _} ->
@@ -112,13 +109,13 @@ defmodule TuistWeb.PreviewLive do
            preload: [:command_event, :ran_by_account, project: [:account]]
          ) do
       {:error, :not_found} ->
-        raise TuistWeb.Errors.NotFoundError, "Preview not found."
+        raise NotFoundError, "Preview not found."
 
       {:ok, preview} ->
         preview
 
       {:error, _} ->
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               "Preview not found."
     end
   end

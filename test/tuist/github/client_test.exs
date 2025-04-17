@@ -1,14 +1,14 @@
 defmodule Tuist.GitHub.ClientTest do
   use ExUnit.Case, async: false
-
   use Mimic
+
   alias Tuist.Base64
-  alias Tuist.VCS.Repositories.Content
-  alias Tuist.VCS.Repositories.Tag
-  alias Tuist.VCS
-  alias Tuist.VCS.Comment
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
+  alias Tuist.VCS
+  alias Tuist.VCS.Comment
+  alias Tuist.VCS.Repositories.Content
+  alias Tuist.VCS.Repositories.Tag
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
@@ -21,8 +21,7 @@ defmodule Tuist.GitHub.ClientTest do
   ]
 
   setup do
-    App
-    |> stub(:get_app_installation_token_for_repository, fn _ ->
+    stub(App, :get_app_installation_token_for_repository, fn _ ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -32,11 +31,10 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_comments/1" do
     test "returns comments" do
       # Given
-      Req
-      |> expect(:get, fn [
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                         ] ->
+      expect(Req, :get, fn [
+                             headers: @default_headers,
+                             url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                           ] ->
         {:ok,
          %Req.Response{
            status: 200,
@@ -64,8 +62,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "refreshes token when the response initially returns unauthenticated error" do
       # Given
-      Req
-      |> stub(:get, fn options ->
+      stub(Req, :get, fn options ->
         headers = Keyword.get(options, :headers)
         [_json_header, auth_header] = headers
         {_, token} = auth_header
@@ -77,18 +74,15 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      App
-      |> stub(:get_app_installation_token_for_repository, fn _ ->
-        App
-        |> stub(:get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_app_installation_token_for_repository, fn _ ->
+        stub(App, :get_app_installation_token_for_repository, fn _ ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
         end)
 
         {:ok, %{token: "old_token", expires_at: ~U[2024-04-30 10:20:29Z]}}
       end)
 
-      App
-      |> stub(:refresh_token, fn _ ->
+      stub(App, :refresh_token, fn _ ->
         {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
@@ -101,8 +95,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns a server error" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 500}}
       end)
 
@@ -115,8 +108,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns forbidden error" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 403}}
       end)
 
@@ -129,8 +121,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting token fails" do
       # Given
-      App
-      |> stub(:get_app_installation_token_for_repository, fn _ ->
+      stub(App, :get_app_installation_token_for_repository, fn _ ->
         {:error, "Failed to get token."}
       end)
 
@@ -146,12 +137,11 @@ defmodule Tuist.GitHub.ClientTest do
   describe "create_comment/1" do
     test "creates a new comment" do
       # Given
-      Req
-      |> expect(:post, fn [
-                            headers: @default_headers,
-                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                            json: %{body: "comment"}
-                          ] ->
+      expect(Req, :post, fn [
+                              headers: @default_headers,
+                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                              json: %{body: "comment"}
+                            ] ->
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -171,12 +161,11 @@ defmodule Tuist.GitHub.ClientTest do
   describe "update_comment/1" do
     test "updates comment" do
       # Given
-      Req
-      |> expect(:patch, fn [
-                             headers: @default_headers,
-                             url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
-                             json: %{body: "comment"}
-                           ] ->
+      expect(Req, :patch, fn [
+                               headers: @default_headers,
+                               url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
+                               json: %{body: "comment"}
+                             ] ->
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -196,11 +185,10 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_user_by_id/1" do
     test "returns user" do
       # Given
-      Req
-      |> expect(:get, fn [
-                           headers: @default_headers,
-                           url: "https://api.github.com/user/123"
-                         ] ->
+      expect(Req, :get, fn [
+                             headers: @default_headers,
+                             url: "https://api.github.com/user/123"
+                           ] ->
         {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
       end)
 
@@ -213,11 +201,10 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns ok with 404 error" do
       # Given
-      Req
-      |> expect(:get, fn [
-                           headers: @default_headers,
-                           url: "https://api.github.com/user/123"
-                         ] ->
+      expect(Req, :get, fn [
+                             headers: @default_headers,
+                             url: "https://api.github.com/user/123"
+                           ] ->
         {:ok, %Req.Response{status: 404}}
       end)
 
@@ -232,16 +219,15 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_user_permission/1" do
     test "returns user permission" do
       # Given
-      Req
-      |> stub(:get, fn [
-                         headers: @default_headers,
-                         url: "https://api.github.com/user/123"
-                       ] ->
+      stub(Req, :get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/user/123"
+                         ] ->
         {:ok, %Req.Response{status: 200, body: %{"login" => "tuist"}}}
       end)
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn [
              headers: @default_headers,
@@ -263,11 +249,10 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_repository/1" do
     test "returns repository" do
       # Given
-      Req
-      |> expect(:get, fn [
-                           headers: @default_headers,
-                           url: "https://api.github.com/repos/tuist/tuist"
-                         ] ->
+      expect(Req, :get, fn [
+                             headers: @default_headers,
+                             url: "https://api.github.com/repos/tuist/tuist"
+                           ] ->
         {:ok,
          %Req.Response{
            status: 200,
@@ -292,8 +277,8 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_tags/1" do
     test "returns tags" do
       # Given
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn
           [
@@ -305,7 +290,7 @@ defmodule Tuist.GitHub.ClientTest do
                status: 200,
                headers: %{
                  "link" => [
-                   "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"next\", <https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"last\""
+                   ~s(<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="next", <https://api.github.com/repos/tuist/tuist/tags?page=2>; rel="last")
                  ]
                },
                body: [
@@ -342,8 +327,8 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns empty array when no tags exist" do
       # Given
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn
           [
@@ -372,8 +357,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when endpoint returns unexpected status code" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
@@ -390,8 +374,7 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_source_archive_by_tag_and_repository_full_handle/1" do
     test "returns source archive" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 200, body: "File contents"}}
       end)
 
@@ -409,8 +392,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting the source archive fails" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
@@ -432,8 +414,7 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_repository_content/1" do
     test "returns contents array in a given repository" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok,
          %Req.Response{
            status: 200,
@@ -470,8 +451,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns file content in a given repository" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok,
          %Req.Response{
            status: 200,
@@ -482,8 +462,7 @@ defmodule Tuist.GitHub.ClientTest do
          }}
       end)
 
-      Base64
-      |> stub(:decode, fn "Package.swift encoded content" -> "Package.swift content" end)
+      stub(Base64, :decode, fn "Package.swift encoded content" -> "Package.swift content" end)
 
       # When
       got =
@@ -506,8 +485,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns :not_found error when the content does not exist" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
@@ -526,8 +504,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns unexpected error when the content does not exist" do
       # Given
-      Req
-      |> stub(:get, fn _ ->
+      stub(Req, :get, fn _ ->
         {:ok, %Req.Response{status: 329}}
       end)
 

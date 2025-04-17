@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.Runs.Build do
   @moduledoc """
   The schema for the build response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "RunsBuild",

@@ -3,6 +3,7 @@ defmodule Tuist.CommandEvents.CacheEvent do
   A module that represents the cache events.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   schema "cache_events" do

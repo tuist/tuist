@@ -1,9 +1,12 @@
 defmodule TuistWeb.UserRegistrationLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
+
   import TuistWeb.AppAuthComponents
-  alias Tuist.Accounts
+
   alias Phoenix.Flash
+  alias Tuist.Accounts
   alias Tuist.Environment
 
   def render(assigns) do
@@ -232,20 +235,10 @@ defmodule TuistWeb.UserRegistrationLive do
         {:noreply, assign(socket, :success, true)}
 
       {:error, :account_handle_taken} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           gettext("Account name is already taken")
-         )}
+        {:noreply, put_flash(socket, :error, gettext("Account name is already taken"))}
 
       {:error, :email_taken} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           gettext("Email is already taken")
-         )}
+        {:noreply, put_flash(socket, :error, gettext("Email is already taken"))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         socket =

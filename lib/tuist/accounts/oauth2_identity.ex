@@ -3,6 +3,7 @@ defmodule Tuist.Accounts.Oauth2Identity do
   A module that represents the oauth2 identity.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   schema "oauth2_identities" do

@@ -1,13 +1,17 @@
 defmodule TuistWeb.API.CacheController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias TuistWeb.API.Schemas
+
+  alias OpenApiSpex.Schema
+  alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
+  alias Tuist.Storage
+  alias TuistWeb.API.Schemas
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactUploadId
-  alias Tuist.Storage
-  alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
+  alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
+  alias TuistWeb.API.Schemas.CacheCategory
+  alias TuistWeb.API.Schemas.Error
 
   plug(
     OpenApiSpex.Plug.CastAndValidate,
@@ -20,7 +24,7 @@ defmodule TuistWeb.API.CacheController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug,
     category: :cache,
     caching: true,
-    cache_ttl: :timer.minutes(1)
+    cache_ttl: to_timeout(minute: 1)
   )
 
   plug(TuistWeb.API.Authorization.BillingPlug)
@@ -54,19 +58,13 @@ defmodule TuistWeb.API.CacheController do
     responses: %{
       ok: {"The item exists in the action cache", "application/json", Schemas.CacheActionItem},
       not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
-  def get_cache_action_item(
-        %{assigns: %{selected_project: selected_project}} = conn,
-        %{hash: hash} = _params
-      ) do
+  def get_cache_action_item(%{assigns: %{selected_project: selected_project}} = conn, %{hash: hash} = _params) do
     cache_action_item =
       Tuist.Cache.get_value(
         [
@@ -76,7 +74,7 @@ defmodule TuistWeb.API.CacheController do
           hash
         ],
         [
-          ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+          ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
           cache: Map.get(conn.assigns, :cache, :tuist)
         ],
         fn ->
@@ -102,16 +100,14 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
-    description:
-      "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
+    description: "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
     operation_id: "downloadCacheArtifact",
     parameters: [
       cache_category: [
         in: :query,
         type: CacheCategory,
         required: false,
-        description:
-          "The category of the cache. It's used to differentiate between different types of caches."
+        description: "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -128,13 +124,9 @@ defmodule TuistWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok:
-        {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      ok: {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project or the cache artifact doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -173,7 +165,7 @@ defmodule TuistWeb.API.CacheController do
       size = Storage.get_object_size(object_key)
 
       :ok =
-        Tuist.API.Pipeline.async_push(
+        Pipeline.async_push(
           {:create_cache_event,
            %{
              event_type: :download,
@@ -193,7 +185,7 @@ defmodule TuistWeb.API.CacheController do
     end
 
     expires_at = System.system_time(:second) + expires_in
-    conn |> json(%{status: "success", data: %{url: url, expires_at: expires_at}})
+    json(conn, %{status: "success", data: %{url: url, expires_at: expires_at}})
   end
 
   def download(conn, _params) do
@@ -211,8 +203,7 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description:
-          "The category of the cache. It's used to differentiate between different types of caches."
+        description: "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -243,11 +234,8 @@ defmodule TuistWeb.API.CacheController do
              }
            }
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
@@ -292,7 +280,7 @@ defmodule TuistWeb.API.CacheController do
       )
 
     if exists do
-      conn |> json(%{status: "success", data: %{}})
+      json(conn, %{status: "success", data: %{}})
     else
       conn
       |> put_status(404)
@@ -334,27 +322,17 @@ defmodule TuistWeb.API.CacheController do
        }},
     responses: %{
       created: {"The action item was cached", "application/json", Schemas.CacheActionItem},
-      ok:
-        {"The request is valid but the cache action item already exists", "application/json",
-         Schemas.CacheActionItem},
+      ok: {"The request is valid but the cache action item already exists", "application/json", Schemas.CacheActionItem},
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
   def upload_cache_action_item(
-        %{
-          assigns: %{selected_project: selected_project},
-          body_params: %{
-            hash: hash
-          }
-        } = conn,
+        %{assigns: %{selected_project: selected_project}, body_params: %{hash: hash}} = conn,
         _params
       ) do
     cache_action_item =
@@ -366,7 +344,7 @@ defmodule TuistWeb.API.CacheController do
           hash
         ],
         [
-          ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+          ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
           cache: Map.get(conn.assigns, :cache, :tuist)
         ],
         fn ->
@@ -380,7 +358,7 @@ defmodule TuistWeb.API.CacheController do
     cond do
       is_nil(cache_action_item) ->
         :ok =
-          Tuist.API.Pipeline.async_push(
+          Pipeline.async_push(
             {:create_cache_action_item,
              %{
                project_id: selected_project.id,
@@ -420,8 +398,7 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description:
-          "The category of the cache. It's used to differentiate between different types of caches."
+        description: "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -439,11 +416,8 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -460,18 +434,12 @@ defmodule TuistWeb.API.CacheController do
         } = conn,
         _params
       ) do
-    conn
-    |> json(%{
+    json(conn, %{
       status: "success",
       data: %{
         upload_id:
           Storage.multipart_start(
-            get_object_key(%{
-              hash: hash,
-              name: name,
-              project_slug: project_slug,
-              cache_category: cache_category
-            })
+            get_object_key(%{hash: hash, name: name, project_slug: project_slug, cache_category: cache_category})
           )
       }
     })
@@ -491,15 +459,13 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description:
-          "The category of the cache. It's used to differentiate between different types of caches."
+        description: "The category of the cache. It's used to differentiate between different types of caches."
       ],
       content_length: [
         in: :query,
         type: :integer,
         required: false,
-        description:
-          "The size in bytes of the part that will be uploaded. It's used to generate the signed URL."
+        description: "The size in bytes of the part that will be uploaded. It's used to generate the signed URL."
       ],
       project_id: [
         in: :query,
@@ -529,11 +495,8 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -567,11 +530,10 @@ defmodule TuistWeb.API.CacheController do
         upload_id,
         part_number,
         expires_in: expires_in,
-        content_length:
-          if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
+        content_length: if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
       )
 
-    conn |> json(%{status: "success", data: %{url: url}})
+    json(conn, %{status: "success", data: %{url: url}})
   end
 
   def multipart_generate_url(conn, _params) do
@@ -605,8 +567,7 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description:
-          "The category of the cache. It's used to differentiate between different types of caches."
+        description: "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -644,11 +605,8 @@ defmodule TuistWeb.API.CacheController do
              }
            }
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -663,9 +621,7 @@ defmodule TuistWeb.API.CacheController do
             "upload_id" => upload_id,
             "cache_category" => cache_category
           },
-          body_params: %{
-            parts: parts
-          },
+          body_params: %{parts: parts},
           assigns: %{selected_project: selected_project}
         } = conn,
         _params
@@ -681,8 +637,7 @@ defmodule TuistWeb.API.CacheController do
       Storage.multipart_complete_upload(
         get_object_key(item),
         upload_id,
-        parts
-        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
           {part_number, etag}
         end)
       )
@@ -690,7 +645,7 @@ defmodule TuistWeb.API.CacheController do
     size = Storage.get_object_size(get_object_key(item))
 
     :ok =
-      Tuist.API.Pipeline.async_push(
+      Pipeline.async_push(
         {:create_cache_event,
          %{
            event_type: :upload,
@@ -708,7 +663,7 @@ defmodule TuistWeb.API.CacheController do
       TuistWeb.Authentication.authenticated_subject(conn)
     )
 
-    conn |> json(%{status: "success", data: %{}})
+    json(conn, %{status: "success", data: %{}})
   end
 
   def multipart_complete(conn, _params) do
@@ -734,11 +689,8 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       no_content: "The cache has been successfully cleaned",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project was not found", "application/json", Error}
     }
   )
@@ -746,10 +698,7 @@ defmodule TuistWeb.API.CacheController do
   def clean(
         %{
           assigns: %{selected_project: selected_project},
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          }
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}
         } = conn,
         _params
       ) do
@@ -759,20 +708,14 @@ defmodule TuistWeb.API.CacheController do
     Storage.delete_all_objects("#{project_slug}/tests")
     CacheActionItems.delete_all_action_items(%{project: selected_project})
 
-    conn
-    |> send_resp(:no_content, "")
+    send_resp(conn, :no_content, "")
   end
 
-  defp get_object_key(%{
-         hash: hash,
-         cache_category: cache_category,
-         name: name,
-         project_slug: project_slug
-       }) do
-    if cache_category != nil do
-      "#{project_slug |> String.downcase()}/#{cache_category}/#{hash}/#{name}"
+  defp get_object_key(%{hash: hash, cache_category: cache_category, name: name, project_slug: project_slug}) do
+    if cache_category == nil do
+      "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
-      "#{project_slug |> String.downcase()}/#{hash}/#{name}"
+      "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
     end
   end
 end

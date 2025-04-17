@@ -18,11 +18,12 @@ defmodule Tuist.Marketing.OpenGraph do
     end
 
     {image, _} =
-      template(%{
+      %{
         title_line_1: title_line_1,
         title_line_2: title_line_2,
         title_line_3: title_line_3
-      })
+      }
+      |> template()
       |> Phoenix.HTML.html_escape()
       |> Phoenix.HTML.safe_to_string()
       |> Vix.Vips.Operation.svgload_buffer!()

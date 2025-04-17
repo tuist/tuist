@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.Preview do
   @moduledoc """
   The schema for the Tuist Preview response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

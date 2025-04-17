@@ -3,6 +3,7 @@ defmodule Tuist.Accounts.UserRole do
   A module that represents the user_roles table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key {:role_id, :id, autogenerate: true}

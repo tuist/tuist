@@ -2,25 +2,24 @@ defmodule TuistWeb.LayoutLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
   use Mimic
-
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistWeb.LayoutLive
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Phoenix.LiveView
   use Mimic
+
   import Phoenix.LiveViewTest
 
+  alias Phoenix.LiveView
+  alias Tuist.Accounts
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.LayoutLive
+
   setup %{conn: conn} = context do
-    conn =
-      conn
-      |> init_test_session(%{})
+    conn = init_test_session(conn, %{})
 
     user = AccountsFixtures.user_fixture(preload: [:account])
     current_url = "https://test.tuist.io/path"
 
-    Phoenix.LiveView.Lifecycle
-    |> stub(:attach_hook, fn _, _, _, func ->
+    stub(Phoenix.LiveView.Lifecycle, :attach_hook, fn _, _, _, func ->
       {:cont, socket} = func.(%{}, current_url, %LiveView.Socket{})
       socket
     end)
@@ -44,11 +43,10 @@ defmodule TuistWeb.LayoutLiveTest do
       Accounts.add_user_to_organization(user, organization, role: role)
     end
 
-    conn = conn |> log_in_user(user)
-    session = conn |> get_session()
+    conn = log_in_user(conn, user)
+    session = get_session(conn)
 
-    Accounts
-    |> stub(:avatar_color, fn _ -> "gray" end)
+    stub(Accounts, :avatar_color, fn _ -> "gray" end)
 
     %{
       conn: conn,
@@ -73,7 +71,7 @@ defmodule TuistWeb.LayoutLiveTest do
       path: path
     } do
       # Given/When
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         live(conn, path)
       end
     end
@@ -83,7 +81,7 @@ defmodule TuistWeb.LayoutLiveTest do
       organization: organization
     } do
       # Given/When
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         live(conn, ~p"/#{organization.account.name}/invalid")
       end
     end
@@ -296,7 +294,7 @@ defmodule TuistWeb.LayoutLiveTest do
     test "when the account is invalid", %{
       session: session
     } do
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         LayoutLive.on_mount(
           :account,
           %{"account_handle" => "invalid"},

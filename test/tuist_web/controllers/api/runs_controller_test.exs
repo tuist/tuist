@@ -1,19 +1,18 @@
 defmodule TuistWeb.API.RunsControllerTest do
-  alias TuistWeb.Authentication
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: false
+
+  alias Tuist.Runs.Build
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Runs.Build
-  use TuistTestSupport.Cases.ConnCase, async: false
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/runs" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       %{conn: conn, user: user, project: project}
     end
@@ -28,14 +27,12 @@ defmodule TuistWeb.API.RunsControllerTest do
       _run_four = CommandEventsFixtures.command_event_fixture()
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2")
 
       # Then
       response = json_response(conn, :ok)
 
-      assert response["runs"] |> Enum.map(& &1["id"]) == [
+      assert Enum.map(response["runs"], & &1["id"]) == [
                run_three.id,
                run_two.id
              ]
@@ -60,9 +57,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       _run_four = CommandEventsFixtures.command_event_fixture()
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
 
       # Then
       response = json_response(conn, :ok)
@@ -98,9 +93,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       # No runs are created
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{user.account.name}/#{project.name}/runs")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs")
 
       # Then
       response = json_response(conn, :ok)
@@ -132,11 +125,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         )
 
       # When
-      conn =
-        conn
-        |> get(
-          "/api/projects/#{user.account.name}/#{project.name}/runs?git_ref=refs/heads/main&name=test"
-        )
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?git_ref=refs/heads/main&name=test")
 
       # Then
       response = json_response(conn, :ok)
@@ -175,9 +164,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       another_project = ProjectsFixtures.project_fixture(account_id: another_user.account.id)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{another_user.account.name}/#{another_project.name}/runs")
+      conn = get(conn, "/api/projects/#{another_user.account.name}/#{another_project.name}/runs")
 
       # Then
       assert response(conn, :forbidden)
@@ -191,8 +178,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       # When
       {404, _, response_json_string} =
         assert_error_sent :not_found, fn ->
-          conn
-          |> get("/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
+          get(conn, "/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
         end
 
       assert Jason.decode!(response_json_string) == %{
@@ -385,9 +371,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       # When
       {404, _, response_json_string} =
         assert_error_sent :not_found, fn ->
-          conn
-          |> post(
-            ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+          post(conn, ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
             id: UUIDv7.generate(),
             duration: 1000,
             is_ci: false

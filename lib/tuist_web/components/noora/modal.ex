@@ -4,9 +4,10 @@ defmodule TuistWeb.Noora.Modal do
   """
 
   use Phoenix.Component
-  import TuistWeb.Noora.Utils
+
   import TuistWeb.Noora.DismissIcon
   import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "The modal's unique identifier."
 
@@ -30,8 +31,7 @@ defmodule TuistWeb.Noora.Modal do
 
   slot :trigger,
     required: true,
-    doc:
-      "The modal's trigger. Should be a button that accepts the attributes provided by the slot."
+    doc: "The modal's trigger. Should be a button that accepts the attributes provided by the slot."
 
   slot :header_icon, doc: "Icon to be rendered in the header when type is 'icon'"
   slot :header_button

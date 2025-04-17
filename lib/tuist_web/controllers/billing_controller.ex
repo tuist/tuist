@@ -4,6 +4,7 @@ defmodule TuistWeb.BillingController do
   """
 
   use TuistWeb, :controller
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing
@@ -13,13 +14,13 @@ defmodule TuistWeb.BillingController do
   plug :authorize
 
   def manage(%{assigns: %{billing_account: billing_account}} = conn, _params) do
-    billing_account = billing_account |> Accounts.create_customer_when_absent()
+    billing_account = Accounts.create_customer_when_absent(billing_account)
     session = Billing.create_session(billing_account.customer_id)
-    redirect(conn, external: session.url) |> halt()
+    conn |> redirect(external: session.url) |> halt()
   end
 
   def upgrade(%{assigns: %{billing_account: billing_account}} = conn, _params) do
-    billing_account = billing_account |> Accounts.create_customer_when_absent()
+    billing_account = Accounts.create_customer_when_absent(billing_account)
 
     case Billing.update_plan(%{
            plan: :pro,
@@ -28,10 +29,10 @@ defmodule TuistWeb.BillingController do
          }) do
       # It requires redirecting to Stripe
       {:ok, {:external_redirect, session_url}} ->
-        redirect(conn, external: session_url) |> halt()
+        conn |> redirect(external: session_url) |> halt()
 
       :ok ->
-        redirect(conn, to: ~p"/#{billing_account.name}/billing") |> halt()
+        conn |> redirect(to: ~p"/#{billing_account.name}/billing") |> halt()
     end
   end
 

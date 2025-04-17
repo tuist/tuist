@@ -3,8 +3,9 @@ defmodule Mix.Tasks.Db.Create do
   This task extends the ecto.create task installing any necessary extensions right after the creation of the datatabase.
   """
   use Mix.Task
-  import Mix.Ecto
   use Boundary, classify_to: Tuist.Mix
+
+  import Mix.Ecto
 
   def run(args) do
     Mix.Tasks.Ecto.Create.run(args)

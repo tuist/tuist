@@ -1,9 +1,11 @@
 defmodule TuistWeb.PreviewController do
-  alias Tuist.Projects
-  alias TuistWeb.Authorization
-  alias Tuist.Storage
-  alias Tuist.Previews
   use TuistWeb, :controller
+
+  alias Tuist.Previews
+  alias Tuist.Projects
+  alias Tuist.Storage
+  alias TuistWeb.Authorization
+  alias TuistWeb.Errors.NotFoundError
 
   plug :assign_current_preview
        when action in [
@@ -21,39 +23,28 @@ defmodule TuistWeb.PreviewController do
     |> halt()
   end
 
-  def latest(
-        conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle
-        } = _params
-      ) do
+  def latest(conn, %{"account_handle" => account_handle, "project_handle" => project_handle} = _params) do
     with project when not is_nil(project) <-
            Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
          latest_share_command_event when not is_nil(latest_share_command_event) <-
            Previews.get_latest_preview(project) do
       conn
-      |> redirect(
-        to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_share_command_event.id}"
-      )
+      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_share_command_event.id}")
       |> halt()
     else
       nil ->
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               "The page you are looking for doesn't exist or has been moved."
     end
   end
 
   def download_qr_code_svg(
         conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     {:ok, qr_code_image} =
-      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")
+      ~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"
+      |> url()
       |> QRCode.create(:low)
       |> QRCode.render()
 
@@ -64,14 +55,11 @@ defmodule TuistWeb.PreviewController do
 
   def download_qr_code_png(
         conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     {:ok, qr_code_image} =
-      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")
+      ~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"
+      |> url()
       |> QRCode.create(:low)
       |> QRCode.render(:png)
 
@@ -82,11 +70,7 @@ defmodule TuistWeb.PreviewController do
 
   def download_icon(
         conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     object_key =
       Previews.get_icon_storage_key(%{
@@ -101,12 +85,13 @@ defmodule TuistWeb.PreviewController do
       |> send_chunked(:ok)
       |> stream_object(object_key)
     else
-      conn |> send_resp(404, "")
+      send_resp(conn, 404, "")
     end
   end
 
   defp stream_object(conn, object_key) do
-    Storage.stream_object(object_key)
+    object_key
+    |> Storage.stream_object()
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}
@@ -117,11 +102,7 @@ defmodule TuistWeb.PreviewController do
 
   def download_archive(
         conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     object =
       Storage.get_object_as_string(
@@ -132,17 +113,12 @@ defmodule TuistWeb.PreviewController do
         })
       )
 
-    conn
-    |> send_resp(200, object)
+    send_resp(conn, 200, object)
   end
 
   def manifest(
         %{assigns: %{current_preview: preview}} = conn,
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+        %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     plist_content = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -185,9 +161,7 @@ defmodule TuistWeb.PreviewController do
   end
 
   def download_preview(
-        %{
-          assigns: %{current_preview: preview}
-        } = conn,
+        %{assigns: %{current_preview: preview}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
     expires_in = 3600
@@ -210,14 +184,13 @@ defmodule TuistWeb.PreviewController do
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
     case Previews.get_preview_by_id(preview_id) do
       {:error, :not_found} ->
-        raise TuistWeb.Errors.NotFoundError, "Preview not found."
+        raise NotFoundError, "Preview not found."
 
       {:ok, preview} ->
-        conn
-        |> assign(:current_preview, preview)
+        assign(conn, :current_preview, preview)
 
       {:error, _} ->
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               "Preview not found."
     end
   end

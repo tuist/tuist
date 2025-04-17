@@ -18,18 +18,17 @@ defmodule TuistWeb do
   """
   use Boundary, deps: [Tuist], exports: [Endpoint, Router]
 
-  def static_paths,
-    do:
-      ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs storybook)
+  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs storybook)
 
   def router do
     quote do
       use Phoenix.Router, helpers: false
 
-      # Import common connection and controller functions to use in pipelines
-      import Plug.Conn
       import Phoenix.Controller
       import Phoenix.LiveView.Router
+
+      # Import common connection and controller functions to use in pipelines
+      import Plug.Conn
       import TuistWeb.CSP, only: [put_content_security_policy: 2]
     end
   end
@@ -46,8 +45,9 @@ defmodule TuistWeb do
         formats: [:html, :json, :xml],
         layouts: [html: TuistWeb.Layouts]
 
-      import Plug.Conn
       use Gettext, backend: TuistWeb.Gettext
+
+      import Plug.Conn
 
       unquote(verified_routes())
     end
@@ -56,8 +56,9 @@ defmodule TuistWeb do
   def live_view do
     quote do
       use Phoenix.LiveView
-      import TuistWeb.AppLayoutComponents
       use Gettext, backend: TuistWeb.Gettext
+
+      import TuistWeb.AppLayoutComponents
 
       on_mount(TuistWeb.CSP)
 
@@ -88,11 +89,11 @@ defmodule TuistWeb do
     quote do
       use Phoenix.Component
 
-      import TuistWeb.CSP,
-        only: [get_csp_nonce: 0]
-
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
+
+      import TuistWeb.CSP,
+        only: [get_csp_nonce: 0]
 
       unquote(html_helpers())
     end
@@ -100,14 +101,14 @@ defmodule TuistWeb do
 
   defp html_helpers do
     quote do
+      use Gettext, backend: TuistWeb.Gettext
       # HTML escaping functionality
       import Phoenix.HTML
+      import TuistWeb.AppAuthComponents
       # Core UI components and translation
       import TuistWeb.AppComponents
-      import TuistWeb.HeadlessComponents
-      import TuistWeb.AppAuthComponents
       import TuistWeb.Components.IconComponents
-      use Gettext, backend: TuistWeb.Gettext
+      import TuistWeb.HeadlessComponents
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

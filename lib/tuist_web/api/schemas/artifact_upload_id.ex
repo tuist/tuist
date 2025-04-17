@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.ArtifactUploadId do
   The schema for the artifact upload ID response.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "ArtifactUploadID",
@@ -15,8 +16,7 @@ defmodule TuistWeb.API.Schemas.ArtifactUploadId do
       status: %Schema{type: :string, default: "success", enum: ["success"]},
       data: %Schema{
         type: :object,
-        description:
-          "Data that contains ID that's associated with the multipart upload to use when uploading parts",
+        description: "Data that contains ID that's associated with the multipart upload to use when uploading parts",
         properties: %{
           upload_id: %Schema{type: :string, description: "The upload ID"}
         },

@@ -1,7 +1,8 @@
 defmodule Tuist.CacheActionItems.CacheActionItemTest do
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.CacheActionItems.CacheActionItem
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.CacheActionItems.CacheActionItem
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create_changeset/1" do
     test "with valid attributes" do
@@ -57,7 +58,7 @@ defmodule Tuist.CacheActionItems.CacheActionItemTest do
           name: "name"
         })
 
-      changeset |> Repo.insert!()
+      Repo.insert!(changeset)
 
       # When
       {:error, got} =

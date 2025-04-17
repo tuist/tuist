@@ -3,13 +3,13 @@ defmodule TuistWeb.API.Schemas.CommandEventArtifact do
   The schema for the command event artifact.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "CommandEventArtifact",
-    description:
-      "It represents an artifact that's associated with a command event (e.g. result bundles)",
+    description: "It represents an artifact that's associated with a command event (e.g. result bundles)",
     type: :object,
     properties: %{
       type: %Schema{
@@ -23,8 +23,7 @@ defmodule TuistWeb.API.Schemas.CommandEventArtifact do
         enum: ["result_bundle", "invocation_record", "result_bundle_object"]
       },
       name: %Schema{
-        description:
-          "The name of the file. It's used only for certain types such as result_bundle_object",
+        description: "The name of the file. It's used only for certain types such as result_bundle_object",
         type: :string
       }
     },

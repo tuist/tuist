@@ -4,11 +4,11 @@ defmodule Tuist.GitHub.Client do
   """
 
   alias Tuist.Base64
-  alias Tuist.VCS.Repositories.Content
-  alias Tuist.VCS.Repositories.Tag
+  alias Tuist.GitHub.App
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.GitHub.App
+  alias Tuist.VCS.Repositories.Content
+  alias Tuist.VCS.Repositories.Tag
 
   @doc """
   `repository_full_handle` is necessary as to interact with the user endpoint,
@@ -62,8 +62,7 @@ defmodule Tuist.GitHub.Client do
     case github_request(&Req.get/1, url: url, repository_full_handle: repository_full_handle) do
       {:ok, comments} ->
         {:ok,
-         comments
-         |> Enum.map(fn comment ->
+         Enum.map(comments, fn comment ->
            client_id =
              if is_nil(comment["performed_via_github_app"]) do
                nil
@@ -79,11 +78,7 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(%{
-        repository_full_handle: repository_full_handle,
-        issue_id: issue_id,
-        body: body
-      }) do
+  def create_comment(%{repository_full_handle: repository_full_handle, issue_id: issue_id, body: body}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
@@ -93,11 +88,7 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def update_comment(%{
-        repository_full_handle: repository_full_handle,
-        comment_id: comment_id,
-        body: body
-      }) do
+  def update_comment(%{repository_full_handle: repository_full_handle, comment_id: comment_id, body: body}) do
     url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
@@ -133,13 +124,7 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_repository_content(
-        %{
-          repository_full_handle: repository_full_handle,
-          token: token
-        },
-        opts \\ []
-      ) do
+  def get_repository_content(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
     path = Keyword.get(opts, :path, "")
     url = "https://api.github.com/repos/#{repository_full_handle}/contents/#{path}"
 
@@ -157,12 +142,10 @@ defmodule Tuist.GitHub.Client do
            headers: default_headers(token)
          ) do
       {:ok, %{status: 200, body: %{"content" => content, "path" => path}}} ->
-        {:ok, %Content{path: path, content: content |> Base64.decode()}}
+        {:ok, %Content{path: path, content: Base64.decode(content)}}
 
       {:ok, %{status: 200, body: directory_contents}} ->
-        {:ok,
-         directory_contents
-         |> Enum.map(&%Content{path: &1["path"]})}
+        {:ok, Enum.map(directory_contents, &%Content{path: &1["path"]})}
 
       {:ok, %{status: 404}} ->
         {:error, :not_found}
@@ -188,7 +171,8 @@ defmodule Tuist.GitHub.Client do
           ])
           |> Keyword.delete(:repository_full_handle)
 
-        method.(attrs_with_headers)
+        attrs_with_headers
+        |> method.()
         |> handle_github_response(method, attrs)
 
       {:error, response} ->
@@ -209,11 +193,7 @@ defmodule Tuist.GitHub.Client do
     github_request(action, attrs)
   end
 
-  defp handle_github_response(
-         {:ok, %Req.Response{status: status, body: body}},
-         _action,
-         _attrs
-       ) do
+  defp handle_github_response({:ok, %Req.Response{status: status, body: body}}, _action, _attrs) do
     {:error, "Unexpected status code: #{status}. Body: #{Jason.encode!(body)}"}
   end
 
@@ -235,7 +215,7 @@ defmodule Tuist.GitHub.Client do
   defp get_all_tags_recursively(%{url: url, token: token, tags: tags}) do
     case Req.get(url: url, headers: default_headers(token)) do
       {:ok, %Req.Response{status: 200, body: page_tags, headers: response_headers}} ->
-        page_tags = page_tags |> Enum.map(&%Tag{name: &1["name"]})
+        page_tags = Enum.map(page_tags, &%Tag{name: &1["name"]})
 
         all_tags =
           tags ++ page_tags
@@ -258,8 +238,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp get_next_page_url_from_response_headers(response_headers) do
-    response_headers
-    |> Enum.find_value(fn
+    Enum.find_value(response_headers, fn
       {"link", link_header} ->
         case parse_next_page_url(link_header) do
           nil -> nil
@@ -289,8 +268,6 @@ defmodule Tuist.GitHub.Client do
         url
         |> String.replace(~r/[<>]/, "")
         |> String.trim()
-      else
-        nil
       end
     end)
   end

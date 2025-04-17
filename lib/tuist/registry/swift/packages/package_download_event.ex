@@ -3,7 +3,9 @@ defmodule Tuist.Registry.Swift.Packages.PackageDownloadEvent do
   A module that represents the package download event.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Accounts.Account
   alias Tuist.Registry.Swift.Packages.PackageRelease
 

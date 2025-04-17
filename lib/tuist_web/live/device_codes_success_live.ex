@@ -1,4 +1,5 @@
 defmodule TuistWeb.DeviceCodesSuccessLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
@@ -11,7 +12,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
       Authentication.current_user(socket)
     )
 
-    {:ok, socket |> assign(type: type)}
+    {:ok, assign(socket, type: type)}
   end
 
   def render(assigns) do

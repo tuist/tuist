@@ -4,10 +4,10 @@ defmodule TuistWeb.Noora.Breadcrumbs do
   """
   use Phoenix.Component
 
+  import TuistWeb.Noora.Avatar
+  import TuistWeb.Noora.Dropdown
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Utils
-  import TuistWeb.Noora.Dropdown
-  import TuistWeb.Noora.Avatar
 
   attr :style, :string, values: ~w(slash arrow), default: "slash"
   slot :inner_block

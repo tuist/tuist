@@ -5,17 +5,13 @@ defmodule TuistWeb.App do
 
   use TuistWeb, :live_view
 
+  import Phoenix.Component
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
-  import Phoenix.Component
 
-  def on_mount(
-        :mount_app,
-        %{"owner" => owner_handle, "project" => project_handle},
-        session,
-        socket
-      )
+  def on_mount(:mount_app, %{"owner" => owner_handle, "project" => project_handle}, session, socket)
       when is_binary(owner_handle) and is_binary(project_handle) do
     user_token = session["user_token"]
 

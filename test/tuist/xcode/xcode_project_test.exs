@@ -1,8 +1,9 @@
 defmodule Tuist.Xcode.XcodeProjectTest do
-  alias Tuist.Xcode.XcodeProject
-  alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.XcodeFixtures
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Repo
+  alias Tuist.Xcode.XcodeProject
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "create_changeset/1" do
     test "is valid when contains all necessary attributes" do
@@ -52,7 +53,8 @@ defmodule Tuist.Xcode.XcodeProjectTest do
       {:ok, _} = Repo.insert(changeset)
 
       {:error, got} =
-        XcodeProject.create_changeset(%XcodeProject{}, %{
+        %XcodeProject{}
+        |> XcodeProject.create_changeset(%{
           name: "XcodeProject",
           path: ".",
           xcode_graph_id: xcode_graph.id

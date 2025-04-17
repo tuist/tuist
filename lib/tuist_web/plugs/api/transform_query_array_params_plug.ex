@@ -11,13 +11,12 @@ defmodule TuistWeb.Plugs.API.TransformQueryArrayParamsPlug do
     %{
       conn
       | query_params:
-          Plug.Conn.Query.decode(
-            query_array_keys
-            |> Enum.map(&Atom.to_string/1)
-            |> Enum.reduce(conn.query_string, fn key, acc ->
-              String.replace(acc, "#{key}=", "#{key}[]=")
-            end)
-          )
+          query_array_keys
+          |> Enum.map(&Atom.to_string/1)
+          |> Enum.reduce(conn.query_string, fn key, acc ->
+            String.replace(acc, "#{key}=", "#{key}[]=")
+          end)
+          |> Plug.Conn.Query.decode()
     }
   end
 end

@@ -1,13 +1,13 @@
 defmodule TuistWeb.API.OrganizationsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
-
-  alias TuistTestSupport.Fixtures.BillingFixtures
-  alias Tuist.Environment
-  alias TuistWeb.Authentication
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Environment
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistWeb.Authentication
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
@@ -17,9 +17,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   describe "GET /api/organizations" do
     test "returns organizations", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization_one = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization_one)
@@ -30,9 +28,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       Accounts.add_user_to_organization(user, organization_three, role: :admin)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations")
+      conn = get(conn, ~p"/api/organizations")
 
       # Then
       response = json_response(conn, :ok)
@@ -60,14 +56,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations")
+      conn = get(conn, ~p"/api/organizations")
 
       # Then
       %{"organizations" => []} = json_response(conn, :ok)
@@ -76,17 +68,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
   describe "GET /api/organizations/{id}" do
     setup do
-      Environment
-      |> stub(:mail_configured?, fn -> false end)
-
+      stub(Environment, :mail_configured?, fn -> false end)
       :ok
     end
 
     test "returns an organization", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -98,9 +86,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       })
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org")
+      conn = get(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :ok)
@@ -110,9 +96,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -130,9 +114,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       )
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org")
+      conn = get(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :ok)
@@ -142,14 +124,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org")
+      conn = get(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :not_found)
@@ -161,16 +139,12 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org")
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org")
+      conn = get(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -182,17 +156,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
   describe "GET /api/organizations/{id}/usage" do
     setup do
-      Environment
-      |> stub(:mail_configured?, fn -> false end)
-
+      stub(Environment, :mail_configured?, fn -> false end)
       :ok
     end
 
     test "returns an organization usage", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization =
         AccountsFixtures.organization_fixture(
@@ -203,9 +173,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       Accounts.add_user_to_organization(user, organization)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org/usage")
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
 
       # Then
       response = json_response(conn, :ok)
@@ -214,14 +182,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org/usage")
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
 
       # Then
       response = json_response(conn, :not_found)
@@ -233,16 +197,12 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org")
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/organizations/tuist-org/usage")
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -255,16 +215,12 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   describe "DELETE /api/organizations/{id}" do
     test "deletes a given organization", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org")
+      conn = delete(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :no_content)
@@ -277,17 +233,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org")
+      conn = delete(conn, ~p"/api/organizations/tuist-org")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -298,14 +250,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns :not_found if an organization does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/non-existent-tuist-org")
+      conn = delete(conn, ~p"/api/organizations/non-existent-tuist-org")
 
       # Then
       response = json_response(conn, :not_found)
@@ -316,9 +264,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   describe "POST /api/organizations" do
     test "creates an organization", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
 
@@ -334,9 +280,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns bad request when organization already exists", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org")
 
@@ -358,9 +302,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -377,9 +319,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "returns bad request when organization contains a dot", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -415,9 +355,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
@@ -440,9 +378,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     test "updates SSO to nil",
          %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
@@ -470,9 +406,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -513,9 +447,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(
         creator: user,
@@ -560,9 +492,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
@@ -583,9 +513,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       conn =
         conn
@@ -603,18 +531,14 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   describe "DELETE /api/organizations/:organization_name/members/:user_name" do
     test "removes a member from an organization", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
       member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
       Accounts.add_user_to_organization(member, organization)
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/tuist-org/members/tuist-member")
 
       # Then
       response = json_response(conn, :no_content)
@@ -623,9 +547,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "removes a member with a google hosted domain", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
@@ -651,9 +573,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         })
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/tuist-org/members/tuist-member")
 
       # Then
       response = json_response(conn, :no_content)
@@ -665,9 +585,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -675,9 +593,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       Accounts.add_user_to_organization(member, organization)
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/tuist-org/members/tuist-member")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -687,13 +603,9 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
-      conn =
-        conn
-        |> delete(~p"/api/organizations/non-existent-tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/non-existent-tuist-org/members/tuist-member")
 
       response = json_response(conn, :not_found)
       assert response["message"] == "Organization non-existent-tuist-org not found."
@@ -703,17 +615,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
       AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
 
       # When
-      conn =
-        conn
-        |> delete(~p"/api/organizations/tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/tuist-org/members/tuist-member")
 
       # Then
       response = json_response(conn, :bad_request)
@@ -726,9 +634,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   describe "PUT /api/organizations/{organization_name}/members/{user_name}" do
     test "updates a member to an admin role", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
       member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
@@ -752,9 +658,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization =
         AccountsFixtures.organization_fixture(
@@ -797,9 +701,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -820,9 +722,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       conn =
         conn
@@ -837,9 +737,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
       AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")

@@ -1,12 +1,13 @@
 defmodule TuistWeb.API.AccountTokensController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias Tuist.Accounts.AccountToken
-  alias TuistWeb.Authentication
+
   alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.Error
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Authorization
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.API.EnsureAccountPresencePlug)
 
@@ -61,20 +62,13 @@ defmodule TuistWeb.API.AccountTokensController do
           required: [:token]
         }
       },
-      unauthorized:
-        {"You need to be authenticated to issue new tokens", "application/json", Error},
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
       forbidden: {"You need to be authorized to issue new tokens", "application/json", Error},
       not_found: {"The account was not found", "application/json", Error}
     }
   )
 
-  def create(
-        %{
-          params: %{"scopes" => scopes},
-          assigns: %{url_account: url_account}
-        } = conn,
-        _opts
-      ) do
+  def create(%{params: %{"scopes" => scopes}, assigns: %{url_account: url_account}} = conn, _opts) do
     current_user = Authentication.current_user(conn)
 
     if is_nil(current_user) or
@@ -88,7 +82,7 @@ defmodule TuistWeb.API.AccountTokensController do
       {_, token} =
         Accounts.create_account_token(%{
           account: url_account,
-          scopes: scopes |> Enum.map(&String.to_atom/1)
+          scopes: Enum.map(scopes, &String.to_atom/1)
         })
 
       conn

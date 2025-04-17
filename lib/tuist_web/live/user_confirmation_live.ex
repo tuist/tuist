@@ -1,4 +1,5 @@
 defmodule TuistWeb.UserConfirmationLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
@@ -68,7 +69,7 @@ defmodule TuistWeb.UserConfirmationLive do
           {:ok, assign(socket, success: false)}
       end
     else
-      {:ok, socket |> assign(success: true)}
+      {:ok, assign(socket, success: true)}
     end
   end
 

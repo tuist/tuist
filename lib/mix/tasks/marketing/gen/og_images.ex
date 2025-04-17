@@ -5,9 +5,11 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   use Mix.Task
   use Boundary, classify_to: Tuist.Mix
 
+  alias Tuist.Marketing.OpenGraph
+
   def run(_args) do
     og_images_directory =
-      Application.app_dir(:tuist, "priv") |> Path.join("static/marketing/images/og/generated")
+      :tuist |> Application.app_dir("priv") |> Path.join("static/marketing/images/og/generated")
 
     generate_newsletter_og_images(og_images_directory)
     generate_posts_og_images(og_images_directory)
@@ -15,9 +17,8 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   end
 
   defp generate_newsletter_og_images(og_images_directory) do
-    Tuist.Marketing.Newsletter.issues()
-    |> Enum.each(fn issue ->
-      Tuist.Marketing.OpenGraph.generate_og_image(
+    Enum.each(Tuist.Marketing.Newsletter.issues(), fn issue ->
+      OpenGraph.generate_og_image(
         issue.full_title,
         Path.join(og_images_directory, "newsletter/issues/#{issue.number}.jpg")
       )
@@ -27,37 +28,33 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   defp generate_pages_og_images(og_images_directory) do
     dynamic_pages = Tuist.Marketing.Pages.get_pages()
 
-    dynamic_pages
-    |> Enum.each(fn page ->
-      Tuist.Marketing.OpenGraph.generate_og_image(
+    Enum.each(dynamic_pages, fn page ->
+      OpenGraph.generate_og_image(
         page.title,
-        Path.join(og_images_directory, "#{String.split(page.slug, "/") |> List.last()}.jpg")
+        Path.join(og_images_directory, "#{page.slug |> String.split("/") |> List.last()}.jpg")
       )
     end)
 
-    Tuist.Marketing.OpenGraph.generate_og_image(
+    OpenGraph.generate_og_image(
       "About us",
       Path.join(og_images_directory, "about.jpg")
     )
 
-    Tuist.Marketing.OpenGraph.generate_og_image(
+    OpenGraph.generate_og_image(
       "Swift Stories Newsletter",
       Path.join(og_images_directory, "swift-stories.jpg")
     )
   end
 
   defp generate_posts_og_images(og_images_directory) do
-    Tuist.Marketing.Blog.get_posts()
-    |> Enum.each(fn post ->
+    Enum.each(Tuist.Marketing.Blog.get_posts(), fn post ->
       image_path = Path.join(og_images_directory, "#{post.slug}.jpg")
 
-      IO.puts(
-        "Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}"
-      )
+      IO.puts("Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}")
 
       File.mkdir_p!(Path.dirname(image_path))
 
-      Tuist.Marketing.OpenGraph.generate_og_image(
+      OpenGraph.generate_og_image(
         post.title,
         image_path
       )

@@ -3,7 +3,9 @@ defmodule Tuist.Accounts.AccountToken do
   A module that represents the account_tokens table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Accounts.Account
 
   @primary_key {:id, UUIDv7, autogenerate: true}

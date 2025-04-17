@@ -1,5 +1,6 @@
 defmodule TuistWeb.Marketing.LocalizationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+
   alias TuistWeb.Marketing.Localization
 
   describe "plug put_locale" do

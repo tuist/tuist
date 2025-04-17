@@ -3,10 +3,12 @@ defmodule Tuist.Projects.Project do
   A module that represents the projects table.
   """
   use Ecto.Schema
+
+  import Ecto.Changeset
+
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
   alias Tuist.Previews.Preview
-  import Ecto.Changeset
 
   schema "projects" do
     field :token, :string
@@ -59,7 +61,7 @@ defmodule Tuist.Projects.Project do
   end
 
   def validate_allowed_handle(changeset) do
-    changeset |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    validate_exclusion(changeset, :name, Application.get_env(:tuist, :blocked_handles))
   end
 
   def update_changeset(project, attrs) do

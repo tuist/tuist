@@ -1,7 +1,8 @@
 defmodule Tuist.Accounts.AccountTokenTest do
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts.AccountToken
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Accounts.AccountToken
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "create_changeset/1" do
     test "ensures an account_id is present" do
@@ -76,7 +77,7 @@ defmodule Tuist.Accounts.AccountTokenTest do
           scopes: []
         })
 
-      changeset |> Repo.insert!()
+      Repo.insert!(changeset)
 
       # When
       {:error, got} =

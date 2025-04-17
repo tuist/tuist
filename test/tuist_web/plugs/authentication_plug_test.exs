@@ -1,21 +1,23 @@
 defmodule TuistWeb.AuthenticationPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
-  import Plug.Test
   use Mimic
+
+  import Plug.Test
+
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
-  alias TuistWeb.Headers
   alias Tuist.Projects
-  alias TuistWeb.AuthenticationPlug
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.AuthenticationPlug
+  alias TuistWeb.Headers
 
   # This is needed in combination with "async: false" to ensure
   # that mocks are used within the cache process.
   setup :set_mimic_from_context
 
   setup do
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     {:ok, cache: cache}
   end
@@ -40,22 +42,22 @@ defmodule TuistWeb.AuthenticationPlugTest do
         scopes: [:account_registry_read]
       }
 
-      Tuist.Authentication
       # It's only invoked once
-      |> expect(:authenticated_subject, 1, fn ^account_token_value ->
+      expect(Tuist.Authentication, :authenticated_subject, 1, fn ^account_token_value ->
         authenticated_account
       end)
 
       conn =
-        conn(:get, "/")
+        :get
+        |> conn("/")
         |> assign(:caching, true)
         |> assign(:cache, cache)
-        |> assign(:cache_ttl, :timer.minutes(1))
+        |> assign(:cache_ttl, to_timeout(minute: 1))
         |> put_req_header("authorization", "Bearer " <> account_token_value)
 
       # When/Then
       for _n <- 1..10 do
-        got = conn |> AuthenticationPlug.call(opts)
+        got = AuthenticationPlug.call(conn, opts)
         assert got.assigns[:current_subject] == authenticated_account
         assert(TuistWeb.Authentication.authenticated?(got) == true)
       end
@@ -74,10 +76,10 @@ defmodule TuistWeb.AuthenticationPlugTest do
           preload: [:account]
         )
 
-      conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> account_token_value)
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> account_token_value)
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert got.assigns[:current_subject] == %AuthenticatedAccount{
@@ -92,10 +94,10 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       user = AccountsFixtures.user_fixture()
-      conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> user.token)
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> user.token)
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert TuistWeb.Authentication.current_user(got).id == user.id
@@ -106,7 +108,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       project = ProjectsFixtures.project_fixture(preload: [:account])
-      conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> project.token)
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> project.token)
 
       # When
       got =
@@ -130,12 +132,13 @@ defmodule TuistWeb.AuthenticationPlugTest do
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
-        conn(:get, "/")
+        :get
+        |> conn("/")
         |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.20.0")
         |> put_req_header("authorization", "Bearer " <> project.token)
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert TuistWeb.Authentication.current_project(got).id == project.id
@@ -149,10 +152,10 @@ defmodule TuistWeb.AuthenticationPlugTest do
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       project = ProjectsFixtures.project_fixture(preload: [:account])
       token = Projects.create_project_token(project)
-      conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> token)
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> token)
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert TuistWeb.Authentication.current_project(got).id == project.id
@@ -166,7 +169,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       conn = conn(:get, "/")
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert TuistWeb.Authentication.current_project(got) == nil
@@ -177,10 +180,10 @@ defmodule TuistWeb.AuthenticationPlugTest do
     test "doesn't load anything if the the token is invalid" do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
-      conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> "invalid-token")
+      conn = :get |> conn("/") |> put_req_header("authorization", "Bearer " <> "invalid-token")
 
       # When
-      got = conn |> AuthenticationPlug.call(opts)
+      got = AuthenticationPlug.call(conn, opts)
 
       # Then
       assert TuistWeb.Authentication.current_project(got) == nil
@@ -196,7 +199,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       conn = build_conn(:get, "/")
 
       # # When
-      conn = conn |> AuthenticationPlug.call(opts)
+      conn = AuthenticationPlug.call(conn, opts)
 
       # # Then
       assert conn.halted == true

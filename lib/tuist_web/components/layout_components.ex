@@ -3,6 +3,7 @@ defmodule TuistWeb.LayoutComponents do
   A collection of components for layouts.
   """
   use TuistWeb, :live_component
+
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
   def head_meta_meta_tags(assigns) do

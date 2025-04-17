@@ -3,6 +3,7 @@ defmodule TuistWeb.Noora.ProgressBar do
   Progress bar component
   """
   use Phoenix.Component
+
   import TuistWeb.Noora.Utils
 
   attr :value, :integer, required: true, doc: "The current value."

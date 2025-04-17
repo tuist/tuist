@@ -2,13 +2,11 @@ defmodule TuistWeb.Storybook.TabMenuHorizontal do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.TabMenu.tab_menu_horizontal/1
+  alias TuistWeb.Noora.TabMenu
 
-  def imports,
-    do: [
-      {TuistWeb.Noora.TabMenu, [tab_menu_horizontal_item: 1]},
-      {TuistWeb.Noora.Icon, [category: 1]}
-    ]
+  def function, do: &TabMenu.tab_menu_horizontal/1
+
+  def imports, do: [{TabMenu, [tab_menu_horizontal_item: 1]}, {TuistWeb.Noora.Icon, [category: 1]}]
 
   def variations do
     [

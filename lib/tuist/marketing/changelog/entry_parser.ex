@@ -11,12 +11,14 @@ defmodule Tuist.Marketing.Changelog.EntryParser do
     date = date_string |> Timex.parse!("{YYYY}/{M}/{D}") |> Timex.to_datetime("Etc/UTC")
 
     id =
-      Path.basename(path)
+      path
+      |> Path.basename()
       |> String.replace(".md", "")
       |> String.replace_prefix(".", "-")
 
     frontmatter =
-      YamlElixir.read_from_string!(frontmatter_string)
+      frontmatter_string
+      |> YamlElixir.read_from_string!()
       |> Map.merge(%{
         "id" => id,
         "date" => date
@@ -26,7 +28,8 @@ defmodule Tuist.Marketing.Changelog.EntryParser do
   end
 
   defp get_date_string_from_path(path) do
-    Path.basename(path)
+    path
+    |> Path.basename()
     |> String.replace(".md", "")
     |> String.split("-")
     |> List.first()

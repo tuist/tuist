@@ -1,15 +1,16 @@
 defmodule TuistWeb.PreviewsControllerTest do
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias Tuist.Previews.Preview
-  alias Tuist.Repo
-  alias TuistWeb.Authentication
-  alias Tuist.Storage
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Previews.Preview
+  alias Tuist.Repo
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
 
   setup do
     user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
@@ -22,8 +23,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      Storage
-      |> expect(:multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _ ->
         upload_id
       end)
 
@@ -39,7 +39,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-      assert response_data["preview_id"] == Repo.all(Preview) |> hd() |> Map.get(:id)
+      assert response_data["preview_id"] == Preview |> Repo.all() |> hd() |> Map.get(:id)
     end
 
     test "starts multipart upload with a preview name", %{
@@ -51,14 +51,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      Storage
-      |> expect(:multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _ ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -73,7 +70,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-      assert Repo.all(Preview) |> hd() |> Map.get(:display_name) == "preview-name"
+      assert Preview |> Repo.all() |> hd() |> Map.get(:display_name) == "preview-name"
     end
 
     test "starts multipart upload with supported platforms", %{
@@ -85,14 +82,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      Storage
-      |> expect(:multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _ ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -108,7 +102,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
 
-      assert Repo.all(Preview) |> hd() |> Map.get(:supported_platforms) |> Enum.sort() == [
+      assert Preview |> Repo.all() |> hd() |> Map.get(:supported_platforms) |> Enum.sort() == [
                :ios,
                :watchos
              ]
@@ -123,14 +117,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      Storage
-      |> expect(:multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _ ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -146,9 +137,9 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-      preview = Repo.all(Preview) |> hd()
-      assert preview |> Map.get(:display_name) == "preview-name"
-      assert preview |> Map.get(:type) == :app_bundle
+      preview = Preview |> Repo.all() |> hd()
+      assert Map.get(preview, :display_name) == "preview-name"
+      assert Map.get(preview, :type) == :app_bundle
     end
 
     test "starts multipart upload of an archive preview", %{
@@ -160,14 +151,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       upload_id = "upload-id"
 
-      Storage
-      |> expect(:multipart_start, fn _ ->
+      expect(Storage, :multipart_start, fn _ ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -187,10 +175,9 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-      preview = Repo.all(Preview) |> hd()
+      preview = Preview |> Repo.all() |> hd()
 
-      assert preview
-             |> Map.take([
+      assert Map.take(preview, [
                :display_name,
                :type,
                :version,
@@ -215,9 +202,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -237,9 +222,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -270,17 +253,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
 
-      Storage
-      |> expect(:multipart_generate_url, fn ^object_key,
-                                            ^upload_id,
-                                            ^part_number,
-                                            [expires_in: _, content_length: 100] ->
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 100] ->
         upload_url
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -308,9 +288,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -333,9 +311,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -387,16 +363,13 @@ defmodule TuistWeb.PreviewsControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      Storage
-      |> expect(:multipart_complete_upload, fn ^object_key,
-                                               ^upload_id,
-                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn ^object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -416,10 +389,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response == %{
                "id" => preview.id,
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
-               "qr_code_url" =>
-                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
-               "icon_url" =>
-                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
+               "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
+               "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "bundle_identifier" => "com.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "preview-commit-sha",
@@ -433,9 +404,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -463,9 +432,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -491,9 +458,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -540,19 +505,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
-      Storage
-      |> expect(:generate_download_url, fn ^object_key, expires_in: 3600 ->
+      expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
         "https://url.com"
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :ok)
@@ -574,19 +534,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
-      Storage
-      |> expect(:generate_download_url, fn ^object_key, expires_in: 3600 ->
+      expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
         "https://url.com"
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :ok)
@@ -602,16 +557,12 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       preview = PreviewsFixtures.preview_fixture()
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
+      conn = get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :not_found)
@@ -627,14 +578,10 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/invalid-id")
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/invalid-id")
 
       # Then
       response = json_response(conn, :bad_request)
@@ -648,9 +595,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -658,9 +603,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview = PreviewsFixtures.preview_fixture(project: project)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -711,14 +654,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           inserted_at: ~U[2021-01-01 03:00:00Z]
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?display_name=App&specifier=latest&page_size=1"
         )
 
@@ -730,12 +671,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                %{
                  "id" => preview_two.id,
                  "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"
-                   ),
-                 "icon_url" =>
-                   url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
+                 "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
+                 "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "bundle_identifier" => "com.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
@@ -784,14 +721,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?display_name=App&specifier=latest&page_size=1&supported_platforms=ios"
         )
 
@@ -799,7 +734,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] |> Enum.map(& &1["id"]) == [preview_one.id]
+      assert Enum.map(response["previews"], & &1["id"]) == [preview_one.id]
     end
 
     test "lists no previews when no preview for latest is available", %{
@@ -817,16 +752,10 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "feature"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(
-          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
-        )
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1")
 
       # Then
       response =
@@ -902,14 +831,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "feature-branch"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
         )
 
@@ -917,7 +844,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] |> Enum.map(& &1["bundle_identifier"]) == [
+      assert Enum.map(response["previews"], & &1["bundle_identifier"]) == [
                "com.bundle.app.one",
                "com.bundle.app.two"
              ]
@@ -940,14 +867,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
         )
 
@@ -981,14 +906,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
         )
 
@@ -1020,22 +943,16 @@ defmodule TuistWeb.PreviewsControllerTest do
           git_branch: "main"
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(
-          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=feature-branch&page_size=1"
-        )
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=feature-branch&page_size=1")
 
       # Then
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] |> Enum.map(& &1["id"]) == [
+      assert Enum.map(response["previews"], & &1["id"]) == [
                preview_one.id
              ]
     end
@@ -1063,14 +980,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
-        conn
-        |> get(
+        get(
+          conn,
           ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=36fa9d5c3cb9f1dd45f194035a665444ea2d316f&page_size=1"
         )
 
@@ -1078,7 +993,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] |> Enum.map(& &1["id"]) == [
+      assert Enum.map(response["previews"], & &1["id"]) == [
                preview_one.id
              ]
     end
@@ -1111,18 +1026,12 @@ defmodule TuistWeb.PreviewsControllerTest do
           inserted_at: ~U[2021-01-01 02:00:00Z]
         )
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      first_page_conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2")
+      first_page_conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2")
 
-      second_page_conn =
-        conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2&page=2")
+      second_page_conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2&page=2")
 
       # Then
       first_page_response =
@@ -1130,12 +1039,12 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       second_page_response = json_response(second_page_conn, :ok)
 
-      assert first_page_response["previews"] |> Enum.map(& &1["id"]) == [
+      assert Enum.map(first_page_response["previews"], & &1["id"]) == [
                preview_three.id,
                preview_two.id
              ]
 
-      assert second_page_response["previews"] |> Enum.map(& &1["id"]) == [
+      assert Enum.map(second_page_response["previews"], & &1["id"]) == [
                preview_one.id
              ]
     end
@@ -1146,16 +1055,10 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get(
-          ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1"
-        )
+      conn = get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1")
 
       # Then
       response = json_response(conn, :not_found)
@@ -1169,20 +1072,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn =
-        conn
-        |> get(
-          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
-        )
+      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -1205,19 +1102,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"
 
-      Storage
-      |> expect(:generate_upload_url, fn ^object_key, expires_in: 3600 ->
+      expect(Storage, :generate_upload_url, fn ^object_key, [expires_in: 3600] ->
         "https://url.com"
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+      conn = post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
 
       # Then
       response = json_response(conn, :ok)
@@ -1231,18 +1123,12 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       preview = PreviewsFixtures.preview_fixture()
 
       # When
-      conn =
-        conn
-        |> post(
-          ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons"
-        )
+      conn = post(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons")
 
       # Then
       response = json_response(conn, :not_found)
@@ -1256,9 +1142,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -1266,9 +1150,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview = PreviewsFixtures.preview_fixture(project: project)
 
       # When
-      conn =
-        conn
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+      conn = post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
 
       # Then
       response = json_response(conn, :forbidden)

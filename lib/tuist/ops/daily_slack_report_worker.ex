@@ -3,13 +3,16 @@ defmodule Tuist.Ops.DailySlackReportWorker do
   A worker that runs daily and sends a report about the business to Slack.
   """
   use Oban.Worker
+
   import Ecto.Query, only: [from: 2]
-  alias Tuist.Slack
-  alias Tuist.Repo
-  alias Tuist.Accounts.{Organization, User}
+
+  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
   alias Tuist.CommandEvents.CacheEvent
   alias Tuist.CommandEvents.Event
   alias Tuist.Projects.Project
+  alias Tuist.Repo
+  alias Tuist.Slack
 
   @impl Oban.Worker
   def perform(_job) do
@@ -104,53 +107,40 @@ defmodule Tuist.Ops.DailySlackReportWorker do
     """
   end
 
-  defp growth(
-         model,
-         {beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}
-       ) do
+  defp growth(model, {beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}) do
     this_week =
-      from(e in model,
-        where:
-          fragment(
-            "? >= ? AND ? <= ?",
-            e.created_at,
-            ^beginning_of_this_week,
-            e.created_at,
-            ^today
-          )
+      Repo.aggregate(
+        from(e in model,
+          where: fragment("? >= ? AND ? <= ?", e.created_at, ^beginning_of_this_week, e.created_at, ^today)
+        ),
+        :count
       )
-      |> Repo.aggregate(:count)
 
     last_week =
-      from(e in model,
-        where:
-          fragment(
-            "? >= ? AND ? <= ?",
-            e.created_at,
-            ^beginning_of_last_week,
-            e.created_at,
-            ^same_weekday_last_week
-          )
+      Repo.aggregate(
+        from(e in model,
+          where:
+            fragment("? >= ? AND ? <= ?", e.created_at, ^beginning_of_last_week, e.created_at, ^same_weekday_last_week)
+        ),
+        :count
       )
-      |> Repo.aggregate(:count)
 
-    total = from(e in model, []) |> Repo.aggregate(:count)
+    total = Repo.aggregate(from(e in model, []), :count)
 
     {this_week, total, percentage_increase(this_week, last_week)}
   end
 
   defp get_beginning_of_week(date) do
-    date
+    Timex.beginning_of_week(date, :monday)
     # Assuming week starts on Monday
-    |> Timex.beginning_of_week(:monday)
   end
 
-  defp get_dates() do
+  defp get_dates do
     today = Tuist.Time.utc_now()
 
     beginning_of_this_week = get_beginning_of_week(today)
-    beginning_of_last_week = beginning_of_this_week |> Timex.shift(days: -7)
-    same_weekday_last_week = today |> Timex.shift(days: -7)
+    beginning_of_last_week = Timex.shift(beginning_of_this_week, days: -7)
+    same_weekday_last_week = Timex.shift(today, days: -7)
 
     {beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}
   end

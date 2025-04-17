@@ -1,15 +1,13 @@
 defmodule TuistWeb.BillingLive do
-  alias Tuist.Accounts
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
+
+  alias Tuist.Accounts
   alias Tuist.Billing
 
   @impl true
-  def mount(
-        params,
-        _uri,
-        %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket
-      ) do
+  def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
     if not Tuist.Authorization.can(current_user, :update, selected_account, :billing) do
       raise TuistWeb.Errors.UnauthorizedError,
             gettext("You are not authorized to perform this action.")
@@ -35,7 +33,8 @@ defmodule TuistWeb.BillingLive do
       if is_nil(subscription) do
         gettext("/per month")
       else
-        Billing.get_subscription_current_period_end(subscription.subscription_id)
+        subscription.subscription_id
+        |> Billing.get_subscription_current_period_end()
         |> Timex.format!("{D} {Mfull}")
       end
 
@@ -43,8 +42,7 @@ defmodule TuistWeb.BillingLive do
       with {:subscription, subscription} when not is_nil(subscription) <-
              {:subscription, subscription},
            {:payment_method_id, payment_method_id} when not is_nil(payment_method_id) <-
-             {:payment_method_id,
-              Billing.get_payment_method_id_from_subscription_id(subscription.subscription_id)},
+             {:payment_method_id, Billing.get_payment_method_id_from_subscription_id(subscription.subscription_id)},
            {:payment_method, payment_method} <-
              {:payment_method, Billing.get_payment_method_by_id(payment_method_id)} do
         payment_method
@@ -74,14 +72,10 @@ defmodule TuistWeb.BillingLive do
   end
 
   def handle_params(_params, uri, socket) do
-    {:noreply, socket |> assign(:uri, uri)}
+    {:noreply, assign(socket, :uri, uri)}
   end
 
-  def handle_event(
-        "change_plan",
-        %{"plan" => plan},
-        socket
-      ) do
+  def handle_event("change_plan", %{"plan" => plan}, socket) do
     plan = String.to_atom(plan)
 
     send(self(), :change_plan)
@@ -92,16 +86,7 @@ defmodule TuistWeb.BillingLive do
      |> push_event("close-modal", %{id: "billing-upgrade-modal"})}
   end
 
-  def handle_info(
-        :change_plan,
-        %{
-          assigns: %{
-            new_plan: new_plan,
-            selected_account: selected_account,
-            uri: uri
-          }
-        } = socket
-      ) do
+  def handle_info(:change_plan, %{assigns: %{new_plan: new_plan, selected_account: selected_account, uri: uri}} = socket) do
     socket =
       case Billing.update_plan(%{
              plan: new_plan,
@@ -110,8 +95,7 @@ defmodule TuistWeb.BillingLive do
              success_url: uri <> "?plan=#{new_plan}"
            }) do
         {:ok, {:external_redirect, session_url}} ->
-          socket
-          |> redirect(external: session_url)
+          redirect(socket, external: session_url)
 
         :ok ->
           socket
@@ -119,8 +103,7 @@ defmodule TuistWeb.BillingLive do
 
     {
       :noreply,
-      socket
-      |> assign(:plan, new_plan)
+      assign(socket, :plan, new_plan)
     }
   end
 

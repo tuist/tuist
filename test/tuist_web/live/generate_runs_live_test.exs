@@ -1,12 +1,12 @@
 defmodule TuistWeb.GenerateRunsLiveTest do
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
 
   import Phoenix.LiveViewTest
+
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   test "lists latest generate runs", %{
     conn: conn,
@@ -32,9 +32,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/generate-runs")
 
     # Then
     assert has_element?(lv, "span", "generate App")

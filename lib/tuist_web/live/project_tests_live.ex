@@ -1,14 +1,14 @@
 defmodule TuistWeb.ProjectTestsLive do
-  alias TuistWeb.Flop
-  alias Tuist.Projects
-  alias Tuist.Projects.Project
-  alias Tuist.CommandEvents
+  @moduledoc false
   use TuistWeb, :live_view
 
+  alias Tuist.CommandEvents
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
+  alias TuistWeb.Flop
+
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
-    uri =
-      ("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
-      |> URI.new!()
+    uri = URI.new!("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
 
     {flaky_tests, flaky_tests_meta} = list_flaky_tests(project)
     slug = Projects.get_project_slug_from_id(project.id)
@@ -23,11 +23,7 @@ defmodule TuistWeb.ProjectTestsLive do
     }
   end
 
-  def handle_params(
-        params,
-        _uri,
-        %{assigns: %{selected_project: project}} = socket
-      ) do
+  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     {next_flaky_tests, next_flaky_tests_meta} =
       list_flaky_tests(project, before: params["before"], after: params["after"])
 
@@ -41,11 +37,10 @@ defmodule TuistWeb.ProjectTestsLive do
 
   defp list_flaky_tests(%Project{} = project, attrs \\ []) do
     options =
-      %{
-        order_by: [:last_flaky_test_case_run_inserted_at],
-        order_directions: [:desc]
-      }
-      |> Flop.get_options_with_before_and_after(attrs)
+      Flop.get_options_with_before_and_after(
+        %{order_by: [:last_flaky_test_case_run_inserted_at], order_directions: [:desc]},
+        attrs
+      )
 
     CommandEvents.list_flaky_test_cases(project, options)
   end

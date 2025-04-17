@@ -1,16 +1,14 @@
 defmodule TuistWeb.AccountSettingsLive do
-  alias Tuist.Authorization
-  alias Tuist.Accounts
-  alias Tuist.Accounts.Account
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Authorization
+
   @impl true
-  def mount(
-        _params,
-        _uri,
-        %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
-      ) do
+  def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if not Authorization.can?(:account_settings_update, current_user, selected_account) do
       raise TuistWeb.Errors.UnauthorizedError,
             gettext("You are not authorized to perform this action.")
@@ -21,7 +19,8 @@ defmodule TuistWeb.AccountSettingsLive do
     delete_user_form = to_form(%{"name" => ""})
 
     socket =
-      assign(socket, selected_tab: "settings")
+      socket
+      |> assign(selected_tab: "settings")
       |> assign(rename_account_form: rename_account_form)
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
@@ -31,18 +30,12 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   @impl true
-  def handle_event(
-        "rename_account",
-        params,
-        %{assigns: %{selected_account: selected_account}} = socket
-      ) do
+  def handle_event("rename_account", params, %{assigns: %{selected_account: selected_account}} = socket) do
     %{"account" => %{"name" => name}} = params
 
     case Accounts.update_account(selected_account, %{name: name}) do
       {:ok, account} ->
-        socket =
-          socket
-          |> push_navigate(to: ~p"/#{account.name}/settings")
+        socket = push_navigate(socket, to: ~p"/#{account.name}/settings")
 
         {:noreply, socket}
 
@@ -55,29 +48,21 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event("close-rename-organization-modal", _, socket) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "rename-organization-modal"})
+    socket = push_event(socket, "close-modal", %{id: "rename-organization-modal"})
 
     {:noreply, socket}
   end
 
-  def handle_event(
-        "delete_organization",
-        %{"name" => name} = _params,
-        %{assigns: %{selected_account: account}} = socket
-      ) do
+  def handle_event("delete_organization", %{"name" => name} = _params, %{assigns: %{selected_account: account}} = socket) do
     socket =
       if name == account.name do
         organization = Accounts.get_organization_by_id(account.organization_id)
 
         Accounts.delete_organization!(organization)
 
-        socket
-        |> push_navigate(to: ~p"/")
+        push_navigate(socket, to: ~p"/")
       else
-        socket
-        |> assign(delete_organization_form: to_form(%{"name" => ""}))
+        assign(socket, delete_organization_form: to_form(%{"name" => ""}))
       end
 
     {:noreply, socket}
@@ -93,29 +78,21 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event("close-rename-account-modal", _, socket) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "rename-account-modal"})
+    socket = push_event(socket, "close-modal", %{id: "rename-account-modal"})
 
     {:noreply, socket}
   end
 
-  def handle_event(
-        "delete_user",
-        %{"name" => name} = _params,
-        %{assigns: %{selected_account: account}} = socket
-      ) do
+  def handle_event("delete_user", %{"name" => name} = _params, %{assigns: %{selected_account: account}} = socket) do
     socket =
       if name == account.name do
         user = Accounts.get_user_by_id(account.user_id)
 
         Accounts.delete_user(user)
 
-        socket
-        |> push_navigate(to: ~p"/")
+        push_navigate(socket, to: ~p"/")
       else
-        socket
-        |> assign(delete_user_form: to_form(%{"name" => ""}))
+        assign(socket, delete_user_form: to_form(%{"name" => ""}))
       end
 
     {:noreply, socket}

@@ -1,12 +1,13 @@
 defmodule Tuist.Accounts.Organization do
-  alias Tuist.Accounts.Account
-  alias Tuist.Accounts.Invitation
-
   @moduledoc ~S"""
   A module that represents the organizations table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.Invitation
 
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2]

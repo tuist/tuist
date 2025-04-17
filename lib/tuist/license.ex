@@ -11,13 +11,13 @@ defmodule Tuist.License do
   @enforce_keys [:id, :features, :expiration_date, :valid]
   defstruct [:id, :features, :expiration_date, :valid]
 
-  def get_validation_url() do
+  def get_validation_url do
     @validation_url
   end
 
   def get_license(opts \\ []) do
-    cache = opts |> Keyword.get(:cache, :tuist)
-    ttl = Keyword.get(opts, :ttl, :timer.hours(24))
+    cache = Keyword.get(opts, :cache, :tuist)
+    ttl = Keyword.get(opts, :ttl, to_timeout(day: 1))
 
     result =
       Cachex.fetch(cache, @cache_key, fn ->

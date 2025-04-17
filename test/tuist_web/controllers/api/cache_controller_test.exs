@@ -1,18 +1,20 @@
 defmodule TuistWeb.API.CacheControllerTest do
-  alias Tuist.CacheActionItems
-  alias Tuist.CacheActionItems.CacheActionItem
-  alias Tuist.Repo
-  alias Tuist.CommandEvents
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistWeb.Authentication
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Storage
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.API.Pipeline
+  alias Tuist.CacheActionItems
+  alias Tuist.CacheActionItems.CacheActionItem
+  alias Tuist.CommandEvents
+  alias Tuist.Repo
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
+
   setup do
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     %{cache: cache}
   end
@@ -31,33 +33,29 @@ defmodule TuistWeb.API.CacheControllerTest do
       object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
       date = ~N[2024-04-30 10:20:30Z]
 
-      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
+      stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
-      Storage
-      |> expect(:generate_download_url, fn ^object_key, _ ->
+      expect(Storage, :generate_download_url, fn ^object_key, _ ->
         download_url
       end)
 
-      Storage |> expect(:object_exists?, fn ^object_key -> true end)
-      Storage |> expect(:get_object_size, fn ^object_key -> size end)
+      expect(Storage, :object_exists?, fn ^object_key -> true end)
+      expect(Storage, :get_object_size, fn ^object_key -> size end)
 
-      Tuist.API.Pipeline
-      |> expect(:async_push, fn {:create_cache_event,
-                                 %{
-                                   event_type: :download,
-                                   hash: ^hash,
-                                   name: ^name,
-                                   project_id: ^project_id,
-                                   size: ^size,
-                                   created_at: ^date,
-                                   updated_at: ^date
-                                 }} ->
+      expect(Pipeline, :async_push, fn {:create_cache_event,
+                                        %{
+                                          event_type: :download,
+                                          hash: ^hash,
+                                          name: ^name,
+                                          project_id: ^project_id,
+                                          size: ^size,
+                                          created_at: ^date,
+                                          updated_at: ^date
+                                        }} ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -98,33 +96,29 @@ defmodule TuistWeb.API.CacheControllerTest do
       size = 1024
       date = ~N[2024-04-30 10:20:30Z]
 
-      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
+      stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
-      Storage
-      |> expect(:generate_download_url, fn ^object_key, _ ->
+      expect(Storage, :generate_download_url, fn ^object_key, _ ->
         download_url
       end)
 
-      Storage |> expect(:object_exists?, fn ^object_key -> true end)
-      Storage |> expect(:get_object_size, fn ^object_key -> size end)
+      expect(Storage, :object_exists?, fn ^object_key -> true end)
+      expect(Storage, :get_object_size, fn ^object_key -> size end)
 
-      Tuist.API.Pipeline
-      |> expect(:async_push, fn {:create_cache_event,
-                                 %{
-                                   event_type: :download,
-                                   hash: ^hash,
-                                   name: ^name,
-                                   project_id: ^project_id,
-                                   size: ^size,
-                                   created_at: ^date,
-                                   updated_at: ^date
-                                 }} ->
+      expect(Pipeline, :async_push, fn {:create_cache_event,
+                                        %{
+                                          event_type: :download,
+                                          hash: ^hash,
+                                          name: ^name,
+                                          project_id: ^project_id,
+                                          size: ^size,
+                                          created_at: ^date,
+                                          updated_at: ^date
+                                        }} ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -155,9 +149,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         project: project
       })
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -181,9 +173,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -206,21 +196,18 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       project_id = project.id
       date = DateTime.utc_now(:second)
-      DateTime |> stub(:utc_now, fn :second -> date end)
+      stub(DateTime, :utc_now, fn :second -> date end)
       hash = UUIDv7.generate()
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
-      Tuist.API.Pipeline
-      |> expect(:async_push, 1, fn {:create_cache_action_item,
-                                    %{
-                                      project_id: ^project_id,
-                                      hash: ^hash,
-                                      inserted_at: ^date,
-                                      updated_at: ^date
-                                    }} ->
+      expect(Pipeline, :async_push, 1, fn {:create_cache_action_item,
+                                           %{
+                                             project_id: ^project_id,
+                                             hash: ^hash,
+                                             inserted_at: ^date,
+                                             updated_at: ^date
+                                           }} ->
         :ok
       end)
 
@@ -292,9 +279,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       hash = "hash"
 
@@ -339,14 +324,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       upload_id = "12344"
       object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
-      Storage
-      |> expect(:multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -377,17 +359,14 @@ defmodule TuistWeb.API.CacheControllerTest do
     upload_url = "https://tuist.dev/upload/1234"
     object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
-    Storage
-    |> expect(:multipart_generate_url, fn ^object_key,
-                                          ^upload_id,
-                                          ^part_number,
-                                          [expires_in: _, content_length: 20] ->
+    expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                ^upload_id,
+                                                ^part_number,
+                                                [expires_in: _, content_length: 20] ->
       upload_url
     end)
 
-    conn =
-      conn
-      |> Authentication.put_current_project(project)
+    conn = Authentication.put_current_project(conn, project)
 
     # When
     conn =
@@ -424,37 +403,32 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
+      stub(NaiveDateTime, :utc_now, fn :second -> date end)
 
-      Storage
-      |> expect(:multipart_complete_upload, fn ^object_key,
-                                               ^upload_id,
-                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn ^object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok
       end)
 
-      Storage
-      |> expect(:get_object_size, fn ^object_key ->
+      expect(Storage, :get_object_size, fn ^object_key ->
         size
       end)
 
-      Tuist.API.Pipeline
-      |> expect(:async_push, fn {:create_cache_event,
-                                 %{
-                                   name: ^name,
-                                   size: ^size,
-                                   hash: ^hash,
-                                   created_at: ^date,
-                                   updated_at: ^date,
-                                   project_id: ^project_id,
-                                   event_type: :upload
-                                 }} ->
+      expect(Pipeline, :async_push, fn {:create_cache_event,
+                                        %{
+                                          name: ^name,
+                                          size: ^size,
+                                          hash: ^hash,
+                                          created_at: ^date,
+                                          updated_at: ^date,
+                                          project_id: ^project_id,
+                                          event_type: :upload
+                                        }} ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -491,15 +465,9 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      Storage
-      |> stub(:multipart_complete_upload, fn _, _, _ -> :ok end)
-
-      Storage
-      |> stub(:get_object_size, fn _ -> {:ok, 1024} end)
-
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      stub(Storage, :multipart_complete_upload, fn _, _, _ -> :ok end)
+      stub(Storage, :get_object_size, fn _ -> {:ok, 1024} end)
+      conn = Authentication.put_current_project(conn, project)
 
       CommandEvents.create_cache_event(%{
         hash: hash,
@@ -538,13 +506,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       builds_prefix = "#{account.name}/#{project.name}/builds"
       tests_prefix = "#{account.name}/#{project.name}/tests"
 
-      Storage
-      |> expect(:delete_all_objects, fn ^builds_prefix ->
+      expect(Storage, :delete_all_objects, fn ^builds_prefix ->
         :ok
       end)
 
-      Storage
-      |> expect(:delete_all_objects, fn ^tests_prefix ->
+      expect(Storage, :delete_all_objects, fn ^tests_prefix ->
         :ok
       end)
 
@@ -555,9 +521,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         project: project
       })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -582,19 +546,15 @@ defmodule TuistWeb.API.CacheControllerTest do
       builds_prefix = "#{account.name}/#{project.name}/builds"
       tests_prefix = "#{account.name}/#{project.name}/tests"
 
-      Storage
-      |> expect(:delete_all_objects, fn ^builds_prefix ->
+      expect(Storage, :delete_all_objects, fn ^builds_prefix ->
         :ok
       end)
 
-      Storage
-      |> expect(:delete_all_objects, fn ^tests_prefix ->
+      expect(Storage, :delete_all_objects, fn ^tests_prefix ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -615,13 +575,9 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      user =
-        AccountsFixtures.user_fixture()
-        |> Repo.preload(:account)
+      user = Repo.preload(AccountsFixtures.user_fixture(), :account)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -642,9 +598,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =

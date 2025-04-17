@@ -1,6 +1,8 @@
 defmodule TuistWeb.AcceptInvitationLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
+
   alias Tuist.Accounts
 
   def mount(params, session, socket) do

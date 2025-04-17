@@ -16,7 +16,7 @@ defmodule Tuist.Environment do
     defstruct [:major, :date]
   end
 
-  def env() do
+  def env do
     @env
   end
 
@@ -25,15 +25,15 @@ defmodule Tuist.Environment do
   """
   def all_envs, do: [:dev, :test, :can, :stag, :prod]
 
-  def test?() do
+  def test? do
     env() == :test
   end
 
-  def dev?() do
+  def dev? do
     env() == :dev
   end
 
-  def prod?() do
+  def prod? do
     env() == :prod
   end
 
@@ -50,23 +50,23 @@ defmodule Tuist.Environment do
   end
 
   def truthy?(value) do
-    ["1", "true", "TRUE", "yes", "YES"] |> Enum.member?(value)
+    Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
-  def on_premise?() do
+  def on_premise? do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) and
       not truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
-  def log_level() do
-    System.get_env("TUIST_LOG_LEVEL", "info") |> String.to_atom()
+  def log_level do
+    "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
   end
 
-  def use_ssl_for_database?() do
+  def use_ssl_for_database? do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
@@ -100,16 +100,16 @@ defmodule Tuist.Environment do
     end
   end
 
-  def analytics_enabled?() do
+  def analytics_enabled? do
     not on_premise?() and env() == :prod
   end
 
-  def error_tracking_enabled?() do
+  def error_tracking_enabled? do
     truthy?(System.get_env("TUIST_FORCE_ERROR_TRACKING")) ||
       (not on_premise?() and Enum.member?([:prod, :stag, :can], env()))
   end
 
-  def version() do
+  def version do
     version = get([:version])
 
     case version do
@@ -123,7 +123,8 @@ defmodule Tuist.Environment do
         [major, yy, mm, dd] = String.split(version, ".")
 
         date =
-          Date.from_iso8601("#{yy}-#{mm}-#{dd}")
+          "#{yy}-#{mm}-#{dd}"
+          |> Date.from_iso8601()
           |> case do
             {:ok, date} -> date
             # Fallback in case of error
@@ -216,13 +217,13 @@ defmodule Tuist.Environment do
 
   def s3_protocol(secrets \\ secrets()) do
     case get([:s3, :protocol], secrets) do
-      protocol when is_binary(protocol) -> protocol |> String.to_atom()
+      protocol when is_binary(protocol) -> String.to_atom(protocol)
       _ -> :http1
     end
   end
 
   def s3_virtual_host(secrets \\ secrets()) do
-    get([:s3, :virtual_host], secrets) |> truthy?()
+    [:s3, :virtual_host] |> get(secrets) |> truthy?()
   end
 
   def slack_tuist_token(secrets \\ secrets()) do
@@ -337,7 +338,7 @@ defmodule Tuist.Environment do
   end
 
   def app_url(opts \\ [], secrets \\ secrets()) do
-    path = Keyword.get(opts, :path, "/") |> String.trim_trailing("/")
+    path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
     route_info = get_route_info(path)
 
@@ -354,10 +355,10 @@ defmodule Tuist.Environment do
     if type == :marketing and Tuist.Environment.on_premise?() do
       # When it's a marketing URL available presented somewhere in an
       # on-premis instance, it should point to the production routes.
-      %{URI.parse(get_url(:production)) | path: path} |> URI.to_string()
+      URI.to_string(%{URI.parse(get_url(:production)) | path: path})
     else
       url = get([:app, :url], secrets) || "http://localhost:8080"
-      %{URI.parse(url) | path: path} |> URI.to_string()
+      URI.to_string(%{URI.parse(url) | path: path})
     end
   end
 
@@ -369,12 +370,12 @@ defmodule Tuist.Environment do
   end
 
   def get_url(key) do
-    Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(key)
+    :tuist |> Application.fetch_env!(:urls) |> Keyword.fetch!(key)
   end
 
-  def email_icon_url() do
-    uri = app_url() |> URI.parse()
-    %{uri | path: "/images/tuist_email.png"} |> URI.to_string()
+  def email_icon_url do
+    uri = URI.parse(app_url())
+    URI.to_string(%{uri | path: "/images/tuist_email.png"})
   end
 
   def app_signal_push_api_key(secrets \\ secrets()) do
@@ -425,14 +426,14 @@ defmodule Tuist.Environment do
   @doc ~s"""
   It decrypts the secrets and returns them.
   """
-  def decrypt_secrets() do
+  def decrypt_secrets do
     if env() == :test do
       {:ok, secrets_map} =
-        File.read!("priv/secrets/test.yml")
+        "priv/secrets/test.yml"
+        |> File.read!()
         |> YamlElixir.read_from_string()
 
-      secrets_map
-      |> to_atom_map()
+      to_atom_map(secrets_map)
     else
       master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
       master_key_env_variable = "MASTER_KEY"

@@ -1,17 +1,18 @@
 defmodule TuistWeb.Plugs.LoaderPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistWeb.Plugs.LoaderPlug
-  alias Tuist.CommandEvents
-  alias TuistWeb.Errors.NotFoundError
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Projects
-
   use Mimic
+
+  alias Tuist.CommandEvents
+  alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Plugs.LoaderPlug
+
   setup :set_mimic_from_context
 
   setup do
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     %{cache: cache}
   end
@@ -25,9 +26,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
 
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
-      CommandEvents
-      |> expect(:get_command_event_by_id, 1, fn ^run_id,
-                                                preload: [user: :account, project: :account] ->
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id, [preload: [user: :account, project: :account]] ->
         run
       end)
 
@@ -59,14 +58,12 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       # When
       run_id = :rand.uniform(100)
 
-      conn =
-        %{conn | path_params: %{"run_id" => run_id}}
-        |> assign(:caching, false)
+      conn = assign(%{conn | path_params: %{"run_id" => run_id}}, :caching, false)
 
       assert_raise NotFoundError,
                    "The run with ID #{run_id} was not found.",
                    fn ->
-                     conn |> LoaderPlug.call(plug_opts)
+                     LoaderPlug.call(conn, plug_opts)
                    end
     end
   end
@@ -78,8 +75,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       slug = "#{project.account.name}/#{project.name}"
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
-      Projects
-      |> expect(:get_project_by_slug, 1, fn ^slug, preload: [:account] -> {:ok, project} end)
+      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] -> {:ok, project} end)
 
       # When
       first_response =

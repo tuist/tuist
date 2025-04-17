@@ -4,8 +4,7 @@ defmodule Tuist.Earmark.ASTProcessor do
   """
   def process({"pre", _, [{"code", code_attrs, code_children, code_opts}], %{}}) do
     language =
-      case code_attrs
-           |> Enum.find(fn
+      case Enum.find(code_attrs, fn
              {"class", _} -> true
              _ -> false
            end) do
@@ -35,8 +34,7 @@ defmodule Tuist.Earmark.ASTProcessor do
       ], %{}}}
   end
 
-  def process({heading, attrs, [text], _})
-      when heading in ["h1", "h2", "h3", "h4", "h5"] do
+  def process({heading, attrs, [text], _}) when heading in ["h1", "h2", "h3", "h4", "h5"] do
     id =
       text
       |> String.downcase()

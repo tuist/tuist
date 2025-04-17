@@ -2,13 +2,11 @@ defmodule TuistWeb.Storybook.Breadcrumbs do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.Breadcrumbs.breadcrumbs/1
+  alias TuistWeb.Noora.Breadcrumbs
 
-  def imports,
-    do: [
-      {TuistWeb.Noora.Breadcrumbs, [breadcrumb: 1, breadcrumb_item: 1]},
-      {TuistWeb.Noora.Icon, [smart_home: 1]}
-    ]
+  def function, do: &Breadcrumbs.breadcrumbs/1
+
+  def imports, do: [{Breadcrumbs, [breadcrumb: 1, breadcrumb_item: 1]}, {TuistWeb.Noora.Icon, [smart_home: 1]}]
 
   def variations do
     [

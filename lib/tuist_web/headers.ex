@@ -8,7 +8,7 @@ defmodule TuistWeb.Headers do
 
   def get_cli_version(conn) do
     with {:version_string, version_string} when not is_nil(version_string) <-
-           {:version_string, Plug.Conn.get_req_header(conn, cli_version_header()) |> List.first()},
+           {:version_string, conn |> Plug.Conn.get_req_header(cli_version_header()) |> List.first()},
          {:version, {:ok, version}} <- {:version, Version.parse(version_string)} do
       version
     else

@@ -1,8 +1,9 @@
 defmodule Tuist.SubscriptionTest do
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Billing.Subscription
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Accounts
+  alias Tuist.Billing.Subscription
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "create_changeset/2" do
     test "plan is required" do

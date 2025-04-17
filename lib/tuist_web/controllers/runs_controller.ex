@@ -1,19 +1,19 @@
 defmodule TuistWeb.RunsController do
-  alias Tuist.Repo
-  alias TuistWeb.Authentication
-  alias TuistWeb.Errors.UnauthorizedError
-  alias TuistWeb.Errors.NotFoundError
-  alias Tuist.Authorization
-  alias Tuist.CommandEvents
   use TuistWeb, :controller
 
-  def download(conn, %{
-        "id" => command_event_id
-      }) do
+  alias Tuist.Authorization
+  alias Tuist.CommandEvents
+  alias Tuist.Repo
+  alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
+
+  def download(conn, %{"id" => command_event_id}) do
     user = Authentication.current_user(conn)
 
     command_event =
-      CommandEvents.get_command_event_by_id(command_event_id)
+      command_event_id
+      |> CommandEvents.get_command_event_by_id()
       |> Repo.preload(:project)
 
     if is_nil(command_event) do

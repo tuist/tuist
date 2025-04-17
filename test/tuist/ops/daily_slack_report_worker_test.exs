@@ -1,16 +1,17 @@
 defmodule Tuist.Ops.DailySlackReportWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use Mimic
+
+  alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.CommandEvents
-  use Mimic
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "generates and sends the report" do
     # Given
-    Tuist.Time |> stub(:utc_now, fn -> ~U[2024-05-21 10:20:30Z] end)
+    stub(Tuist.Time, :utc_now, fn -> ~U[2024-05-21 10:20:30Z] end)
     created_at = ~U[2024-05-20 10:20:30Z]
-    user = AccountsFixtures.user_fixture(created_at: created_at) |> Repo.preload(:account)
+    user = [created_at: created_at] |> AccountsFixtures.user_fixture() |> Repo.preload(:account)
 
     project =
       ProjectsFixtures.project_fixture(account_id: user.account.id, created_at: created_at)
@@ -34,8 +35,7 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
       created_at: created_at
     })
 
-    Tuist.Slack
-    |> stub(:send_message, fn blocks ->
+    stub(Tuist.Slack, :send_message, fn blocks ->
       assert blocks == [
                %{
                  type: "header",
@@ -46,8 +46,7 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
                  elements: [
                    %{
                      type: "plain_text",
-                     text:
-                       "Great things start small—believe in your vision and keep pushing forward."
+                     text: "Great things start small—believe in your vision and keep pushing forward."
                    }
                  ]
                },

@@ -4,6 +4,7 @@ defmodule Tuist.API.Pipeline do
   Processing the data through a pipeline allows us to batch and process data efficiently.
   """
   use Broadway
+
   alias Broadway.Message
 
   def start_link(_opts) do
@@ -15,16 +16,16 @@ defmodule Tuist.API.Pipeline do
       ],
       processors: [default: [concurrency: 1]],
       batchers: [
-        db: [concurrency: 1, batch_size: 100, batch_timeout: :timer.seconds(5)]
+        db: [concurrency: 1, batch_size: 100, batch_timeout: to_timeout(second: 5)]
       ]
     )
   end
 
-  defp producer_module() do
+  defp producer_module do
     Application.fetch_env!(:tuist, :api_pipeline_producer_module)
   end
 
-  defp producer_options() do
+  defp producer_options do
     Application.fetch_env!(:tuist, :api_pipeline_producer_options)
   end
 
@@ -32,7 +33,7 @@ defmodule Tuist.API.Pipeline do
     if Tuist.Environment.test?() do
       :ok
     else
-      buffer = producer_options() |> Keyword.fetch!(:buffer)
+      buffer = Keyword.fetch!(producer_options(), :buffer)
       OffBroadwayMemory.Buffer.async_push(buffer, message)
     end
   end
@@ -45,12 +46,7 @@ defmodule Tuist.API.Pipeline do
   end
 
   @impl true
-  def handle_batch(
-        :db,
-        cache_events,
-        %{batch_key: :create_cache_event},
-        _
-      ) do
+  def handle_batch(:db, cache_events, %{batch_key: :create_cache_event}, _) do
     events_count = length(cache_events)
 
     cache_events
@@ -65,12 +61,7 @@ defmodule Tuist.API.Pipeline do
   end
 
   @impl true
-  def handle_batch(
-        :db,
-        cache_action_items,
-        %{batch_key: :create_cache_action_item},
-        _
-      ) do
+  def handle_batch(:db, cache_action_items, %{batch_key: :create_cache_action_item}, _) do
     # If we don't match against the inserted cache action items because in cases
     # where there's conflict, the cache action item is not inserted and therefore
     # not counted.
@@ -78,7 +69,7 @@ defmodule Tuist.API.Pipeline do
       cache_action_items
       |> Enum.map(fn %{data: {:create_cache_action_item, cache_action_item}} ->
         # Since we don't go through the changeset, the ID needs to be generated manually.
-        cache_action_item |> Map.merge(%{id: UUIDv7.generate()})
+        Map.put(cache_action_item, :id, UUIDv7.generate())
       end)
       |> Tuist.CacheActionItems.create_cache_action_items()
 

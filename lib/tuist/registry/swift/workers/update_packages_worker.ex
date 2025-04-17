@@ -2,10 +2,6 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
   @moduledoc """
   A worker that adds a new Swift package and populates all its releases.
   """
-  alias Tuist.VCS.Repositories.Content
-  alias Tuist.Environment
-  alias Tuist.Registry.Swift.Packages
-
   use Oban.Worker,
     unique: [
       period: :infinity,
@@ -13,7 +9,10 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
     ],
     max_attempts: 3
 
+  alias Tuist.Environment
+  alias Tuist.Registry.Swift.Packages
   alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Content
 
   # Packages with git submodules are not supported to be automatically mirrored in our registry.
   @unsupported_packages [
@@ -49,8 +48,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
   end
 
   defp remove_packages_no_longer_present(packages) do
-    packages =
-      packages |> Enum.map(&Map.take(&1, [:repository_full_handle])) |> MapSet.new()
+    packages = MapSet.new(packages, &Map.take(&1, [:repository_full_handle]))
 
     Packages.all_packages()
     |> Enum.filter(
@@ -65,12 +63,12 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
 
   defp create_missing_packages(%{packages: packages, token: token}) do
     existing_packages =
-      Packages.get_packages_by_scope_and_name_pairs(packages)
+      packages
+      |> Packages.get_packages_by_scope_and_name_pairs()
       |> MapSet.new(&{&1.scope, &1.name})
 
     missing_packages =
-      packages
-      |> Enum.filter(fn package ->
+      Enum.filter(packages, fn package ->
         not MapSet.member?(existing_packages, {package.scope, package.name})
       end)
 

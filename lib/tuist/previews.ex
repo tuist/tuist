@@ -2,10 +2,11 @@ defmodule Tuist.Previews do
   @moduledoc """
   A module to deal with Tuist Previews.
   """
-  alias Tuist.Repo
-  alias Tuist.Projects.Project
-  alias Tuist.Previews.Preview
   import Ecto.Query
+
+  alias Tuist.Previews.Preview
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   def create_preview(
         %{
@@ -31,7 +32,8 @@ defmodule Tuist.Previews do
       supported_platforms: supported_platforms,
       inserted_at: Keyword.get(opts, :inserted_at),
       inserted_at_naive:
-        Keyword.get(opts, :inserted_at, DateTime.utc_now())
+        opts
+        |> Keyword.get(:inserted_at, DateTime.utc_now())
         |> DateTime.shift_zone!("Etc/UTC")
         |> DateTime.to_naive(),
       git_branch: git_branch,
@@ -74,13 +76,14 @@ defmodule Tuist.Previews do
 
   defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do
     distinct_bundle_identifier =
-      Keyword.get(opts, :distinct, [])
+      opts
+      |> Keyword.get(:distinct, [])
       |> Enum.member?(:bundle_identifier)
 
     order_by =
-      Map.get(attrs, :order_by, [:inserted_at_naive]) |> hd()
+      attrs |> Map.get(:order_by, [:inserted_at_naive]) |> hd()
 
-    order_direction = Map.get(attrs, :order_directions, [:desc]) |> hd()
+    order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
 
     if distinct_bundle_identifier do
       preview_ids =
@@ -90,33 +93,32 @@ defmodule Tuist.Previews do
         |> distinct([p], p.bundle_identifier)
         |> select([p], p.id)
 
-      query
-      |> where([p], p.id in subquery(preview_ids))
+      where(query, [p], p.id in subquery(preview_ids))
     else
       query
     end
   end
 
   defp query_with_supported_platforms_when_needed(query, opts) do
-    supported_platforms = opts |> Keyword.get(:supported_platforms, nil)
+    supported_platforms = Keyword.get(opts, :supported_platforms, nil)
 
     if is_nil(supported_platforms) do
       query
     else
-      query
-      # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
-      # && operator finds rows where arrays have any elements in common.
-      # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
-      # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
-      |> where(
+      where(
+        query,
         [p],
         fragment(
           "? && ?",
           p.supported_platforms,
-          ^(supported_platforms
-            |> Enum.map(&Ecto.Enum.mappings(Preview, :supported_platforms)[&1]))
+          ^Enum.map(supported_platforms, &Ecto.Enum.mappings(Preview, :supported_platforms)[&1])
         )
       )
+
+      # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
+      # && operator finds rows where arrays have any elements in common.
+      # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
+      # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
     end
   end
 
@@ -140,7 +142,7 @@ defmodule Tuist.Previews do
   def get_preview_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
-      preview = Repo.get_by(Preview, id: id) |> Repo.preload(preload)
+      preview = Preview |> Repo.get_by(id: id) |> Repo.preload(preload)
 
       case preview do
         nil -> {:error, :not_found}
@@ -151,27 +153,19 @@ defmodule Tuist.Previews do
     end
   end
 
-  def get_storage_key(%{
-        account_handle: account_handle,
-        project_handle: project_handle,
-        preview_id: preview_id
-      }) do
-    "#{account_handle |> String.downcase()}/#{project_handle |> String.downcase()}/previews/#{preview_id}.zip"
+  def get_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}.zip"
   end
 
-  def get_icon_storage_key(%{
-        account_handle: account_handle,
-        project_handle: project_handle,
-        preview_id: preview_id
-      }) do
-    "#{account_handle |> String.downcase()}/#{project_handle |> String.downcase()}/previews/#{preview_id}/icon.png"
+  def get_icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}/icon.png"
   end
 
   def get_supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
     if is_nil(supported_platforms) do
       []
     else
-      supported_platforms |> Enum.map(&platform_string/1)
+      Enum.map(supported_platforms, &platform_string/1)
     end
   end
 

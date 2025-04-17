@@ -3,6 +3,7 @@ defmodule Tuist.CommandEvents.UpdateCacheEventCountWorker do
   Worker that updates the cache event counts.
   """
   use Oban.Worker
+
   alias Tuist.CommandEvents
 
   @impl Oban.Worker

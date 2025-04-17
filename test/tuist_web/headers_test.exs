@@ -1,5 +1,6 @@
 defmodule TuistWeb.HeadersTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+
   alias TuistWeb.Headers
 
   describe "get_cli_version/1" do

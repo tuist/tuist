@@ -1,13 +1,13 @@
-alias Tuist.Runs.Build
+import Ecto.Query, only: [from: 2]
+
 alias Tuist.Accounts
-alias Tuist.Projects
-alias Tuist.Projects.Project
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
-alias Tuist.Xcode
+alias Tuist.Projects
+alias Tuist.Projects.Project
 alias Tuist.Repo
-
-import Ecto.Query, only: [from: 2]
+alias Tuist.Runs.Build
+alias Tuist.Xcode
 
 # Stubs
 email = "tuistrocks@tuist.io"
@@ -26,7 +26,8 @@ account =
         customer_id: "cus_RFlTyvSVonyndv"
       )
 
-    Subscription.create_changeset(%Subscription{}, %{
+    %Subscription{}
+    |> Subscription.create_changeset(%{
       plan: :pro,
       subscription_id: "sub_1QNEs2LWue9IBlPSsKtuPQ5L",
       status: "active",
@@ -53,7 +54,7 @@ organization =
   end
 
 _public_project =
-  case Projects.get_project_by_slug("tuist/public") |> dbg do
+  case "tuist/public" |> Projects.get_project_by_slug() |> dbg() do
     {:ok, %Project{} = project} ->
       project
 
@@ -64,9 +65,10 @@ _public_project =
   end
 
 ios_app_with_frameworks_project =
-  with {:ok, project} <- Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
-    project
-  else
+  case Projects.get_project_by_slug("tuist/ios_app_with_frameworks") do
+    {:ok, project} ->
+      project
+
     {:error, _} ->
       Projects.create_project!(%{
         name: "ios_app_with_frameworks",
@@ -96,7 +98,7 @@ builds =
 
     %{
       id: UUIDv7.generate(),
-      duration: Enum.random(10000..100_000),
+      duration: Enum.random(10_000..100_000),
       macos_version: "11.2.3",
       xcode_version: "12.4",
       is_ci: is_ci,
@@ -187,7 +189,7 @@ for _event <- 1..8000 do
 
   CommandEvents.create_command_event(%{
     name: name,
-    duration: Enum.random(10000..100_000),
+    duration: Enum.random(10_000..100_000),
     tuist_version: "4.1.0",
     project_id: ios_app_with_frameworks_project.id,
     cacheable_targets: cacheable_targets,
@@ -223,12 +225,10 @@ for _event <- 1..8000 do
   })
 end
 
-test_command_events =
-  from(c in CommandEvents.Event, where: c.name == "test") |> Tuist.Repo.all()
+test_command_events = Tuist.Repo.all(from(c in CommandEvents.Event, where: c.name == "test"))
 
 test_cases =
-  1..100
-  |> Enum.map(fn index ->
+  Enum.map(1..100, fn index ->
     name = "test#{index}"
 
     module_name =
@@ -237,7 +237,7 @@ test_cases =
     identifier = "#{module_name}/#{name}"
     test_case = CommandEvents.get_test_case_by_identifier(identifier)
 
-    command_event = Enum.random(test_command_events) |> Repo.preload(:xcode_graph)
+    command_event = test_command_events |> Enum.random() |> Repo.preload(:xcode_graph)
 
     test_case =
       if is_nil(test_case) do
@@ -285,9 +285,7 @@ test_cases =
         command_event.xcode_graph
       end
 
-    graph =
-      graph
-      |> Repo.preload(xcode_projects: [:xcode_targets])
+    graph = Repo.preload(graph, xcode_projects: [:xcode_targets])
 
     for _ <- 1..100 do
       CommandEvents.create_test_case_run(
@@ -296,7 +294,8 @@ test_cases =
           test_case_id: test_case.id,
           command_event_id: command_event.id,
           xcode_target_id:
-            List.first(graph.xcode_projects)
+            graph.xcode_projects
+            |> List.first()
             |> Map.get(:xcode_targets)
             |> Enum.random()
             |> Map.get(:id)

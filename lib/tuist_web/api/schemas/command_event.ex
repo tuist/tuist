@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.CommandEvent do
   @moduledoc """
   The schema for the command event response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

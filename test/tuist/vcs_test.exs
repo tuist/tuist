@@ -1,17 +1,19 @@
 defmodule Tuist.VCSTest do
   use ExUnit.Case, async: false
   use TuistTestSupport.Cases.StubCase, billing: true
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.GitHub
   alias Tuist.Accounts
+  alias Tuist.Environment
+  alias Tuist.GitHub
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.Environment
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias Tuist.VCS.Repositories.Permission
+  alias Tuist.VCS.Repositories.Repository
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
@@ -19,8 +21,7 @@ defmodule Tuist.VCSTest do
   ]
 
   setup do
-    GitHub.App
-    |> stub(:get_app_installation_token_for_repository, fn "tuist/tuist" ->
+    stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -39,24 +40,22 @@ defmodule Tuist.VCSTest do
           }
         })
 
-      GitHub.Client
-      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
+      expect(GitHub.Client, :get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
-      GitHub.Client
-      |> expect(:get_user_permission, fn %{
-                                           repository_full_handle: "tuist/tuist",
-                                           username: "tuist"
-                                         } ->
-        {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+      expect(GitHub.Client, :get_user_permission, fn %{
+                                                       repository_full_handle: "tuist/tuist",
+                                                       username: "tuist"
+                                                     } ->
+        {:ok, %Permission{permission: "admin"}}
       end)
 
       # When
       got =
         VCS.get_user_permission(%{
           user: user,
-          repository: %VCS.Repositories.Repository{
+          repository: %Repository{
             provider: :github,
             full_handle: "tuist/tuist",
             default_branch: "main"
@@ -64,15 +63,14 @@ defmodule Tuist.VCSTest do
         })
 
       # Then
-      assert got == {:ok, %VCS.Repositories.Permission{permission: "admin"}}
+      assert got == {:ok, %Permission{permission: "admin"}}
     end
   end
 
   describe "connected/1" do
     test "returns true when connected" do
       # Given
-      Environment
-      |> stub(:github_app_configured?, fn -> true end)
+      stub(Environment, :github_app_configured?, fn -> true end)
 
       project =
         ProjectsFixtures.project_fixture(
@@ -89,8 +87,7 @@ defmodule Tuist.VCSTest do
 
     test "returns false when the GitHub app is not configured" do
       # Given
-      Environment
-      |> stub(:github_app_configured?, fn -> false end)
+      stub(Environment, :github_app_configured?, fn -> false end)
 
       project =
         ProjectsFixtures.project_fixture(
@@ -107,8 +104,7 @@ defmodule Tuist.VCSTest do
 
     test "returns false when the vcs_repository_full_handle is nil" do
       # Given
-      Environment
-      |> stub(:github_app_configured?, fn -> false end)
+      stub(Environment, :github_app_configured?, fn -> false end)
 
       project =
         ProjectsFixtures.project_fixture(vcs_repository_full_handle: nil)
@@ -122,8 +118,7 @@ defmodule Tuist.VCSTest do
 
     test "returns false when the connected repositor full handles' do not match" do
       # Given
-      Environment
-      |> stub(:github_app_configured?, fn -> false end)
+      stub(Environment, :github_app_configured?, fn -> false end)
 
       project =
         ProjectsFixtures.project_fixture(
@@ -144,10 +139,9 @@ defmodule Tuist.VCSTest do
       # Given
       repository_url = "https://github.com/tuist/tuist"
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            provider: :github,
            full_handle: "tuist/tuist",
            default_branch: "main"
@@ -161,7 +155,7 @@ defmodule Tuist.VCSTest do
       # Then
       assert got ==
                {:ok,
-                %VCS.Repositories.Repository{
+                %Repository{
                   provider: :github,
                   full_handle: "tuist/tuist",
                   default_branch: "main"
@@ -172,10 +166,9 @@ defmodule Tuist.VCSTest do
       # Given
       repository_url = "https://tuist@github.com/tuist/tuist.git"
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            provider: :github,
            full_handle: "tuist/tuist",
            default_branch: "main"
@@ -189,7 +182,7 @@ defmodule Tuist.VCSTest do
       # Then
       assert got ==
                {:ok,
-                %VCS.Repositories.Repository{
+                %Repository{
                   provider: :github,
                   full_handle: "tuist/tuist",
                   default_branch: "main"
@@ -200,10 +193,9 @@ defmodule Tuist.VCSTest do
       # Given
       repository_url = "https://github.com/tuist/tuist.git"
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            provider: :github,
            full_handle: "tuist/tuist",
            default_branch: "main"
@@ -217,7 +209,7 @@ defmodule Tuist.VCSTest do
       # Then
       assert got ==
                {:ok,
-                %VCS.Repositories.Repository{
+                %Repository{
                   provider: :github,
                   full_handle: "tuist/tuist",
                   default_branch: "main"
@@ -228,10 +220,9 @@ defmodule Tuist.VCSTest do
       # Given
       repository_url = "https://github.com/tuist/tuist/"
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            provider: :github,
            full_handle: "tuist/tuist",
            default_branch: "main"
@@ -245,7 +236,7 @@ defmodule Tuist.VCSTest do
       # Then
       assert got ==
                {:ok,
-                %VCS.Repositories.Repository{
+                %Repository{
                   provider: :github,
                   full_handle: "tuist/tuist",
                   default_branch: "main"
@@ -259,12 +250,8 @@ defmodule Tuist.VCSTest do
     @git_commit_sha "1234567890"
 
     setup do
-      Environment
-      |> stub(:github_app_client_id, fn -> "client_id" end)
-
-      Environment
-      |> stub(:github_app_configured?, fn -> true end)
-
+      stub(Environment, :github_app_client_id, fn -> "client_id" end)
+      stub(Environment, :github_app_configured?, fn -> true end)
       :ok
     end
 
@@ -340,11 +327,10 @@ defmodule Tuist.VCSTest do
           status: :failure
         )
 
-      Req
-      |> stub(:get, fn [
-                         headers: @default_headers,
-                         url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                       ] ->
+      stub(Req, :get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                         ] ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -371,12 +357,11 @@ defmodule Tuist.VCSTest do
 
         """
 
-      Req
-      |> stub(:post, fn [
-                          headers: @default_headers,
-                          url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                          json: %{body: ^expected_body}
-                        ] ->
+      stub(Req, :post, fn [
+                            headers: @default_headers,
+                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                            json: %{body: ^expected_body}
+                          ] ->
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -431,11 +416,10 @@ defmodule Tuist.VCSTest do
           created_at: ~N[2024-04-30 01:00:00]
         )
 
-      Req
-      |> stub(:get, fn [
-                         headers: @default_headers,
-                         url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
-                       ] ->
+      stub(Req, :get, fn [
+                           headers: @default_headers,
+                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                         ] ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
@@ -454,12 +438,11 @@ defmodule Tuist.VCSTest do
 
         """
 
-      Req
-      |> expect(:post, fn [
-                            headers: @default_headers,
-                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
-                            json: %{body: ^expected_body}
-                          ] ->
+      expect(Req, :post, fn [
+                              headers: @default_headers,
+                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                              json: %{body: ^expected_body}
+                            ] ->
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
@@ -500,15 +483,13 @@ defmodule Tuist.VCSTest do
           created_at: ~N[2024-04-30 03:00:00]
         )
 
-      GitHub.Client
-      |> expect(:get_comments, fn _ -> {:ok, []} end)
+      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
 
-      GitHub.Client
-      |> expect(:create_comment, fn %{
-                                      repository_full_handle: "tuist/tuist",
-                                      issue_id: "1",
-                                      body: _
-                                    } ->
+      expect(GitHub.Client, :create_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  issue_id: "1",
+                                                  body: _
+                                                } ->
         {:ok, %{}}
       end)
 
@@ -549,15 +530,13 @@ defmodule Tuist.VCSTest do
           created_at: ~N[2024-04-30 03:00:00]
         )
 
-      GitHub.Client
-      |> expect(:get_comments, fn _ -> {:ok, []} end)
+      expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
 
-      GitHub.Client
-      |> expect(:create_comment, fn %{
-                                      repository_full_handle: "tuist/tuist",
-                                      issue_id: "1",
-                                      body: _
-                                    } ->
+      expect(GitHub.Client, :create_comment, fn %{
+                                                  repository_full_handle: "tuist/tuist",
+                                                  issue_id: "1",
+                                                  body: _
+                                                } ->
         {:ok, %{}}
       end)
 
@@ -597,8 +576,7 @@ defmodule Tuist.VCSTest do
           git_commit_sha: "1234567890"
         )
 
-      GitHub.Client
-      |> expect(:get_comments, fn _ ->
+      expect(GitHub.Client, :get_comments, fn _ ->
         {:ok,
          [
            %Comment{
@@ -608,25 +586,22 @@ defmodule Tuist.VCSTest do
          ]}
       end)
 
-      GitHub.App
-      |> stub(:get_app_installation_token_for_repository, fn "tuist/tuist" ->
+      stub(GitHub.App, :get_app_installation_token_for_repository, fn "tuist/tuist" ->
         {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
       end)
 
-      Req
-      |> stub(:patch, fn [
-                           headers: [
-                             {"Accept", "application/vnd.github.v3+json"},
-                             {"Authorization", "token github_token"}
-                           ],
-                           url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
-                           json: %{body: _}
-                         ] ->
+      stub(Req, :patch, fn [
+                             headers: [
+                               {"Accept", "application/vnd.github.v3+json"},
+                               {"Authorization", "token github_token"}
+                             ],
+                             url: "https://api.github.com/repos/tuist/tuist/issues/comments/1",
+                             json: %{body: _}
+                           ] ->
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -653,11 +628,8 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      GitHub.Client
-      |> expect(:get_comments, fn _ -> {:ok, [%{client_id: nil}]} end)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      expect(GitHub.Client, :get_comments, fn _ -> {:ok, [%{client_id: nil}]} end)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -684,11 +656,8 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -715,14 +684,9 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      Environment
-      |> stub(:github_app_configured?, fn -> false end)
-
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      stub(Environment, :github_app_configured?, fn -> false end)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -745,11 +709,8 @@ defmodule Tuist.VCSTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -776,11 +737,8 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -807,11 +765,8 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
@@ -838,11 +793,8 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      GitHub.Client
-      |> reject(:get_comments, 1)
-
-      GitHub.Client
-      |> reject(:create_comment, 1)
+      reject(GitHub.Client, :get_comments, 1)
+      reject(GitHub.Client, :create_comment, 1)
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{

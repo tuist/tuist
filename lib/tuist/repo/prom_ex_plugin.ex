@@ -3,6 +3,7 @@ defmodule Tuist.Repo.PromExPlugin do
   A prom_ex plugin that exposes metrics around the DB repo.
   """
   use PromEx.Plugin
+
   alias Tuist.Telemetry
 
   @impl true
@@ -18,8 +19,7 @@ defmodule Tuist.Repo.PromExPlugin do
           last_value(
             [:tuist, :repo, :pool, :checkout_queue, :length],
             event_name: Telemetry.event_name_repo_pool_metrics(),
-            description:
-              "The total number of queries that are in the queue waiting to be checked out",
+            description: "The total number of queries that are in the queue waiting to be checked out",
             measurement: :checkout_queue_length
           ),
           last_value(
@@ -47,7 +47,7 @@ defmodule Tuist.Repo.PromExPlugin do
     ]
   end
 
-  def execute_tuist_repo_pool_metrics_event() do
+  def execute_tuist_repo_pool_metrics_event do
     if Tuist.Repo.running?() do
       :telemetry.execute(
         Telemetry.event_name_repo_pool_metrics(),

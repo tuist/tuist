@@ -4,6 +4,7 @@ defmodule TuistWeb.AccountDropdown do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
+
   alias Tuist.Accounts
   alias Tuist.Accounts.User
 

@@ -3,25 +3,21 @@ defmodule Tuist.VCS do
   A module that provides functions to interact with VCS repositories.
   """
 
-  alias Tuist.VCS
-  alias Tuist.GitHub
-  alias Tuist.Repo
-  alias Tuist.Projects
-  alias Tuist.Environment
   alias Tuist.CommandEvents
+  alias Tuist.Environment
+  alias Tuist.GitHub
+  alias Tuist.Projects
+  alias Tuist.Repo
+  alias Tuist.VCS
 
   @reportable_commands ["test", "share"]
 
-  def supported_vcs_hosts() do
+  def supported_vcs_hosts do
     ["GitHub"]
   end
 
   def get_repository_content(
-        %{
-          repository_full_handle: repository_full_handle,
-          provider: provider,
-          token: token
-        },
+        %{repository_full_handle: repository_full_handle, provider: provider, token: token},
         opts \\ []
       ) do
     client = get_client_for_provider(provider)
@@ -35,11 +31,7 @@ defmodule Tuist.VCS do
     )
   end
 
-  def get_tags(%{
-        provider: provider,
-        repository_full_handle: repository_full_handle,
-        token: token
-      }) do
+  def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
     client = get_client_for_provider(provider)
 
     client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
@@ -65,7 +57,8 @@ defmodule Tuist.VCS do
       {:ok, provider} ->
         client = get_client_for_provider(provider)
 
-        get_repository_full_handle_from_url(repository_url)
+        repository_url
+        |> get_repository_full_handle_from_url()
         |> elem(1)
         |> client.get_repository()
 
@@ -75,8 +68,8 @@ defmodule Tuist.VCS do
   end
 
   def get_provider_from_repository_url(repository_url) do
-    vcs_uri = repository_url |> URI.parse()
-    host = vcs_uri |> Map.get(:host)
+    vcs_uri = URI.parse(repository_url)
+    host = Map.get(vcs_uri, :host)
 
     case host do
       "github.com" -> {:ok, :github}
@@ -90,9 +83,7 @@ defmodule Tuist.VCS do
       }) do
     user = Repo.preload(user, :oauth2_identities)
 
-    github_identity =
-      user.oauth2_identities
-      |> Enum.find(&(&1.provider == provider))
+    github_identity = Enum.find(user.oauth2_identities, &(&1.provider == provider))
 
     client = get_client_for_provider(provider)
 
@@ -128,7 +119,8 @@ defmodule Tuist.VCS do
 
   def get_repository_full_handle_from_url(repository_url) do
     full_handle =
-      Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
+      ~r/^git@(.+):/
+      |> Regex.replace(repository_url, "https://\\1/")
       |> URI.parse()
       |> Map.get(:path)
       |> String.replace_leading("/", "")
@@ -165,7 +157,7 @@ defmodule Tuist.VCS do
       if is_nil(git_remote_url_origin) do
         nil
       else
-        get_repository_full_handle_from_url(git_remote_url_origin) |> elem(1)
+        git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
       end
 
     should_post_report =
@@ -214,8 +206,7 @@ defmodule Tuist.VCS do
   defp get_existing_vcs_comment_id(%{client: client, repository: repository, issue_id: issue_id}) do
     case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id}) do
       {:ok, comments} ->
-        comments
-        |> Enum.find(&(&1.client_id == Environment.github_app_client_id()))
+        Enum.find(comments, &(&1.client_id == Environment.github_app_client_id()))
 
       _ ->
         nil
@@ -310,35 +301,27 @@ defmodule Tuist.VCS do
   end
 
   defp get_latest_command_events(
-         %{
-           get_identifier: get_identifier,
-           name: name,
-           git_ref: git_ref,
-           project: project
-         },
+         %{get_identifier: get_identifier, name: name, git_ref: git_ref, project: project},
          opts \\ []
        ) do
     filter = Keyword.get(opts, :filter, fn _ -> true end)
 
-    CommandEvents.get_command_events_by_name_git_ref_and_project(
-      %{
-        name: name,
-        git_ref: git_ref,
-        project: project
-      },
-      preload: [:preview]
-    )
+    %{
+      name: name,
+      git_ref: git_ref,
+      project: project
+    }
+    |> CommandEvents.get_command_events_by_name_git_ref_and_project(preload: [:preview])
     |> Enum.filter(filter)
     |> Enum.reduce(%{}, fn command_event, acc ->
       identifier = get_identifier.(command_event)
       current_event = Map.get(acc, identifier)
 
       if current_event == nil or
-           NaiveDateTime.compare(
+           NaiveDateTime.after?(
              command_event.created_at,
              current_event.created_at
-           ) ==
-             :gt do
+           ) do
         Map.put(acc, identifier, command_event)
       else
         acc
@@ -374,7 +357,7 @@ defmodule Tuist.VCS do
         qr_code_image = get_qr_code_image(%{project: project, preview: preview_command_event.preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview_command_event.preview.display_name}](#{preview_url}) | [#{git_commit_sha |> String.slice(0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview_command_event.preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
         """
       end)}
       """
@@ -413,12 +396,12 @@ defmodule Tuist.VCS do
       |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
       #{Enum.map(test_command_events, fn test_command_event ->
         git_commit_sha = test_command_event.git_commit_sha
-        total_number_of_tests = test_command_event.test_targets |> Enum.count()
-        tests_skipped = (test_command_event.local_test_target_hits |> Enum.count()) + (test_command_event.remote_test_target_hits |> Enum.count())
+        total_number_of_tests = Enum.count(test_command_event.test_targets)
+        tests_skipped = Enum.count(test_command_event.local_test_target_hits) + Enum.count(test_command_event.remote_test_target_hits)
         test_url = command_run_url.(%{project: project, command_event: test_command_event})
 
         """
-        | [#{test_command_event.command_arguments}](#{test_url}) | #{get_status_text(test_command_event)} | #{get_cache_hit_rate(test_command_event)} | #{total_number_of_tests} | #{tests_skipped} | #{total_number_of_tests - tests_skipped} | [#{git_commit_sha |> String.slice(0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        | [#{test_command_event.command_arguments}](#{test_url}) | #{get_status_text(test_command_event)} | #{get_cache_hit_rate(test_command_event)} | #{total_number_of_tests} | #{tests_skipped} | #{total_number_of_tests - tests_skipped} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
         """
       end)}
       """
@@ -426,11 +409,11 @@ defmodule Tuist.VCS do
   end
 
   defp get_cache_hit_rate(command_event) do
-    total_targets = command_event.cacheable_targets |> Enum.count()
+    total_targets = Enum.count(command_event.cacheable_targets)
 
     total_hits =
-      (command_event.local_cache_target_hits |> Enum.count()) +
-        (command_event.remote_cache_target_hits |> Enum.count())
+      Enum.count(command_event.local_cache_target_hits) +
+        Enum.count(command_event.remote_cache_target_hits)
 
     if total_targets == 0 do
       "0 %"

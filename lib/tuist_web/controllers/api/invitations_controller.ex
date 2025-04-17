@@ -1,11 +1,13 @@
 defmodule TuistWeb.API.InvitationsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias TuistWeb.API.Schemas.{Invitation, Error}
-  alias TuistWeb.Authentication
-  alias Tuist.Authorization
-  alias Tuist.Accounts
+
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.Invitation
+  alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -40,26 +42,15 @@ defmodule TuistWeb.API.InvitationsController do
        }},
     responses: %{
       ok: {"The user was invited", "application/json", Invitation},
-      bad_request:
-        {"The user could not be invited due to a validation error", "application/json", Error},
+      bad_request: {"The user could not be invited due to a validation error", "application/json", Error},
       not_found: {"The organization was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def create(
-        %{
-          path_params: %{
-            "organization_name" => organization_name
-          },
-          body_params: %{
-            invitee_email: invitee_email
-          }
-        } = conn,
+        %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params
       ) do
     user = Authentication.current_user(conn)
@@ -154,25 +145,14 @@ defmodule TuistWeb.API.InvitationsController do
     responses: %{
       no_content: "The invitation was cancelled",
       not_found:
-        {"The invitation with the given invitee email and organization name was not found",
-         "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+        {"The invitation with the given invitee email and organization name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def delete(
-        %{
-          path_params: %{
-            "organization_name" => organization_name
-          },
-          body_params: %{
-            invitee_email: invitee_email
-          }
-        } = conn,
+        %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params
       ) do
     user = Authentication.current_user(conn)
@@ -194,8 +174,7 @@ defmodule TuistWeb.API.InvitationsController do
         conn
         |> put_status(:not_found)
         |> json(%{
-          message:
-            "The invitation with the given invitee email and organization name was not found"
+          message: "The invitation with the given invitee email and organization name was not found"
         })
 
       !Authorization.can(user, :delete, organization.account, :invitation) ->

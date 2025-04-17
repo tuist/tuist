@@ -299,7 +299,7 @@ defmodule TuistWeb.Noora.Chart do
     merged_options =
       base_options
       |> DeepMerge.deep_merge(custom_options)
-      |> DeepMerge.deep_merge(Map.drop(assigns.extra_options, [:series]))
+      |> DeepMerge.deep_merge(Map.delete(assigns.extra_options, :series))
 
     # Apply bar radius to all bar series if it's set
     merged_options =
@@ -391,22 +391,22 @@ defmodule TuistWeb.Noora.Chart do
       {x_axis, y_axis} =
         if axis_config.horizontal && chart_type == "bar" do
           # For horizontal bars, x is value axis, y is category axis
-          x_axis = x_axis |> Map.put_new(:type, "value")
-          y_axis = y_axis |> Map.put_new(:type, "category")
+          x_axis = Map.put_new(x_axis, :type, "value")
+          y_axis = Map.put_new(y_axis, :type, "category")
 
           # Add labels to y-axis for horizontal charts
           # credo:disable-for-next-line
           if length(axis_config.labels) > 0 do
             y_axis = Map.put(y_axis, :data, axis_config.labels)
-            x_axis = Map.drop(x_axis, [:data])
+            x_axis = Map.delete(x_axis, :data)
             {x_axis, y_axis}
           else
             {x_axis, y_axis}
           end
         else
           # Default orientation: x is category, y is value
-          x_axis = x_axis |> Map.put_new(:type, "category")
-          y_axis = y_axis |> Map.put_new(:type, "value")
+          x_axis = Map.put_new(x_axis, :type, "category")
+          y_axis = Map.put_new(y_axis, :type, "value")
           {x_axis, y_axis}
         end
 
@@ -512,9 +512,7 @@ defmodule TuistWeb.Noora.Chart do
           known_props = [:type, :name, :values, :data, :show_values, :smooth]
 
           # Get all additional series options that should be passed through
-          additional_options =
-            series_item
-            |> Map.drop(known_props)
+          additional_options = Map.drop(series_item, known_props)
 
           build_series_config(%{
             # Allow mixed chart types (bar/line)
@@ -548,7 +546,7 @@ defmodule TuistWeb.Noora.Chart do
     series = %{
       type: type,
       data: data,
-      stack: if(opts.stacked, do: "total", else: nil),
+      stack: if(opts.stacked, do: "total"),
       label: %{
         show: config[:show_values] || opts.show_values
       }

@@ -3,6 +3,7 @@ defmodule TuistWeb.HeadlessComponents do
   A set of headless components
   """
   use Phoenix.Component
+
   alias Phoenix.LiveView.JS
 
   @doc ~S"""

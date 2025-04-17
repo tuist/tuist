@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.OrganizationMember do
   @moduledoc """
   A schema for an organization member.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

@@ -2,45 +2,36 @@ defmodule Tuist.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
-  alias Tuist.Accounts.AccountToken
-  alias Ecto.Changeset
-  alias Tuist.Projects.Project
-  alias Tuist.CommandEvents.Event
-  alias Tuist.Environment
-  alias Tuist.Accounts.UserNotifier
-  alias Tuist.Repo
-  alias Tuist.Base64
-
-  alias Tuist.Accounts.{
-    User,
-    Account,
-    Organization,
-    Role,
-    UserRole,
-    Oauth2Identity,
-    DeviceCode,
-    Invitation
-  }
-
-  alias Tuist.Billing
   import Ecto.Query, only: [from: 2]
+
+  alias Ecto.Changeset
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.DeviceCode
+  alias Tuist.Accounts.Invitation
+  alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.Role
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserNotifier
+  alias Tuist.Accounts.UserRole
+  alias Tuist.Accounts.UserToken
+  alias Tuist.Base64
+  alias Tuist.Billing
+  alias Tuist.CommandEvents.Event
+  alias Tuist.Ecto.Utils
+  alias Tuist.Environment
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   require Logger
 
-  def new_organizations_in_last_hour() do
-    from(o in Organization,
-      where: o.created_at > ago(1, "hour"),
-      preload: [:account]
-    )
-    |> Repo.all()
+  def new_organizations_in_last_hour do
+    Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
   end
 
-  def new_users_in_last_hour() do
-    from(u in User,
-      where: u.created_at > ago(1, "hour"),
-      preload: [:account]
-    )
-    |> Repo.all()
+  def new_users_in_last_hour do
+    Repo.all(from(u in User, where: u.created_at > ago(1, "hour"), preload: [:account]))
   end
 
   def create_customer_when_absent(%Account{} = account) do
@@ -60,15 +51,15 @@ defmodule Tuist.Accounts do
   end
 
   def update_account_cache_upload_event_count(%Account{} = account, count) do
-    {:ok, _} = Repo.update(account |> Ecto.Changeset.change(cache_upload_event_count: count))
+    {:ok, _} = account |> Ecto.Changeset.change(cache_upload_event_count: count) |> Repo.update()
     Repo.reload(account)
   end
 
-  def get_users_count() do
+  def get_users_count do
     Repo.aggregate(User, :count, :id)
   end
 
-  def get_organizations_count() do
+  def get_organizations_count do
     Repo.aggregate(Organization, :count, :id)
   end
 
@@ -87,7 +78,7 @@ defmodule Tuist.Accounts do
   Given an id, it returns the organization associated with it.
   """
   def get_organization_by_id(id, attrs \\ []) do
-    preload = attrs |> Keyword.get(:preload, [:account])
+    preload = Keyword.get(attrs, :preload, [:account])
     Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload)
   end
 
@@ -104,16 +95,17 @@ defmodule Tuist.Accounts do
   end
 
   def get_organization_members_with_role(%Organization{id: organization_id}) do
-    from(u in User,
-      preload: [:account],
-      join: ur in UserRole,
-      on: ur.user_id == u.id,
-      join: r in Role,
-      on: ur.role_id == r.id,
-      where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-      select: [u, r.name]
+    Repo.all(
+      from(u in User,
+        preload: [:account],
+        join: ur in UserRole,
+        on: ur.user_id == u.id,
+        join: r in Role,
+        on: ur.role_id == r.id,
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        select: [u, r.name]
+      )
     )
-    |> Repo.all()
   end
 
   def get_organization_members(%Organization{id: organization_id}, role) do
@@ -132,8 +124,7 @@ defmodule Tuist.Accounts do
 
     case role do
       :admin ->
-        invited_members
-        |> Repo.preload(:account)
+        Repo.preload(invited_members, :account)
 
       :user ->
         invited_members_ids = Enum.map(invited_members, & &1.id)
@@ -150,8 +141,7 @@ defmodule Tuist.Accounts do
             where: org.id == ^organization_id and u.id not in ^invited_members_ids
           )
 
-        (invited_members ++ Repo.all(oauth2_identity_query))
-        |> Repo.preload(:account)
+        Repo.preload(invited_members ++ Repo.all(oauth2_identity_query), :account)
     end
   end
 
@@ -174,19 +164,18 @@ defmodule Tuist.Accounts do
     device_code = get_device_code(code)
 
     {:ok, device_code} =
-      DeviceCode.authenticate_changeset(device_code, %{authenticated: true, user_id: user.id})
+      device_code
+      |> DeviceCode.authenticate_changeset(%{authenticated: true, user_id: user.id})
       |> Repo.update()
 
     device_code
   end
 
   def create_device_code(code, attrs \\ []) do
-    created_at = attrs |> Keyword.get(:created_at, DateTime.utc_now())
+    created_at = Keyword.get(attrs, :created_at, DateTime.utc_now())
 
     {:ok, device_code} =
-      Repo.insert(
-        DeviceCode.create_changeset(%DeviceCode{}, %{code: code, created_at: created_at})
-      )
+      Repo.insert(DeviceCode.create_changeset(%DeviceCode{}, %{code: code, created_at: created_at}))
 
     device_code
   end
@@ -206,7 +195,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_oauth2_identity_by_provider_and_id(provider, id_in_provider) do
-    Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: id_in_provider |> to_string())
+    Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
   def update_organization(%Organization{} = organization, attrs) do
@@ -219,11 +208,12 @@ defmodule Tuist.Accounts do
   Creates an organization with the given attributes.
   """
   def create_organization(attrs, opts \\ []) do
-    create_organization_multi(attrs, opts)
+    attrs
+    |> create_organization_multi(opts)
     |> Repo.transaction()
     |> case do
       {:ok, %{organization: organization}} ->
-        organization = organization |> Repo.preload(:account)
+        organization = Repo.preload(organization, :account)
 
         {:ok, organization}
 
@@ -239,27 +229,21 @@ defmodule Tuist.Accounts do
   @doc """
   Creates an organization with the given attributes.
   """
-  def create_organization!(
-        attrs,
-        opts \\ []
-      ) do
+  def create_organization!(attrs, opts \\ []) do
     {:ok, %{organization: organization}} =
-      create_organization_multi(attrs, opts)
+      attrs
+      |> create_organization_multi(opts)
       |> Repo.transaction()
 
-    organization |> Repo.preload(:account)
+    Repo.preload(organization, :account)
   end
 
-  defp create_organization_multi(
-         %{name: name, creator: %User{id: user_id, email: user_email}},
-         opts
-       ) do
-    sso_provider = opts |> Keyword.get(:sso_provider)
-    sso_organization_id = opts |> Keyword.get(:sso_organization_id)
-    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
+  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
+    sso_provider = Keyword.get(opts, :sso_provider)
+    sso_organization_id = Keyword.get(opts, :sso_organization_id)
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count =
-      opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count = Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
     Ecto.Multi.new()
     |> Ecto.Multi.insert(
@@ -331,11 +315,7 @@ defmodule Tuist.Accounts do
   end
 
   def find_or_create_user_from_oauth2(
-        %{
-          provider: provider,
-          uid: id_in_provider,
-          info: %{email: email}
-        } = auth,
+        %{provider: provider, uid: id_in_provider, info: %{email: email}} = auth,
         opts \\ []
       ) do
     oauth2_identity = get_oauth2_identity_by_provider_and_id(provider, id_in_provider)
@@ -365,7 +345,8 @@ defmodule Tuist.Accounts do
         |> Repo.update!()
       end
 
-      get_user_by_id(oauth2_identity.user_id)
+      oauth2_identity.user_id
+      |> get_user_by_id()
       |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     else
       oauth2_identity =
@@ -376,13 +357,14 @@ defmodule Tuist.Accounts do
           provider_organization_id: provider_organization_id
         })
 
-      get_user_by_id(oauth2_identity.user_id)
+      oauth2_identity.user_id
+      |> get_user_by_id()
       |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     end
   end
 
   def find_oauth2_identity(%{user: %{id: user_id}, provider: provider}, opts \\ []) do
-    provider_organization_id = opts |> Keyword.get(:provider_organization_id)
+    provider_organization_id = Keyword.get(opts, :provider_organization_id)
 
     if is_nil(provider_organization_id) do
       Repo.get_by(Oauth2Identity, user_id: user_id, provider: provider)
@@ -420,8 +402,7 @@ defmodule Tuist.Accounts do
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count =
-      opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count = Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
     multi =
       Ecto.Multi.new()
@@ -462,7 +443,7 @@ defmodule Tuist.Accounts do
           repo.insert(
             Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
               provider: oauth2_identity.provider,
-              id_in_provider: oauth2_identity.id_in_provider |> to_string(),
+              id_in_provider: to_string(oauth2_identity.id_in_provider),
               provider_organization_id: oauth2_identity.provider_organization_id,
               user_id: user_id
             })
@@ -473,7 +454,7 @@ defmodule Tuist.Accounts do
 
     case user_account do
       {:ok, %{user: user}} ->
-        user = user |> Repo.preload(:account)
+        user = Repo.preload(user, :account)
         Tuist.Analytics.user_create(user)
 
         {:ok, user}
@@ -482,7 +463,7 @@ defmodule Tuist.Accounts do
         parse_account_changeset_error(changeset, email, opts)
 
       {:error, :user, %Changeset{} = changeset, _} ->
-        if Tuist.Ecto.Utils.unique_error?(changeset, :email) do
+        if Utils.unique_error?(changeset, :email) do
           {:error, :email_taken}
         else
           {:error, changeset}
@@ -491,12 +472,12 @@ defmodule Tuist.Accounts do
   end
 
   defp parse_account_changeset_error(%Changeset{} = changeset, email, opts) do
-    attempt = opts |> Keyword.get(:attempt, 0)
-    suffix = opts |> Keyword.get(:suffix, "")
+    attempt = Keyword.get(opts, :attempt, 0)
+    suffix = Keyword.get(opts, :suffix, "")
 
     cond do
-      Tuist.Ecto.Utils.unique_error?(changeset, :name) and attempt < 5 ->
-        next_suffix = if suffix == "", do: 1, else: (suffix |> String.to_integer()) + 1
+      Utils.unique_error?(changeset, :name) and attempt < 5 ->
+        next_suffix = if suffix == "", do: 1, else: String.to_integer(suffix) + 1
 
         opts =
           opts
@@ -505,11 +486,11 @@ defmodule Tuist.Accounts do
 
         create_user(email, opts)
 
-      Tuist.Ecto.Utils.unique_error?(changeset, :name) and attempt >= 5 ->
+      Utils.unique_error?(changeset, :name) and attempt >= 5 ->
         {:error, :account_handle_taken}
 
       true ->
-        {:error, Tuist.Ecto.Utils.errors_on(changeset)}
+        {:error, Utils.errors_on(changeset)}
     end
   end
 
@@ -538,7 +519,7 @@ defmodule Tuist.Accounts do
              )
            )}
 
-    query |> Flop.validate_and_run!(attrs, for: Account)
+    Flop.validate_and_run!(query, attrs, for: Account)
   end
 
   defp create_oauth2_identity(%{
@@ -554,7 +535,7 @@ defmodule Tuist.Accounts do
         Repo.insert(
           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
             provider: provider,
-            id_in_provider: id_in_provider |> to_string(),
+            id_in_provider: to_string(id_in_provider),
             user_id: user.id,
             provider_organization_id: provider_organization_id
           })
@@ -567,7 +548,7 @@ defmodule Tuist.Accounts do
           password: generate_random_string(16),
           oauth2_identity: %{
             provider: provider,
-            id_in_provider: id_in_provider |> to_string(),
+            id_in_provider: to_string(id_in_provider),
             provider_organization_id: provider_organization_id
           }
         )
@@ -580,7 +561,7 @@ defmodule Tuist.Accounts do
     if is_nil(account.organization_id) do
       nil
     else
-      account.organization_id |> get_organization_by_id()
+      get_organization_by_id(account.organization_id)
     end
   end
 
@@ -589,7 +570,7 @@ defmodule Tuist.Accounts do
       from a in Account,
         where: a.customer_id == ^customer_id
 
-    query |> Repo.one()
+    Repo.one(query)
   end
 
   def get_account_from_user(%User{} = user) do
@@ -598,7 +579,7 @@ defmodule Tuist.Accounts do
         where: a.user_id == ^user.id
       )
 
-    query |> Repo.one()
+    Repo.one(query)
   end
 
   def get_account_from_organization(%Organization{} = organization) do
@@ -607,17 +588,17 @@ defmodule Tuist.Accounts do
         where: a.organization_id == ^organization.id
       )
 
-    query |> Repo.one()
+    Repo.one(query)
   end
 
   def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
-    with {:account, %Account{} = account} <- {:account, account_id |> get_account_by_id()},
+    with {:account, %Account{} = account} <- {:account, get_account_by_id(account_id)},
          {:organization, organization} <- {:organization, organization_from_account(account)} do
       belongs_to_account_organization =
-        if organization != nil do
-          organization_admin?(user, organization) or organization_user?(user, organization)
-        else
+        if organization == nil do
           false
+        else
+          organization_admin?(user, organization) or organization_user?(user, organization)
         end
 
       owns_account?(user, account) or belongs_to_account_organization
@@ -627,13 +608,13 @@ defmodule Tuist.Accounts do
   end
 
   def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
-    with {:account, %Account{} = account} <- {:account, account_id |> get_account_by_id()},
+    with {:account, %Account{} = account} <- {:account, get_account_by_id(account_id)},
          {:organization, organization} <- {:organization, organization_from_account(account)} do
       is_admin_to_account_organization =
-        if organization != nil do
-          organization_admin?(user, organization)
-        else
+        if organization == nil do
           false
+        else
+          organization_admin?(user, organization)
         end
 
       owns_account?(user, account) or is_admin_to_account_organization
@@ -646,12 +627,8 @@ defmodule Tuist.Accounts do
     account.user_id == user.id
   end
 
-  def add_user_to_organization(
-        %User{id: user_id},
-        %Organization{id: organization_id},
-        opts \\ []
-      ) do
-    role = opts |> Keyword.get(:role, :user)
+  def add_user_to_organization(%User{id: user_id}, %Organization{id: organization_id}, opts \\ []) do
+    role = Keyword.get(opts, :role, :user)
 
     query =
       from(u in UserRole,
@@ -681,10 +658,7 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def remove_user_from_organization(
-        %User{id: user_id} = user,
-        %Organization{id: organization_id} = organization
-      ) do
+  def remove_user_from_organization(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -730,11 +704,7 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
-  def update_user_role_in_organization(
-        %User{id: user_id},
-        %Organization{id: organization_id},
-        role
-      ) do
+  def update_user_role_in_organization(%User{id: user_id}, %Organization{id: organization_id}, role) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -748,7 +718,7 @@ defmodule Tuist.Accounts do
     user_role = Repo.one(query)
 
     {:ok, updated_role} =
-      Repo.update(user_role |> Ecto.Changeset.change(name: Atom.to_string(role)))
+      user_role |> Ecto.Changeset.change(name: Atom.to_string(role)) |> Repo.update()
 
     updated_role
   end
@@ -787,22 +757,19 @@ defmodule Tuist.Accounts do
   end
 
   def list_invitations(organization) do
-    from(o in Organization,
-      join: i in Invitation,
-      on: i.organization_id == o.id,
-      where: o.id == ^organization.id,
-      select: i
+    Repo.one(
+      from(o in Organization,
+        join: i in Invitation,
+        on: i.organization_id == o.id,
+        where: o.id == ^organization.id,
+        select: i
+      )
     )
-    |> Repo.one()
   end
 
   def invite_user_to_organization(
         email,
-        %{
-          inviter: %User{id: user_id} = inviter,
-          to: %Organization{id: organization_id} = organization,
-          url: url_fun
-        },
+        %{inviter: %User{id: user_id} = inviter, to: %Organization{id: organization_id} = organization, url: url_fun},
         opts \\ []
       )
       when is_function(url_fun, 1) do
@@ -810,7 +777,8 @@ defmodule Tuist.Accounts do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
 
     {:ok, invitation} =
-      Invitation.create_changeset(%Invitation{}, %{
+      %Invitation{}
+      |> Invitation.create_changeset(%{
         token: token,
         invitee_email: email,
         inviter_id: user_id,
@@ -829,14 +797,11 @@ defmodule Tuist.Accounts do
     invitation
   end
 
-  def invite_users_to_organization(
-        emails,
-        %{
-          inviter: %User{id: user_id} = inviter,
-          to: %Organization{id: organization_id} = organization,
-          url: url_fun
-        }
-      ) do
+  def invite_users_to_organization(emails, %{
+        inviter: %User{id: user_id} = inviter,
+        to: %Organization{id: organization_id} = organization,
+        url: url_fun
+      }) do
     account = get_account_from_organization(organization)
 
     multi =
@@ -893,7 +858,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_invitation_by_token(token, %User{} = invitee) do
-    invitation = Repo.get_by(Invitation, token: token) |> Repo.preload(inviter: :account)
+    invitation = Invitation |> Repo.get_by(token: token) |> Repo.preload(inviter: :account)
 
     cond do
       is_nil(invitation) ->
@@ -936,13 +901,10 @@ defmodule Tuist.Accounts do
             r.resource_id == ^organization_id
       )
 
-    query |> Repo.exists?()
+    Repo.exists?(query)
   end
 
-  def organization_user?(
-        %User{id: user_id} = user,
-        %Organization{id: organization_id} = organization
-      ) do
+  def organization_user?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
     query =
       from(u in UserRole,
         join: r in Role,
@@ -959,9 +921,7 @@ defmodule Tuist.Accounts do
     Repo.get(Invitation, id)
   end
 
-  def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{
-        id: organization_id
-      }) do
+  def get_invitation_by_invitee_email_and_organization(invitee_email, %Organization{id: organization_id}) do
     Repo.one(
       from i in Invitation,
         where: i.invitee_email == ^invitee_email,
@@ -980,12 +940,10 @@ defmodule Tuist.Accounts do
 
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
     {:ok, user} =
-      Repo.update(user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id))
+      user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id) |> Repo.update()
 
     user
   end
-
-  alias Tuist.Accounts.{User, UserToken, UserNotifier}
 
   ## Database getters
 
@@ -1001,8 +959,7 @@ defmodule Tuist.Accounts do
       nil
 
   """
-  def get_user_by_email_and_password(email, password)
-      when is_binary(email) and is_binary(password) do
+  def get_user_by_email_and_password(email, password) when is_binary(email) and is_binary(password) do
     user =
       Repo.one(from u in User, where: u.email == ^email, preload: [:account])
 
@@ -1032,9 +989,10 @@ defmodule Tuist.Accounts do
 
   """
   def get_user!(id, opts \\ []) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
 
-    Repo.get!(User, id)
+    User
+    |> Repo.get!(id)
     |> Repo.preload(preload)
   end
 
@@ -1077,10 +1035,11 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
-    Repo.one(query)
+    query
+    |> Repo.one()
     |> Repo.preload(preload)
   end
 
@@ -1106,10 +1065,7 @@ defmodule Tuist.Accounts do
       {:error, :already_confirmed}
 
   """
-  def deliver_user_confirmation_instructions(%{
-        user: user,
-        confirmation_url: confirmation_url
-      })
+  def deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
       when is_function(confirmation_url, 1) do
     if user.confirmed_at do
       {:error, :already_confirmed}
@@ -1157,10 +1113,7 @@ defmodule Tuist.Accounts do
       {:ok, %{to: ..., body: ...}}
 
   """
-  def deliver_user_reset_password_instructions(%{
-        user: %User{} = user,
-        reset_password_url: reset_password_url
-      })
+  def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
     Repo.insert!(user_token)
@@ -1223,7 +1176,7 @@ defmodule Tuist.Accounts do
   end
 
   def create_account_token(%{account: %Account{} = account, scopes: scopes}, opts \\ []) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
     token_hash = Base64.encode(:crypto.strong_rand_bytes(20))
 
     encrypted_token_hash =
@@ -1243,12 +1196,10 @@ defmodule Tuist.Accounts do
   end
 
   def account_token(full_token, opts \\ []) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
     full_token_components = String.split(full_token, "_")
 
-    if length(full_token_components) != 3 do
-      {:error, :invalid_token}
-    else
+    if length(full_token_components) == 3 do
       [_audience, token_id, token_hash] = full_token_components
 
       token =
@@ -1268,6 +1219,8 @@ defmodule Tuist.Accounts do
         true ->
           {:error, :invalid_token}
       end
+    else
+      {:error, :invalid_token}
     end
   end
 
@@ -1281,12 +1234,9 @@ defmodule Tuist.Accounts do
   end
 
   def avatar_color(%Account{name: name}) do
-    index =
-      name
-      |> :erlang.phash2(Enum.count(available_avatar_colors()))
+    index = :erlang.phash2(name, Enum.count(available_avatar_colors()))
 
-    available_avatar_colors()
-    |> Enum.at(index)
+    Enum.at(available_avatar_colors(), index)
   end
 
   defp available_avatar_colors do

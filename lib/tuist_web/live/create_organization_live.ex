@@ -1,4 +1,5 @@
 defmodule TuistWeb.CreateOrganizationLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
@@ -70,11 +71,7 @@ defmodule TuistWeb.CreateOrganizationLive do
   end
 
   @impl true
-  def handle_event(
-        "create_organization",
-        %{"organization" => %{"name" => name}},
-        socket
-      ) do
+  def handle_event("create_organization", %{"organization" => %{"name" => name}}, socket) do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =

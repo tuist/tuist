@@ -1,13 +1,16 @@
 defmodule TuistWeb.OverviewLive do
-  alias Tuist.Runs
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.Previews.AppPreview
+
   import TuistWeb.Components.EmptyCardSection
-  alias Tuist.Previews
+  import TuistWeb.Previews.AppPreview
+
   alias Tuist.CommandEvents
-  alias Tuist.Runs.Analytics
+  alias Tuist.Previews
   alias Tuist.Projects
+  alias Tuist.Runs
+  alias Tuist.Runs.Analytics
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,
@@ -24,16 +27,12 @@ defmodule TuistWeb.OverviewLive do
 
   def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
     uri =
-      ("?" <>
-         (params
-          |> Map.take([
-            "analytics_environment",
-            "analytics_date_range",
-            "builds_environment",
-            "builds_date_range"
-          ])
-          |> URI.encode_query()))
-      |> URI.new!()
+      URI.new!(
+        "?" <>
+          (params
+           |> Map.take(["analytics_environment", "analytics_date_range", "builds_environment", "builds_date_range"])
+           |> URI.encode_query())
+      )
 
     {
       :noreply,
@@ -67,7 +66,7 @@ defmodule TuistWeb.OverviewLive do
             :failure -> "var:noora-chart-destructive"
           end
 
-        value = Decimal.from_float(run.duration / 1000) |> Decimal.round(0)
+        value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
         %{value: value, itemStyle: %{color: color}, date: run.created_at}
       end)
@@ -172,7 +171,7 @@ defmodule TuistWeb.OverviewLive do
           :failure -> "var:noora-chart-destructive"
         end
 
-      value = Decimal.from_float(run.duration / 1000) |> Decimal.round(0)
+      value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
       %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
     end)

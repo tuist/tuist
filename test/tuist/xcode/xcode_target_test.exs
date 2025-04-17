@@ -1,8 +1,9 @@
 defmodule Tuist.Xcode.XcodeTargetTest do
-  alias Tuist.Xcode.XcodeTarget
-  alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.XcodeFixtures
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Repo
+  alias Tuist.Xcode.XcodeTarget
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "create_changeset/1" do
     test "is valid when contains all necessary attributes" do
@@ -118,7 +119,8 @@ defmodule Tuist.Xcode.XcodeTargetTest do
       {:ok, _} = Repo.insert(changeset)
 
       {:error, got} =
-        XcodeTarget.create_changeset(%XcodeTarget{}, %{
+        %XcodeTarget{}
+        |> XcodeTarget.create_changeset(%{
           name: "XcodeTarget",
           xcode_project_id: xcode_project.id
         })

@@ -26,8 +26,8 @@ defmodule TuistWeb.Noora do
       import TuistWeb.Noora.ProgressBar
       import TuistWeb.Noora.Select
       import TuistWeb.Noora.ShortcutKey
-      import TuistWeb.Noora.TabMenu
       import TuistWeb.Noora.Table
+      import TuistWeb.Noora.TabMenu
       import TuistWeb.Noora.Tag
       import TuistWeb.Noora.TextDivider
       import TuistWeb.Noora.TextInput

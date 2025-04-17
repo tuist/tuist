@@ -1,15 +1,18 @@
 defmodule TuistWeb.MembersLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  alias Tuist.Accounts
+
   alias Phoenix.LiveView.JS
+  alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Authorization
 
   @impl true
   def mount(_params, _uri, socket) do
     socket =
-      assign(socket,
+      socket
+      |> assign(
         form: to_form(%{}),
         selected_tab: "members",
         # NOTE: This should preferably done on the client. Moved this to the server for now because LiveView went into `phx-skip` mode and elements disappeared.
@@ -234,8 +237,7 @@ defmodule TuistWeb.MembersLive do
   @impl true
   def handle_event("search", %{"search" => search}, socket) do
     members =
-      socket.assigns.all_members
-      |> Enum.filter(fn [member, _role] ->
+      Enum.filter(socket.assigns.all_members, fn [member, _role] ->
         String.contains?(member.email, search) || String.contains?(member.account.name, search)
       end)
 
@@ -249,7 +251,8 @@ defmodule TuistWeb.MembersLive do
   end
 
   def handle_event("revoke_invite", %{"id" => id}, socket) do
-    Accounts.get_invitation_by_id(id)
+    id
+    |> Accounts.get_invitation_by_id()
     |> then(&Accounts.delete_invitation(%{invitation: &1}))
 
     socket = assign_organization(socket)
@@ -307,7 +310,8 @@ defmodule TuistWeb.MembersLive do
       )
 
     socket =
-      assign(socket,
+      socket
+      |> assign(
         invitations: organization.invitations,
         invite_emails: [],
         selected_inner_tab: "invitations"

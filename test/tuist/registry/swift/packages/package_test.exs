@@ -1,6 +1,7 @@
 defmodule Tuist.Registry.Swift.Packages.PackageTest do
-  alias Tuist.Registry.Swift.Packages.Package
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Registry.Swift.Packages.Package
 
   describe "create_changeset/1" do
     test "ensures a scope is present" do
@@ -65,7 +66,8 @@ defmodule Tuist.Registry.Swift.Packages.PackageTest do
       {:ok, _} = Repo.insert(changeset)
 
       {:error, got} =
-        Package.create_changeset(%Package{}, %{
+        %Package{}
+        |> Package.create_changeset(%{
           scope: "Scope",
           name: "Name",
           repository_full_handle: "Scope/Name"

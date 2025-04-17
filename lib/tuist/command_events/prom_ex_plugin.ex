@@ -3,6 +3,7 @@ defmodule Tuist.CommandEvents.PromExPlugin do
   Defines custom Prometheus metrics for the Tuist command events.
   """
   use PromEx.Plugin
+
   alias Tuist.Telemetry
 
   @impl true

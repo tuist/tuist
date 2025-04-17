@@ -3,13 +3,13 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
-  @app :tuist
-
   require Logger
+
+  @app :tuist
 
   def migrate do
     Logger.info(
-      "Migrating with a pool of size of #{Application.get_env(:tuist, Tuist.Repo) |> Keyword.get(:pool_size)}"
+      "Migrating with a pool of size of #{:tuist |> Application.get_env(Tuist.Repo) |> Keyword.get(:pool_size)}"
     )
 
     load_app()
@@ -20,9 +20,9 @@ defmodule Tuist.Release do
     end
   end
 
-  def rollback() do
+  def rollback do
     load_app()
-    version = System.fetch_env!("ROLLBACK_VERSION") |> String.to_integer()
+    version = "ROLLBACK_VERSION" |> System.fetch_env!() |> String.to_integer()
 
     for repo <- repos() do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))

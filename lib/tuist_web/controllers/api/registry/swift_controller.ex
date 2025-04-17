@@ -1,15 +1,17 @@
 defmodule TuistWeb.API.Registry.SwiftController do
   use TuistWeb, :controller
+
   import Plug.Conn
+
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Projects.Project
-  alias TuistWeb.Authentication
+  alias Tuist.Registry.Swift.Packages
   alias Tuist.Registry.Swift.Packages.Package
   alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages.PackageRelease
-  alias Tuist.Registry.Swift.Packages
-  alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.VCS
   alias Tuist.Storage
+  alias Tuist.VCS
+  alias TuistWeb.Authentication
 
   plug(:assign_package when action in [:list_releases, :show_release, :show_package_swift])
   plug(TuistWeb.API.EnsureAccountPresencePlug)
@@ -26,7 +28,8 @@ defmodule TuistWeb.API.Registry.SwiftController do
     case provider do
       {:ok, :github} ->
         %{scope: scope, name: name} =
-          VCS.get_repository_full_handle_from_url(repository_url)
+          repository_url
+          |> VCS.get_repository_full_handle_from_url()
           |> elem(1)
           |> Packages.get_package_scope_and_name_from_repository_full_handle()
 
@@ -53,30 +56,23 @@ defmodule TuistWeb.API.Registry.SwiftController do
     payload =
       %{
         releases:
-          package.package_releases
-          |> Enum.map(fn %PackageRelease{version: version} ->
+          Map.new(package.package_releases, fn %PackageRelease{version: version} ->
             {version,
              %{
-               url:
-                 ~p"/api/accounts/#{account_handle}/registry/swift/#{package.scope}/#{package.name}/#{version}"
+               url: ~p"/api/accounts/#{account_handle}/registry/swift/#{package.scope}/#{package.name}/#{version}"
              }}
           end)
-          |> Enum.into(%{})
       }
 
     conn |> put_resp_header("content-version", "1") |> put_status(:ok) |> json(payload)
   end
 
-  def show_release(%{assigns: %{package: package}} = conn, %{
-        "scope" => scope,
-        "name" => name,
-        "version" => version
-      }) do
-    if version |> String.ends_with?(".zip") do
+  def show_release(%{assigns: %{package: package}} = conn, %{"scope" => scope, "name" => name, "version" => version}) do
+    if String.ends_with?(version, ".zip") do
       download_release(conn, %{
         "scope" => scope,
         "name" => name,
-        "version" => version |> String.trim_trailing(".zip")
+        "version" => String.trim_trailing(version, ".zip")
       })
     else
       case Packages.get_package_release_by_version(%{
@@ -131,17 +127,11 @@ defmodule TuistWeb.API.Registry.SwiftController do
       })
 
     if not is_nil(package_release) and not is_nil(object_key) do
-      conn =
-        conn
-        |> put_resp_header("content-version", "1")
+      conn = put_resp_header(conn, "content-version", "1")
 
       conn =
         if is_nil(swift_version) do
-          conn
-          |> put_resp_header(
-            "link",
-            alternate_manifests_link(package, package_release)
-          )
+          put_resp_header(conn, "link", alternate_manifests_link(package, package_release))
         else
           conn
         end
@@ -160,21 +150,13 @@ defmodule TuistWeb.API.Registry.SwiftController do
         conn
         |> put_resp_header("content-version", "1")
         |> put_status(303)
-        |> redirect(
-          to:
-            ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
-        )
+        |> redirect(to: ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
         |> halt()
       end
     end
   end
 
-  defp package_manifest_object_key(%{
-         swift_version: swift_version,
-         scope: scope,
-         name: name,
-         version: version
-       }) do
+  defp package_manifest_object_key(%{swift_version: swift_version, scope: scope, name: name, version: version}) do
     if is_nil(swift_version) do
       object_key =
         Packages.package_object_key(%{scope: scope, name: name},
@@ -184,15 +166,14 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
       if Storage.object_exists?(object_key) do
         object_key
-      else
-        nil
       end
     else
-      MapSet.new([
-        swift_version |> String.replace_trailing(".0.0", ""),
-        swift_version |> String.replace_trailing(".0", ""),
+      [
+        String.replace_trailing(swift_version, ".0.0", ""),
+        String.replace_trailing(swift_version, ".0", ""),
         swift_version
-      ])
+      ]
+      |> MapSet.new()
       |> Enum.map(
         &Packages.package_object_key(%{scope: scope, name: name},
           version: version,
@@ -220,38 +201,29 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
         # This is a workaround for: https://github.com/swiftlang/swift-package-manager/pull/8188
         swift_version =
-          if String.split(swift_version, ".") |> Enum.count() == 1 do
+          if swift_version |> String.split(".") |> Enum.count() == 1 do
             swift_version <> ".0"
           else
             swift_version
           end
 
-        ([
-           "<#{url}>",
-           "rel=\"alternate\"",
-           "filename=\"Package@swift-#{swift_version}.swift\""
-         ] ++
-           if is_nil(swift_tools_version) do
-             []
-           else
-             ["swift-tools-version=\"#{swift_tools_version}\""]
-           end)
-        |> Enum.join("; ")
+        Enum.join(
+          ["<#{url}>", "rel=\"alternate\"", "filename=\"Package@swift-#{swift_version}.swift\""] ++
+            if is_nil(swift_tools_version) do
+              []
+            else
+              ["swift-tools-version=\"#{swift_tools_version}\""]
+            end,
+          "; "
+        )
       end
     )
   end
 
-  def download_release(
-        conn,
-        %{
-          "scope" => scope,
-          "name" => name,
-          "version" => version
-        }
-      ) do
+  def download_release(conn, %{"scope" => scope, "name" => name, "version" => version}) do
     account =
-      case conn |> Authentication.authenticated_subject() do
-        %Project{} = project -> project |> Map.get(:account)
+      case Authentication.authenticated_subject(conn) do
+        %Project{} = project -> Map.get(project, :account)
         %AuthenticatedAccount{account: account} -> account
       end
 
@@ -296,7 +268,8 @@ defmodule TuistWeb.API.Registry.SwiftController do
   end
 
   defp stream_object(conn, object_key) do
-    Storage.stream_object(object_key)
+    object_key
+    |> Storage.stream_object()
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}
@@ -305,15 +278,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
     end)
   end
 
-  defp assign_package(
-         %{
-           params: %{
-             "scope" => scope,
-             "name" => name
-           }
-         } = conn,
-         _opts
-       ) do
+  defp assign_package(%{params: %{"scope" => scope, "name" => name}} = conn, _opts) do
     case Packages.get_package_by_scope_and_name(%{scope: scope, name: name},
            preload: [:package_releases]
          ) do
@@ -324,7 +289,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
         |> halt()
 
       package ->
-        conn |> assign(:package, package)
+        assign(conn, :package, package)
     end
   end
 

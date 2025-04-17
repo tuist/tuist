@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.CacheActionItem do
   @moduledoc """
   A schema for a cache action item.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "CacheActionItem",

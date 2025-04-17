@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.Error do
   The schema for the error response.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

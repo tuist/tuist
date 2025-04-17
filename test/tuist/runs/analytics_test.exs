@@ -1,17 +1,16 @@
 defmodule Tuist.Runs.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
-  alias TuistTestSupport.Fixtures.RunsFixtures
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+
   alias Tuist.Runs.Analytics
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "builds_duration_analytics/2" do
     test "returns duration analytics for the last three days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       RunsFixtures.build_fixture(
@@ -59,9 +58,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "builds_analytics/2" do
     test "returns builds analytics for the last three days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       RunsFixtures.build_fixture(
@@ -109,9 +106,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "runs_duration_analytics/4" do
     test "returns duration analytics for the last three days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -157,9 +152,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns duration analytics for user runs only" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -202,9 +195,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns runs analytics for the last 3 days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -237,9 +228,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate",
-          start_date: Date.add(DateTime.utc_now(), -2)
-        )
+        Analytics.runs_analytics(project.id, "generate", start_date: Date.add(DateTime.utc_now(), -2))
 
       # Then
       assert got.values == [0, 1, 2]
@@ -250,9 +239,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns runs analytics for the last year" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -285,9 +272,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate",
-          start_date: Date.add(DateTime.utc_now(), -365)
-        )
+        Analytics.runs_analytics(project.id, "generate", start_date: Date.add(DateTime.utc_now(), -365))
 
       # Then
       assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]
@@ -315,9 +300,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "cache_hit_rate_analytics/4" do
     test "returns cache hit rates for the last three days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -362,9 +345,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns cache hit rates for the last three days for ci only" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -415,9 +396,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   describe "selective_testing_analytics/4" do
     test "returns selective testing analytics for the last three days" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(
@@ -462,9 +441,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns selective testing analytics for the last three days for ci only" do
       # Given
-      DateTime
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
       CommandEventsFixtures.command_event_fixture(

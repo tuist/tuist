@@ -10,10 +10,9 @@ defmodule Tuist.Marketing.Pages.PageParser do
       contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"])
 
     frontmatter =
-      YamlElixir.read_from_string!(frontmatter_string)
-      |> Map.merge(%{
-        "slug" => "/#{Path.basename(path) |> String.replace(".md", "")}"
-      })
+      frontmatter_string
+      |> YamlElixir.read_from_string!()
+      |> Map.put("slug", "/#{path |> Path.basename() |> String.replace(".md", "")}")
 
     {frontmatter, body}
   end

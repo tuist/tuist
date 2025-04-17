@@ -3,7 +3,9 @@ defmodule Tuist.Accounts.DeviceCode do
   A module that represents the device code.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Accounts.User
 
   schema "device_codes" do

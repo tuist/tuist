@@ -3,7 +3,9 @@ defmodule Tuist.Billing.Subscription do
   A module that represents the subscriptions table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Accounts.Account
 
   schema "subscriptions" do
@@ -36,7 +38,7 @@ defmodule Tuist.Billing.Subscription do
   end
 
   defp validate_plan(changeset) do
-    changeset |> validate_inclusion(:plan, [:enterprise, :air, :pro, :open_source])
+    validate_inclusion(changeset, :plan, [:enterprise, :air, :pro, :open_source])
   end
 
   def update_changeset(account, attrs) do

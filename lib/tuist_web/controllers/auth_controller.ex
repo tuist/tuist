@@ -4,6 +4,7 @@ defmodule TuistWeb.AuthController do
   """
 
   use TuistWeb, :controller
+
   alias Tuist.Accounts
   alias TuistWeb.Authentication
 

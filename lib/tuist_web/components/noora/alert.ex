@@ -4,9 +4,11 @@ defmodule TuistWeb.Noora.Alert do
   """
 
   use Phoenix.Component
+
   import TuistWeb.Noora.DismissIcon
-  alias TuistWeb.Noora.Icon
+
   alias Phoenix.LiveView.JS
+  alias TuistWeb.Noora.Icon
 
   attr :id, :string, default: nil
 

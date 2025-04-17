@@ -2,9 +2,10 @@ defmodule TuistWeb.API.Schemas.Invitation do
   @moduledoc """
   A schema for an invitation.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.User
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

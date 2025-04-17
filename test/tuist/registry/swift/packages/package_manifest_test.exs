@@ -1,7 +1,8 @@
 defmodule Tuist.Registry.Swift.Packages.PackageManifestTest do
-  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
-  alias Tuist.Registry.Swift.Packages.PackageManifest
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Registry.Swift.Packages.PackageManifest
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
   describe "create_changeset/1" do
     test "ensures package_release_id is present" do
@@ -63,7 +64,8 @@ defmodule Tuist.Registry.Swift.Packages.PackageManifestTest do
       {:ok, _} = Repo.insert(changeset)
 
       {:error, got} =
-        PackageManifest.create_changeset(package_manifest, %{
+        package_manifest
+        |> PackageManifest.create_changeset(%{
           package_release_id: package_release.id,
           swift_version: "5.3",
           swift_tools_version: "5.3.1"

@@ -28,9 +28,7 @@ if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
-if [:prod, :stag, :can] |> Enum.member?(env) do
-  config :logger, level: Tuist.Environment.log_level()
-
+if Enum.member?([:prod, :stag, :can], env) do
   database_url =
     Tuist.Environment.database_url(secrets) ||
       raise """
@@ -39,7 +37,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       """
 
   parsed_url = URI.parse(database_url)
-  [username, password] = parsed_url.userinfo |> String.split(":")
+  [username, password] = String.split(parsed_url.userinfo, ":")
 
   socket_opts =
     if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
@@ -50,7 +48,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
     queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    database: parsed_url.path |> String.replace_prefix("/", ""),
+    database: String.replace_prefix(parsed_url.path, "/", ""),
     username: username,
     password: password,
     hostname: parsed_url.host,
@@ -75,11 +73,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       database_options
     end
 
-  config :tuist, Tuist.Repo, database_options
-
   port = "8080"
-  config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
-
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
@@ -94,6 +88,10 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
         _ -> []
       end
 
+  config :logger, level: Tuist.Environment.log_level()
+
+  config :tuist, Tuist.Repo, database_options
+
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
     check_origin: checkable_origins,
@@ -105,6 +103,8 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ]
+
+  config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # ## SSL Support
   #
@@ -183,23 +183,23 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  config :ex_aws,
-    http_client: Tuist.AWS.Client
+  %{host: s3_endpoint_host} = secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
 
   config :ex_aws, :req_opts,
-    receive_timeout: :timer.seconds(Tuist.Environment.s3_request_timeout(secrets)),
-    pool_timeout: :timer.seconds(Tuist.Environment.s3_pool_timeout(secrets))
-
-  %{host: s3_endpoint_host} = Tuist.Environment.s3_endpoint(secrets) |> URI.parse()
-
-  config :ex_aws,
-    region: Tuist.Environment.s3_region(secrets)
+    receive_timeout: to_timeout(second: Tuist.Environment.s3_request_timeout(secrets)),
+    pool_timeout: to_timeout(second: Tuist.Environment.s3_pool_timeout(secrets))
 
   config :ex_aws, :s3,
     scheme: "https://",
     host: s3_endpoint_host
 
   config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
+
+  config :ex_aws,
+    http_client: Tuist.AWS.Client
+
+  config :ex_aws,
+    region: Tuist.Environment.s3_region(secrets)
 
   case Tuist.Environment.s3_authentication_method(secrets) do
     :env_access_key_id_and_secret_access_key ->
@@ -227,7 +227,6 @@ if Tuist.Environment.stripe_configured?(secrets) do
 end
 
 # Omniauth
-
 config :ueberauth, Ueberauth.Strategy.Github.OAuth,
   client_id: Tuist.Environment.github_app_client_id(secrets),
   client_secret: Tuist.Environment.github_app_client_secret(secrets)
@@ -260,7 +259,7 @@ end
 config :tuist, Oban,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+    {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
        [
@@ -279,6 +278,11 @@ config :tuist, Oban,
          )}
   ]
 
+# Guardian
+config :tuist, Tuist.Guardian,
+  issuer: "tuist",
+  secret_key: Tuist.Environment.secret_key_tokens(secrets)
+
 # Prometheus
 config :tuist, Tuist.PromEx,
   disabled: Tuist.Environment.env() == :test,
@@ -293,11 +297,6 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
-
-# Guardian
-config :tuist, Tuist.Guardian,
-  issuer: "tuist",
-  secret_key: Tuist.Environment.secret_key_tokens(secrets)
 
 # Error tracker
 if Tuist.Environment.on_premise?() do

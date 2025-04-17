@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.PreviewSupportedPlatform do
   @moduledoc """
   The schema for the preview supported platform.
   """
-  require OpenApiSpex
   alias Tuist.Previews.Preview
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :string,

@@ -15,16 +15,17 @@ defmodule Tuist.GitHub.Releases do
 
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @cache_key "tuist_releases"
-  @ttl :timer.hours(1)
+  @ttl to_timeout(hour: 1)
 
-  def releases_url() do
+  def releases_url do
     @releases_url
   end
 
   def get_latest_cli_release(opts \\ []) do
-    case fetch_releases(opts)
+    case opts
+         |> fetch_releases()
          |> Enum.find(fn release ->
-           not (release["name"] |> String.contains?("@"))
+           not String.contains?(release["name"], "@")
          end) do
       nil -> nil
       release -> map_release(release)
@@ -32,17 +33,18 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_app_release(opts \\ []) do
-    fetch_releases(opts)
+    opts
+    |> fetch_releases()
     |> Enum.map(&map_release/1)
     |> Enum.find(fn release ->
-      release.name |> String.contains?("app@") and
-        release.assets |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
+      String.contains?(release.name, "app@") and
+        Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
     end)
   end
 
   defp fetch_releases(opts) do
-    cache = opts |> Keyword.get(:cache, :tuist)
-    ttl = opts |> Keyword.get(:ttl, @ttl)
+    cache = Keyword.get(opts, :cache, :tuist)
+    ttl = Keyword.get(opts, :ttl, @ttl)
 
     case Cachex.fetch(cache, @cache_key, fn ->
            {:commit, req_releases(), expire: ttl}
@@ -52,7 +54,7 @@ defmodule Tuist.GitHub.Releases do
     end
   end
 
-  defp req_releases() do
+  defp req_releases do
     case Req.get(releases_url()) do
       {:ok, %Req.Response{status: 200, body: releases}} ->
         releases
@@ -70,14 +72,7 @@ defmodule Tuist.GitHub.Releases do
       name: release["name"],
       published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
       html_url: release["html_url"],
-      assets:
-        release["assets"]
-        |> Enum.map(
-          &%{
-            name: &1["name"],
-            browser_download_url: &1["browser_download_url"]
-          }
-        )
+      assets: Enum.map(release["assets"], &%{name: &1["name"], browser_download_url: &1["browser_download_url"]})
     }
   end
 end

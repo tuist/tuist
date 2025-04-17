@@ -1,6 +1,7 @@
 defmodule TuistWeb.AuthControllerTest do
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use TuistTestSupport.Cases.ConnCase, async: true
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /auth/cli/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
@@ -8,9 +9,7 @@ defmodule TuistWeb.AuthControllerTest do
       device_code = "AOKJ-1234"
 
       # When
-      conn =
-        conn
-        |> get("/auth/cli/#{device_code}")
+      conn = get(conn, "/auth/cli/#{device_code}")
 
       # Then
       assert redirected_to(conn) == "/users/log_in"
@@ -21,14 +20,10 @@ defmodule TuistWeb.AuthControllerTest do
       device_code = "AOKJ-1234"
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/auth/device_codes/#{device_code}?type=cli")
+      conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
 
       # Then
       assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=cli"
@@ -41,9 +36,7 @@ defmodule TuistWeb.AuthControllerTest do
       device_code = "AOKJ-1234"
 
       # When
-      conn =
-        conn
-        |> get("/auth/device_codes/#{device_code}?type=cli")
+      conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
 
       # Then
       assert redirected_to(conn) == "/users/log_in"
@@ -54,14 +47,10 @@ defmodule TuistWeb.AuthControllerTest do
       device_code = "AOKJ-1234"
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/auth/device_codes/#{device_code}?type=cli")
+      conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
 
       # Then
       assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=cli"
@@ -72,14 +61,10 @@ defmodule TuistWeb.AuthControllerTest do
       device_code = "AOKJ-1234"
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/auth/device_codes/#{device_code}?type=app")
+      conn = get(conn, "/auth/device_codes/#{device_code}?type=app")
 
       # Then
       assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=app"

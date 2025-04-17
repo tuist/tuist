@@ -3,7 +3,9 @@ defmodule Tuist.Registry.Swift.Packages.PackageRelease do
   A module that represents a Swift package release.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Registry.Swift.Packages.Package
 
   @primary_key {:id, UUIDv7, autogenerate: true}

@@ -4,9 +4,10 @@ defmodule TuistWeb.Noora.Banner do
   """
   use Phoenix.Component
 
-  alias TuistWeb.Noora.Icon
-  alias Phoenix.LiveView.JS
   import TuistWeb.Noora.DismissIcon
+
+  alias Phoenix.LiveView.JS
+  alias TuistWeb.Noora.Icon
 
   attr :id, :string, required: true
 

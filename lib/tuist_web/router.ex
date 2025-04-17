@@ -1,15 +1,17 @@
 defmodule TuistWeb.Router do
   use TuistWeb, :router
+  use ErrorTracker.Web, :router
 
+  import Oban.Web.Router
+  import Phoenix.LiveDashboard.Router
+  import PhoenixStorybook.Router
+  import Redirect
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
-  import Phoenix.LiveDashboard.Router
-  import PhoenixStorybook.Router
-  import Oban.Web.Router
-  import Redirect
 
-  use ErrorTracker.Web, :router
+  alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.MarketingController
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -17,11 +19,9 @@ defmodule TuistWeb.Router do
 
   pipeline :content_security_policy do
     plug :put_content_security_policy,
-      img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
+      img_src: "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
-      style_src:
-        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
+      style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
       # 'unsafe-inline' is needed for Chatwoot, which doesn't support nonce:
       # https://github.com/chatwoot/chatwoot/issues/8892
       style_src_attr: "'unsafe-inline'",
@@ -32,10 +32,8 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://*.chatwoot.com https://*.getkoala.com https://*.posthog.com",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com",
-      frame_src:
-        "'self' https://app.chatwoot.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src:
-        "'self' wss://*.getkoala.com https://*.getkoala.com https://*.chatwoot.com https://*.posthog.com",
+      frame_src: "'self' https://app.chatwoot.com https://*.tuist.dev https://newassets.hcaptcha.com",
+      connect_src: "'self' wss://*.getkoala.com https://*.getkoala.com https://*.chatwoot.com https://*.posthog.com",
       connect_src: "'self' 'nonce' https://*.posthog.com"
   end
 
@@ -65,8 +63,8 @@ defmodule TuistWeb.Router do
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
-    plug TuistWeb.Marketing.Localization, :redirect_to_localized_route
-    plug TuistWeb.Marketing.Localization, :put_locale
+    plug Localization, :redirect_to_localized_route
+    plug Localization, :put_locale
   end
 
   pipeline :browser_marketing_feed do
@@ -115,26 +113,19 @@ defmodule TuistWeb.Router do
 
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
 
-    get "/blog/rss.xml", TuistWeb.Marketing.MarketingController, :blog_rss,
-      metadata: %{type: :marketing}
+    get "/blog/rss.xml", MarketingController, :blog_rss, metadata: %{type: :marketing}
 
-    get "/blog/atom.xml", TuistWeb.Marketing.MarketingController, :blog_atom,
-      metadata: %{type: :marketing}
+    get "/blog/atom.xml", MarketingController, :blog_atom, metadata: %{type: :marketing}
 
-    get "/changelog/rss.xml", TuistWeb.Marketing.MarketingController, :changelog_rss,
-      metadata: %{type: :marketing}
+    get "/changelog/rss.xml", MarketingController, :changelog_rss, metadata: %{type: :marketing}
 
-    get "/changelog/atom.xml", TuistWeb.Marketing.MarketingController, :changelog_atom,
-      metadata: %{type: :marketing}
+    get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
 
-    get "/newsletter/rss.xml", TuistWeb.Marketing.MarketingController, :newsletter_rss,
-      metadata: %{type: :marketing}
+    get "/newsletter/rss.xml", MarketingController, :newsletter_rss, metadata: %{type: :marketing}
 
-    get "/newsletter/atom.xml", TuistWeb.Marketing.MarketingController, :newsletter_atom,
-      metadata: %{type: :marketing}
+    get "/newsletter/atom.xml", MarketingController, :newsletter_atom, metadata: %{type: :marketing}
 
-    get "/sitemap.xml", TuistWeb.Marketing.MarketingController, :sitemap,
-      metadata: %{type: :marketing}
+    get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
 
   scope "/" do
@@ -144,13 +135,13 @@ defmodule TuistWeb.Router do
       :assign_current_path
     ]
 
-    for locale <- ["en"] ++ TuistWeb.Marketing.Localization.additional_locales() do
-      locale_path_prefix = TuistWeb.Marketing.Localization.locale_path_prefix(locale)
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      locale_path_prefix = Localization.locale_path_prefix(locale)
 
       private = %{locale: locale}
 
       live_session String.to_atom("marketing_#{locale}"),
-        on_mount: TuistWeb.Marketing.Localization do
+        on_mount: Localization do
         live Path.join(locale_path_prefix, "/blog"), TuistWeb.Marketing.MarketingBlogLive,
           metadata: %{type: :marketing},
           private: private
@@ -161,19 +152,19 @@ defmodule TuistWeb.Router do
              private: private
       end
 
-      get locale_path_prefix, TuistWeb.Marketing.MarketingController, :home,
+      get locale_path_prefix, MarketingController, :home,
         metadata: %{type: :marketing},
         private: private
 
       get Path.join(locale_path_prefix, "/pricing"),
-          TuistWeb.Marketing.MarketingController,
+          MarketingController,
           :pricing,
           metadata: %{type: :marketing},
           private: private
 
       for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
         get Path.join(locale_path_prefix, blog_post_slug),
-            TuistWeb.Marketing.MarketingController,
+            MarketingController,
             :blog_post,
             metadata: %{type: :marketing},
             private: private
@@ -181,24 +172,24 @@ defmodule TuistWeb.Router do
 
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
-            TuistWeb.Marketing.MarketingController,
+            MarketingController,
             :page,
             metadata: %{type: :marketing},
             private: private
       end
 
-      get Path.join(locale_path_prefix, "/about"), TuistWeb.Marketing.MarketingController, :about,
+      get Path.join(locale_path_prefix, "/about"), MarketingController, :about,
         metadata: %{type: :marketing},
         private: private
 
       get Path.join(locale_path_prefix, "/newsletter"),
-          TuistWeb.Marketing.MarketingController,
+          MarketingController,
           :newsletter,
           metadata: %{type: :marketing},
           private: private
 
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
-          TuistWeb.Marketing.MarketingController,
+          MarketingController,
           :newsletter_issue,
           metadata: %{type: :marketing},
           private: private
@@ -214,7 +205,7 @@ defmodule TuistWeb.Router do
 
   scope path: "/api",
         alias: TuistWeb.API,
-        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: :timer.minutes(1)} do
+        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     scope "/accounts/:account_handle" do
@@ -297,8 +288,7 @@ defmodule TuistWeb.Router do
 
     get "/organizations/:organization_name/usage", OrganizationsController, :usage
 
-    resources "/organizations/:organization_name/invitations", InvitationsController,
-      only: [:create]
+    resources "/organizations/:organization_name/invitations", InvitationsController, only: [:create]
 
     delete "/organizations/:organization_name/invitations", InvitationsController, :delete
 
@@ -552,20 +542,20 @@ defmodule TuistWeb.Router do
   end
 
   def assign_current_path(conn, _params) do
-    conn |> assign(:current_path, conn.request_path)
+    assign(conn, :current_path, conn.request_path)
   end
 
   def disable_robot_indexing(conn, _params) do
-    conn |> put_resp_header("x-robots-tag", "noindex, nofollow")
+    put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
   end
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and not Tuist.Environment.on_premise?() do
       # Once we iterate on the open-graph tags of the dashboard pages for public projects
       # we should iterate on this to enable indexing for public projects
-      conn |> put_resp_header("x-robots-tag", "index, follow")
+      put_resp_header(conn, "x-robots-tag", "index, follow")
     else
-      conn |> disable_robot_indexing(params)
+      disable_robot_indexing(conn, params)
     end
   end
 end

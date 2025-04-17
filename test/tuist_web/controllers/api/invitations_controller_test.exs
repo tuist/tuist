@@ -1,9 +1,10 @@
 defmodule TuistWeb.API.InvitationsControllerTest do
-  alias TuistWeb.Authentication
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
+  alias Tuist.Accounts
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Authentication
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
@@ -13,9 +14,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
   describe "DELETE /api/organizations/:organization_name/invitations/:invitation_id" do
     test "deletes an invitation", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       Accounts.get_account_from_user(user)
 
@@ -43,9 +42,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -67,9 +64,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
@@ -93,9 +88,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -125,9 +118,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
   describe "POST /api/organizations/:organization_name/invitations" do
     test "invites user to an organization", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       user_account = Accounts.get_account_from_user(user)
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
@@ -156,9 +147,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
@@ -180,9 +169,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
 
@@ -210,9 +197,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
       organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
@@ -237,9 +222,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -263,9 +246,7 @@ defmodule TuistWeb.API.InvitationsControllerTest do
     user: user
   } do
     # Given
-    conn =
-      conn
-      |> Authentication.put_current_user(user)
+    conn = Authentication.put_current_user(conn, user)
 
     # When
     conn =

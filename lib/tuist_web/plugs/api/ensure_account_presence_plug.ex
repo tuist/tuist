@@ -10,14 +10,7 @@ defmodule TuistWeb.API.EnsureAccountPresencePlug do
 
   def init(opts), do: opts
 
-  def call(
-        %{
-          params: %{
-            "account_handle" => account_handle
-          }
-        } = conn,
-        _opts
-      ) do
+  def call(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
     case Accounts.get_account_by_handle(account_handle) do
       nil ->
         conn
@@ -26,7 +19,7 @@ defmodule TuistWeb.API.EnsureAccountPresencePlug do
         |> halt()
 
       account ->
-        conn |> assign(:url_account, account)
+        assign(conn, :url_account, account)
     end
   end
 end

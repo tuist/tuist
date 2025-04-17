@@ -1,8 +1,9 @@
 defmodule Tuist.Registry.Swift.Packages.PackageDownloadEventTest do
-  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
+  use TuistTestSupport.Cases.DataCase
+
   alias Tuist.Registry.Swift.Packages.PackageDownloadEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  use TuistTestSupport.Cases.DataCase
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
   describe "create_changeset/1" do
     test "ensures account_id is present" do

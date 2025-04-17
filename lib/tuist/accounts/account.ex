@@ -3,7 +3,9 @@ defmodule Tuist.Accounts.Account do
   A module that represents the accounts table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Projects.Project
 
   @derive {
@@ -38,8 +40,7 @@ defmodule Tuist.Accounts.Account do
 
   def create_changeset(account, attrs) do
     changeset =
-      account
-      |> cast(attrs, [
+      cast(account, attrs, [
         :name,
         :billing_email,
         :user_id,
@@ -71,8 +72,7 @@ defmodule Tuist.Accounts.Account do
   end
 
   def billing_changeset(account, attrs) do
-    account
-    |> cast(attrs, [
+    cast(account, attrs, [
       :customer_id,
       :current_month_remote_cache_hits_count,
       :current_month_remote_cache_hits_count_updated_at
@@ -87,9 +87,7 @@ defmodule Tuist.Accounts.Account do
 
   defp validate_handle(changeset) do
     changeset
-    |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/,
-      message: "must contain only alphanumeric characters"
-    )
+    |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters")
     |> validate_length(:name, min: 3, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")

@@ -1,19 +1,19 @@
 defmodule Tuist.BillingTest do
-  alias TuistTestSupport.Fixtures.BillingFixtures
-  alias Tuist.Billing.PaymentMethod
-  alias Tuist.Billing.Card
-  alias Tuist.Billing.Customer
-  alias Tuist.Environment
-  alias Tuist.Accounts
-  alias Tuist.Accounts.Account
-  alias Tuist.Billing
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Billing
+  alias Tuist.Billing.Card
+  alias Tuist.Billing.Customer
+  alias Tuist.Billing.PaymentMethod
+  alias Tuist.Environment
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
+
   setup do
-    Environment
-    |> stub(:stripe_prices, fn ->
+    stub(Environment, :stripe_prices, fn ->
       %{
         air: %{
           usage: ["air.usage"],
@@ -31,9 +31,7 @@ defmodule Tuist.BillingTest do
       }
     end)
 
-    Stripe.Customer
-    |> stub(:create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
-
+    stub(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
     :ok
   end
 
@@ -45,8 +43,8 @@ defmodule Tuist.BillingTest do
       customer_id = UUIDv7.generate()
       search_params = %{query: "email:\"#{email}\""}
       create_params = %{name: name, email: email}
-      Stripe.Customer |> stub(:search, fn ^search_params -> {:ok, %{data: []}} end)
-      Stripe.Customer |> stub(:create, fn ^create_params -> {:ok, %{id: customer_id}} end)
+      stub(Stripe.Customer, :search, fn ^search_params -> {:ok, %{data: []}} end)
+      stub(Stripe.Customer, :create, fn ^create_params -> {:ok, %{id: customer_id}} end)
 
       # When/then
       assert Billing.create_customer(%{name: name, email: email}) == customer_id
@@ -59,8 +57,7 @@ defmodule Tuist.BillingTest do
       subscription_id = "subscription_id"
       payment_method_id = "payment_method_id"
 
-      Stripe.Subscription
-      |> stub(:retrieve, fn ^subscription_id ->
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
         {:ok, %{default_payment_method: payment_method_id}}
       end)
 
@@ -77,13 +74,11 @@ defmodule Tuist.BillingTest do
       payment_method_id = "payment_method_id"
       customer_id = "customer_id"
 
-      Stripe.Subscription
-      |> stub(:retrieve, fn ^subscription_id ->
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
         {:ok, %{default_payment_method: nil, customer: customer_id}}
       end)
 
-      Stripe.Customer
-      |> stub(:retrieve, fn ^customer_id ->
+      stub(Stripe.Customer, :retrieve, fn ^customer_id ->
         {:ok, %{invoice_settings: %{default_payment_method: payment_method_id}}}
       end)
 
@@ -99,13 +94,11 @@ defmodule Tuist.BillingTest do
       subscription_id = "subscription_id"
       customer_id = "customer_id"
 
-      Stripe.Subscription
-      |> stub(:retrieve, fn ^subscription_id ->
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
         {:ok, %{default_payment_method: nil, customer: customer_id}}
       end)
 
-      Stripe.Customer
-      |> stub(:retrieve, fn ^customer_id ->
+      stub(Stripe.Customer, :retrieve, fn ^customer_id ->
         {:ok, %{invoice_settings: %{default_payment_method: nil}}}
       end)
 
@@ -146,13 +139,9 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got ==
-               Money.multiply(
-                 Money.new(
-                   50,
-                   :USD
-                 ),
-                 current_month_remote_cache_hits_count - remote_cache_hit_threshold
-               )
+               50
+               |> Money.new(:USD)
+               |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
                |> Money.to_string()
     end
   end
@@ -334,8 +323,7 @@ defmodule Tuist.BillingTest do
         items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
       })
 
-      Stripe.Subscription
-      |> stub(:cancel, fn "sub_some-id" -> {:ok, %Stripe.Subscription{status: "canceled"}} end)
+      stub(Stripe.Subscription, :cancel, fn "sub_some-id" -> {:ok, %Stripe.Subscription{status: "canceled"}} end)
 
       # When
       Billing.on_subscription_change(%{
@@ -358,16 +346,15 @@ defmodule Tuist.BillingTest do
       account = Accounts.get_account_from_user(user)
       customer_id = account.customer_id
 
-      Stripe.Checkout.Session
-      |> stub(:create, fn %{
-                            success_url: "success_url",
-                            line_items: [
-                              %{price: "pro.usage"},
-                              %{price: "pro.flat.monthly", quantity: 1}
-                            ],
-                            mode: "subscription",
-                            customer: ^customer_id
-                          } ->
+      stub(Stripe.Checkout.Session, :create, fn %{
+                                                  success_url: "success_url",
+                                                  line_items: [
+                                                    %{price: "pro.usage"},
+                                                    %{price: "pro.flat.monthly", quantity: 1}
+                                                  ],
+                                                  mode: "subscription",
+                                                  customer: ^customer_id
+                                                } ->
         {:ok, %{url: "session_url"}}
       end)
 
@@ -384,23 +371,20 @@ defmodule Tuist.BillingTest do
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
 
-      Stripe.Subscription
-      |> stub(:update, fn "sub_some-id",
-                          %{
-                            items: [
-                              %{id: "air.usage", deleted: true},
-                              %{id: "air.flat.monthly", deleted: true},
-                              %{price: "pro.usage"},
-                              %{price: "pro.flat.monthly", quantity: 1}
-                            ]
-                          } ->
+      stub(Stripe.Subscription, :update, fn "sub_some-id",
+                                            %{
+                                              items: [
+                                                %{id: "air.usage", deleted: true},
+                                                %{id: "air.flat.monthly", deleted: true},
+                                                %{price: "pro.usage"},
+                                                %{price: "pro.flat.monthly", quantity: 1}
+                                              ]
+                                            } ->
         {:ok, %{}}
       end)
 
-      Stripe.Subscription
-      |> stub(:retrieve, fn "sub_some-id" ->
-        {:ok,
-         %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
+      stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{
@@ -424,23 +408,20 @@ defmodule Tuist.BillingTest do
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
 
-      Stripe.Subscription
-      |> stub(:update, fn "sub_some-id",
-                          %{
-                            items: [
-                              %{id: "pro.usage", deleted: true},
-                              %{id: "pro.flat.monthly", deleted: true},
-                              %{price: "air.usage"},
-                              %{price: "air.flat.monthly", quantity: 1}
-                            ]
-                          } ->
+      stub(Stripe.Subscription, :update, fn "sub_some-id",
+                                            %{
+                                              items: [
+                                                %{id: "pro.usage", deleted: true},
+                                                %{id: "pro.flat.monthly", deleted: true},
+                                                %{price: "air.usage"},
+                                                %{price: "air.flat.monthly", quantity: 1}
+                                              ]
+                                            } ->
         {:ok, %{}}
       end)
 
-      Stripe.Subscription
-      |> stub(:retrieve, fn "sub_some-id" ->
-        {:ok,
-         %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
+      stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{
@@ -469,15 +450,14 @@ defmodule Tuist.BillingTest do
       account =
         user.account |> Account.billing_changeset(%{customer_id: customer_id}) |> Repo.update!()
 
-      Stripe.Request
-      |> stub(:make_request, fn %{
-                                  method: :post,
-                                  endpoint: "/v1/billing/meter_events",
-                                  params: %{
-                                    payload: %{value: 10, stripe_customer_id: ^customer_id},
-                                    event_name: "remote_cache_hit"
-                                  }
-                                } ->
+      stub(Stripe.Request, :make_request, fn %{
+                                               method: :post,
+                                               endpoint: "/v1/billing/meter_events",
+                                               params: %{
+                                                 payload: %{value: 10, stripe_customer_id: ^customer_id},
+                                                 event_name: "remote_cache_hit"
+                                               }
+                                             } ->
         {:ok, %{}}
       end)
 
@@ -492,8 +472,7 @@ defmodule Tuist.BillingTest do
       customer_id = "customer_id"
       email = "customer_email"
 
-      Stripe.Customer
-      |> stub(:retrieve, fn ^customer_id ->
+      stub(Stripe.Customer, :retrieve, fn ^customer_id ->
         {:ok, %Stripe.Customer{id: customer_id, email: email}}
       end)
 
@@ -520,8 +499,7 @@ defmodule Tuist.BillingTest do
         exp_year: 2022
       }
 
-      Stripe.PaymentMethod
-      |> stub(:retrieve, fn ^payment_method_id ->
+      stub(Stripe.PaymentMethod, :retrieve, fn ^payment_method_id ->
         {:ok,
          %Stripe.PaymentMethod{
            id: payment_method_id,

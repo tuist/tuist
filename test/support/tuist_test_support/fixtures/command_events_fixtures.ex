@@ -2,14 +2,18 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   @moduledoc """
   Fixtures for command events.
   """
-  alias Tuist.CommandEvents
-  alias Tuist.Time
   import TuistTestSupport.Fixtures.XcodeFixtures
+
+  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
+  alias Tuist.CommandEvents.TargetTestSummary
+  alias Tuist.Time
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def command_event_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
+        ProjectsFixtures.project_fixture().id
       end)
 
     CommandEvents.create_command_event(
@@ -47,7 +51,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   def test_case_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
+        ProjectsFixtures.project_fixture().id
       end)
 
     CommandEvents.create_test_case(
@@ -60,8 +64,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
             :identifier,
             "AppTests/testExample/#{TuistTestSupport.Utilities.unique_integer()}"
           ),
-        project_identifier:
-          Keyword.get(attrs, :project_identifier, "AppTests/AppTests.xcodeproj"),
+        project_identifier: Keyword.get(attrs, :project_identifier, "AppTests/AppTests.xcodeproj"),
         project_id: project_id
       },
       flaky: Keyword.get(attrs, :flaky, false)
@@ -100,28 +103,26 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     project_tests =
       Keyword.get(attrs, :project_tests, %{
         "App/MainApp.xcodeproj" => %{
-          "AppTests" => %Tuist.CommandEvents.TargetTestSummary{
+          "AppTests" => %TargetTestSummary{
             tests: [
-              %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+              %ActionTestMetadata{
                 test_status: :success,
                 name: "testHello()",
-                identifier_url:
-                  "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+                identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
               }
             ],
             status: :success
           }
         },
         "Framework1/Framework1.xcodeproj" => %{
-          "Framework1Tests" => %Tuist.CommandEvents.TargetTestSummary{
+          "Framework1Tests" => %TargetTestSummary{
             tests: [
-              %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+              %ActionTestMetadata{
                 test_status: :success,
                 name: "testHello()",
-                identifier_url:
-                  "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
+                identifier_url: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
               },
-              %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+              %ActionTestMetadata{
                 test_status: :success,
                 name: "testHelloFromFramework2()",
                 identifier_url:
@@ -132,19 +133,17 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
           }
         },
         "Framework2/Framework2.xcodeproj" => %{
-          "Framework2Tests" => %Tuist.CommandEvents.TargetTestSummary{
+          "Framework2Tests" => %TargetTestSummary{
             tests: [
-              %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+              %ActionTestMetadata{
                 test_status: :failure,
                 name: "testHello()",
-                identifier_url:
-                  "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
+                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
               },
-              %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+              %ActionTestMetadata{
                 test_status: :success,
                 name: "testHello()",
-                identifier_url:
-                  "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
+                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
               }
             ],
             status: :failure
@@ -785,7 +784,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     """
   end
 
-  def test_plan_object_fixture() do
+  def test_plan_object_fixture do
     ~S"""
     {
       "_type" : {

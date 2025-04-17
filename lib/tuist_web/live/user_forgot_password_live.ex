@@ -1,4 +1,5 @@
 defmodule TuistWeb.UserForgotPasswordLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 

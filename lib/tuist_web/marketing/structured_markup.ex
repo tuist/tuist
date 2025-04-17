@@ -11,6 +11,9 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     router: TuistWeb.Router,
     statics: TuistWeb.static_paths()
 
+  alias Tuist.Marketing.Blog
+  alias TuistWeb.Marketing.StructuredMarkup
+
   def assign_structured_data(%Plug.Conn{} = conn, data) do
     structured_data = conn.assigns[:head_structured_data] || []
 
@@ -23,8 +26,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           structured_data ++ [data]
       end
 
-    conn
-    |> Plug.Conn.assign(:head_structured_data, structured_data)
+    Plug.Conn.assign(conn, :head_structured_data, structured_data)
   end
 
   def assign_structured_data(%Phoenix.LiveView.Socket{} = socket, data) do
@@ -39,7 +41,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           structured_data ++ [data]
       end
 
-    socket |> Phoenix.Component.assign(:head_structured_data, structured_data)
+    Phoenix.Component.assign(socket, :head_structured_data, structured_data)
   end
 
   def get_breadcrumbs_structured_data(breadcrumbs) do
@@ -75,8 +77,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@context" => "https://schema.org",
       "@type" => "FAQPage",
       "mainEntity" =>
-        faqs
-        |> Enum.map(fn {question, answer} ->
+        Enum.map(faqs, fn {question, answer} ->
           %{
             "@type" => "Question",
             "name" => question,
@@ -101,15 +102,13 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "brand" => get_organization_structured_data(),
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "offers" =>
-        plans
-        |> Enum.map(fn plan ->
+        Enum.map(plans, fn plan ->
           %{
             "@type" => "Offer",
             "name" => "Tuist #{plan.name}",
             "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
             "priceCurrency" => "USD",
-            "price" =>
-              if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
+            "price" => if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
             "description" => plan.description,
             "availability" => "https://schema.org/InStock",
             "priceValidUntil" => "2025-12-31",
@@ -154,7 +153,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     |> List.flatten()
   end
 
-  def get_organization_structured_data() do
+  def get_organization_structured_data do
     %{
       "@context" => "https://schema.org",
       "@type" => "Organization",
@@ -179,12 +178,12 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           posts
           |> Enum.with_index()
           |> Enum.map(fn {post, index} ->
-            get_blog_post_structured_markup_data(post) |> Map.merge(%{"position" => index + 1})
+            post |> get_blog_post_structured_markup_data() |> Map.put("position", index + 1)
           end)
       },
       "name" => gettext("Tuist's blog"),
       "description" => gettext("Read engaging stories and expert insights."),
-      "publisher" => TuistWeb.Marketing.StructuredMarkup.get_organization_structured_data()
+      "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
 
@@ -201,11 +200,10 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "image" => if(is_nil(post.image_url), do: [], else: [post.image_url]),
       "author" => %{
         "@type" => "Person",
-        "name" => Tuist.Marketing.Blog.get_post_author(post)["name"],
-        "url" =>
-          "https://github.com/#{Tuist.Marketing.Blog.get_post_author(post)["github_handle"]}"
+        "name" => Blog.get_post_author(post)["name"],
+        "url" => "https://github.com/#{Blog.get_post_author(post)["github_handle"]}"
       },
-      "publisher" => TuistWeb.Marketing.StructuredMarkup.get_organization_structured_data(),
+      "publisher" => StructuredMarkup.get_organization_structured_data(),
       "datePublished" => Timex.format!(post.date, "{ISO:Extended}"),
       "dateModified" => Timex.format!(post.date, "{ISO:Extended}"),
       "articleBody" => post.excerpt
@@ -218,7 +216,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@type" => "ItemList",
       "name" => gettext("Changelog"),
       "description" => gettext("Stay updated with the latest changes and improvements in Tuist."),
-      "publisher" => TuistWeb.Marketing.StructuredMarkup.get_organization_structured_data(),
+      "publisher" => StructuredMarkup.get_organization_structured_data(),
       "itemListElement" =>
         entries
         |> Enum.with_index()
@@ -229,7 +227,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "item" => %{
               "@type" => "Article",
               "headline" => entry.title,
-              "datePublished" => entry.date |> Timex.format!("{ISO:Extended}"),
+              "datePublished" => Timex.format!(entry.date, "{ISO:Extended}"),
               "url" => Tuist.Environment.app_url(path: "/changelog##{entry.id}"),
               "articleSection" => entry.category,
               "description" => entry.body

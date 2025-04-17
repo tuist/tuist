@@ -3,7 +3,9 @@ defmodule Tuist.Registry.Swift.Packages.PackageManifest do
   A module that represents a Swift package manifest (Package.swift).
   """
   use Ecto.Schema
+
   import Ecto.Changeset
+
   alias Tuist.Registry.Swift.Packages.PackageRelease
 
   @primary_key {:id, UUIDv7, autogenerate: true}

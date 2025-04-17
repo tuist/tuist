@@ -53,7 +53,7 @@ defmodule TuistWeb.RateLimit do
     if Environment.on_premise?() do
       conn
     else
-      scale_ms = :timer.minutes(1)
+      scale_ms = to_timeout(minute: 1)
       limit = 1_000
 
       case hit(TuistWeb.RemoteIp.get(conn), scale_ms, limit) do

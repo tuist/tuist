@@ -5,16 +5,19 @@ defmodule TuistTestSupport.Cases.LiveCase do
   """
   use ExUnit.CaseTemplate
 
+  alias Tuist.GitHub.Releases
+
   using do
     quote do
       use Mimic
+
       setup :set_mimic_from_context
     end
   end
 
   setup do
-    Tuist.GitHub.Releases |> Mimic.stub(:get_latest_cli_release, fn -> nil end)
-    Tuist.GitHub.Releases |> Mimic.stub(:get_latest_app_release, fn -> nil end)
+    Mimic.stub(Releases, :get_latest_cli_release, fn -> nil end)
+    Mimic.stub(Releases, :get_latest_app_release, fn -> nil end)
     :ok
   end
 end

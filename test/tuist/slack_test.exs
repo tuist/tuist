@@ -1,12 +1,13 @@
 defmodule Tuist.SlackTest do
   use ExUnit.Case, async: true
   use Mimic
+
   alias Tuist.Environment
   alias Tuist.Slack
 
   setup do
-    Environment |> stub(:prod?, fn -> true end)
-    Environment |> stub(:on_premise?, fn -> false end)
+    stub(Environment, :prod?, fn -> true end)
+    stub(Environment, :on_premise?, fn -> false end)
     :ok
   end
 
@@ -14,10 +15,8 @@ defmodule Tuist.SlackTest do
     test "when the response is successful" do
       # Given
       token = "token"
-      Environment |> stub(:slack_tuist_token, fn -> token end)
-
-      Req
-      |> stub(:post, fn _, headers: _, body: _ -> {:ok, %Req.Response{status: 200, body: %{}}} end)
+      stub(Environment, :slack_tuist_token, fn -> token end)
+      stub(Req, :post, fn _, [headers: _, body: _] -> {:ok, %Req.Response{status: 200, body: %{}}} end)
 
       # When
       response = Slack.send_message(%{})
@@ -29,10 +28,8 @@ defmodule Tuist.SlackTest do
     test "when the response is not successful" do
       # Given
       token = "token"
-      Environment |> stub(:slack_tuist_token, fn -> token end)
-
-      Req
-      |> stub(:post, fn _, headers: _, body: _ -> {:ok, %Req.Response{status: 400, body: %{}}} end)
+      stub(Environment, :slack_tuist_token, fn -> token end)
+      stub(Req, :post, fn _, [headers: _, body: _] -> {:ok, %Req.Response{status: 400, body: %{}}} end)
 
       # When
       response = Slack.send_message(%{})
@@ -44,8 +41,8 @@ defmodule Tuist.SlackTest do
     test "when the request fails" do
       # Given
       token = "token"
-      Environment |> stub(:slack_tuist_token, fn -> token end)
-      Req |> stub(:post, fn _, headers: _, body: _ -> {:error, "error"} end)
+      stub(Environment, :slack_tuist_token, fn -> token end)
+      stub(Req, :post, fn _, [headers: _, body: _] -> {:error, "error"} end)
 
       # When
       response = Slack.send_message(%{})

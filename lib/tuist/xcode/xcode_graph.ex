@@ -3,6 +3,7 @@ defmodule Tuist.Xcode.XcodeGraph do
   Xcode graph represents a graph similar to https://github.com/tuist/XcodeGraph.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key {:id, UUIDv7, autogenerate: true}

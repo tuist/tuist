@@ -4,6 +4,7 @@ defmodule Tuist.CacheActionItems.CacheActionItem do
   """
 
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key {:id, UUIDv7, autogenerate: true}

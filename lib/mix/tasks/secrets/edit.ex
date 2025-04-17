@@ -17,11 +17,10 @@ defmodule Mix.Tasks.Secrets.Edit do
 
   def run(args) do
     {parsed, _} = OptionParser.parse!(args, strict: [env: :string])
-    env = Keyword.get(parsed, :env, "dev") |> String.to_atom()
-    key_file = File.cwd!() |> Path.join("priv/secrets/#{Atom.to_string(env)}.key")
+    env = parsed |> Keyword.get(:env, "dev") |> String.to_atom()
+    key_file = Path.join(File.cwd!(), "priv/secrets/#{Atom.to_string(env)}.key")
 
-    encrypted_secrets_file =
-      File.cwd!() |> Path.join("priv/secrets/#{Atom.to_string(env)}.yml.enc")
+    encrypted_secrets_file = Path.join(File.cwd!(), "priv/secrets/#{Atom.to_string(env)}.yml.enc")
 
     if not File.exists?(key_file) do
       raise "Key file not found at #{key_file}"

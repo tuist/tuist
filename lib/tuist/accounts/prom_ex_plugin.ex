@@ -3,12 +3,13 @@ defmodule Tuist.Accounts.PromExPlugin do
   Defines custom Prometheus metrics for the Tuist account events
   """
   use PromEx.Plugin
-  alias Tuist.Telemetry
+
   alias Tuist.Accounts
+  alias Tuist.Telemetry
 
   @impl true
   def polling_metrics(opts) do
-    poll_rate = Keyword.get(opts, :poll_rate, :timer.minutes(10))
+    poll_rate = Keyword.get(opts, :poll_rate, to_timeout(minute: 10))
 
     [
       Polling.build(
@@ -40,7 +41,7 @@ defmodule Tuist.Accounts.PromExPlugin do
     ]
   end
 
-  def execute_accounts_users_count_telemetry_event() do
+  def execute_accounts_users_count_telemetry_event do
     if Tuist.Repo.running?() do
       :telemetry.execute(
         Telemetry.event_name_accounts_users_count(),
@@ -50,7 +51,7 @@ defmodule Tuist.Accounts.PromExPlugin do
     end
   end
 
-  def execute_accounts_organizations_count_telemetry_event() do
+  def execute_accounts_organizations_count_telemetry_event do
     if Tuist.Repo.running?() do
       :telemetry.execute(
         Telemetry.event_name_accounts_organizations_count(),

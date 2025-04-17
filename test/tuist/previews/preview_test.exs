@@ -1,6 +1,7 @@
 defmodule Tuist.Previews.PreviewTest do
-  alias Tuist.Previews.Preview
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Previews.Preview
 
   describe "create_changeset/1" do
     test "ensures a project_id is present" do

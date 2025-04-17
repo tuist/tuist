@@ -2,11 +2,15 @@ defmodule Tuist.Application do
   @moduledoc false
 
   use Application
-  alias Tuist.Environment
-  import Environment, only: [run_if_error_tracking_enabled: 1]
-  require Logger
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
+
   import Cachex.Spec
+  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
+
+  alias Tuist.DBConnection.TelemetryListener
+  alias Tuist.Environment
+
+  require Logger
 
   @impl true
   def start(_type, _args) do
@@ -24,23 +28,23 @@ defmodule Tuist.Application do
     application
   end
 
-  defp load_secrets_in_application() do
-    Environment.decrypt_secrets() |> Environment.put_application_secrets()
+  defp load_secrets_in_application do
+    Environment.put_application_secrets(Environment.decrypt_secrets())
   end
 
-  defp start_error_tracking() do
+  defp start_error_tracking do
     run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
       Appsignal.Logger.Handler.add("phoenix")
     end
   end
 
-  defp start_telemetry() do
+  defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
   end
 
-  defp get_children() do
+  defp get_children do
     finch_pools =
       if Environment.test?() do
         %{:default => [size: 10]}
@@ -63,8 +67,8 @@ defmodule Tuist.Application do
     children =
       [
         TuistWeb.Telemetry,
-        {DBConnection.TelemetryListener, name: Tuist.DBConnection.TelemetryListener},
-        {Tuist.Repo, connection_listeners: [Tuist.DBConnection.TelemetryListener]},
+        {DBConnection.TelemetryListener, name: TelemetryListener},
+        {Tuist.Repo, connection_listeners: [TelemetryListener]},
         {Cachex,
          [
            :tuist,

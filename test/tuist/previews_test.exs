@@ -1,10 +1,11 @@
 defmodule Tuist.PreviewsTest do
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Previews.Preview
-  alias Tuist.Previews
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
   use TuistTestSupport.Cases.DataCase, async: true
+
+  alias Tuist.Previews
+  alias Tuist.Previews.Preview
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create_preview/1" do
     test "creates a bundle preview" do
@@ -366,7 +367,7 @@ defmodule Tuist.PreviewsTest do
         )
 
       # Then
-      assert got_previews_page |> Enum.map(& &1.id) == [
+      assert Enum.map(got_previews_page, & &1.id) == [
                preview_one.id
              ]
     end
@@ -409,12 +410,12 @@ defmodule Tuist.PreviewsTest do
         )
 
       # Then
-      assert got_previews_page |> Enum.map(& &1.id) == [
+      assert Enum.map(got_previews_page, & &1.id) == [
                preview_three.id,
                preview_two.id
              ]
 
-      assert got_previews_page |> Enum.map(& &1.bundle_identifier) == [
+      assert Enum.map(got_previews_page, & &1.bundle_identifier) == [
                "com.example.app-two",
                "com.example.app-one"
              ]
@@ -464,7 +465,7 @@ defmodule Tuist.PreviewsTest do
       previews = Previews.latest_previews_with_distinct_bundle_ids(project)
 
       # Then
-      assert previews |> Enum.map(& &1.id) == [preview_three.id, preview_two.id]
+      assert Enum.map(previews, & &1.id) == [preview_three.id, preview_two.id]
     end
 
     test "returns empty list when project has no previews" do

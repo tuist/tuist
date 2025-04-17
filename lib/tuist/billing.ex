@@ -2,16 +2,17 @@ defmodule Tuist.Billing do
   @moduledoc """
   A module for operations related to billing.
   """
+  use Gettext, backend: TuistWeb.Gettext
+
+  import Ecto.Query, only: [from: 2]
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
-  alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.Repo
-  use Gettext, backend: TuistWeb.Gettext
-
-  import Ecto.Query, only: [from: 2]
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
@@ -19,15 +20,15 @@ defmodule Tuist.Billing do
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
-  def get_payment_thresholds() do
+  def get_payment_thresholds do
     @payment_thresholds
   end
 
-  def get_unit_prices() do
+  def get_unit_prices do
     @unit_prices
   end
 
-  def get_plans() do
+  def get_plans do
     [
       %{
         id: :air,
@@ -93,10 +94,11 @@ defmodule Tuist.Billing do
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
 
     identifier =
-      "#{customer_id}-#{Tuist.Time.utc_now() |> Timex.format!("{YYYY}.{0M}.{D}")}"
+      "#{customer_id}-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
 
     {:ok, _} =
-      Stripe.Request.new_request([])
+      []
+      |> Stripe.Request.new_request()
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "remote_cache_hit",
@@ -110,11 +112,7 @@ defmodule Tuist.Billing do
       |> Stripe.Request.make_request()
   end
 
-  def update_plan(%{
-        plan: plan,
-        account: %Account{} = account,
-        success_url: success_url
-      }) do
+  def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
     customer_id = account.customer_id
 
     current_subscription = get_current_active_subscription(account)
@@ -135,7 +133,7 @@ defmodule Tuist.Billing do
       {:ok, stripe_subscription} =
         Stripe.Subscription.retrieve(current_subscription.subscription_id)
 
-      item_to_delete = stripe_subscription.items.data |> Enum.map(&%{id: &1.id, deleted: true})
+      item_to_delete = Enum.map(stripe_subscription.items.data, &%{id: &1.id, deleted: true})
 
       {:ok, _} =
         Stripe.Subscription.update(current_subscription.subscription_id, %{
@@ -149,9 +147,7 @@ defmodule Tuist.Billing do
   defp get_subscription_items(plan) do
     available_prices = Tuist.Environment.stripe_prices()
 
-    usage_prices =
-      available_prices[plan][:usage]
-      |> Enum.map(&%{price: &1})
+    usage_prices = Enum.map(available_prices[plan][:usage], &%{price: &1})
 
     flat_prices =
       available_prices[plan][:flat_monthly]
@@ -171,7 +167,7 @@ defmodule Tuist.Billing do
       if is_nil(Map.get(subscription, :trial_end)) do
         nil
       else
-        subscription.trial_end |> DateTime.from_unix!()
+        DateTime.from_unix!(subscription.trial_end)
       end
 
     cond do
@@ -183,7 +179,8 @@ defmodule Tuist.Billing do
         :ok
 
       is_nil(current_subscription) ->
-        Subscription.create_changeset(%Subscription{}, %{
+        %Subscription{}
+        |> Subscription.create_changeset(%{
           plan: plan,
           subscription_id: subscription.id,
           status: subscription.status,
@@ -194,7 +191,8 @@ defmodule Tuist.Billing do
         |> Repo.insert!()
 
       plan != :none ->
-        Subscription.update_changeset(current_subscription, %{
+        current_subscription
+        |> Subscription.update_changeset(%{
           plan: plan,
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
@@ -203,7 +201,8 @@ defmodule Tuist.Billing do
         |> Repo.update!()
 
       plan == :none ->
-        Subscription.update_changeset(current_subscription, %{
+        current_subscription
+        |> Subscription.update_changeset(%{
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end
@@ -216,7 +215,7 @@ defmodule Tuist.Billing do
 
   defp get_plan(subscription) do
     active = subscription.status in ["active", "trialing"]
-    subscription_prices = subscription.items.data |> Enum.map(& &1.price.id)
+    subscription_prices = Enum.map(subscription.items.data, & &1.price.id)
     available_prices = Tuist.Environment.stripe_prices()
 
     if active do
@@ -257,18 +256,14 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment(%{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      }) do
+  def get_estimated_next_payment(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
     if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
-      Money.new(0, :USD) |> Money.to_string()
+      0 |> Money.new(:USD) |> Money.to_string()
     else
-      Money.multiply(
-        get_unit_prices()[:remote_cache_hit],
-        current_month_remote_cache_hits_count - remote_cache_hits_threshold
-      )
+      get_unit_prices()[:remote_cache_hit]
+      |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hits_threshold)
       |> Money.to_string()
     end
   end
@@ -320,13 +315,14 @@ defmodule Tuist.Billing do
   Given an account, it returns the latest subscription that is active or trialing.
   """
   def get_current_active_subscription(%Account{} = account) do
-    from(s in Subscription,
-      where: s.account_id == ^account.id,
-      where: s.status == "active" or s.status == "trialing",
-      order_by: [desc: s.inserted_at],
-      limit: 1
+    Repo.one(
+      from(s in Subscription,
+        where: s.account_id == ^account.id,
+        where: s.status == "active" or s.status == "trialing",
+        order_by: [desc: s.inserted_at],
+        limit: 1
+      )
     )
-    |> Repo.one()
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

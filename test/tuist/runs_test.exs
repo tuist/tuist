@@ -1,10 +1,10 @@
 defmodule Tuist.RunsTest do
-  alias TuistTestSupport.Fixtures.RunsFixtures
   use TuistTestSupport.Cases.DataCase
 
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Runs
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "create_build/1" do
     test "creates a build" do

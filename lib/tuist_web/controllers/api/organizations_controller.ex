@@ -1,13 +1,16 @@
 defmodule TuistWeb.API.OrganizationsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias Tuist.Billing
-  alias TuistWeb.API.Schemas.OrganizationMember
-  alias TuistWeb.Authentication
-  alias Tuist.Authorization
-  alias Tuist.Accounts
+
   alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.{Error, Organization, OrganizationUsage}
+  alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias Tuist.Billing
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.Organization
+  alias TuistWeb.API.Schemas.OrganizationMember
+  alias TuistWeb.API.Schemas.OrganizationUsage
+  alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -36,17 +39,15 @@ defmodule TuistWeb.API.OrganizationsController do
            },
            required: [:organizations]
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def index(conn, _params) do
     organizations =
-      TuistWeb.Authentication.current_user(conn)
+      conn
+      |> TuistWeb.Authentication.current_user()
       |> Tuist.Accounts.get_user_organization_accounts()
       |> Enum.map(
         &%{
@@ -60,11 +61,12 @@ defmodule TuistWeb.API.OrganizationsController do
         }
       )
 
-    conn |> json(%{organizations: organizations})
+    json(conn, %{organizations: organizations})
   end
 
   defp get_plan(account) do
-    Billing.get_current_active_subscription(account)
+    account
+    |> Billing.get_current_active_subscription()
     |> case do
       %Billing.Subscription{} = subscription -> subscription.plan
       nil -> :none
@@ -89,20 +91,11 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The organization was created", "application/json", Organization},
-      bad_request:
-        {"The organization could not be created due to a validation error", "application/json",
-         Error}
+      bad_request: {"The organization could not be created due to a validation error", "application/json", Error}
     }
   )
 
-  def create(
-        %{
-          body_params: %{
-            name: organization_name
-          }
-        } = conn,
-        _params
-      ) do
+  def create(%{body_params: %{name: organization_name}} = conn, _params) do
     user = Authentication.current_user(conn)
     existing_account = Accounts.get_account_by_handle(organization_name)
 
@@ -155,24 +148,13 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       no_content: "The organization was deleted",
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
-  def delete(
-        %{
-          path_params: %{
-            "organization_name" => organization_name
-          }
-        } = conn,
-        _params
-      ) do
+  def delete(%{path_params: %{"organization_name" => organization_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
 
     user = Authentication.current_user(conn)
@@ -211,24 +193,13 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       ok: {"The organization", "application/json", Organization},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
-  def show(
-        %{
-          path_params: %{
-            "organization_name" => organization_name
-          }
-        } = conn,
-        _params
-      ) do
+  def show(%{path_params: %{"organization_name" => organization_name}} = conn, _params) do
     organization =
       Accounts.get_organization_by_handle(organization_name)
 
@@ -247,7 +218,8 @@ defmodule TuistWeb.API.OrganizationsController do
 
       !is_nil(organization) ->
         admins =
-          Accounts.get_organization_members(organization, :admin)
+          organization
+          |> Accounts.get_organization_members(:admin)
           |> Enum.map(
             &%{
               id: &1.id,
@@ -260,7 +232,8 @@ defmodule TuistWeb.API.OrganizationsController do
         admin_ids = Enum.map(admins, & &1.id)
 
         users =
-          Accounts.get_organization_members(organization, :user)
+          organization
+          |> Accounts.get_organization_members(:user)
           |> Enum.filter(fn member ->
             member.id not in admin_ids
           end)
@@ -273,8 +246,7 @@ defmodule TuistWeb.API.OrganizationsController do
             }
           )
 
-        conn
-        |> json(%{
+        json(conn, %{
           id: organization.id,
           name: organization_name,
           plan: get_plan(organization.account),
@@ -282,18 +254,12 @@ defmodule TuistWeb.API.OrganizationsController do
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           invitations:
-            Tuist.Repo.preload(organization,
-              invitations: [inviter: :account]
-            ).invitations
-            |> Enum.map(
+            Enum.map(
+              Tuist.Repo.preload(organization, invitations: [inviter: :account]).invitations,
               &%{
                 id: &1.id,
                 invitee_email: &1.invitee_email,
-                inviter: %{
-                  id: &1.inviter.id,
-                  email: &1.inviter.email,
-                  name: &1.inviter.account.name
-                },
+                inviter: %{id: &1.inviter.id, email: &1.inviter.email, name: &1.inviter.account.name},
                 token: &1.token,
                 organization_id: &1.organization_id
               }
@@ -304,8 +270,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   operation(:usage,
     summary: "Shows the usage of an organization",
-    description:
-      "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    description: "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
     operation_id: "showOrganizationUsage",
     parameters: [
       organization_name: [
@@ -317,24 +282,13 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       ok: {"The organization usage", "application/json", OrganizationUsage},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
-  def usage(
-        %{
-          path_params: %{
-            "organization_name" => organization_name
-          }
-        } = conn,
-        _params
-      ) do
+  def usage(%{path_params: %{"organization_name" => organization_name}} = conn, _params) do
     organization =
       Accounts.get_organization_by_handle(organization_name)
 
@@ -352,11 +306,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       !is_nil(organization) ->
-        conn
-        |> json(%{
-          current_month_remote_cache_hits:
-            organization.account.current_month_remote_cache_hits_count
-        })
+        json(conn, %{current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count})
     end
   end
 
@@ -391,28 +341,17 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The organization", "application/json", Organization},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      bad_request:
-        {"The organization could not be updated due to a validation error", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      bad_request: {"The organization could not be updated due to a validation error", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
   def update(
         %{
-          path_params: %{
-            "organization_name" => organization_name
-          },
-          body_params:
-            %{
-              sso_provider: sso_provider
-            } = body_params
+          path_params: %{"organization_name" => organization_name},
+          body_params: %{sso_provider: sso_provider} = body_params
         } = conn,
         _params
       ) do
@@ -439,8 +378,7 @@ defmodule TuistWeb.API.OrganizationsController do
             sso_organization_id: nil
           })
 
-        conn
-        |> json(%{
+        json(conn, %{
           id: organization.id,
           name: organization_name,
           plan: get_plan(organization.account),
@@ -458,8 +396,7 @@ defmodule TuistWeb.API.OrganizationsController do
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message:
-            "Your SSO organization must be the same as the one you are trying to update your organization to."
+          message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
       !is_nil(organization) ->
@@ -483,8 +420,7 @@ defmodule TuistWeb.API.OrganizationsController do
            sso_organization_id: sso_organization_id
          }) do
       {:ok, organization} ->
-        conn
-        |> json(%{
+        json(conn, %{
           id: organization.id,
           name: organization.account.name,
           plan: get_plan(organization.account),
@@ -496,9 +432,10 @@ defmodule TuistWeb.API.OrganizationsController do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         message =
-          Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
           |> Enum.flat_map(fn {_key, value} -> value end)
-          |> hd
+          |> hd()
 
         conn
         |> put_status(:bad_request)
@@ -526,28 +463,14 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       no_content: "The member was removed",
-      not_found:
-        {"The organization or the user with the given name was not found", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
-      bad_request:
-        {"The member could not be removed due to a validation error", "application/json", Error}
+      not_found: {"The organization or the user with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The member could not be removed due to a validation error", "application/json", Error}
     }
   )
 
-  def remove_member(
-        %{
-          path_params: %{
-            "organization_name" => organization_name,
-            "user_name" => user_name
-          }
-        } = conn,
-        _params
-      ) do
+  def remove_member(%{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
     user = Authentication.current_user(conn)
     member_account = Accounts.get_account_by_handle(user_name)
@@ -590,8 +513,7 @@ defmodule TuistWeb.API.OrganizationsController do
             conn
             |> put_status(:bad_request)
             |> json(%{
-              message:
-                "User #{user_name} is not a member of the organization #{organization_name}"
+              message: "User #{user_name} is not a member of the organization #{organization_name}"
             })
         end
     end
@@ -630,29 +552,16 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The member was updated", "application/json", OrganizationMember},
-      not_found:
-        {"The organization or the user with the given name was not found", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
-      bad_request:
-        {"The member could not be updated due to a validation error", "application/json", Error}
+      not_found: {"The organization or the user with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The member could not be updated due to a validation error", "application/json", Error}
     }
   )
 
   def update_member(
-        %{
-          path_params: %{
-            "organization_name" => organization_name,
-            "user_name" => user_name
-          },
-          body_params: %{
-            role: role
-          }
-        } = conn,
+        %{path_params: %{"organization_name" => organization_name, "user_name" => user_name}, body_params: %{role: role}} =
+          conn,
         _params
       ) do
     organization = Accounts.get_organization_by_handle(organization_name)
@@ -689,13 +598,7 @@ defmodule TuistWeb.API.OrganizationsController do
         if Accounts.belongs_to_organization?(member, organization) do
           Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))
 
-          conn
-          |> json(%{
-            id: member.id,
-            email: member.email,
-            name: member_account.name,
-            role: role
-          })
+          json(conn, %{id: member.id, email: member.email, name: member_account.name, role: role})
         else
           conn
           |> put_status(:bad_request)

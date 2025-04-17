@@ -1,4 +1,5 @@
 defmodule TuistWeb.Storybook.Welcome do
+  @moduledoc false
   use PhoenixStorybook.Story, :page
 
   def render(assigns) do

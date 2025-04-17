@@ -2,10 +2,10 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   @moduledoc false
 
   alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   def xcode_graph_fixture(opts \\ []) do
     command_event_id =

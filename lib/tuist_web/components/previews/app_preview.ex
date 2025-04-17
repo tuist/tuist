@@ -4,6 +4,7 @@ defmodule TuistWeb.Previews.AppPreview do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
+
   import TuistWeb.Previews.PlatformBadge
   import TuistWeb.Previews.RunButton
 

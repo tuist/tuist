@@ -1,7 +1,8 @@
 defmodule Tuist.OrganizationTest do
-  alias Tuist.Accounts.Organization
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.Accounts.Organization
 
   describe "create_changeset/2" do
     test "sso_provider cannot be github" do
@@ -65,18 +66,21 @@ defmodule Tuist.OrganizationTest do
     end
 
     test "sso_provider and sso_organization_id must be exclusive" do
-      Organization.create_changeset(%Organization{}, %{
+      %Organization{}
+      |> Organization.create_changeset(%{
         sso_provider: :google,
         sso_organization_id: "tuist.io"
       })
       |> Repo.insert()
 
       {:ok, organization} =
-        Organization.create_changeset(%Organization{})
+        %Organization{}
+        |> Organization.create_changeset()
         |> Repo.insert()
 
       {:error, changeset} =
-        Organization.update_changeset(organization, %{
+        organization
+        |> Organization.update_changeset(%{
           sso_provider: :google,
           sso_organization_id: "tuist.io"
         })

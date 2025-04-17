@@ -28,9 +28,10 @@ defmodule TuistWeb.Noora.Table do
   """
 
   use Phoenix.Component
-  import TuistWeb.Noora.Icon
+
   import TuistWeb.Noora.Badge
   import TuistWeb.Noora.Button
+  import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Tag
   import TuistWeb.Noora.Time
   import TuistWeb.Noora.Utils
@@ -120,8 +121,7 @@ defmodule TuistWeb.Noora.Table do
 
   slot :image,
     required: false,
-    doc:
-      "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
+    doc: "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
 
   def text_cell(assigns) do
     ~H"""

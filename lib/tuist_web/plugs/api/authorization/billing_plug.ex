@@ -5,8 +5,8 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
 
-  alias Tuist.Billing
   alias Tuist.Accounts
+  alias Tuist.Billing
   alias Tuist.Environment
 
   def init(opts), do: opts
@@ -39,25 +39,23 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   # credo:disable-for-next-line
   def call_tuist_hosted(conn, _) do
     subscription_data =
-      case Map.get(conn.assigns, :caching, false) do
-        true ->
-          Tuist.Cache.get_value(
-            [
-              Atom.to_string(__MODULE__),
-              "subscription_data",
-              conn.assigns[:selected_project].id
-            ],
-            [
-              ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
-              cache: Map.get(conn.assigns, :cache, :tuist)
-            ],
-            fn ->
-              get_subscription_data(conn)
-            end
-          )
-
-        false ->
-          get_subscription_data(conn)
+      if Map.get(conn.assigns, :caching, false) do
+        Tuist.Cache.get_value(
+          [
+            Atom.to_string(__MODULE__),
+            "subscription_data",
+            conn.assigns[:selected_project].id
+          ],
+          [
+            ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
+            cache: Map.get(conn.assigns, :cache, :tuist)
+          ],
+          fn ->
+            get_subscription_data(conn)
+          end
+        )
+      else
+        get_subscription_data(conn)
       end
 
     case subscription_data do

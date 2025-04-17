@@ -1,4 +1,5 @@
 defmodule TuistWeb.CreateProjectLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
@@ -16,14 +17,12 @@ defmodule TuistWeb.CreateProjectLive do
     current_user = socket.assigns.current_user
 
     organization_accounts =
-      Accounts.get_user_organization_accounts(current_user) |> Enum.map(& &1.account)
+      current_user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
 
     selected_account =
       if Flash.get(socket.assigns.flash, :organization_id) do
-        Enum.find(
-          organization_accounts,
-          &(&1.organization_id == Flash.get(socket.assigns.flash, :organization_id))
-        )
+        organization_accounts
+        |> Enum.find(&(&1.organization_id == Flash.get(socket.assigns.flash, :organization_id)))
         |> Map.get(:id)
       else
         current_user.account.id
@@ -118,11 +117,7 @@ defmodule TuistWeb.CreateProjectLive do
   end
 
   @impl true
-  def handle_event(
-        "create_project",
-        %{"project" => params},
-        socket
-      ) do
+  def handle_event("create_project", %{"project" => params}, socket) do
     with %Account{} = account <- Accounts.get_account_by_id(socket.assigns.selected_account),
          true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
          {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do

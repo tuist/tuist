@@ -1,9 +1,10 @@
 defmodule Tuist.Ops.HourlySlackReportWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Slack
-  alias Tuist.Ops.HourlySlackReportWorker
   use Mimic
+
+  alias Tuist.Ops.HourlySlackReportWorker
+  alias Tuist.Slack
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "perform/0" do
     test "sends a message when there are new users and/or organizations" do
@@ -25,10 +26,10 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
         }
       ]
 
-      Slack |> expect(:send_message, fn ^expected_message -> :ok end)
+      expect(Slack, :send_message, fn ^expected_message -> :ok end)
 
       # When
-      {:ok, _} = HourlySlackReportWorker.new(%{}) |> Oban.insert()
+      {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
     end
 
     test "doesn't send a message when there were no new users or organizations in the last hour" do
@@ -36,7 +37,7 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
       Mimic.reject(&Slack.send_message/1)
 
       # When
-      {:ok, _} = HourlySlackReportWorker.new(%{}) |> Oban.insert()
+      {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
     end
   end
 end

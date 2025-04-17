@@ -4,12 +4,13 @@ defmodule TuistWeb.AppLayoutComponents do
   """
   use TuistWeb, :live_component
   use TuistWeb.Noora
-  import TuistWeb.AppComponents, except: [icon: 1]
+
   import TuistWeb.AccountDropdown
+  import TuistWeb.AppComponents, except: [icon: 1]
   import TuistWeb.Noora.Breadcrumbs
-  import TuistWeb.Noora.Sidebar
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.LineDivider
+  import TuistWeb.Noora.Sidebar
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
@@ -162,17 +163,10 @@ defmodule TuistWeb.AppLayoutComponents do
   end
 
   def append_breadcrumb(%Phoenix.LiveView.Socket{} = socket, breadcrumb) do
-    socket
-    |> Phoenix.Component.assign(
-      :breadcrumbs,
-      Map.get(socket.assigns, :breadcrumbs, []) ++
-        [
-          breadcrumb
-        ]
-    )
+    Phoenix.Component.assign(socket, :breadcrumbs, Map.get(socket.assigns, :breadcrumbs, []) ++ [breadcrumb])
   end
 
-  defp show_dashboard?() do
+  defp show_dashboard? do
     if Tuist.Environment.on_premise?() do
       Tuist.Repo.timescale_available?()
     else

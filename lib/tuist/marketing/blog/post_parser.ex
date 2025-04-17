@@ -11,11 +11,12 @@ defmodule Tuist.Marketing.Blog.PostParser do
     date = date_string |> Timex.parse!("{YYYY}/{M}/{D}") |> Timex.to_datetime("Etc/UTC")
 
     frontmatter =
-      YamlElixir.read_from_string!(frontmatter_string)
+      frontmatter_string
+      |> YamlElixir.read_from_string!()
       |> Map.merge(%{
         # /blog/2024/09/28/kamal-two-swift-server
         "slug" =>
-          "/blog/#{date_string}/#{Path.basename(path) |> String.replace(".md", "") |> String.replace(".", "")}",
+          "/blog/#{date_string}/#{path |> Path.basename() |> String.replace(".md", "") |> String.replace(".", "")}",
         "date" => date
       })
 
@@ -23,7 +24,8 @@ defmodule Tuist.Marketing.Blog.PostParser do
   end
 
   defp get_date_string_from_path(path) do
-    Path.dirname(path)
+    path
+    |> Path.dirname()
     |> String.split("/")
     |> Enum.reverse()
     |> Enum.take(3)

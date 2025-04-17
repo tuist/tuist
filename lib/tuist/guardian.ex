@@ -3,10 +3,11 @@ defmodule Tuist.Guardian do
   Module for Guardian callbacks.
   """
 
-  alias Tuist.Projects.Project
+  use Guardian, otp_app: :tuist
+
   alias Tuist.Accounts
   alias Tuist.Accounts.User
-  use Guardian, otp_app: :tuist
+  alias Tuist.Projects.Project
 
   def subject_for_token(%User{id: id}, _claims) do
     sub = to_string(id)
@@ -49,8 +50,7 @@ defmodule Tuist.Guardian do
     with {:ok, _, _} <-
            Guardian.DB.on_refresh(
              {old_token, old_claims},
-             {Bcrypt.hash_pwd_salt(new_token <> Tuist.Environment.secret_key_password()),
-              new_claims}
+             {Bcrypt.hash_pwd_salt(new_token <> Tuist.Environment.secret_key_password()), new_claims}
            ) do
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     end

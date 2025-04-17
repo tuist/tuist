@@ -1,20 +1,20 @@
 defmodule TuistWeb.API.Authorization.BillingPlugTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
-  alias TuistWeb.API.Authorization.BillingPlug
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  use TuistTestSupport.Cases.ConnCase, async: false
   alias Tuist.Repo
-  use Mimic
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.API.Authorization.BillingPlug
 
   # This is needed in combination with "async: false" to ensure
   # that mocks are used within the cache process.
   setup :set_mimic_from_context
 
   setup context do
-    current_month_remote_cache_hits_count =
-      context |> Map.get(:current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count = Map.get(context, :current_month_remote_cache_hits_count, 0)
 
     %{account: account} =
       user =
@@ -23,8 +23,8 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
         preload: [:account]
       )
 
-    project = ProjectsFixtures.project_fixture(account_id: account.id) |> Repo.preload(:account)
-    cache = UUIDv7.generate() |> String.to_atom()
+    project = [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
 
     %{
@@ -40,20 +40,18 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> expect(:get_current_active_subscription, 1, fn ^account ->
+    expect(Billing, :get_current_active_subscription, 1, fn ^account ->
       %Subscription{plan: :enterprise, status: "active"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
     for _n <- 0..10 do
-      assert(conn |> BillingPlug.call(plug_opts) == conn)
+      assert(BillingPlug.call(conn, plug_opts) == conn)
     end
   end
 
@@ -63,19 +61,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :enterprise, status: "active"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert got == conn
@@ -87,19 +83,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :enterprise, status: "canceled"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert json_response(got, :payment_required) == %{
@@ -115,19 +109,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :air}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert json_response(got, :payment_required) == %{
@@ -143,19 +135,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :pro, status: "canceled"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert json_response(got, :payment_required) == %{
@@ -171,19 +161,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :pro, status: "active"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert got == conn
@@ -195,19 +183,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :open_source, status: "active"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert got == conn
@@ -219,19 +205,17 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Given
     account = project.account
 
-    Billing
-    |> stub(:get_current_active_subscription, fn ^account ->
+    stub(Billing, :get_current_active_subscription, fn ^account ->
       %Subscription{plan: :open_source, status: "canceled"}
     end)
 
     plug_opts = BillingPlug.init([])
 
     conn =
-      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
-      |> assign(:selected_project, project)
+      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
 
     # When
-    got = conn |> BillingPlug.call(plug_opts)
+    got = BillingPlug.call(conn, plug_opts)
 
     # Then
     assert json_response(got, :payment_required) == %{

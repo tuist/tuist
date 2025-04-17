@@ -1,18 +1,19 @@
 defmodule Tuist.AuthenticationTest do
+  use TuistTestSupport.Cases.DataCase
+  use Mimic
+
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  use TuistTestSupport.Cases.DataCase
-  alias Tuist.Authentication
   alias Tuist.Accounts.User
-  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias Tuist.Authentication
+  alias Tuist.Projects
   alias Tuist.Repo
-  use Mimic
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "authenticated_subject returns nil if the token associated subject doesn't exist" do
     # Given
-    token = unique_integer() |> Integer.to_string()
+    token = Integer.to_string(unique_integer())
 
     # When
     result = Authentication.authenticated_subject(token)
@@ -26,8 +27,7 @@ defmodule Tuist.AuthenticationTest do
     user = AccountsFixtures.user_fixture()
     user_token = "some_token"
 
-    Tuist.Guardian
-    |> expect(:resource_from_token, fn ^user_token -> {:ok, user, %{}} end)
+    expect(Tuist.Guardian, :resource_from_token, fn ^user_token -> {:ok, user, %{}} end)
 
     # When/Then
     assert Authentication.authenticated_subject(user_token) == user
@@ -55,7 +55,7 @@ defmodule Tuist.AuthenticationTest do
     token = Projects.create_project_token(project)
 
     # When/Then
-    assert Authentication.authenticated_subject(token) |> Repo.preload(:account) == project
+    assert token |> Authentication.authenticated_subject() |> Repo.preload(:account) == project
   end
 
   test "authenticated_subject return the authenticated account associated to the token" do

@@ -1,18 +1,19 @@
 defmodule TuistWeb.API.AuthControllerTest do
-  alias Tuist.Repo
-  alias Tuist.Accounts.DeviceCode
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.DeviceCode
+  alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup context do
     if Map.get(context, :rate_limited, false) do
       remote_ip = "127.0.0.1"
       rate_limit_key = "api_auth_authenticate:#{remote_ip}"
-      rate_limit_scale = :timer.minutes(1)
+      rate_limit_scale = to_timeout(minute: 1)
       rate_limit_limit = 10
-      TuistWeb.RemoteIp |> stub(:get, fn _ -> remote_ip end)
+      stub(TuistWeb.RemoteIp, :get, fn _ -> remote_ip end)
 
       TuistWeb.RateLimit
       |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
@@ -22,8 +23,7 @@ defmodule TuistWeb.API.AuthControllerTest do
         {:deny, 1}
       end)
     else
-      TuistWeb.RateLimit
-      |> stub(:hit, fn _, _, _ ->
+      stub(TuistWeb.RateLimit, :hit, fn _, _, _ ->
         {:allow, 1000}
       end)
     end
@@ -37,9 +37,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       device_code = "AOKJ-1234"
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/auth/device_code/#{device_code}")
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code}")
 
       # Then
       response = json_response(conn, :accepted)
@@ -52,9 +50,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       device_code = Accounts.create_device_code("AOKJ-1234")
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/auth/device_code/#{device_code.code}")
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code.code}")
 
       # Then
       response = json_response(conn, :accepted)
@@ -63,16 +59,13 @@ defmodule TuistWeb.API.AuthControllerTest do
 
     test "returns bad request response if device code is expired", %{conn: conn} do
       # Given
-      Tuist.Time
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Time, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
       device_code =
         Accounts.create_device_code("AOKJ-1234", created_at: ~U[2024-04-30 10:14:30Z])
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/auth/device_code/#{device_code.code}")
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code.code}")
 
       # Then
       json_response(conn, :bad_request)
@@ -87,15 +80,11 @@ defmodule TuistWeb.API.AuthControllerTest do
       device_code =
         Accounts.create_device_code("AOKJ-1234", created_at: ~U[2024-04-30 10:14:30Z])
 
-      Tuist.Time
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:15:32Z] end)
-
+      stub(Tuist.Time, :utc_now, fn -> ~U[2024-04-30 10:15:32Z] end)
       Accounts.authenticate_device_code(device_code.code, user)
 
       # When
-      conn =
-        conn
-        |> get(~p"/api/auth/device_code/#{device_code.code}")
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code.code}")
 
       # Then
       response = json_response(conn, :ok)
@@ -128,9 +117,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       device_code = "AOKJ-1234"
 
       # When
-      conn =
-        conn
-        |> get(~p"/auth/device_codes/#{device_code}")
+      conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
       html_response(conn, 302)
@@ -141,14 +128,10 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       device_code = "AOKJ-1234"
 
-      conn =
-        conn
-        |> get(~p"/auth/device_codes/#{device_code}")
+      conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # When
-      conn =
-        conn
-        |> get(~p"/auth/device_codes/#{device_code}")
+      conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
       html_response(conn, 302)
@@ -191,8 +174,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       refresh_token = "refresh_token"
 
-      Tuist.Authentication
-      |> expect(:refresh, fn ^refresh_token, ttl: {4, :weeks} ->
+      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}] ->
         {:error, :expired_token}
       end)
 
@@ -227,7 +209,7 @@ defmodule TuistWeb.API.AuthControllerTest do
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()
-      user = AccountsFixtures.user_fixture(password: password) |> Tuist.Repo.preload(:account)
+      user = [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
 
       # When
       conn =
@@ -307,16 +289,14 @@ defmodule TuistWeb.API.AuthControllerTest do
       password = UUIDv7.generate()
 
       user =
-        AccountsFixtures.user_fixture(password: password) |> Tuist.Repo.preload(:account)
+        [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
 
       # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
+      conn = put_req_header(conn, "content-type", "application/json")
 
       # Then
       first_response =
-        json_response(conn |> post("/api/auth", %{email: user.email, password: password}), :ok)
+        conn |> post("/api/auth", %{email: user.email, password: password}) |> json_response(:ok)
 
       {:ok, access_token_claims} =
         assert Tuist.Authentication.decode_and_verify(first_response["access_token"], %{
@@ -337,10 +317,9 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert refresh_token_claims["preferred_username"] == user.account.name
 
       second_response =
-        json_response(
-          conn |> post("/api/auth", %{email: user.email, password: "password"}),
-          :too_many_requests
-        )
+        conn
+        |> post("/api/auth", %{email: user.email, password: "password"})
+        |> json_response(:too_many_requests)
 
       assert second_response == %{"message" => "You've exceeded the rate limit. Try again later."}
     end

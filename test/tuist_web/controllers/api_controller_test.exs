@@ -1,7 +1,8 @@
 defmodule TuistWeb.APIControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
@@ -22,7 +23,7 @@ defmodule TuistWeb.APIControllerTest do
       [{"script", attrs, _}] = Floki.find(document, "#api-reference")
       attrs = Map.new(attrs)
       assert attrs["data-url"] == "/api/spec"
-      data_configuration = attrs["data-configuration"] |> Jason.decode!()
+      data_configuration = Jason.decode!(attrs["data-configuration"])
       assert data_configuration["spec"] == %{"url" => "/api/spec"}
       assert data_configuration["theme"] == "purple"
       assert data_configuration["authentication"]["http"]["basic"] == %{}
@@ -35,7 +36,7 @@ defmodule TuistWeb.APIControllerTest do
       conn: conn
     } do
       # When
-      conn = conn |> get("/api/docs")
+      conn = get(conn, "/api/docs")
 
       # Then
       html = html_response(conn, 200)
@@ -43,7 +44,7 @@ defmodule TuistWeb.APIControllerTest do
       [{"script", attrs, _}] = Floki.find(document, "#api-reference")
       attrs = Map.new(attrs)
       assert attrs["data-url"] == "/api/spec"
-      data_configuration = attrs["data-configuration"] |> Jason.decode!()
+      data_configuration = Jason.decode!(attrs["data-configuration"])
       assert data_configuration["spec"] == %{"url" => "/api/spec"}
       assert data_configuration["theme"] == "purple"
       assert data_configuration["authentication"]["http"]["basic"] == %{}

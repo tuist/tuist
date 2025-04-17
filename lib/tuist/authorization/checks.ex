@@ -2,35 +2,31 @@ defmodule Tuist.Authorization.Checks do
   @moduledoc ~S"""
   This module contains check functions for the authorization of users and projects.
   """
+  alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.{User, Account}
+  alias Tuist.Accounts.User
   alias Tuist.Projects.Project
-  alias Tuist.Accounts
 
-  def user_role(%User{} = authenticated_user, %Project{} = project, role)
-      when role == :user do
+  def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
       id: project.account_id
     })
   end
 
-  def user_role(%User{} = authenticated_user, %Project{} = project, role)
-      when role == :admin do
+  def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :admin do
     Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
       id: project.account_id
     })
   end
 
-  def user_role(%User{} = authenticated_user, %Account{} = account, role)
-      when role == :user do
+  def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
       id: account.id
     })
   end
 
-  def user_role(%User{} = authenticated_user, %Account{} = account, role)
-      when role == :admin do
+  def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :admin do
     Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
       id: account.id
     })
@@ -64,17 +60,11 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def accounts_match(
-        %AuthenticatedAccount{account: %Account{} = authenticated_account},
-        %Account{} = account
-      ) do
+  def accounts_match(%AuthenticatedAccount{account: %Account{} = authenticated_account}, %Account{} = account) do
     authenticated_account.id == account.id
   end
 
-  def accounts_match(
-        %Project{account: %Account{} = project_account},
-        %Account{} = account
-      ) do
+  def accounts_match(%Project{account: %Account{} = project_account}, %Account{} = account) do
     project_account.id == account.id
   end
 

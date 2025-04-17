@@ -1,20 +1,17 @@
 defmodule TuistTestSupport.Fixtures.BillingFixtures do
   @moduledoc false
 
-  alias Tuist.Repo
   alias Tuist.Billing.Subscription
+  alias Tuist.Repo
 
   def subscription_fixture(opts \\ []) do
-    plan = opts |> Keyword.get(:plan, :pro)
+    plan = Keyword.get(opts, :plan, :pro)
 
-    subscription_id =
-      opts |> Keyword.get(:subscription_id, "#{TuistTestSupport.Utilities.unique_integer()}")
+    subscription_id = Keyword.get(opts, :subscription_id, "#{TuistTestSupport.Utilities.unique_integer()}")
 
-    status = opts |> Keyword.get(:status, "active")
+    status = Keyword.get(opts, :status, "active")
 
-    default_payment_method =
-      opts
-      |> Keyword.get(:default_payment_method, "#{TuistTestSupport.Utilities.unique_integer()}")
+    default_payment_method = Keyword.get(opts, :default_payment_method, "#{TuistTestSupport.Utilities.unique_integer()}")
 
     account_id =
       Keyword.get_lazy(opts, :account_id, fn ->
@@ -25,7 +22,8 @@ defmodule TuistTestSupport.Fixtures.BillingFixtures do
         ).id
       end)
 
-    Subscription.create_changeset(%Subscription{}, %{
+    %Subscription{}
+    |> Subscription.create_changeset(%{
       plan: plan,
       subscription_id: subscription_id,
       status: status,

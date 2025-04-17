@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.AuthenticationTokens do
   The schema for the API authentication tokens.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "AuthenticationTokens",

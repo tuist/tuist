@@ -3,7 +3,9 @@ defmodule Tuist.Accounts.UserToken do
   A module that represents the user tokens table.
   """
   use Ecto.Schema
+
   import Ecto.Query
+
   alias Tuist.Accounts.UserToken
 
   @hash_algorithm :sha256

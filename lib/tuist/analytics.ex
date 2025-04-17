@@ -17,22 +17,15 @@ defmodule Tuist.Analytics do
     [:analytics, :cache_artifact, :download]
   ]
 
-  def all_events() do
+  def all_events do
     @all_events
   end
 
-  def organization_create(
-        name,
-        %{email: email} = subject
-      ) do
+  def organization_create(name, %{email: email} = subject) do
     :telemetry.execute(
       [:analytics, :organization, :create],
       %{},
-      %{
-        name: name,
-        email: email
-      }
-      |> Map.merge(subject_parameters(subject))
+      Map.merge(%{name: name, email: email}, subject_parameters(subject))
     )
   end
 
@@ -40,7 +33,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :user, :authenticate],
       %{},
-      %{email: email} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{email: email}, subject_parameters(subject))
     )
   end
 
@@ -48,7 +41,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :user, :create],
       %{},
-      %{email: email} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{email: email}, subject_parameters(subject))
     )
   end
 
@@ -56,7 +49,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :page, :view],
       %{},
-      %{path: path} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{path: path}, subject_parameters(subject))
     )
   end
 
@@ -64,7 +57,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :preview, :upload],
       %{},
-      %{} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{}, subject_parameters(subject))
     )
   end
 
@@ -72,7 +65,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :preview, :download],
       %{},
-      %{} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{}, subject_parameters(subject))
     )
   end
 
@@ -80,7 +73,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :cache_artifact, :upload],
       %{size: size},
-      %{category: category} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{category: category}, subject_parameters(subject))
     )
   end
 
@@ -88,7 +81,7 @@ defmodule Tuist.Analytics do
     :telemetry.execute(
       [:analytics, :cache_artifact, :download],
       %{size: size},
-      %{category: category} |> Map.merge(subject_parameters(subject))
+      Map.merge(%{category: category}, subject_parameters(subject))
     )
   end
 

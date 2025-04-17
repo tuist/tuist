@@ -1,8 +1,10 @@
 defmodule TuistWeb.ProjectsLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
   import TuistWeb.Previews.PlatformIcon
+
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Authorization
@@ -137,7 +139,8 @@ defmodule TuistWeb.ProjectsLive do
     with true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
          {:ok, project} <- Projects.create_project(%{name: name, account: account}) do
       socket =
-        assign(socket, projects: [project | socket.assigns.projects])
+        socket
+        |> assign(projects: [project | socket.assigns.projects])
         |> push_event("close-modal", %{id: "create-project-form-modal"})
         |> push_event("close-modal", %{id: "create-project-form-empty-state-modal"})
 
@@ -158,7 +161,8 @@ defmodule TuistWeb.ProjectsLive do
   end
 
   defp last_command_date(project) do
-    Projects.get_last_command_event_date(project)
+    project
+    |> Projects.get_last_command_event_date()
     |> case do
       nil -> nil
       date -> Timex.from_now(date)

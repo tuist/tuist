@@ -1,23 +1,25 @@
 defmodule Tuist.AccountsTest do
-  alias Tuist.Accounts.AccountToken
-  alias Tuist.Base64
   use TuistTestSupport.Cases.DataCase, async: false
   use TuistTestSupport.Cases.StubCase, billing: true
-
-  alias Tuist.CommandEvents
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Accounts
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Environment
-  alias Tuist.Billing
-
   use Mimic
 
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserToken
+  alias Tuist.Base64
+  alias Tuist.Billing
+  alias Tuist.CommandEvents
+  alias Tuist.Environment
+  alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
   setup do
-    JOSE.JWT
-    |> stub(:peek_payload, fn _ ->
+    stub(JOSE.JWT, :peek_payload, fn _ ->
       %JOSE.JWT{
         fields: %{
           "iss" => "https://tuist.okta.com"
@@ -39,9 +41,7 @@ defmodule Tuist.AccountsTest do
 
     test "doesn't return organizations created more than an hour ago" do
       # Given
-      AccountsFixtures.organization_fixture(
-        created_at: DateTime.add(DateTime.utc_now(), -2, :hour)
-      )
+      AccountsFixtures.organization_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
 
       # When
       assert Accounts.new_organizations_in_last_hour() == []
@@ -86,8 +86,7 @@ defmodule Tuist.AccountsTest do
       billing_email = account.billing_email
       customer_name = account.name
 
-      Billing
-      |> expect(:create_customer, 1, fn %{name: ^customer_name, email: ^billing_email} ->
+      expect(Billing, :create_customer, 1, fn %{name: ^customer_name, email: ^billing_email} ->
         customer_id
       end)
 
@@ -95,7 +94,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.create_customer_when_absent(account)
 
       # Then
-      assert got == %Accounts.Account{account | customer_id: customer_id}
+      assert got == %{account | customer_id: customer_id}
     end
   end
 
@@ -123,7 +122,7 @@ defmodule Tuist.AccountsTest do
       first_user_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
       second_user_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
       today = ~U[2025-01-02 23:00:00Z]
-      DateTime |> stub(:utc_now, fn -> today end)
+      stub(DateTime, :utc_now, fn -> today end)
 
       CommandEventsFixtures.command_event_fixture(
         name: "generate",
@@ -205,7 +204,7 @@ defmodule Tuist.AccountsTest do
 
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Google" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -238,7 +237,7 @@ defmodule Tuist.AccountsTest do
 
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Okta" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -268,7 +267,7 @@ defmodule Tuist.AccountsTest do
 
     test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -298,7 +297,7 @@ defmodule Tuist.AccountsTest do
 
     test "organization_user? returns false if the user's sso does not match the organization's when both are Google" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -356,7 +355,7 @@ defmodule Tuist.AccountsTest do
 
     test "returns true if the user's sso matches the organization's" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -437,7 +436,7 @@ defmodule Tuist.AccountsTest do
   describe "belongs_to_sso_organization?/2" do
     test "returns true if the user's sso matches the organization's" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -470,7 +469,7 @@ defmodule Tuist.AccountsTest do
 
     test "returns false if the user's sso does not match the organization's" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -667,9 +666,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      Tuist.Environment
-      |> stub(:smtp_user_name, fn -> "smtp_user_name" end)
-
+      stub(Tuist.Environment, :smtp_user_name, fn -> "smtp_user_name" end)
       :ok
     end
 
@@ -706,9 +703,6 @@ defmodule Tuist.AccountsTest do
     # Then
     assert organization.id == hd(got).organization.id
   end
-
-  import TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts.{User, UserToken}
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -761,7 +755,7 @@ defmodule Tuist.AccountsTest do
   describe "create_organization/1" do
     test "doesn't start the billing trial if it's an on-premise environment" do
       # Given
-      Environment |> stub(:on_premise?, fn -> true end)
+      stub(Environment, :on_premise?, fn -> true end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -774,7 +768,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -801,7 +795,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization with SSO provider" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -824,7 +818,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization when billing is enabled" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -840,7 +834,7 @@ defmodule Tuist.AccountsTest do
   describe "create_organization!/1" do
     test "doesn't start the billing trial if it's an on-premise environment" do
       # Given
-      Environment |> stub(:on_premise?, fn -> true end)
+      stub(Environment, :on_premise?, fn -> true end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -853,7 +847,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -880,7 +874,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization with SSO provider" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -903,7 +897,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates an organization when billing is enabled" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -919,8 +913,7 @@ defmodule Tuist.AccountsTest do
   describe "delete_organization/1" do
     test "deletes an organization" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
-
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
       organization = Accounts.create_organization!(%{name: "tuist", creator: user})
       account = Accounts.get_account_from_organization(organization)
@@ -937,7 +930,7 @@ defmodule Tuist.AccountsTest do
   describe "find_or_create_user_from_oauth2" do
     test "handles creating another account with the same handle gracefully" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       first_oauth_identity = %{
         provider: :github,
@@ -1122,7 +1115,7 @@ defmodule Tuist.AccountsTest do
   describe "get_organization_by_handle/1" do
     test "gets a given organization account doing a case-insensitive search" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -1152,7 +1145,7 @@ defmodule Tuist.AccountsTest do
   describe "create_user/1" do
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
-      Environment |> stub(:on_premise?, fn -> true end)
+      stub(Environment, :on_premise?, fn -> true end)
       email = unique_user_email()
 
       # When
@@ -1166,7 +1159,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1186,7 +1179,7 @@ defmodule Tuist.AccountsTest do
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
 
       # Then
-      assert user.account.name == String.split(email, "@") |> List.first()
+      assert user.account.name == email |> String.split("@") |> List.first()
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
     end
@@ -1206,7 +1199,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user lowercasing the email" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       email = "#{unique_integer()}@TUIST.io"
 
       # When
@@ -1218,7 +1211,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when email has a dot in the username" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       email = "username.with.dot@tuist.io"
 
       # When
@@ -1234,19 +1227,20 @@ defmodule Tuist.AccountsTest do
 
     test "creates the user when there's already a user with the same handle derived from email" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       Accounts.create_user("foo@tuist.io")
 
       # When
       assert %{name: "foo1"} =
-               Accounts.create_user("foo@tuist.test")
+               "foo@tuist.test"
+               |> Accounts.create_user()
                |> elem(1)
                |> Accounts.get_account_from_user()
     end
 
     test "errors after attempting finding a unique account handle using suffixes" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       Accounts.create_user("foo@tuist.io")
       Accounts.create_user("foo1@tuist.io")
       Accounts.create_user("foo2@tuist.io")
@@ -1260,7 +1254,7 @@ defmodule Tuist.AccountsTest do
 
     test "errors after creating user with an email that already exists" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       Accounts.create_user("foo@tuist.io")
 
       # When
@@ -1366,9 +1360,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      Tuist.Environment
-      |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
-
+      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1393,8 +1385,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      Tuist.Environment
-      |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1431,9 +1422,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      Tuist.Environment
-      |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
-
+      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture()}
     end
 
@@ -1458,8 +1447,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      Tuist.Environment
-      |> stub(:smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -1547,7 +1535,7 @@ defmodule Tuist.AccountsTest do
   describe "find_or_create_user_from_oauth2/1" do
     test "creates a user from a github identity" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       # When
       user =
@@ -1565,7 +1553,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates a user from a google identity with a hosted domain" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       # When
       user =
@@ -1592,7 +1580,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates a user from a google identity without a hosted domain" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       # When
       user =
@@ -1679,9 +1667,7 @@ defmodule Tuist.AccountsTest do
   describe "get_account_from_customer_id/1" do
     test "returns the account with the given customer_id" do
       # Given
-      Stripe.Customer
-      |> stub(:create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
-
+      stub(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       customer_id = account.customer_id
@@ -1721,7 +1707,7 @@ defmodule Tuist.AccountsTest do
 
     test "deletes a user when a user belongs to the SSO organization" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
 
       organization =
         AccountsFixtures.organization_fixture(
@@ -1812,7 +1798,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_organization_members(organization, :admin)
 
       # Then
-      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+      assert [user_one.id, user_three.id] == got |> Enum.map(& &1.id) |> Enum.sort()
     end
 
     test "returns users of an organization" do
@@ -1838,12 +1824,12 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_organization_members(organization, :user)
 
       # Then
-      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+      assert [user_one.id, user_three.id] == got |> Enum.map(& &1.id) |> Enum.sort()
     end
 
     test "returns users of an organization with a google hosted domain" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user_one = AccountsFixtures.user_fixture()
 
       organization =
@@ -1890,12 +1876,12 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_organization_members(organization, :user)
 
       # Then
-      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+      assert [user_one.id, user_three.id] == got |> Enum.map(& &1.id) |> Enum.sort()
     end
 
     test "returns users of an organization with a given okta id" do
       # Given
-      Environment |> stub(:on_premise?, fn -> false end)
+      stub(Environment, :on_premise?, fn -> false end)
       user_one = AccountsFixtures.user_fixture()
 
       organization =
@@ -1926,8 +1912,7 @@ defmodule Tuist.AccountsTest do
           }
         })
 
-      JOSE.JWT
-      |> stub(:peek_payload, fn _ ->
+      stub(JOSE.JWT, :peek_payload, fn _ ->
         %JOSE.JWT{
           fields: %{
             "iss" => "https://different-org.okta.com"
@@ -1957,7 +1942,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_organization_members(organization, :user)
 
       # Then
-      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+      assert [user_one.id, user_three.id] == got |> Enum.map(& &1.id) |> Enum.sort()
     end
   end
 
@@ -2018,8 +2003,7 @@ defmodule Tuist.AccountsTest do
       # Given
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
-      Base64
-      |> expect(:encode, fn _ -> "generated-hash" end)
+      expect(Base64, :encode, fn _ -> "generated-hash" end)
 
       # When
       {_, got_token_value} =

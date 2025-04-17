@@ -2,16 +2,21 @@ defmodule TuistWeb.API.Spec do
   @moduledoc ~S"""
   A module that contains the spec of the Tuist API.
   """
-  alias OpenApiSpex.{Components, Info, OpenApi, Paths, Server, SecurityScheme}
-  alias TuistWeb.{Endpoint, Router}
-  @behaviour OpenApi
+  @behaviour OpenApiSpex.OpenApi
+
+  alias OpenApiSpex.Components
+  alias OpenApiSpex.Info
+  alias OpenApiSpex.OpenApi
+  alias OpenApiSpex.Paths
+  alias OpenApiSpex.SecurityScheme
+  alias OpenApiSpex.Server
+  alias TuistWeb.Endpoint
+  alias TuistWeb.Router
 
   @impl OpenApi
   def spec do
-    %OpenApi{
-      servers: [
-        Server.from_endpoint(Endpoint)
-      ],
+    OpenApiSpex.resolve_schema_modules(%OpenApi{
+      servers: [Server.from_endpoint(Endpoint)],
       info: %Info{
         title: "Tuist",
         version: "0.1.0",
@@ -30,8 +35,8 @@ defmodule TuistWeb.API.Spec do
       },
       security: [%{"authorization" => []}, %{"cookie" => []}],
       paths: Paths.from_router(Router)
-    }
+    })
+
     # Discover request/response schemas from path specs
-    |> OpenApiSpex.resolve_schema_modules()
   end
 end

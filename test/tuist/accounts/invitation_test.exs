@@ -1,8 +1,9 @@
 defmodule Tuist.InvitationTest do
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts.Invitation
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.Accounts.Invitation
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "create_changeset" do
     test "ensures the token is present" do

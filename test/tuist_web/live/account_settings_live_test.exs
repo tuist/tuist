@@ -4,6 +4,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
+
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -27,9 +28,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
   test "sets the right title", %{conn: conn, account: account} do
     # When
-    {:ok, _lv, html} =
-      conn
-      |> live(~p"/#{account.name}/settings")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
 
     assert html =~ "Settings · #{account.name} · Tuist"
   end
@@ -45,14 +44,11 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     Accounts.add_user_to_organization(user, organization)
 
-    conn =
-      conn
-      |> log_in_user(user)
+    conn = log_in_user(conn, user)
 
     # When / Then
     assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
-      conn
-      |> live(~p"/#{organization.account.name}/settings")
+      live(conn, ~p"/#{organization.account.name}/settings")
     end
   end
 
@@ -62,9 +58,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
          account: account
        } do
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{account.name}/settings")
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
 
     # Then
     assert has_element?(lv, "button", "Rename organization")
@@ -76,9 +70,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
          user: user
        } do
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{user.account.name}/settings")
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
 
     # Then
     assert has_element?(lv, "button", "Update username")

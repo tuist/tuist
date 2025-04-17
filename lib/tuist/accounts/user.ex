@@ -3,12 +3,14 @@ defmodule Tuist.Accounts.User do
   A module that represents the user table.
   """
   use Ecto.Schema
-  import Ecto.Changeset
   use Gettext, backend: TuistWeb.Gettext
-  alias Tuist.Accounts.DeviceCode
-  alias Tuist.Accounts.UserRole
-  alias Tuist.Accounts.Oauth2Identity
+
+  import Ecto.Changeset
+
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.DeviceCode
+  alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.UserRole
   alias Tuist.Projects.Project
 
   @valid_email_regex ~r/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
@@ -92,7 +94,7 @@ defmodule Tuist.Accounts.User do
     |> validate_change(:password, fn _field, value ->
       case ZXCVBN.zxcvbn(value) do
         %{score: score} = value when score < 3 ->
-          password_strength_to_messages(value) |> Enum.map(&{:password, &1})
+          value |> password_strength_to_messages() |> Enum.map(&{:password, &1})
 
         _ ->
           []
@@ -114,13 +116,13 @@ defmodule Tuist.Accounts.User do
   Confirms the account by setting `confirmed_at`.
   """
   def confirm_changeset(user) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     change(user, confirmed_at: now)
   end
 
   def gravatar_url(%__MODULE__{email: email}) do
     email = email |> String.trim() |> String.downcase()
-    hash = :crypto.hash(:md5, email) |> Base.encode16(case: :lower)
+    hash = :md5 |> :crypto.hash(email) |> Base.encode16(case: :lower)
     gravatar_url = "https://www.gravatar.com/avatar/" <> hash
 
     gravatar_url <> "?d=404"

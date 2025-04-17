@@ -18,9 +18,7 @@ defmodule TuistWeb.DashboardControllerTest do
 
       Accounts.update_last_visited_project(user, project.id)
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
       conn = get(conn, ~p"/dashboard")
@@ -37,9 +35,7 @@ defmodule TuistWeb.DashboardControllerTest do
       account = user.account
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
       conn = get(conn, ~p"/dashboard")
@@ -53,9 +49,7 @@ defmodule TuistWeb.DashboardControllerTest do
       user = AccountsFixtures.user_fixture()
       account = user.account
 
-      conn =
-        conn
-        |> log_in_user(user)
+      conn = log_in_user(conn, user)
 
       # When
       conn = get(conn, ~p"/dashboard")

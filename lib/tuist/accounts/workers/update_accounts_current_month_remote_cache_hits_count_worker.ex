@@ -4,36 +4,40 @@ defmodule Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountW
   which are used for billing purposes and to limit the API access and they are expensive to query.
   """
   use Oban.Worker
+
   import Ecto.Query
+
   alias Tuist.Accounts.Account
-  alias Tuist.Repo
   alias Tuist.CommandEvents.Event
   alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   @impl Oban.Worker
   def perform(_job) do
     now = Tuist.Time.naive_utc_now()
 
     Repo.transaction(fn ->
-      Repo.stream(get_accounts_with_remote_cache_hits_count_not_updated_today(now))
-      |> Stream.each(&update_current_month_remote_cache_hits_count(&1, %{now: now}))
-      |> Stream.run()
+      now
+      |> get_accounts_with_remote_cache_hits_count_not_updated_today()
+      |> Repo.stream()
+      |> Enum.each(&update_current_month_remote_cache_hits_count(&1, %{now: now}))
     end)
 
     :ok
   end
 
   def update_current_month_remote_cache_hits_count(account, %{now: now}) do
-    Account.billing_changeset(account, %{
+    account
+    |> Account.billing_changeset(%{
       current_month_remote_cache_hits_count:
-        get_current_month_remote_cache_hits_count_query(account, %{now: now}) |> Repo.one(),
+        account |> get_current_month_remote_cache_hits_count_query(%{now: now}) |> Repo.one(),
       current_month_remote_cache_hits_count_updated_at: now
     })
     |> Repo.update!()
   end
 
   def get_accounts_with_remote_cache_hits_count_not_updated_today(now) do
-    start_of_today = now |> Timex.beginning_of_day()
+    start_of_today = Timex.beginning_of_day(now)
 
     from(a in Account,
       where:

@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.CacheArtifactDownloadURL do
   The schema for the cache artifact download URL.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "CacheArtifactDownloadURL",

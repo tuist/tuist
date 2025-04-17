@@ -1,16 +1,15 @@
 defmodule TuistWeb.RunDetailLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
+
   import TuistWeb.Runs.RanByBadge
+
   alias Tuist.Projects
 
   @table_page_size 20
 
-  def mount(
-        _params,
-        _session,
-        %{assigns: %{selected_project: project, selected_run: run}} = socket
-      ) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
     run =
       Tuist.Repo.preload(
         run,
@@ -52,21 +51,22 @@ defmodule TuistWeb.RunDetailLive do
         } = socket
       ) do
     uri =
-      ("?" <>
-         URI.encode_query(
-           Map.take(params, [
-             "tab",
-             "selective-testing-page",
-             "selective-testing-sort-by",
-             "selective-testing-sort-order",
-             "binary-cache-page",
-             "binary-cache-sort-by",
-             "binary-cache-sort-order"
-           ])
-         ))
-      |> URI.new!()
+      URI.new!(
+        "?" <>
+          URI.encode_query(
+            Map.take(params, [
+              "tab",
+              "selective-testing-page",
+              "selective-testing-sort-by",
+              "selective-testing-sort-order",
+              "binary-cache-page",
+              "binary-cache-sort-by",
+              "binary-cache-sort-order"
+            ])
+          )
+      )
 
-    selective_testing_page = (params["selective-testing-page"] || "1") |> String.to_integer()
+    selective_testing_page = String.to_integer(params["selective-testing-page"] || "1")
     selective_testing_sort_by = params["selective-testing-sort-by"] || "module"
     selective_testing_sort_order = params["selective-testing-sort-order"] || "desc"
 
@@ -82,13 +82,13 @@ defmodule TuistWeb.RunDetailLive do
       )
 
     binary_cache_filter = params["binary-cache-filter"] || ""
-    binary_cache_page = (params["binary-cache-page"] || "1") |> String.to_integer()
+    binary_cache_page = String.to_integer(params["binary-cache-page"] || "1")
     binary_cache_sort_by = params["binary-cache-sort-by"] || "module"
     binary_cache_sort_order = params["binary-cache-sort-order"] || "desc"
 
     binary_cache_filtered_modules =
-      binary_cache_analytics.cacheable_targets
-      |> Enum.filter(
+      Enum.filter(
+        binary_cache_analytics.cacheable_targets,
         &String.contains?(String.downcase(&1.name), String.downcase(binary_cache_filter))
       )
 
@@ -153,7 +153,7 @@ defmodule TuistWeb.RunDetailLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{URI.encode_query(URI.decode_query(socket.assigns.uri.query) |> Map.put("binary-cache-filter", search))}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("binary-cache-filter", search) |> URI.encode_query()}"
       )
 
     {:noreply, socket}
@@ -225,12 +225,9 @@ defmodule TuistWeb.RunDetailLive do
 
     %{
       test_modules: test_modules,
-      selective_testing_local_hits_count:
-        test_modules |> Enum.count(&(&1.selective_testing_hit == :local)),
-      selective_testing_remote_hits_count:
-        test_modules |> Enum.count(&(&1.selective_testing_hit == :remote)),
-      selective_testing_misses_count:
-        test_modules |> Enum.count(&(&1.selective_testing_hit == :miss))
+      selective_testing_local_hits_count: Enum.count(test_modules, &(&1.selective_testing_hit == :local)),
+      selective_testing_remote_hits_count: Enum.count(test_modules, &(&1.selective_testing_hit == :remote)),
+      selective_testing_misses_count: Enum.count(test_modules, &(&1.selective_testing_hit == :miss))
     }
   end
 
@@ -244,19 +241,12 @@ defmodule TuistWeb.RunDetailLive do
         (local_test_target_hits ++ remote_test_target_hits)
 
     test_modules =
-      (Enum.map(
-         local_test_target_hits,
-         &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}
-       ) ++
-         Enum.map(
-           remote_test_target_hits,
-           &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}
-         ) ++
-         Enum.map(
-           test_misses,
-           &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}
-         ))
-      |> Enum.sort_by(& &1.name)
+      Enum.sort_by(
+        Enum.map(local_test_target_hits, &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}) ++
+          Enum.map(remote_test_target_hits, &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}) ++
+          Enum.map(test_misses, &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}),
+        & &1.name
+      )
 
     %{
       test_modules: test_modules,
@@ -283,18 +273,15 @@ defmodule TuistWeb.RunDetailLive do
 
     %{
       cacheable_targets: cacheable_targets,
-      binary_cache_local_hits_count:
-        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :local)),
-      binary_cache_remote_hits_count:
-        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :remote)),
-      binary_cache_misses_count: cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :miss))
+      binary_cache_local_hits_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :local)),
+      binary_cache_remote_hits_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :remote)),
+      binary_cache_misses_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :miss))
     }
   end
 
   # Deprecated way of obtaining binary cache analytics
   # Will be removed in the future
-  defp binary_cache_analytics(run)
-       when run.cacheable_targets != [] do
+  defp binary_cache_analytics(run) when run.cacheable_targets != [] do
     local_cache_target_hits = run.local_cache_target_hits || []
     remote_cache_target_hits = run.remote_cache_target_hits || []
 
@@ -303,16 +290,12 @@ defmodule TuistWeb.RunDetailLive do
         (local_cache_target_hits ++ remote_cache_target_hits)
 
     cacheable_targets =
-      (Enum.map(
-         local_cache_target_hits,
-         &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}
-       ) ++
-         Enum.map(
-           remote_cache_target_hits,
-           &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}
-         ) ++
-         Enum.map(cache_misses, &%{name: &1, binary_cache_hit: :miss, binary_cache_hash: nil}))
-      |> Enum.sort_by(& &1.name)
+      Enum.sort_by(
+        Enum.map(local_cache_target_hits, &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}) ++
+          Enum.map(remote_cache_target_hits, &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}) ++
+          Enum.map(cache_misses, &%{name: &1, binary_cache_hit: :miss, binary_cache_hash: nil}),
+        & &1.name
+      )
 
     %{
       cacheable_targets: cacheable_targets,

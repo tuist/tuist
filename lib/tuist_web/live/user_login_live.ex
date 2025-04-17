@@ -1,9 +1,10 @@
 defmodule TuistWeb.UserLoginLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  alias Tuist.Environment
 
   alias Phoenix.Flash
+  alias Tuist.Environment
 
   def mount(_params, _session, socket) do
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
@@ -152,7 +153,7 @@ defmodule TuistWeb.UserLoginLive do
     """
   end
 
-  defp oauth_configured?() do
+  defp oauth_configured? do
     Environment.github_auth_configured?() || Environment.google_oauth_configured?() ||
       Environment.okta_configured?()
   end

@@ -2,15 +2,17 @@ defmodule TuistWeb.Noora.Select do
   @moduledoc false
   use Phoenix.Component
 
-  import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Dropdown
+  import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Utils
+
+  alias Phoenix.HTML.FormField
 
   attr :id, :string, required: true, doc: "Unique identifier for the dropdown component"
 
   attr :label, :string, required: true, doc: "Main text displayed in the dropdown trigger"
 
-  attr :field, Phoenix.HTML.FormField, doc: "A Phoenix form field"
+  attr :field, FormField, doc: "A Phoenix form field"
 
   attr :name, :string
   attr :value, :string
@@ -30,7 +32,7 @@ defmodule TuistWeb.Noora.Select do
     attr :value, :string
   end
 
-  def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def select(%{field: %FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)

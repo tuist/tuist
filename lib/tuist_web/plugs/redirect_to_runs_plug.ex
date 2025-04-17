@@ -2,17 +2,15 @@ defmodule TuistWeb.RedirectToRunsPlug do
   @moduledoc """
   This plug redirects to the runs page if timescale is not available.
   """
-  import Plug.Conn
   use TuistWeb, :controller
+
+  import Plug.Conn
 
   def init(opts), do: opts
 
   def call(
         %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          },
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
           path_info: [account_handle, project_handle]
         } = conn,
         _opts

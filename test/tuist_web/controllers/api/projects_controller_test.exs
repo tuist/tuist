@@ -1,15 +1,16 @@
 defmodule TuistWeb.API.ProjectsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
-
-  alias Tuist.VCS
-  alias Tuist.GitHub
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
-  alias Tuist.Projects
-  alias TuistWeb.Authentication
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.GitHub
+  alias Tuist.Projects
+  alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Repository
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
@@ -22,9 +23,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -50,9 +49,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -76,9 +73,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     test "returns newly created project for a given organization",
          %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
       Accounts.add_user_to_organization(user, organization)
@@ -105,9 +100,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     test "returns newly created project for a given organization using project and organization names",
          %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
       Accounts.add_user_to_organization(user, organization)
@@ -136,9 +129,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -159,9 +150,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(name: "tuist-org")
 
@@ -175,16 +164,13 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       response = json_response(conn, :forbidden)
 
       assert response == %{
-               "message" =>
-                 "You don't have permission to create projects for the tuist-org account."
+               "message" => "You don't have permission to create projects for the tuist-org account."
              }
     end
 
     test "returns bad request when organization contains a dot", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -199,8 +185,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       response = json_response(conn, :bad_request)
 
       assert response == %{
-               "message" =>
-                 "Project name can't contain a dot. Please use a different name, such as my-project."
+               "message" => "Project name can't contain a dot. Please use a different name, such as my-project."
              }
     end
 
@@ -209,9 +194,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -226,8 +209,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       response = json_response(conn, :bad_request)
 
       assert response == %{
-               "message" =>
-                 "The project full handle tuist-org is not in the format of account-handle/project-handle."
+               "message" => "The project full handle tuist-org is not in the format of account-handle/project-handle."
              }
     end
 
@@ -236,9 +218,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -260,9 +240,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "returns project exists error", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
 
@@ -286,9 +264,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   describe "GET /api/projects" do
     test "lists all user projects", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       user_account = Accounts.get_account_from_user(user)
 
@@ -300,9 +276,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       project_two = ProjectsFixtures.project_fixture(account_id: user_account.id)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects")
+      conn = get(conn, "/api/projects")
 
       # Then
       response = json_response(conn, :ok)
@@ -313,7 +287,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist-org/#{project_one.name}",
                  "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
-                 "visibility" => project_one.visibility |> Atom.to_string()
+                 "visibility" => Atom.to_string(project_one.visibility)
                }
              end) != nil
 
@@ -323,7 +297,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist/#{project_two.name}",
                  "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
-                 "visibility" => project_two.visibility |> Atom.to_string()
+                 "visibility" => Atom.to_string(project_two.visibility)
                }
              end) != nil
 
@@ -348,9 +322,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       user_account = Accounts.get_account_from_user(user)
 
@@ -367,9 +339,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       project_two = ProjectsFixtures.project_fixture(account_id: user_account.id)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects")
+      conn = get(conn, "/api/projects")
 
       # Then
       response = json_response(conn, :ok)
@@ -380,7 +350,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist-org/#{project_one.name}",
                  "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
-                 "visibility" => project_one.visibility |> Atom.to_string()
+                 "visibility" => Atom.to_string(project_one.visibility)
                }
              end) != nil
 
@@ -390,7 +360,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist/#{project_two.name}",
                  "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
-                 "visibility" => project_two.visibility |> Atom.to_string()
+                 "visibility" => Atom.to_string(project_two.visibility)
                }
              end) != nil
 
@@ -401,17 +371,13 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   describe "GET /api/projects/{account_name}/{project_name}" do
     test "Returns a user's project by its handle", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{account.name}/#{project.name}")
+      conn = get(conn, "/api/projects/#{account.name}/#{project.name}")
 
       # Then
       response = json_response(conn, :ok)
@@ -431,9 +397,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
@@ -441,9 +405,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       Accounts.add_user_to_organization(user, organization)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{account.name}/#{project.name}")
+      conn = get(conn, "/api/projects/#{account.name}/#{project.name}")
 
       # Then
       response = json_response(conn, :ok)
@@ -460,14 +422,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "Returns a not found error if an account does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/non-existing-account/non-existing-project")
+      conn = get(conn, "/api/projects/non-existing-account/non-existing-project")
 
       # Then
       response = json_response(conn, :not_found)
@@ -479,16 +437,12 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "Returns a not found error if a project does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{account.name}/non-existing-project")
+      conn = get(conn, "/api/projects/#{account.name}/non-existing-project")
 
       # Then
       response = json_response(conn, :not_found)
@@ -504,18 +458,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
            user: user
          } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn =
-        conn
-        |> get("/api/projects/#{account.name}/#{project.name}")
+      conn = get(conn, "/api/projects/#{account.name}/#{project.name}")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -530,9 +480,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     test "updates a project with a default branch", %{conn: conn, user: user} do
       # Given
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -552,9 +500,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "updates a project with public visibility", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -586,33 +532,28 @@ defmodule TuistWeb.API.ProjectsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            default_branch: "main",
            provider: :github,
            full_handle: "tuist/tuist"
          }}
       end)
 
-      GitHub.Client
-      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
+      expect(GitHub.Client, :get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
-      GitHub.Client
-      |> expect(:get_user_permission, fn %{
-                                           username: "tuist",
-                                           repository_full_handle: "tuist/tuist"
-                                         } ->
+      expect(GitHub.Client, :get_user_permission, fn %{
+                                                       username: "tuist",
+                                                       repository_full_handle: "tuist/tuist"
+                                                     } ->
         {:ok, %VCS.Repositories.Permission{permission: "admin"}}
       end)
 
@@ -634,9 +575,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       conn: conn,
       user: user
     } do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -659,9 +598,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     end
 
     test "returns :not_found when project does not exist", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       conn =
         conn
@@ -680,9 +617,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
            user: user
          } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -716,33 +651,28 @@ defmodule TuistWeb.API.ProjectsControllerTest do
           }
         })
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      GitHub.Client
-      |> expect(:get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
+      expect(GitHub.Client, :get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
-      GitHub.Client
-      |> expect(:get_repository, fn "tuist/tuist" ->
+      expect(GitHub.Client, :get_repository, fn "tuist/tuist" ->
         {:ok,
-         %VCS.Repositories.Repository{
+         %Repository{
            default_branch: "main",
            provider: :github,
            full_handle: "tuist/tuist"
          }}
       end)
 
-      GitHub.Client
-      |> expect(:get_user_permission, fn %{
-                                           username: "tuist",
-                                           repository_full_handle: "tuist/tuist"
-                                         } ->
+      expect(GitHub.Client, :get_user_permission, fn %{
+                                                       username: "tuist",
+                                                       repository_full_handle: "tuist/tuist"
+                                                     } ->
         {:error, "Not found"}
       end)
 
@@ -765,17 +695,13 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   describe "DELETE /api/projects/{id}" do
     test "Deletes a given project", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn =
-        conn
-        |> delete("/api/projects/#{project.id}")
+      conn = delete(conn, "/api/projects/#{project.id}")
 
       # Then
       response = response(conn, :no_content)
@@ -787,14 +713,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "Returns a not found error if a project does not exist", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> delete("/api/projects/1")
+      conn = delete(conn, "/api/projects/1")
 
       # Then
       response = json_response(conn, :not_found)
@@ -810,25 +732,20 @@ defmodule TuistWeb.API.ProjectsControllerTest do
            user: user
          } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn =
-        conn
-        |> delete("/api/projects/#{project.id}")
+      conn = delete(conn, "/api/projects/#{project.id}")
 
       # Then
       response = json_response(conn, :forbidden)
 
       assert response == %{
-               "message" =>
-                 "You don't have permission to delete the #{account.name}/#{project.name} project."
+               "message" => "You don't have permission to delete the #{account.name}/#{project.name} project."
              }
     end
   end

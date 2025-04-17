@@ -3,6 +3,7 @@ defmodule Tuist.Accounts.Role do
   A module that represents the roles table.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   schema "roles" do

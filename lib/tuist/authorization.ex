@@ -2,16 +2,18 @@ defmodule Tuist.Authorization do
   @moduledoc ~S"""
   A module to deal with authorization in the system.
   """
-  alias Tuist.CommandEvents
-  alias Tuist.Previews.Preview
-  alias Tuist.VCS
-  alias Tuist.Environment
-  alias Tuist.Projects.Project
-  alias Tuist.Accounts
-  alias Tuist.Billing
-  alias Tuist.Accounts.{User, Account}
-  alias Tuist.Repo
   use LetMe.Policy
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.User
+  alias Tuist.Billing
+  alias Tuist.CommandEvents
+  alias Tuist.Environment
+  alias Tuist.Previews.Preview
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
+  alias Tuist.VCS
 
   object :project_run do
     action :create do
@@ -108,9 +110,7 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
-  def can(%User{} = user, :update, %Project{} = project, %{
-        repository: %VCS.Repositories.Repository{} = repository
-      }) do
+  def can(%User{} = user, :update, %Project{} = project, %{repository: %VCS.Repositories.Repository{} = repository}) do
     account = Accounts.get_account_by_id(project.account_id)
 
     if can(user, :update, account, :project) do
@@ -286,12 +286,12 @@ defmodule Tuist.Authorization do
   end
 
   def can(subject, :read, %Preview{} = preview) do
-    preview = preview |> Repo.preload(:project)
+    preview = Repo.preload(preview, :project)
     can(subject, :read, preview.project, :preview)
   end
 
   def can(subject, :read, %CommandEvents.Event{} = command_event) do
-    command_event = command_event |> Repo.preload(:project)
+    command_event = Repo.preload(command_event, :project)
     can?(:project_run_read, subject, command_event.project)
   end
 

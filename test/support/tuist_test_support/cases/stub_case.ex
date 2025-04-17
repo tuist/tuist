@@ -2,10 +2,11 @@ defmodule TuistTestSupport.Cases.StubCase do
   @moduledoc ~S"""
   This module shares common setup for stubbing core services like the billing logic.
   """
-  alias TuistTestSupport.Cases.ConnCase
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use ExUnit.CaseTemplate
+
+  alias TuistTestSupport.Cases.ConnCase
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   using options do
     quote do
@@ -13,7 +14,7 @@ defmodule TuistTestSupport.Cases.StubCase do
 
       if unquote(options)[:billing] do
         setup do
-          Tuist.Billing |> stub(:create_customer, fn _ -> "cust_#{UUIDv7.generate()}" end)
+          stub(Tuist.Billing, :create_customer, fn _ -> "cust_#{UUIDv7.generate()}" end)
           :ok
         end
       end

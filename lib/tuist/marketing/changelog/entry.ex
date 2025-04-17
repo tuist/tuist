@@ -15,7 +15,7 @@ defmodule Tuist.Marketing.Changelog.Entry do
   ]
 
   def build(_filename, attrs, body) do
-    title = attrs["title"] |> String.trim_trailing(".")
+    title = String.trim_trailing(attrs["title"], ".")
 
     struct!(__MODULE__,
       category: attrs["category"],

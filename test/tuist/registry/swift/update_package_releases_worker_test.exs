@@ -3,15 +3,13 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.Time
   alias Tuist.Registry.Swift.Packages
-  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
   alias Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker
+  alias Tuist.Time
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
   setup do
-    Environment
-    |> stub(:github_token_update_package_releases, fn -> "github_token" end)
-
+    stub(Environment, :github_token_update_package_releases, fn -> "github_token" end)
     :ok
   end
 
@@ -38,11 +36,9 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
         preload: [:package_releases]
       )
 
-    Time
-    |> stub(:utc_now, fn -> ~U[2024-07-31 00:03:00Z] end)
+    stub(Time, :utc_now, fn -> ~U[2024-07-31 00:03:00Z] end)
 
-    Packages
-    |> stub(:create_missing_package_releases, fn
+    stub(Packages, :create_missing_package_releases, fn
       %{package: ^package_one, token: "github_token"} -> :ok
       %{package: ^package_two, token: "github_token"} -> :ok
       %{package: ^package_four, token: "github_token"} -> :ok

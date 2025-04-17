@@ -4,6 +4,7 @@ defmodule TuistWeb.Noora.Checkbox do
   """
 
   use Phoenix.Component
+
   import TuistWeb.Noora.Icon
 
   attr :label, :string, required: true, doc: "The label of the checkbox."

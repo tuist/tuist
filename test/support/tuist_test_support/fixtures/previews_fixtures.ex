@@ -6,7 +6,8 @@ defmodule TuistTestSupport.Fixtures.PreviewsFixtures do
 
   def preview_fixture(opts \\ []) do
     project =
-      Keyword.get_lazy(opts, :project, fn ->
+      opts
+      |> Keyword.get_lazy(:project, fn ->
         ProjectsFixtures.project_fixture()
       end)
       |> Tuist.Repo.preload([:account])

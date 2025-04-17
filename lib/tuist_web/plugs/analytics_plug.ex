@@ -2,8 +2,10 @@ defmodule TuistWeb.AnalyticsPlug do
   @moduledoc ~S"""
   This plug is responsible for sending analytics events
   """
-  import Plug.Conn
   use TuistWeb, :controller
+
+  import Plug.Conn
+
   alias Tuist.Analytics
   alias TuistWeb.Authentication
 

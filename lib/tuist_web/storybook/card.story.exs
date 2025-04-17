@@ -2,11 +2,12 @@ defmodule TuistWeb.Storybook.Card do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def function, do: &TuistWeb.Noora.Card.card/1
+  alias TuistWeb.Noora.Card
+
+  def function, do: &Card.card/1
   def layout, do: :one_column
 
-  def imports,
-    do: [{TuistWeb.Noora.Card, [card_section: 1]}, {TuistWeb.Noora.Button, [button: 1]}]
+  def imports, do: [{Card, [card_section: 1]}, {TuistWeb.Noora.Button, [button: 1]}]
 
   def variations do
     [

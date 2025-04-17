@@ -7,6 +7,15 @@
 # General application configuration
 import Config
 
+# Error tracker
+config :error_tracker,
+  repo: Tuist.Repo,
+  enabled: false,
+  otp_app: :tuist,
+  ignorer: Tuist.ErrorTracker.Ignorer,
+  # 1 week
+  plugins: [{ErrorTracker.Plugins.Pruner, max_age: to_timeout(week: 1)}]
+
 # esbuild
 config :esbuild,
   version: "0.25.2",
@@ -35,58 +44,43 @@ config :esbuild,
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
 
-config :tuist,
-  ecto_repos: [Tuist.Repo],
-  generators: [timestamp_type: :utc_datetime],
-  api_pipeline_producer_module: OffBroadwayMemory.Producer,
-  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+config :excellent_migrations, start_after: "20240926093919"
 
-config :tuist, TuistWeb.Endpoint,
-  adapter: Bandit.PhoenixAdapter,
-  render_errors: [
-    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
-    layout: false
-  ],
-  pubsub_server: Tuist.PubSub,
-  live_view: [signing_salt: "laTbtzV8"]
+config :flop, repo: Tuist.Repo
 
-config :tuist, :urls,
-  production: "https://tuist.dev",
-  contact: "mailto:contact@tuist.dev",
-  grafana_dashboard:
-    "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
-  slack: "https://slack.tuist.dev",
-  bluesky: "https://bsky.app/profile/tuist.dev",
-  github: "https://github.com/tuist",
-  github_issues: "https://github.com/tuist/tuist/issues",
-  mastodon: "https://fosstodon.org/@tuist",
-  linkedin: "https://www.linkedin.com/company/tuistio",
-  newsletter: "https://lists.tuist.dev/subscription/form",
-  podcast: "https://podcast.tuist.dev",
-  peertube: "https://videos.tuist.dev",
-  status: "https://status.tuist.dev",
-  get_started: "https://docs.tuist.dev",
-  forum: "https://community.tuist.dev",
-  documentation: "https://docs.tuist.dev",
-  app_lifecycle_phase_start: "https://docs.tuist.dev/guides/start/new-project",
-  app_lifecycle_phase_develop: "https://docs.tuist.dev/guides/develop/projects",
-  app_lifecycle_phase_share: "https://docs.tuist.dev/guides/share/previews",
-  app_lifecycle_phase_measure: "https://docs.tuist.dev/server/introduction/why-a-server",
-  shop: "https://shop.tuist.dev"
+# Flags
+config :fun_with_flags, :cache, enabled: true, ttl: 600
 
-# Configures the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
+config :fun_with_flags, :cache_bust_notifications,
+  enabled: true,
+  adapter: FunWithFlags.Notifications.PhoenixPubSub,
+  client: Tuist.PubSub
+
+config :fun_with_flags, :persistence,
+  adapter: FunWithFlags.Store.Persistent.Ecto,
+  repo: Tuist.Repo,
+  ecto_table_name: "feature_flags",
+  ecto_primary_key_type: :binary_id
+
+config :guardian, Guardian.DB,
+  repo: Tuist.Repo,
+  schema_name: "tokens",
+  token_types: ["refresh"]
 
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
+
+config :mime, :types, %{
+  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
+  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
+  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
+}
+
+# Money
+config :money,
+  default_currency: :USD
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -97,20 +91,33 @@ config :tuist, Oban,
   notifier: Oban.Notifiers.PG,
   queues: [default: 10]
 
-config :ueberauth, Ueberauth,
-  base_path: "/users/auth",
-  providers: [
-    github: {Ueberauth.Strategy.Github, []},
-    google: {Ueberauth.Strategy.Google, []},
-    okta: {Ueberauth.Strategy.Okta, []}
-  ]
+config :tuist, Tuist.Cache,
+  # Max 1 million entries in cache
+  max_size: 1_000_000,
+  # Max 2 GB of memory
+  allocated_memory: 2_000_000_000,
+  # GC min timeout: 10 sec
+  gc_cleanup_min_timeout: to_timeout(second: 10),
+  # GC max timeout: 10 min
+  gc_cleanup_max_timeout: to_timeout(minute: 10)
 
-config :flop, repo: Tuist.Repo
+# Configures the mailer
+#
+# By default it uses the "Local" adapter which stores the emails
+# locally. You can see the emails in your browser, at "/dev/mailbox".
+#
+# For production it's recommended to configure a different adapter
+# at the `config/runtime.exs`.
+config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
-config :guardian, Guardian.DB,
-  repo: Tuist.Repo,
-  schema_name: "tokens",
-  token_types: ["refresh"]
+config :tuist, TuistWeb.Endpoint,
+  adapter: Bandit.PhoenixAdapter,
+  render_errors: [
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
+    layout: false
+  ],
+  pubsub_server: Tuist.PubSub,
+  live_view: [signing_salt: "laTbtzV8"]
 
 config :tuist, :blocked_handles, [
   "admin",
@@ -227,51 +234,43 @@ config :tuist, :blocked_handles, [
   "jobs"
 ]
 
-config :tuist, Tuist.Cache,
-  # Max 1 million entries in cache
-  max_size: 1_000_000,
-  # Max 2 GB of memory
-  allocated_memory: 2_000_000_000,
-  # GC min timeout: 10 sec
-  gc_cleanup_min_timeout: :timer.seconds(10),
-  # GC max timeout: 10 min
-  gc_cleanup_max_timeout: :timer.minutes(10)
+config :tuist, :urls,
+  production: "https://tuist.dev",
+  contact: "mailto:contact@tuist.dev",
+  grafana_dashboard: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
+  slack: "https://slack.tuist.dev",
+  bluesky: "https://bsky.app/profile/tuist.dev",
+  github: "https://github.com/tuist",
+  github_issues: "https://github.com/tuist/tuist/issues",
+  mastodon: "https://fosstodon.org/@tuist",
+  linkedin: "https://www.linkedin.com/company/tuistio",
+  newsletter: "https://lists.tuist.dev/subscription/form",
+  podcast: "https://podcast.tuist.dev",
+  peertube: "https://videos.tuist.dev",
+  status: "https://status.tuist.dev",
+  get_started: "https://docs.tuist.dev",
+  forum: "https://community.tuist.dev",
+  documentation: "https://docs.tuist.dev",
+  app_lifecycle_phase_start: "https://docs.tuist.dev/guides/start/new-project",
+  app_lifecycle_phase_develop: "https://docs.tuist.dev/guides/develop/projects",
+  app_lifecycle_phase_share: "https://docs.tuist.dev/guides/share/previews",
+  app_lifecycle_phase_measure: "https://docs.tuist.dev/server/introduction/why-a-server",
+  shop: "https://shop.tuist.dev"
 
-config :excellent_migrations, start_after: "20240926093919"
+config :tuist,
+  ecto_repos: [Tuist.Repo],
+  generators: [timestamp_type: :utc_datetime],
+  api_pipeline_producer_module: OffBroadwayMemory.Producer,
+  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
 
-# Error tracker
-config :error_tracker,
-  repo: Tuist.Repo,
-  enabled: false,
-  otp_app: :tuist,
-  ignorer: Tuist.ErrorTracker.Ignorer,
-  # 1 week
-  plugins: [{ErrorTracker.Plugins.Pruner, max_age: :timer.hours(24 * 7)}]
-
-config :mime, :types, %{
-  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
-  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
-  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
-}
+config :ueberauth, Ueberauth,
+  base_path: "/users/auth",
+  providers: [
+    github: {Ueberauth.Strategy.Github, []},
+    google: {Ueberauth.Strategy.Google, []},
+    okta: {Ueberauth.Strategy.Okta, []}
+  ]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
-
-# Money
-config :money,
-  default_currency: :USD
-
-# Flags
-config :fun_with_flags, :cache, enabled: true, ttl: 600
-
-config :fun_with_flags, :persistence,
-  adapter: FunWithFlags.Store.Persistent.Ecto,
-  repo: Tuist.Repo,
-  ecto_table_name: "feature_flags",
-  ecto_primary_key_type: :binary_id
-
-config :fun_with_flags, :cache_bust_notifications,
-  enabled: true,
-  adapter: FunWithFlags.Notifications.PhoenixPubSub,
-  client: Tuist.PubSub

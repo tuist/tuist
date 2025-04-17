@@ -1,7 +1,8 @@
 defmodule Tuist.CommandEvents.TestCaseRunTest do
-  alias Tuist.CommandEvents.TestCaseRun
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.CommandEvents.TestCaseRun
 
   describe "create_changeset" do
     test "changeset is valid if all properties are set" do
@@ -67,10 +68,10 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
 
   defp test_case_run(attrs \\ []) do
     %{
-      status: attrs |> Keyword.get(:status, :success),
-      command_event_id: attrs |> Keyword.get(:command_event_id, 1),
-      test_case_id: attrs |> Keyword.get(:test_case_id, 1),
-      xcode_target_id: attrs |> Keyword.get(:xcode_target_id, UUIDv7.generate())
+      status: Keyword.get(attrs, :status, :success),
+      command_event_id: Keyword.get(attrs, :command_event_id, 1),
+      test_case_id: Keyword.get(attrs, :test_case_id, 1),
+      xcode_target_id: Keyword.get(attrs, :xcode_target_id, UUIDv7.generate())
     }
   end
 end

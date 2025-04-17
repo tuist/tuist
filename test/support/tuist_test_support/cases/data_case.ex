@@ -14,20 +14,23 @@ defmodule TuistTestSupport.Cases.DataCase do
   this option is not recommended for other databases.
   """
   use ExUnit.CaseTemplate
+
+  alias Ecto.Adapters.SQL.Sandbox
+
   require File
 
   using do
     quote do
-      alias Tuist.Repo
-
       use Oban.Testing, repo: Tuist.Repo
 
-      import Tuist.Ecto.Utils, only: [errors_on: 1]
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
+      import Tuist.Ecto.Utils, only: [errors_on: 1]
       import TuistTestSupport.Cases.DataCase
       import TuistTestSupport.Utilities
+
+      alias Tuist.Repo
     end
   end
 
@@ -40,7 +43,7 @@ defmodule TuistTestSupport.Cases.DataCase do
   Sets up the sandbox based on the test tags.
   """
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Tuist.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(Tuist.Repo, shared: not tags[:async])
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 end

@@ -1,14 +1,18 @@
 defmodule TuistWeb.Marketing.MarketingChangelogLive do
+  @moduledoc false
   use TuistWeb, :live_view
+
   import TuistWeb.Marketing.StructuredMarkup
 
+  alias Tuist.Marketing.Changelog
+
   def mount(params, _session, socket) do
-    entries = Tuist.Marketing.Changelog.get_entries()
-    categories = Tuist.Marketing.Changelog.get_categories()
-    category = params |> Map.get("category")
+    entries = Changelog.get_entries()
+    categories = Changelog.get_categories()
+    category = Map.get(params, "category")
 
     entries =
-      if is_nil(category), do: entries, else: entries |> Enum.filter(&(&1.category == category))
+      if is_nil(category), do: entries, else: Enum.filter(entries, &(&1.category == category))
 
     socket =
       socket
@@ -24,11 +28,11 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   end
 
   def handle_params(params, _url, socket) do
-    entries = Tuist.Marketing.Changelog.get_entries()
-    category = params |> Map.get("category")
+    entries = Changelog.get_entries()
+    category = Map.get(params, "category")
 
     entries =
-      if is_nil(category), do: entries, else: entries |> Enum.filter(&(&1.category == category))
+      if is_nil(category), do: entries, else: Enum.filter(entries, &(&1.category == category))
 
     {:noreply,
      socket

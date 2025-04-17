@@ -2,21 +2,18 @@ defmodule Tuist.Accounts.UserNotifier do
   @moduledoc """
   A module that sends emails to users.
   """
+  use Gettext, backend: TuistWeb.Gettext
+
   import Bamboo.Email
 
+  alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Mailer
-  alias Tuist.Accounts.User
-  use Gettext, backend: TuistWeb.Gettext
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
-    new_email(
-      to: recipient,
-      from: {"Tuist", Environment.smtp_user_name()},
-      subject: subject,
-      html_body: body
-    )
+    [to: recipient, from: {"Tuist", Environment.smtp_user_name()}, subject: subject, html_body: body]
+    |> new_email()
     |> Mailer.deliver_now!()
   end
 
@@ -94,10 +91,7 @@ defmodule Tuist.Accounts.UserNotifier do
   @doc """
   Deliver instructions to confirm account.
   """
-  def deliver_confirmation_instructions(%{
-        user: user,
-        confirmation_url: confirmation_url
-      }) do
+  def deliver_confirmation_instructions(%{user: user, confirmation_url: confirmation_url}) do
     deliver(
       user.email,
       gettext("Confirmation instructions"),
@@ -126,10 +120,7 @@ defmodule Tuist.Accounts.UserNotifier do
   @doc """
   Deliver instructions to reset a user password.
   """
-  def deliver_reset_password_instructions(%{
-        user: user,
-        reset_password_url: reset_password_url
-      }) do
+  def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
     deliver(
       user.email,
       gettext("Reset password instructions"),

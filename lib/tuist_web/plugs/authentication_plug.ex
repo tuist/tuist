@@ -1,16 +1,17 @@
 defmodule TuistWeb.AuthenticationPlug do
-  import Plug.Conn
-  use TuistWeb, :controller
-
   @moduledoc """
   A plug that deals with authentication of requests.
   """
+  use TuistWeb, :controller
+
+  import Plug.Conn
+
   alias Tuist.Accounts.AuthenticatedAccount
-  alias TuistWeb.Headers
-  alias Tuist.Projects
-  alias TuistWeb.WarningsHeaderPlug
   alias Tuist.Accounts.User
+  alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Headers
+  alias TuistWeb.WarningsHeaderPlug
 
   def init(:load_authenticated_subject = opts), do: opts
   def init({:require_authentication, _} = opts), do: opts
@@ -19,14 +20,14 @@ defmodule TuistWeb.AuthenticationPlug do
     token = TuistWeb.Authentication.get_app_installation_token_for_repository(conn)
 
     if token do
-      conn |> get_authenticated_subject(token)
+      get_authenticated_subject(conn, token)
     else
       conn
     end
   end
 
   def call(conn, {:require_authentication, opts}) do
-    response_type = opts |> Keyword.get(:response_type, :open_api)
+    response_type = Keyword.get(opts, :response_type, :open_api)
 
     if TuistWeb.Authentication.authenticated?(conn) do
       conn
@@ -45,7 +46,7 @@ defmodule TuistWeb.AuthenticationPlug do
     cache_key = [Atom.to_string(__MODULE__), "authenticated_subject", token]
 
     cache_opts = [
-      ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+      ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
       cache: Map.get(conn.assigns, :cache, :tuist)
     ]
 
@@ -67,23 +68,23 @@ defmodule TuistWeb.AuthenticationPlug do
         cli_version = Headers.get_cli_version(conn)
 
         conn =
-          if token |> Projects.legacy_token?() and not is_nil(cli_version) and
+          if Projects.legacy_token?(token) and not is_nil(cli_version) and
                Version.compare(cli_version, Version.parse!("4.20.0")) == :gt do
-            conn
-            |> WarningsHeaderPlug.put_warning(
+            WarningsHeaderPlug.put_warning(
+              conn,
               "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."
             )
           else
             conn
           end
 
-        conn |> TuistWeb.Authentication.put_current_project(project)
+        TuistWeb.Authentication.put_current_project(conn, project)
 
       %User{} = user ->
-        conn |> TuistWeb.Authentication.put_current_user(user)
+        TuistWeb.Authentication.put_current_user(conn, user)
 
       %AuthenticatedAccount{} = authenticated_account ->
-        conn |> assign(:current_subject, authenticated_account)
+        assign(conn, :current_subject, authenticated_account)
 
       nil ->
         conn

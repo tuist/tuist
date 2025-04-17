@@ -1,8 +1,6 @@
 defmodule Tuist.AWS.Client do
   # This shouldn't be necessary, but there's a bug in the client
   # provided by ExAWS that causes the request to blow up.
-  @behaviour ExAws.Request.HttpClient
-
   @moduledoc """
   Configuration for `m:Req`.
 
@@ -13,6 +11,8 @@ defmodule Tuist.AWS.Client do
 
   The default config handles setting the above.
   """
+
+  @behaviour ExAws.Request.HttpClient
 
   @default_opts [receive_timeout: 30_000]
 

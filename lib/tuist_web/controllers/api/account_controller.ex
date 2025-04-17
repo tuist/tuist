@@ -1,11 +1,13 @@
 defmodule TuistWeb.API.AccountController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+
+  import Tuist.Authorization
+
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias TuistWeb.API.Schemas.Account, as: AccountSchema
-  import Tuist.Authorization
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -13,6 +15,7 @@ defmodule TuistWeb.API.AccountController do
   )
 
   defmodule Error do
+    @moduledoc false
     require OpenApiSpex
 
     OpenApiSpex.schema(%{
@@ -54,17 +57,13 @@ defmodule TuistWeb.API.AccountController do
     responses: %{
       ok: {"Account successfully updated", "application/json", AccountSchema},
       bad_request: {"An error occurred while updating the account.", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to update your account.", "application/json", Error},
+      unauthorized: {"You need to be authenticated to update your account.", "application/json", Error},
       forbidden: {"You don't have permission to update this account.", "application/json", Error},
       not_found: {"An account with this handle was not found.", "application/json", Error}
     }
   )
 
-  def update_account(
-        %{path_params: %{"account_handle" => handle}, body_params: params} = conn,
-        _params
-      ) do
+  def update_account(%{path_params: %{"account_handle" => handle}, body_params: params} = conn, _params) do
     with %Account{} = account <- Accounts.get_account_by_handle(handle),
          true <- can(conn.assigns.current_user, :update, account, :organization),
          # The field is called `handle` in the public API, but `name` in our domain.

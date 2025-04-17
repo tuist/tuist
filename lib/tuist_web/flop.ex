@@ -18,8 +18,7 @@ defmodule TuistWeb.Flop do
         |> Map.put(:after, Keyword.get(attrs, :after))
 
       true ->
-        options
-        |> Map.put(:first, @page_size)
+        Map.put(options, :first, @page_size)
     end
   end
 end

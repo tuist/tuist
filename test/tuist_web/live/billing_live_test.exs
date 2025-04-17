@@ -4,8 +4,9 @@ defmodule TuistWeb.BillingLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
-  alias Tuist.Billing
+
   alias Tuist.Accounts
+  alias Tuist.Billing
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} = context do
@@ -15,15 +16,14 @@ defmodule TuistWeb.BillingLiveTest do
     %{account: account} =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
-        customer_id: if(account_without_customer, do: "customer_id", else: nil),
+        customer_id: if(account_without_customer, do: "customer_id"),
         creator: user,
         preload: [:account],
         current_month_remote_cache_hits_count: 167
       )
 
     if account_without_customer do
-      Billing
-      |> stub(:get_customer_by_id, fn _ ->
+      stub(Billing, :get_customer_by_id, fn _ ->
         %{
           id: UUIDv7.generate(),
           email: account.billing_email
@@ -31,13 +31,11 @@ defmodule TuistWeb.BillingLiveTest do
       end)
     end
 
-    Billing
-    |> stub(:get_subscription_current_period_end, fn _ ->
-      DateTime.now!("UTC") |> DateTime.shift(day: 3)
+    stub(Billing, :get_subscription_current_period_end, fn _ ->
+      "UTC" |> DateTime.now!() |> DateTime.shift(day: 3)
     end)
 
-    Billing
-    |> stub(:get_payment_method_by_id, fn _ ->
+    stub(Billing, :get_payment_method_by_id, fn _ ->
       %{
         id: "payment_method_id",
         card: %{
@@ -59,9 +57,7 @@ defmodule TuistWeb.BillingLiveTest do
 
   test "sets the right title", %{conn: conn, account: account} do
     # When
-    {:ok, _lv, html} =
-      conn
-      |> live(~p"/#{account.name}/billing")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/billing")
 
     assert html =~ "Billing · #{account.name} · Tuist"
   end
@@ -69,9 +65,7 @@ defmodule TuistWeb.BillingLiveTest do
   describe "no active plan" do
     test "renders the correct information", %{conn: conn, account: account} do
       # When
-      {:ok, lv, _html} =
-        conn
-        |> live(~p"/#{account.name}/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -81,8 +75,7 @@ defmodule TuistWeb.BillingLiveTest do
   describe "when air plan" do
     test "renders the correct information", %{conn: conn, account: account} do
       # Given
-      Billing
-      |> stub(:get_current_active_subscription, fn _ ->
+      stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :air,
           status: "active",
@@ -93,9 +86,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} =
-        conn
-        |> live(~p"/#{account.name}/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -109,8 +100,7 @@ defmodule TuistWeb.BillingLiveTest do
       account: account
     } do
       # Given
-      Billing
-      |> stub(:get_current_active_subscription, fn _ ->
+      stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :pro,
           status: "active",
@@ -121,9 +111,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} =
-        conn
-        |> live(~p"/#{account.name}/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -135,8 +123,7 @@ defmodule TuistWeb.BillingLiveTest do
       account: account
     } do
       # Given
-      Billing
-      |> stub(:get_current_active_subscription, fn _ ->
+      stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :pro,
           status: "active",
@@ -147,9 +134,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} =
-        conn
-        |> live(~p"/#{account.name}/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -159,8 +144,7 @@ defmodule TuistWeb.BillingLiveTest do
   describe "when enterprise" do
     test "renders billing when a user has the enterprise plan", %{conn: conn, account: account} do
       # Given
-      Billing
-      |> stub(:get_current_active_subscription, fn _ ->
+      stub(Billing, :get_current_active_subscription, fn _ ->
         %{
           plan: :enterprise,
           status: "active",
@@ -171,9 +155,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} =
-        conn
-        |> live(~p"/#{account.name}/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Enterprise")

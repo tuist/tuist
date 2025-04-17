@@ -15,12 +15,13 @@ defmodule TuistWeb.AppComponents do
   Icons are provided by [heroicons](https://heroicons.com). See `icon/1` for usage.
   """
   use Phoenix.Component
+  use Gettext, backend: TuistWeb.Gettext
+  use TuistWeb.Noora
+
+  import TuistWeb.Components.EmptyStateBackground
+  import TuistWeb.Components.IconComponents
 
   alias Phoenix.LiveView.JS
-  use Gettext, backend: TuistWeb.Gettext
-  import TuistWeb.Components.IconComponents
-  import TuistWeb.Components.EmptyStateBackground
-  use TuistWeb.Noora
 
   attr :id, :string, required: true, doc: "The id of the widget."
   attr :title, :string, required: true, doc: "The title of the widget."
@@ -171,8 +172,7 @@ defmodule TuistWeb.AppComponents do
     JS.show(js,
       to: selector,
       transition:
-        {"transition-all transform ease-out duration-300",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
+        {"transition-all transform ease-out duration-300", "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
          "opacity-100 translate-y-0 sm:scale-100"}
     )
   end
@@ -182,8 +182,7 @@ defmodule TuistWeb.AppComponents do
       to: selector,
       time: 200,
       transition:
-        {"transition-all transform ease-in duration-200",
-         "opacity-100 translate-y-0 sm:scale-100",
+        {"transition-all transform ease-in duration-200", "opacity-100 translate-y-0 sm:scale-100",
          "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
     )
   end

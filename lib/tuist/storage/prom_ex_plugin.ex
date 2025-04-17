@@ -3,6 +3,7 @@ defmodule Tuist.Storage.PromExPlugin do
   Defines custom Prometheus metrics for the Tuist storage events.
   """
   use PromEx.Plugin
+
   alias Tuist.Telemetry
 
   @impl true
@@ -133,8 +134,7 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name: Telemetry.event_name_storage_get_object_as_string(),
             measurement: :duration,
             unit: :millisecond,
-            description:
-              "The time in miliseconds that takes to download an object as string from the storage.",
+            description: "The time in miliseconds that takes to download an object as string from the storage.",
             reporter_options: [
               buckets: exponential!(100, 2, 15)
             ]
@@ -147,8 +147,7 @@ defmodule Tuist.Storage.PromExPlugin do
               :count
             ],
             event_name: Telemetry.event_name_storage_get_object_as_string(),
-            description:
-              "The count of objects that have been downloaded as string from the storage."
+            description: "The count of objects that have been downloaded as string from the storage."
           )
         ]
       ),
@@ -166,8 +165,7 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name: Telemetry.event_name_storage_check_object_existence(),
             measurement: :duration,
             unit: :millisecond,
-            description:
-              "The time in miliseconds that takes to check the existence of an object.",
+            description: "The time in miliseconds that takes to check the existence of an object.",
             reporter_options: [
               buckets: exponential!(100, 2, 15)
             ]
@@ -180,8 +178,7 @@ defmodule Tuist.Storage.PromExPlugin do
               :count
             ],
             event_name: Telemetry.event_name_storage_check_object_existence(),
-            description:
-              "The count of checks that have been performed to verify the existence of an object."
+            description: "The count of checks that have been performed to verify the existence of an object."
           )
         ]
       ),
@@ -199,8 +196,7 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name: Telemetry.event_name_storage_generate_download_presigned_url(),
             measurement: :duration,
             unit: :millisecond,
-            description:
-              "The time in miliseconds that takes to generate a pre-signed URL to download an object.",
+            description: "The time in miliseconds that takes to generate a pre-signed URL to download an object.",
             reporter_options: [
               buckets: exponential!(100, 2, 15)
             ]
@@ -213,8 +209,7 @@ defmodule Tuist.Storage.PromExPlugin do
               :count
             ],
             event_name: Telemetry.event_name_storage_generate_download_presigned_url(),
-            description:
-              "The count of pre-signed URLs that have been generated to download an object."
+            description: "The count of pre-signed URLs that have been generated to download an object."
           )
         ]
       ),
@@ -229,8 +224,7 @@ defmodule Tuist.Storage.PromExPlugin do
               :count
             ],
             event_name: Telemetry.event_name_storage_generate_upload_presigned_url(),
-            description:
-              "The count of pre-signed URLs that have been generated to upload an object."
+            description: "The count of pre-signed URLs that have been generated to upload an object."
           )
         ]
       ),
@@ -245,8 +239,7 @@ defmodule Tuist.Storage.PromExPlugin do
               :generate_upload_part_presigned_url,
               :count
             ],
-            event_name:
-              Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
+            event_name: Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
             description: "The count of pre-signed URLs that have been generated to upload a part."
           )
         ]
@@ -278,8 +271,7 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name: Telemetry.event_name_storage_multipart_complete_upload(),
             measurement: :duration,
             unit: :millisecond,
-            description:
-              "The time in miliseconds that takes the storage to complete a multi-part upload.",
+            description: "The time in miliseconds that takes the storage to complete a multi-part upload.",
             reporter_options: [
               buckets: exponential!(100, 2, 15)
             ]

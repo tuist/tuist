@@ -3,8 +3,9 @@ defmodule TuistWeb.API.Schemas.ArtifactUploadURL do
   The schema for an artifact upload URL.
   """
 
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     title: "ArtifactUploadURL",

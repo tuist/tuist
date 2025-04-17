@@ -1,18 +1,20 @@
 defmodule TuistWeb.UserSessionControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
-  alias TuistWeb.RemoteIp
-  alias TuistWeb.RateLimit
   use Gettext, backend: TuistWeb.Gettext
+
   import TuistTestSupport.Fixtures.AccountsFixtures
+
+  alias TuistWeb.RateLimit
+  alias TuistWeb.RemoteIp
 
   setup context do
     if Map.get(context, :rate_limited, false) do
       remote_ip = "127.0.0.1"
       rate_limit_key = "users_log_in:#{remote_ip}"
-      rate_limit_scale = :timer.minutes(1)
+      rate_limit_scale = to_timeout(minute: 1)
       rate_limit_limit = 10
-      RemoteIp |> stub(:get, fn _ -> remote_ip end)
+      stub(RemoteIp, :get, fn _ -> remote_ip end)
 
       RateLimit
       |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
@@ -22,8 +24,7 @@ defmodule TuistWeb.UserSessionControllerTest do
         {:deny, 1}
       end)
     else
-      RateLimit
-      |> stub(:hit, fn _, _, _ ->
+      stub(RateLimit, :hit, fn _, _, _ ->
         {:allow, 1000}
       end)
     end
@@ -84,13 +85,9 @@ defmodule TuistWeb.UserSessionControllerTest do
 
     test "login following registration", %{conn: conn, user: user} do
       conn =
-        conn
-        |> post(~p"/users/log_in", %{
+        post(conn, ~p"/users/log_in", %{
           "_action" => "registered",
-          "user" => %{
-            "email" => user.email,
-            "password" => valid_user_password()
-          }
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
       assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
@@ -99,13 +96,9 @@ defmodule TuistWeb.UserSessionControllerTest do
 
     test "login following password update", %{conn: conn, user: user} do
       conn =
-        conn
-        |> post(~p"/users/log_in", %{
+        post(conn, ~p"/users/log_in", %{
           "_action" => "password_updated",
-          "user" => %{
-            "email" => user.email,
-            "password" => valid_user_password()
-          }
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
       assert redirected_to(conn) == ~p"/users/settings"

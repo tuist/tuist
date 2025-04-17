@@ -1,29 +1,26 @@
 defmodule TuistWeb.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Repo
   alias Tuist.Storage
-  alias TuistWeb.Errors.UnauthorizedError
-  alias TuistWeb.Errors.NotFoundError
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.RunsController
-  use Mimic
 
   describe "download/2" do
     test "redirects to the result bundle download url when user has permission", %{conn: conn} do
       # Given
-      user =
-        AccountsFixtures.user_fixture()
-        |> Repo.preload(:account)
+      user = Repo.preload(AccountsFixtures.user_fixture(), :account)
 
-      conn = conn |> assign(:current_user, user)
+      conn = assign(conn, :current_user, user)
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
-      Storage
-      |> stub(:generate_download_url, fn _ -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn _ -> "https://tuist.io" end)
 
       # When
       conn =
@@ -38,7 +35,7 @@ defmodule TuistWeb.RunsControllerTest do
     test "raised NotFoundError when command event does not exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      conn = conn |> assign(:current_user, user)
+      conn = assign(conn, :current_user, user)
 
       # When
 
@@ -52,7 +49,7 @@ defmodule TuistWeb.RunsControllerTest do
     test "raises UnauthorizedError when user does not have permission", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      conn = conn |> assign(:current_user, user)
+      conn = assign(conn, :current_user, user)
       command_event = CommandEventsFixtures.command_event_fixture()
 
       # When

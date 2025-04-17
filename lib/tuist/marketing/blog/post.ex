@@ -25,7 +25,7 @@ defmodule Tuist.Marketing.Blog.Post do
   ]
 
   def build(_filename, attrs, body) do
-    title = attrs["title"] |> String.trim_trailing(".")
+    title = String.trim_trailing(attrs["title"], ".")
 
     struct!(__MODULE__,
       categories: attrs["categories"],

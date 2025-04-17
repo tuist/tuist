@@ -2,6 +2,8 @@ defmodule TuistWeb.OpsConfigurationLive do
   @moduledoc false
   use Phoenix.LiveDashboard.PageBuilder
 
+  alias Timex.Format.Duration.Formatters.Humanized
+
   @impl true
   def menu_link(_, _) do
     {:ok, "Configuration"}
@@ -32,26 +34,26 @@ defmodule TuistWeb.OpsConfigurationLive do
         value:
           Tuist.Environment.s3_request_timeout()
           |> Timex.Duration.from_seconds()
-          |> Timex.Format.Duration.Formatters.Humanized.format()
+          |> Humanized.format()
       },
       %{
         name: "S3 pool timeout",
         value:
           Tuist.Environment.s3_pool_timeout()
           |> Timex.Duration.from_seconds()
-          |> Timex.Format.Duration.Formatters.Humanized.format()
+          |> Humanized.format()
       },
       %{name: "S3 endpoint", value: Tuist.Environment.s3_endpoint()},
       %{
         name: "S3 authentication method",
-        value: Tuist.Environment.s3_authentication_method() |> Atom.to_string()
+        value: Atom.to_string(Tuist.Environment.s3_authentication_method())
       },
       %{name: "S3 bucket name", value: Tuist.Environment.s3_bucket_name()},
       %{name: "S3 connection pool size", value: Tuist.Environment.s3_pool_size()},
       %{name: "S3 connection pool count", value: Tuist.Environment.s3_pool_count()},
       %{
         name: "S3 connection protocol",
-        value: Tuist.Environment.s3_protocol() |> Atom.to_string()
+        value: Atom.to_string(Tuist.Environment.s3_protocol())
       }
     ]
 

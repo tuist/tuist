@@ -1,7 +1,8 @@
 defmodule Tuist.Accounts.UserTest do
   use TuistTestSupport.Cases.DataCase
-  alias TuistTestSupport.Fixtures.AccountsFixtures
+
   alias Tuist.Accounts.User
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "create_changeset" do
     test "downcases the email" do
@@ -48,7 +49,7 @@ defmodule Tuist.Accounts.UserTest do
   describe "gravatar_url/1" do
     test "generates the right avatar" do
       # When
-      got = AccountsFixtures.user_fixture(email: "tuist@tuist.io") |> User.gravatar_url()
+      got = [email: "tuist@tuist.io"] |> AccountsFixtures.user_fixture() |> User.gravatar_url()
 
       # Then
       assert got == "https://www.gravatar.com/avatar/0f3e9af754a1574f7b5fb3ab36e9b0b8?d=404"

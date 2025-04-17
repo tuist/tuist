@@ -1,14 +1,14 @@
 defmodule TuistWeb.RunDetailLiveTest do
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.XcodeFixtures
-
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
 
   import Phoenix.LiveViewTest
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -32,9 +32,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
     # Then
     assert has_element?(lv, "span", "Test Optimizations")
@@ -71,10 +69,7 @@ defmodule TuistWeb.RunDetailLiveTest do
 
     # When
     {:ok, lv, _html} =
-      conn
-      |> live(
-        ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
-      )
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations")
 
     # Then
     assert has_element?(lv, "span", "Compilation Optimizations")

@@ -1,20 +1,20 @@
 defmodule Tuist.CommandEventsTest do
-  alias Tuist.CommandEvents.TestCaseRun
-  alias Tuist.CommandEvents.TestCase
-  alias Tuist.CommandEvents.TargetTestSummary
-  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
-  alias Tuist.CommandEvents.TestSummary
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Storage
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
-  alias Tuist.CommandEvents
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.XcodeFixtures
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Time
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
+  alias Tuist.CommandEvents.TargetTestSummary
+  alias Tuist.CommandEvents.TestCase
+  alias Tuist.CommandEvents.TestCaseRun
+  alias Tuist.CommandEvents.TestSummary
+  alias Tuist.Storage
+  alias Tuist.Time
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "create_command_event/1" do
     test "truncates an error message if it's over 255 chars" do
@@ -85,14 +85,11 @@ defmodule Tuist.CommandEventsTest do
       event_name_run_command = Tuist.Telemetry.event_name_run_command()
       event_name_cache = Tuist.Telemetry.event_name_cache()
 
-      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100},
-                       %{command_event: ^command_event}}
+      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100}, %{command_event: ^command_event}}
 
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1},
-                       %{event_type: :local_hit}}
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :local_hit}}
 
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2},
-                       %{event_type: :remote_hit}}
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2}, %{event_type: :remote_hit}}
 
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
     end
@@ -104,10 +101,8 @@ defmodule Tuist.CommandEventsTest do
       user = AccountsFixtures.user_fixture()
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          user_id: user.id
-        )
+        [name: "generate", user_id: user.id]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       # When
@@ -121,17 +116,14 @@ defmodule Tuist.CommandEventsTest do
   describe "has_result_bundle?/1" do
     test "returns true if the result bundle exists" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      Storage
-      |> stub(:object_exists?, fn ^object_key -> true end)
+      stub(Storage, :object_exists?, fn ^object_key -> true end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -142,17 +134,14 @@ defmodule Tuist.CommandEventsTest do
 
     test "returns false if the result bundle does not exist" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      Storage
-      |> stub(:object_exists?, fn ^object_key -> false end)
+      stub(Storage, :object_exists?, fn ^object_key -> false end)
 
       # When
       got = CommandEvents.has_result_bundle?(command_event)
@@ -165,17 +154,14 @@ defmodule Tuist.CommandEventsTest do
   describe "get_result_bundle_url/1" do
     test "returns the result bundle URL" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      Storage
-      |> stub(:generate_download_url, fn ^object_key -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn ^object_key -> "https://tuist.io" end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)
@@ -192,12 +178,8 @@ defmodule Tuist.CommandEventsTest do
       project_two = ProjectsFixtures.project_fixture()
 
       command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "one",
-          duration: 1000,
-          created_at: ~N[2024-03-04 01:00:00]
-        )
+        [project_id: project.id, name: "one", duration: 1000, created_at: ~N[2024-03-04 01:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       CommandEventsFixtures.command_event_fixture(
@@ -208,39 +190,23 @@ defmodule Tuist.CommandEventsTest do
       )
 
       command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "two",
-          duration: 500,
-          created_at: ~N[2024-03-05 03:00:00]
-        )
+        [project_id: project.id, name: "two", duration: 500, created_at: ~N[2024-03-05 03:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "three",
-          duration: 500,
-          created_at: ~N[2024-03-05 04:00:00]
-        )
+        [project_id: project.id, name: "three", duration: 500, created_at: ~N[2024-03-05 04:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "four",
-          duration: 500,
-          created_at: ~N[2024-03-05 05:00:00]
-        )
+        [project_id: project.id, name: "four", duration: 500, created_at: ~N[2024-03-05 05:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       command_event_five =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "five",
-          duration: 500,
-          created_at: ~N[2024-03-05 06:00:00]
-        )
+        [project_id: project.id, name: "five", duration: 500, created_at: ~N[2024-03-05 06:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
       # When
@@ -309,9 +275,7 @@ defmodule Tuist.CommandEventsTest do
   describe "update_cache_event_counts/0" do
     test "updates cache event counts" do
       # Given
-      Time
-      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-
+      stub(Time, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       user_one = AccountsFixtures.user_fixture()
       account_one = Accounts.get_account_from_user(user_one)
       project_one = ProjectsFixtures.project_fixture(account_id: account_one.id)
@@ -400,9 +364,7 @@ defmodule Tuist.CommandEventsTest do
   describe "get_result_bundle_key/1" do
     test "returns the result bundle object key" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event =
         CommandEventsFixtures.command_event_fixture(project_id: project.id)
@@ -419,9 +381,7 @@ defmodule Tuist.CommandEventsTest do
   describe "get_result_bundle_invocation_record_key/1" do
     test "returns the result bundle invocation record object key" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event =
         CommandEventsFixtures.command_event_fixture(project_id: project.id)
@@ -438,9 +398,7 @@ defmodule Tuist.CommandEventsTest do
   describe "get_result_bundle_object_key/1" do
     test "returns the result bundle object key" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
       command_event =
         CommandEventsFixtures.command_event_fixture(project_id: project.id)
@@ -457,9 +415,7 @@ defmodule Tuist.CommandEventsTest do
   describe "get_test_summary/1" do
     test "returns nil if the invocation record does not exist" do
       # Given
-      command_event =
-        CommandEventsFixtures.command_event_fixture()
-        |> Repo.preload(project: :account)
+      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -467,8 +423,7 @@ defmodule Tuist.CommandEventsTest do
       invocation_record_object_key =
         "#{base_path}/invocation_record.json"
 
-      Storage
-      |> stub(:object_exists?, fn ^invocation_record_object_key ->
+      stub(Storage, :object_exists?, fn ^invocation_record_object_key ->
         false
       end)
 
@@ -481,9 +436,7 @@ defmodule Tuist.CommandEventsTest do
 
     test "gets test summary" do
       # Given
-      command_event =
-        CommandEventsFixtures.command_event_fixture()
-        |> Repo.preload(project: :account)
+      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -494,8 +447,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      Storage
-      |> stub(:object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -505,8 +457,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      Storage
-      |> stub(:get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -529,8 +480,7 @@ defmodule Tuist.CommandEventsTest do
                    "AppTests" => %TargetTestSummary{
                      tests: [
                        %ActionTestMetadata{
-                         identifier_url:
-                           "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello",
+                         identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello",
                          test_status: :success,
                          name: "testHello()"
                        }
@@ -542,8 +492,7 @@ defmodule Tuist.CommandEventsTest do
                    "Framework1Tests" => %TargetTestSummary{
                      tests: [
                        %ActionTestMetadata{
-                         identifier_url:
-                           "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+                         identifier_url: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
                          test_status: :success,
                          name: "testHello()"
                        },
@@ -561,14 +510,12 @@ defmodule Tuist.CommandEventsTest do
                    "Framework2Tests" => %TargetTestSummary{
                      tests: [
                        %ActionTestMetadata{
-                         identifier_url:
-                           "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+                         identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
                          test_status: :failure,
                          name: "testHello()"
                        },
                        %ActionTestMetadata{
-                         identifier_url:
-                           "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+                         identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
                          test_status: :success,
                          name: "testHello()"
                        }
@@ -582,9 +529,7 @@ defmodule Tuist.CommandEventsTest do
 
     test "gets test summary when there's no result bundle" do
       # Given
-      command_event =
-        CommandEventsFixtures.command_event_fixture()
-        |> Repo.preload(project: :account)
+      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -595,8 +540,7 @@ defmodule Tuist.CommandEventsTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      Storage
-      |> stub(:object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -606,8 +550,7 @@ defmodule Tuist.CommandEventsTest do
         end
       end)
 
-      Storage
-      |> stub(:get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -796,7 +739,7 @@ defmodule Tuist.CommandEventsTest do
       })
 
       # Then
-      assert Repo.all(TestCase) |> Enum.map(& &1.identifier) |> Enum.sort() == [
+      assert TestCase |> Repo.all() |> Enum.map(& &1.identifier) |> Enum.sort() == [
                "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
                "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
                "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
@@ -815,32 +758,29 @@ defmodule Tuist.CommandEventsTest do
         CommandEventsFixtures.test_summary_fixture(
           project_tests: %{
             "App/MainApp.xcodeproj" => %{
-              "AppTests" => %Tuist.CommandEvents.TargetTestSummary{
+              "AppTests" => %TargetTestSummary{
                 tests: [
-                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                  %ActionTestMetadata{
                     test_status: :success,
                     name: "testHello()",
-                    identifier_url:
-                      "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+                    identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
                   }
                 ],
                 status: :success
               }
             },
             "Framework2/Framework2.xcodeproj" => %{
-              "Framework2Tests" => %Tuist.CommandEvents.TargetTestSummary{
+              "Framework2Tests" => %TargetTestSummary{
                 tests: [
-                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                  %ActionTestMetadata{
                     test_status: :failure,
                     name: "testHello()",
-                    identifier_url:
-                      "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
+                    identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
                   },
-                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                  %ActionTestMetadata{
                     test_status: :success,
                     name: "testHello()",
-                    identifier_url:
-                      "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
+                    identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
                   }
                 ],
                 status: :failure
@@ -880,9 +820,7 @@ defmodule Tuist.CommandEventsTest do
       })
 
       test_case =
-        CommandEvents.get_test_case_by_identifier(
-          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-        )
+        CommandEvents.get_test_case_by_identifier("test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello")
 
       test_case_run =
         CommandEventsFixtures.test_case_run_fixture(
@@ -900,11 +838,7 @@ defmodule Tuist.CommandEventsTest do
 
       # The
       test_case_runs =
-        from(t in TestCaseRun,
-          where: t.command_event_id == ^command_event.id,
-          order_by: t.xcode_target_id
-        )
-        |> Repo.all()
+        Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id, order_by: t.xcode_target_id))
 
       assert test_case_runs |> Enum.map(& &1.flaky) |> Enum.sort() == [
                false,

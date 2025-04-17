@@ -1,13 +1,14 @@
 defmodule TuistWeb.API.RunsController do
+  use OpenApiSpex.ControllerSpecs
+  use TuistWeb, :controller
+
+  alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Runs.Build
   alias TuistWeb.Authentication
-  alias Tuist.Runs
-  alias OpenApiSpex.Schema
-  use OpenApiSpex.ControllerSpecs
-  use TuistWeb, :controller
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -95,15 +96,7 @@ defmodule TuistWeb.API.RunsController do
   )
 
   def index(
-        %{
-          assigns: %{selected_project: selected_project},
-          params:
-            %{
-              page_size: page_size,
-              page: page
-            } = params
-        } =
-          conn,
+        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
     filters =
@@ -120,11 +113,9 @@ defmodule TuistWeb.API.RunsController do
         order_directions: [:desc]
       })
 
-    conn
-    |> json(%{
+    json(conn, %{
       runs:
-        command_events
-        |> Enum.map(fn event ->
+        Enum.map(command_events, fn event ->
           event
           |> Map.take([
             :id,
@@ -147,10 +138,7 @@ defmodule TuistWeb.API.RunsController do
             :remote_test_target_hits,
             :preview_id
           ])
-          |> Map.put(
-            :url,
-            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
-          )
+          |> Map.put(:url, ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}")
         end)
     })
   end
@@ -205,13 +193,11 @@ defmodule TuistWeb.API.RunsController do
                },
                is_ci: %Schema{
                  type: :boolean,
-                 description:
-                   "Indicates if the run was executed on a Continuous Integration (CI) system."
+                 description: "Indicates if the run was executed on a Continuous Integration (CI) system."
                },
                model_identifier: %Schema{
                  type: :string,
-                 description:
-                   "Identifier for the model where the run was executed, such as MacBookAir10,1."
+                 description: "Identifier for the model where the run was executed, such as MacBookAir10,1."
                },
                scheme: %Schema{
                  type: :string,
@@ -240,21 +226,13 @@ defmodule TuistWeb.API.RunsController do
         }
       },
       unauthorized: {"You need to be authenticated to create a run", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
 
-  def create(
-        %{
-          assigns: %{selected_project: selected_project},
-          body_params: body_params
-        } = conn,
-        _params
-      ) do
+  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     build_params =
       body_params
       |> Map.put(:project, selected_project)
@@ -284,11 +262,11 @@ defmodule TuistWeb.API.RunsController do
         Runs.create_build(%{
           id: params.id,
           duration: params.duration,
-          macos_version: params |> Map.get(:macos_version),
-          xcode_version: params |> Map.get(:xcode_version),
-          is_ci: params |> Map.get(:is_ci),
-          model_identifier: params |> Map.get(:model_identifier),
-          scheme: params |> Map.get(:scheme),
+          macos_version: Map.get(params, :macos_version),
+          xcode_version: Map.get(params, :xcode_version),
+          is_ci: Map.get(params, :is_ci),
+          model_identifier: Map.get(params, :model_identifier),
+          scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.account.id,
           status: Map.get(params, :status, :success)

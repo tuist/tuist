@@ -4,7 +4,8 @@ defmodule Tuist.Tokens do
   """
 
   def generate_token(size \\ 32) do
-    :crypto.strong_rand_bytes(size)
+    size
+    |> :crypto.strong_rand_bytes()
     |> Base.url_encode64()
     |> String.replace("+", "-")
     |> String.replace("/", "_")

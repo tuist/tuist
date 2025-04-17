@@ -1,6 +1,4 @@
 defmodule TuistWeb.PreviewsLiveTest do
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
@@ -8,15 +6,15 @@ defmodule TuistWeb.PreviewsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+
   test "renders empty view when no previews are available", %{
     conn: conn,
     organization: organization,
     project: project
   } do
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert has_element?(lv, ".tuist-empty-state")
@@ -50,9 +48,7 @@ defmodule TuistWeb.PreviewsLiveTest do
       )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert has_element?(lv, "span", "AppOne")
@@ -75,9 +71,7 @@ defmodule TuistWeb.PreviewsLiveTest do
       )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}/previews")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert has_element?(lv, "span", "AppOne")

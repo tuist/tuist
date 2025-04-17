@@ -65,11 +65,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     end
   end
 
-  def authorize_project(
-        %{assigns: %{selected_project: selected_project}} = conn,
-        category,
-        opts \\ []
-      ) do
+  def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
     caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
 
@@ -89,7 +85,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
           cache_key,
           [
             cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, :timer.minutes(1))
+            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1))
           ],
           fn ->
             authorize(subject, action, selected_project, category)
@@ -105,8 +101,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       conn
       |> put_status(:forbidden)
       |> json(%{
-        message:
-          "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
       })
       |> halt()
     end

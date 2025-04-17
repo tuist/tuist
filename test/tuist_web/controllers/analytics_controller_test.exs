@@ -1,36 +1,34 @@
 defmodule TuistWeb.AnalyticsControllerTest do
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias Tuist.VCS
-  alias Tuist.Environment
-  alias Tuist.CommandEvents.TestCaseRun
-  alias Tuist.Repo
-  alias Tuist.Storage
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.CommandEvents
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.XcodeFixtures
-  alias Tuist.Accounts
-  alias TuistWeb.Authentication
-  import Ecto.Query, only: [from: 2]
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
+
+  import Ecto.Query, only: [from: 2]
+
+  alias Tuist.Accounts
+  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.TestCaseRun
+  alias Tuist.Environment
+  alias Tuist.Repo
+  alias Tuist.Storage
+  alias Tuist.VCS
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
+  alias TuistWeb.Authentication
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
 
-    Environment
-    |> stub(:github_app_configured?, fn -> true end)
-
+    stub(Environment, :github_app_configured?, fn -> true end)
     %{user: user}
   end
 
   describe "POST /api/analytics" do
     test "returns newly created command event", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
@@ -90,9 +88,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       ran_at_string = "2025-02-28T15:51:12Z"
 
@@ -130,16 +126,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
     test "returns newly created command event when the date is missing", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       date = ~U[2025-02-28 15:51:12Z]
 
-      DateTime
-      |> stub(:utc_now, fn -> date end)
+      stub(DateTime, :utc_now, fn -> date end)
 
       # When
       conn =
@@ -170,17 +163,14 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
     test "returns newly created preview command event", %{conn: conn, user: user} do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
 
-      VCS
-      |> expect(:post_vcs_pull_request_comment, fn _ ->
+      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
 
@@ -219,15 +209,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      VCS
-      |> expect(:post_vcs_pull_request_comment, fn _ ->
+      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
 
@@ -272,15 +259,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      VCS
-      |> expect(:post_vcs_pull_request_comment, fn _ ->
+      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
 
@@ -331,9 +315,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -379,15 +361,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       user: user
     } do
       # Given
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
+      conn = Authentication.put_current_user(conn, user)
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      VCS
-      |> expect(:post_vcs_pull_request_comment, fn _ ->
+      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
         :ok
       end)
 
@@ -447,14 +426,14 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.local_test_target_hits == []
       assert command_event.remote_test_target_hits == ["TargetATests"]
       assert command_event.xcode_graph.name == "Graph"
-      assert command_event.xcode_graph.xcode_projects |> Enum.map(& &1.name) == ["ProjectA"]
-      xcode_project = command_event.xcode_graph.xcode_projects |> hd()
-      xcode_targets = xcode_project.xcode_targets |> Enum.sort_by(& &1.name)
-      assert xcode_targets |> Enum.map(& &1.name) == ["TargetA", "TargetATests"]
-      assert xcode_targets |> Enum.map(& &1.binary_cache_hash) == ["hash-a", nil]
-      assert xcode_targets |> Enum.map(& &1.binary_cache_hit) == [:local, nil]
-      assert xcode_targets |> Enum.map(& &1.selective_testing_hash) == [nil, "hash-a-tests"]
-      assert xcode_targets |> Enum.map(& &1.selective_testing_hit) == [nil, :remote]
+      assert Enum.map(command_event.xcode_graph.xcode_projects, & &1.name) == ["ProjectA"]
+      xcode_project = hd(command_event.xcode_graph.xcode_projects)
+      xcode_targets = Enum.sort_by(xcode_project.xcode_targets, & &1.name)
+      assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, nil]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, :remote]
     end
   end
 
@@ -469,14 +448,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      Storage
-      |> expect(:multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -504,14 +480,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
-      Storage
-      |> expect(:multipart_start, fn ^object_key ->
+      expect(Storage, :multipart_start, fn ^object_key ->
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -544,17 +517,14 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key =
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      Storage
-      |> expect(:multipart_generate_url, fn ^object_key,
-                                            ^upload_id,
-                                            ^part_number,
-                                            [expires_in: _, content_length: 100] ->
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 100] ->
         upload_url
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -595,16 +565,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      Storage
-      |> expect(:multipart_complete_upload, fn ^object_key,
-                                               ^upload_id,
-                                               [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
+      expect(Storage, :multipart_complete_upload, fn ^object_key,
+                                                     ^upload_id,
+                                                     [{1, "etag1"}, {2, "etag2"}, {3, "etag3"}] ->
         :ok
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -631,7 +598,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture()
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        [project_id: project.id]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(project: :account)
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
@@ -681,8 +649,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      Storage
-      |> stub(:object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -692,8 +659,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      Storage
-      |> stub(:get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -703,9 +669,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -745,7 +709,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture()
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        [project_id: project.id]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(project: :account)
 
       xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
@@ -795,8 +760,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       test_plan_object_key =
         "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
 
-      Storage
-      |> stub(:object_exists?, fn object_key ->
+      stub(Storage, :object_exists?, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             true
@@ -806,8 +770,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      Storage
-      |> stub(:get_object_as_string, fn object_key ->
+      stub(Storage, :get_object_as_string, fn object_key ->
         case object_key do
           ^invocation_record_object_key ->
             CommandEventsFixtures.invocation_record_fixture()
@@ -817,9 +780,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         end
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      conn = Authentication.put_current_project(conn, project)
 
       FunWithFlags.enable(:flaky_test_detection, for_actor: project)
 
@@ -877,15 +838,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
       project = ProjectsFixtures.project_fixture()
 
       command_event =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        [project_id: project.id]
+        |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(project: :account)
 
-      Storage
-      |> stub(:object_exists?, fn _ -> false end)
-
-      conn =
-        conn
-        |> Authentication.put_current_project(project)
+      stub(Storage, :object_exists?, fn _ -> false end)
+      conn = Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -897,12 +855,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :no_content)
       assert response == %{}
 
-      test_case_runs =
-        from(
-          t in TestCaseRun,
-          where: t.command_event_id == ^command_event.id
-        )
-        |> Repo.all()
+      test_case_runs = Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id))
 
       assert Enum.empty?(test_case_runs) == true
     end

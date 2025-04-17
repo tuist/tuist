@@ -35,7 +35,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     {:ok, user} =
       Accounts.create_user(email, create_opts)
 
-    user |> Tuist.Repo.preload(preload)
+    Tuist.Repo.preload(user, preload)
   end
 
   def organization_fixture(opts \\ []) do
@@ -54,7 +54,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
-    Accounts.create_organization!(%{name: name, creator: creator},
+    %{name: name, creator: creator}
+    |> Accounts.create_organization!(
       sso_provider: sso_provider,
       sso_organization_id: sso_organization_id,
       created_at: created_at,

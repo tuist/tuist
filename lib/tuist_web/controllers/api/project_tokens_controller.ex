@@ -1,11 +1,12 @@
 defmodule TuistWeb.API.ProjectTokensController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias TuistWeb.API.Schemas.ProjectToken
-  alias Tuist.Projects
+
   alias OpenApiSpex.Schema
   alias Tuist.Authorization
+  alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.ProjectToken
   alias TuistWeb.Authentication
 
   tags ["Project tokens"]
@@ -45,25 +46,17 @@ defmodule TuistWeb.API.ProjectTokensController do
           required: [:token]
         }
       },
-      unauthorized:
-        {"You need to be authenticated to issue new tokens", "application/json", Error},
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
       forbidden: {"You need to be authorized to issue new tokens", "application/json", Error},
       not_found: {"The project was not found", "application/json", Error}
     }
   )
 
-  def create(
-        %{
-          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}
-        } = conn,
-        _params
-      ) do
+  def create(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
     project =
-      Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preload: [:account]
-      )
+      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
 
     cond do
       is_nil(project) ->
@@ -131,18 +124,11 @@ defmodule TuistWeb.API.ProjectTokensController do
     }
   )
 
-  def index(
-        %{
-          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}
-        } = conn,
-        _params
-      ) do
+  def index(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
     project =
-      Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preload: [:account]
-      )
+      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
 
     cond do
       is_nil(project) ->
@@ -159,7 +145,8 @@ defmodule TuistWeb.API.ProjectTokensController do
 
       true ->
         tokens =
-          Projects.get_project_tokens(project)
+          project
+          |> Projects.get_project_tokens()
           |> Enum.map(
             &%{
               id: &1.id,
@@ -201,31 +188,21 @@ defmodule TuistWeb.API.ProjectTokensController do
     responses: %{
       no_content: "The project token was revoked",
       not_found: {"The project token was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       bad_request: {"The provided token ID is not valid", "application/json", Error}
     }
   )
 
   def delete(
-        %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle,
-            "id" => token_id
-          }
-        } = conn,
+        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => token_id}} =
+          conn,
         _params
       ) do
     current_user = Authentication.current_user(conn)
 
     project =
-      Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preload: [:account]
-      )
+      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
 
     cond do
       is_nil(project) ->
@@ -245,8 +222,7 @@ defmodule TuistWeb.API.ProjectTokensController do
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message:
-            "The provided token ID #{token_id} is not valid. Make sure to pass a valid identifier."
+          message: "The provided token ID #{token_id} is not valid. Make sure to pass a valid identifier."
         })
 
       true ->
@@ -256,8 +232,7 @@ defmodule TuistWeb.API.ProjectTokensController do
           conn
           |> put_status(:not_found)
           |> json(%{
-            message:
-              "The #{account_handle}/#{project_handle} project token #{token_id} was not found"
+            message: "The #{account_handle}/#{project_handle} project token #{token_id} was not found"
           })
         else
           Projects.revoke_project_token(token)

@@ -1,9 +1,10 @@
 defmodule TuistWeb.API.ProjectTokensControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
   alias Tuist.Projects
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "POST /projects/:account_handle/:project_handle/tokens" do
     test "returns new project access token", %{conn: conn} do
@@ -17,12 +18,9 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
-      Projects
-      |> expect(:create_project_token, fn ^project -> "project_access_token" end)
+      expect(Projects, :create_project_token, fn ^project -> "project_access_token" end)
 
       # When
       conn =
@@ -39,9 +37,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -59,9 +55,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -81,9 +75,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_project(project)
+      conn = TuistWeb.Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -112,9 +104,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       token_one = Projects.create_project_token(project)
       token_two = Projects.create_project_token(project)
@@ -131,19 +121,13 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       {:ok, token_one} = Projects.get_project_token(token_one)
       {:ok, token_two} = Projects.get_project_token(token_two)
 
-      assert [
-               %{
-                 "id" => token_one.id,
-                 "inserted_at" =>
-                   token_one.inserted_at
-                   |> DateTime.to_iso8601()
-               },
-               %{
-                 "id" => token_two.id,
-                 "inserted_at" => token_two.inserted_at |> DateTime.to_iso8601()
-               }
-             ]
-             |> Enum.sort_by(& &1["id"]) == response["tokens"] |> Enum.sort_by(& &1["id"])
+      assert Enum.sort_by(
+               [
+                 %{"id" => token_one.id, "inserted_at" => DateTime.to_iso8601(token_one.inserted_at)},
+                 %{"id" => token_two.id, "inserted_at" => DateTime.to_iso8601(token_two.inserted_at)}
+               ],
+               & &1["id"]
+             ) == Enum.sort_by(response["tokens"], & &1["id"])
     end
 
     test "returns empty array if there are no project tokens", %{conn: conn} do
@@ -157,9 +141,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -177,9 +159,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -199,9 +179,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_project(project)
+      conn = TuistWeb.Authentication.put_current_project(conn, project)
 
       # When
       conn =
@@ -221,9 +199,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -249,9 +225,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       full_token = Projects.create_project_token(project)
 
@@ -267,7 +241,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
-      assert Projects.get_project_tokens(project) |> Enum.empty?() == true
+      assert project |> Projects.get_project_tokens() |> Enum.empty?() == true
     end
 
     test "returns forbidden when a user can't revoke a project token", %{conn: conn} do
@@ -275,14 +249,13 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       full_token = Projects.create_project_token(project)
 
       token =
-        Projects.get_project_tokens(project)
+        project
+        |> Projects.get_project_tokens()
         |> hd()
 
       # When
@@ -305,14 +278,13 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_project(project)
+      conn = TuistWeb.Authentication.put_current_project(conn, project)
 
       full_token = Projects.create_project_token(project)
 
       token =
-        Projects.get_project_tokens(project)
+        project
+        |> Projects.get_project_tokens()
         |> hd()
 
       # When
@@ -335,9 +307,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -361,17 +331,13 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> delete(
-          "/api/projects/#{project.account.name}/#{project.name}/tokens/0fcc7a05-4f0d-490d-8545-1fe3171a2880"
-        )
+        |> delete("/api/projects/#{project.account.name}/#{project.name}/tokens/0fcc7a05-4f0d-490d-8545-1fe3171a2880")
 
       # Then
       response = json_response(conn, :not_found)
@@ -393,9 +359,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
           preload: [:account]
         )
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -407,8 +371,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       response = json_response(conn, :bad_request)
 
       assert response == %{
-               "message" =>
-                 "The provided token ID invalid-token is not valid. Make sure to pass a valid identifier."
+               "message" => "The provided token ID invalid-token is not valid. Make sure to pass a valid identifier."
              }
     end
   end

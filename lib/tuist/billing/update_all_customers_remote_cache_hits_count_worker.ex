@@ -3,6 +3,7 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker do
   A job that gets pairs of customer id and remote cache hits count, and schedules jobs to push the measurement to Stripe.
   """
   use Oban.Worker, max_attempts: 1
+
   alias Tuist.Accounts
   alias Tuist.Billing.UpdateCustomerRemoteCacheHitsCountWorker
 
@@ -12,10 +13,11 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker do
   def perform(%{args: args}) do
     page_size = Map.get(args, "page_size", @page_size)
 
-    Accounts.list_customer_id_and_remote_cache_hits_count_pairs(%{
+    %{
       page: 1,
       page_size: page_size
-    })
+    }
+    |> Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
     |> process_results()
   end
 
@@ -24,12 +26,12 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker do
   end
 
   def process_results({customer_id_and_remote_cache_hits_count_pairs, meta}) do
-    Enum.each(customer_id_and_remote_cache_hits_count_pairs, fn {customer_id,
-                                                                 remote_cache_hits_count} ->
-      UpdateCustomerRemoteCacheHitsCountWorker.new(%{
+    Enum.each(customer_id_and_remote_cache_hits_count_pairs, fn {customer_id, remote_cache_hits_count} ->
+      %{
         customer_id: customer_id,
         remote_cache_hits_count: remote_cache_hits_count
-      })
+      }
+      |> UpdateCustomerRemoteCacheHitsCountWorker.new()
       |> Oban.insert()
     end)
 
@@ -40,7 +42,8 @@ defmodule Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker do
         :ok
 
       next_page ->
-        Accounts.list_customer_id_and_remote_cache_hits_count_pairs(next_page)
+        next_page
+        |> Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
         |> process_results()
     end
   end

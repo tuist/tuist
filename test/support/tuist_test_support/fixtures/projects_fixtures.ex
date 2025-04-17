@@ -1,8 +1,8 @@
 defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
   @moduledoc false
 
-  alias Tuist.Repo
   alias Tuist.Projects
+  alias Tuist.Repo
 
   def project_fixture(opts \\ []) do
     account_id =
@@ -18,11 +18,11 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     preload = Keyword.get(opts, :preload, [:account])
 
-    Projects.create_project!(
-      %{
-        name: name,
-        account: %{id: account_id}
-      },
+    %{
+      name: name,
+      account: %{id: account_id}
+    }
+    |> Projects.create_project!(
       created_at: created_at,
       visibility: Keyword.get(opts, :visibility, :private),
       vcs_provider: Keyword.get(opts, :vcs_provider),

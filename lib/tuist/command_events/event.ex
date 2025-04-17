@@ -3,10 +3,12 @@ defmodule Tuist.CommandEvents.Event do
   A module that represents the projects table.
   """
   use Ecto.Schema
-  import Ecto.Query
+
   import Ecto.Changeset
-  alias Tuist.Previews.Preview
+  import Ecto.Query
+
   alias Tuist.Accounts.User
+  alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
 
   @derive {
@@ -69,8 +71,7 @@ defmodule Tuist.CommandEvents.Event do
 
   def create_changeset(event, attrs) do
     changeset =
-      event
-      |> cast(attrs, [
+      cast(event, attrs, [
         :project_id,
         :name,
         :subcommand,
@@ -113,11 +114,11 @@ defmodule Tuist.CommandEvents.Event do
     )
     |> put_change(
       :remote_test_target_hits_count,
-      get_field(changeset, :remote_test_target_hits) |> length()
+      changeset |> get_field(:remote_test_target_hits) |> length()
     )
     |> put_change(
       :remote_cache_target_hits_count,
-      get_field(changeset, :remote_cache_target_hits) |> length()
+      changeset |> get_field(:remote_cache_target_hits) |> length()
     )
     |> validate_inclusion(:status, [:success, :failure])
   end

@@ -3,18 +3,16 @@ defmodule Tuist.Xcode do
   Module for interacting with Xcode primitives such as Xcode graphs.
   """
 
-  alias Tuist.Xcode.XcodeTarget
-  alias Tuist.Xcode.XcodeProject
-  alias Tuist.Xcode.XcodeGraph
   alias Tuist.Repo
+  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Xcode.XcodeProject
+  alias Tuist.Xcode.XcodeTarget
+
   require Logger
 
   def create_xcode_graph(%{
         command_event: %Tuist.CommandEvents.Event{id: command_event_id},
-        xcode_graph: %{
-          name: name,
-          projects: projects
-        }
+        xcode_graph: %{name: name, projects: projects}
       }) do
     {:ok, %{xcode_graph: xcode_graph}} =
       Ecto.Multi.new()
@@ -38,8 +36,7 @@ defmodule Tuist.Xcode do
   end
 
   defp build_xcode_projects(projects, %{xcode_graph: %{id: xcode_graph_id}}) do
-    projects
-    |> Enum.map(fn project ->
+    Enum.map(projects, fn project ->
       %{
         id: UUIDv7.generate(),
         xcode_graph_id: xcode_graph_id,
@@ -63,8 +60,7 @@ defmodule Tuist.Xcode do
       }
     end)
     |> Enum.flat_map(fn xcode_project ->
-      xcode_project.targets
-      |> Enum.map(&xcode_target_changeset(xcode_project.id, &1))
+      Enum.map(xcode_project.targets, &xcode_target_changeset(xcode_project.id, &1))
     end)
   end
 
@@ -92,7 +88,7 @@ defmodule Tuist.Xcode do
         |> Map.put(:binary_cache_hash, xcode_target["binary_cache_metadata"]["hash"])
         |> Map.put(
           :binary_cache_hit,
-          xcode_target["binary_cache_metadata"]["hit"] |> to_hit_value()
+          to_hit_value(xcode_target["binary_cache_metadata"]["hit"])
         )
       end
 
@@ -104,7 +100,7 @@ defmodule Tuist.Xcode do
         |> Map.put(:selective_testing_hash, xcode_target["selective_testing_metadata"]["hash"])
         |> Map.put(
           :selective_testing_hit,
-          xcode_target["selective_testing_metadata"]["hit"] |> String.to_atom()
+          String.to_atom(xcode_target["selective_testing_metadata"]["hit"])
         )
       end
 

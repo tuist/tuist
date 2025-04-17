@@ -1,19 +1,17 @@
 defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
-  alias Tuist.VCS.Repositories.Content
-  alias Tuist.VCS
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Environment
   alias Tuist.Registry.Swift.Packages
-  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
-  alias Tuist.Registry.Swift.Workers.UpdatePackagesWorker
   alias Tuist.Registry.Swift.Packages.Package
+  alias Tuist.Registry.Swift.Workers.UpdatePackagesWorker
+  alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Content
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
   setup do
-    Environment
-    |> stub(:github_token_update_packages, fn -> "github_token" end)
-
+    stub(Environment, :github_token_update_packages, fn -> "github_token" end)
     :ok
   end
 
@@ -21,8 +19,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     # Given
     PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
-    Packages
-    |> expect(:create_missing_package_releases, fn
+    expect(Packages, :create_missing_package_releases, fn
       %{
         package: %Package{
           scope: "onevcat",
@@ -34,13 +31,11 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
         :ok
     end)
 
-    VCS
-    |> stub(:get_repository_content, fn _, _ ->
+    stub(VCS, :get_repository_content, fn _, _ ->
       {:ok,
        %Content{
          path: "packages.json",
-         content:
-           "[\n  \"https://github.com/Alamofire/Alamofire.git\",\n  \"https://github.com/onevcat/Kingfisher.git\"]"
+         content: ~s([\n  "https://github.com/Alamofire/Alamofire.git",\n  "https://github.com/onevcat/Kingfisher.git"])
        }}
     end)
 
@@ -58,8 +53,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     # Given
     PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
-    VCS
-    |> stub(:get_repository_content, fn _, _ ->
+    stub(VCS, :get_repository_content, fn _, _ ->
       {:ok,
        %Content{
          path: "packages.json",
@@ -81,8 +75,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     # Given
     PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
-    Packages
-    |> expect(:create_missing_package_releases, fn
+    expect(Packages, :create_missing_package_releases, fn
       %{
         package: %Package{
           scope: "onevcat",
@@ -94,8 +87,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
         :ok
     end)
 
-    VCS
-    |> stub(:get_repository_content, fn _, _ ->
+    stub(VCS, :get_repository_content, fn _, _ ->
       {:ok,
        %Content{
          path: "packages.json",
@@ -121,8 +113,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
   test "creates missing package with a dot in its name" do
     # Given
 
-    Packages
-    |> expect(:create_missing_package_releases, fn
+    expect(Packages, :create_missing_package_releases, fn
       %{
         package: %Package{
           scope: "stephenceilis",
@@ -134,8 +125,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
         :ok
     end)
 
-    VCS
-    |> stub(:get_repository_content, fn _, _ ->
+    stub(VCS, :get_repository_content, fn _, _ ->
       {:ok,
        %Content{
          path: "packages.json",

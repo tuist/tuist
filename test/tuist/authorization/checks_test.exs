@@ -1,10 +1,11 @@
 defmodule Tuist.Authorization.ChecksTest do
-  alias Tuist.Accounts.AuthenticatedAccount
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
-  alias TuistTestSupport.Fixtures.AccountsFixtures
+
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization.Checks
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do

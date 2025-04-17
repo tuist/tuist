@@ -9,7 +9,7 @@ defmodule Tuist.IncidentsTest do
   describe "any_ongoing_incident?/0" do
     test "retries if the request fails" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       # Given
@@ -26,16 +26,16 @@ defmodule Tuist.IncidentsTest do
         }
       }
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
           {:error, %Req.TransportError{reason: :timeout}}
         end
       )
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
           {:ok, %Req.Response{status: 200, body: status}}
@@ -53,7 +53,7 @@ defmodule Tuist.IncidentsTest do
 
     test "returns true if there are ongoing incidents" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       # Given
@@ -70,8 +70,8 @@ defmodule Tuist.IncidentsTest do
         }
       }
 
-      Req
-      |> stub(
+      stub(
+        Req,
         :get,
         fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
           {:ok, %Req.Response{status: 200, body: status}}

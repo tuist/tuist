@@ -4,10 +4,11 @@ defmodule TuistWeb.OverviewLiveTest do
   use Mimic
 
   import Phoenix.LiveViewTest
-  alias TuistTestSupport.Fixtures.RunsFixtures
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
@@ -33,9 +34,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
   test "sets the right title", %{conn: conn, organization: organization, project: project} do
     # When
-    {:ok, _lv, html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}")
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
 
     assert html =~ "Overview · tuist-org/tuist · Tuist"
   end
@@ -46,8 +45,7 @@ defmodule TuistWeb.OverviewLiveTest do
     project: project
   } do
     # Given
-    DateTime
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
@@ -59,9 +57,7 @@ defmodule TuistWeb.OverviewLiveTest do
     )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(lv, ".tuist-widget span", "50.0%")
   end
@@ -72,8 +68,7 @@ defmodule TuistWeb.OverviewLiveTest do
     project: project
   } do
     # Given
-    DateTime
-    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
     RunsFixtures.build_fixture(
       project_id: project.id,
@@ -82,9 +77,7 @@ defmodule TuistWeb.OverviewLiveTest do
     )
 
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end
@@ -95,9 +88,7 @@ defmodule TuistWeb.OverviewLiveTest do
     project: project
   } do
     # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/#{organization.account.name}/#{project.name}")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
 
     assert has_element?(
              lv,

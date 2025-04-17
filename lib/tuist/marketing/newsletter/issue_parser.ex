@@ -58,10 +58,11 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
                        """)
 
   def parse(path, contents) do
-    issue_number = Path.basename(path) |> String.replace(".yml", "") |> String.to_integer()
+    issue_number = path |> Path.basename() |> String.replace(".yml", "") |> String.to_integer()
 
     attrs =
-      YamlElixir.read_from_string!(contents)
+      contents
+      |> YamlElixir.read_from_string!()
       |> Map.replace_lazy("date", &map_date/1)
       |> Map.replace_lazy("body", &md_to_html/1)
       |> Map.put("number", issue_number)
@@ -70,7 +71,7 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
       |> Map.replace_lazy("interview", &map_interview/1)
       |> Map.replace_lazy("food_for_thought", &food_for_thought/1)
 
-    attrs = attrs |> Map.put("plain_html", plain_html(attrs))
+    attrs = Map.put(attrs, "plain_html", plain_html(attrs))
 
     {attrs, attrs["body"]}
   end
@@ -81,13 +82,13 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
 
   defp map_tools(tools) do
     Enum.map(tools, fn tool ->
-      tool |> Map.replace_lazy("description", &md_to_html/1)
+      Map.replace_lazy(tool, "description", &md_to_html/1)
     end)
   end
 
   defp food_for_thought(food_for_thought) do
     Enum.map(food_for_thought, fn food ->
-      food |> Map.replace_lazy("description", &md_to_html/1)
+      Map.replace_lazy(food, "description", &md_to_html/1)
     end)
   end
 
@@ -95,22 +96,20 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
     interview
     |> Map.replace_lazy("interviewee_intro", &md_to_html/1)
     |> Map.replace_lazy("questions", fn questions ->
-      questions
-      |> Enum.map(fn %{"question" => question, "answer" => answer} ->
+      Enum.map(questions, fn %{"question" => question, "answer" => answer} ->
         %{"question" => question, "answer" => md_to_html(answer)}
       end)
     end)
   end
 
   defp md_to_html(md, opts \\ []) do
-    a_color = opts |> Keyword.get(:a_color, "#622ed4")
+    a_color = Keyword.get(opts, :a_color, "#622ed4")
 
     # Gmail doesn't support styling through <style></style>, so when converting markdown to HTML, we have to apply the right
     # styling at the element level by using "style" attributes.
     postprocessor =
-      Earmark.TagSpecificProcessors.new(
-        {"a", &Earmark.AstTools.merge_atts_in_node(&1, style: "color: #{a_color};")}
-      )
+      {"a", &Earmark.AstTools.merge_atts_in_node(&1, style: "color: #{a_color};")}
+      |> Earmark.TagSpecificProcessors.new()
       |> Earmark.TagSpecificProcessors.prepend_tag_function(
         {"blockquote",
          &Earmark.AstTools.merge_atts_in_node(&1,
@@ -122,8 +121,7 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
   end
 
   defp map_hero(hero) do
-    hero
-    |> Map.replace_lazy("subtitle", fn subtitle_md ->
+    Map.replace_lazy(hero, "subtitle", fn subtitle_md ->
       md_to_html(subtitle_md, a_color: "#622ed4")
     end)
   end
@@ -131,12 +129,7 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
   # The .heex format is designed for the Phoenix.LiveView.Engine to track changes
   # which is not a need for this use case.
   def plain_html(attrs) do
-    attrs =
-      attrs
-      |> Map.put(
-        "date_string",
-        Map.fetch!(attrs, "date") |> Timex.format!("{Mshort} {D}, {YYYY}")
-      )
+    attrs = Map.put(attrs, "date_string", attrs |> Map.fetch!("date") |> Timex.format!("{Mshort} {D}, {YYYY}"))
 
     @plain_html_template |> Solid.render!(attrs) |> to_string()
   end

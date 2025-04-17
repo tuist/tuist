@@ -1,10 +1,11 @@
 defmodule TuistWeb.BillingControllerTest do
   use TuistTestSupport.Cases.ConnCase
+  use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Billing
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias Tuist.Accounts
-  use Mimic
+  alias TuistWeb.Errors.UnauthorizedError
 
   describe "upgrade" do
     test "creates the customer and redirects to Stripe when user has permission and billing returns an external redirect request",
@@ -18,19 +19,17 @@ defmodule TuistWeb.BillingControllerTest do
         )
 
       success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
-      account_with_customer_id = %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      account_with_customer_id = %{account | customer_id: UUIDv7.generate()}
 
-      Accounts
-      |> stub(:create_customer_when_absent, fn _ ->
+      stub(Accounts, :create_customer_when_absent, fn _ ->
         account_with_customer_id
       end)
 
-      Billing
-      |> expect(:update_plan, fn %{
-                                   plan: :pro,
-                                   account: ^account_with_customer_id,
-                                   success_url: ^success_url
-                                 } ->
+      expect(Billing, :update_plan, fn %{
+                                         plan: :pro,
+                                         account: ^account_with_customer_id,
+                                         success_url: ^success_url
+                                       } ->
         {:ok, {:external_redirect, "https://stripe.com"}}
       end)
 
@@ -49,12 +48,11 @@ defmodule TuistWeb.BillingControllerTest do
 
       success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
-      Billing
-      |> expect(:update_plan, fn %{
-                                   plan: :pro,
-                                   account: ^account,
-                                   success_url: ^success_url
-                                 } ->
+      expect(Billing, :update_plan, fn %{
+                                         plan: :pro,
+                                         account: ^account,
+                                         success_url: ^success_url
+                                       } ->
         {:ok, {:external_redirect, "https://stripe.com"}}
       end)
 
@@ -74,12 +72,11 @@ defmodule TuistWeb.BillingControllerTest do
 
       success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
-      Billing
-      |> expect(:update_plan, fn %{
-                                   plan: :pro,
-                                   account: ^account,
-                                   success_url: ^success_url
-                                 } ->
+      expect(Billing, :update_plan, fn %{
+                                         plan: :pro,
+                                         account: ^account,
+                                         success_url: ^success_url
+                                       } ->
         :ok
       end)
 
@@ -96,7 +93,7 @@ defmodule TuistWeb.BillingControllerTest do
       organization_account = Accounts.get_account_from_organization(organization)
       user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
 
-      assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+      assert_raise UnauthorizedError, fn ->
         conn
         |> log_in_user(user)
         |> get("/#{organization_account.name}/billing/upgrade")
@@ -114,18 +111,15 @@ defmodule TuistWeb.BillingControllerTest do
           preload: [:account]
         )
 
-      Billing
-      |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)
+      expect(Billing, :create_session, fn _ -> %{url: "https://stripe.com"} end)
 
-      Accounts
-      |> expect(:create_customer_when_absent, fn ^account ->
-        %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      expect(Accounts, :create_customer_when_absent, fn ^account ->
+        %{account | customer_id: UUIDv7.generate()}
       end)
 
-      account_with_customer_id = %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      account_with_customer_id = %{account | customer_id: UUIDv7.generate()}
 
-      Accounts
-      |> stub(:create_customer_when_absent, fn _ ->
+      stub(Accounts, :create_customer_when_absent, fn _ ->
         account_with_customer_id
       end)
 
@@ -141,12 +135,10 @@ defmodule TuistWeb.BillingControllerTest do
       %{account: account} =
         user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
 
-      Billing
-      |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)
+      expect(Billing, :create_session, fn _ -> %{url: "https://stripe.com"} end)
 
-      Accounts
-      |> expect(:create_customer_when_absent, fn ^account ->
-        %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      expect(Accounts, :create_customer_when_absent, fn ^account ->
+        %{account | customer_id: UUIDv7.generate()}
       end)
 
       conn =
@@ -162,7 +154,7 @@ defmodule TuistWeb.BillingControllerTest do
       organization_account = Accounts.get_account_from_organization(organization)
       user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
 
-      assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+      assert_raise UnauthorizedError, fn ->
         conn
         |> log_in_user(user)
         |> get("/#{organization_account.name}/billing/manage")

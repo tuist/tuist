@@ -7,8 +7,8 @@ defmodule TuistWeb.Noora.Tag do
 
   use Phoenix.Component
 
-  import TuistWeb.Noora.Icon
   import TuistWeb.Noora.DismissIcon
+  import TuistWeb.Noora.Icon
 
   attr :label, :string, required: true, doc: "The label of the tag."
   attr :dismissible, :boolean, default: false, doc: "Whether the tag can be dismissed."

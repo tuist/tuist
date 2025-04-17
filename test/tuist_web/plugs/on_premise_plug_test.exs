@@ -1,10 +1,12 @@
 defmodule TuistWeb.OnPremisePlugTest do
-  alias TuistWeb.OnPremisePlug
   use TuistTestSupport.Cases.ConnCase
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  import Plug.Test
   use Mimic
+
+  import Plug.Test
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.OnPremisePlug
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -18,13 +20,11 @@ defmodule TuistWeb.OnPremisePlugTest do
   describe "api_license_validation" do
     test "returns the same connection if it's not on-premise", %{conn: conn} do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> false end)
-
+      stub(Tuist.Environment, :on_premise?, fn -> false end)
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When
-      got = conn |> OnPremisePlug.call(opts)
+      got = OnPremisePlug.call(conn, opts)
 
       # Then
       assert got == conn
@@ -32,23 +32,18 @@ defmodule TuistWeb.OnPremisePlugTest do
 
     test "returns a halted connection with a JSON error if the license has expired", %{conn: conn} do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> true end)
-
-      Tuist.License
-      |> stub(:get_license, fn -> {:ok, %{valid: false}} end)
-
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
+      stub(Tuist.License, :get_license, fn -> {:ok, %{valid: false}} end)
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When
-      got = conn |> OnPremisePlug.call(opts)
+      got = OnPremisePlug.call(conn, opts)
 
       # Then
       assert got.halted == true
 
       assert json_response(got, 422) == %{
-               "message" =>
-                 "The license has expired. Please, contact contact@tuist.io to renovate it."
+               "message" => "The license has expired. Please, contact contact@tuist.io to renovate it."
              }
     end
 
@@ -57,21 +52,16 @@ defmodule TuistWeb.OnPremisePlugTest do
            conn: conn
          } do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> true end)
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
+      now = Timex.set(DateTime.utc_now(), hour: 12, minute: 0, second: 0, microsecond: {0, 0})
+      stub(Tuist.Time, :utc_now, fn -> now end)
+      expiration_date = DateTime.shift(now, day: 15)
 
-      now = DateTime.utc_now() |> Timex.set(hour: 12, minute: 0, second: 0, microsecond: {0, 0})
-      Tuist.Time |> stub(:utc_now, fn -> now end)
-
-      expiration_date = now |> DateTime.shift(day: 15)
-
-      Tuist.License
-      |> stub(:get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
-
+      stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When
-      got = conn |> OnPremisePlug.call(opts)
+      got = OnPremisePlug.call(conn, opts)
 
       # Then
       assert TuistWeb.WarningsHeaderPlug.get_warnings(got) ==
@@ -83,18 +73,14 @@ defmodule TuistWeb.OnPremisePlugTest do
     test "returns the same connection if it's on-premise and the license will expire in more than 30 days",
          %{conn: conn} do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> true end)
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
+      expiration_date = DateTime.shift(Tuist.Time.utc_now(), day: 35)
 
-      expiration_date = Tuist.Time.utc_now() |> DateTime.shift(day: 35)
-
-      Tuist.License
-      |> stub(:get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
-
+      stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When
-      got = conn |> OnPremisePlug.call(opts)
+      got = OnPremisePlug.call(conn, opts)
 
       # Then
       assert got == conn
@@ -104,9 +90,7 @@ defmodule TuistWeb.OnPremisePlugTest do
   describe "warn_on_outdated_cli" do
     test "returns the same connection if the environment is not on premise", %{conn: conn} do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> false end)
-
+      stub(Tuist.Environment, :on_premise?, fn -> false end)
       opts = OnPremisePlug.init(:warn_on_outdated_cli)
 
       conn =
@@ -124,11 +108,9 @@ defmodule TuistWeb.OnPremisePlugTest do
     test "returns the same connection if the environment is on premise but the release date header is missing",
          %{conn: conn} do
       # Given
-      Tuist.Environment
-      |> stub(:on_premise?, fn -> true end)
-
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
       opts = OnPremisePlug.init(:warn_on_outdated_cli)
-      conn = conn |> put_req_header("x-tuist-cli-version", "1.2.3")
+      conn = put_req_header(conn, "x-tuist-cli-version", "1.2.3")
 
       # When
       got = OnPremisePlug.call(conn, opts)
@@ -221,11 +203,11 @@ defmodule TuistWeb.OnPremisePlugTest do
       conn: conn
     } do
       # Given
-      Tuist.Environment |> stub(:on_premise?, fn -> true end)
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
       plug_opts = OnPremisePlug.init(:forward_marketing_to_dashboard)
 
       # When
-      conn = conn |> OnPremisePlug.call(plug_opts)
+      conn = OnPremisePlug.call(conn, plug_opts)
 
       # Then
       assert redirected_to(conn) == ~p"/users/log_in"
@@ -236,7 +218,7 @@ defmodule TuistWeb.OnPremisePlugTest do
       conn: conn
     } do
       # Given
-      Tuist.Environment |> stub(:on_premise?, fn -> true end)
+      stub(Tuist.Environment, :on_premise?, fn -> true end)
       plug_opts = OnPremisePlug.init(:forward_marketing_to_dashboard)
 
       # When

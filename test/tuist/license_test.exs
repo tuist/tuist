@@ -2,28 +2,27 @@ defmodule Tuist.LicenseTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  setup :set_mimic_from_context
-
   alias Tuist.Environment
   alias Tuist.License
 
+  setup :set_mimic_from_context
+
   describe "assert_valid!/0" do
     setup do
-      Environment |> stub(:on_premise?, fn -> true end)
+      stub(Environment, :on_premise?, fn -> true end)
       :ok
     end
 
     test "returns :ok when the license is valid" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
-      license_key = UUIDv7.generate() |> String.to_atom()
-      Environment |> stub(:get_license_key, fn -> license_key end)
+      license_key = String.to_atom(UUIDv7.generate())
+      stub(Environment, :get_license_key, fn -> license_key end)
 
-      Req
-      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
          %{
            status: 200,
@@ -50,7 +49,7 @@ defmodule Tuist.LicenseTest do
 
     test "raises an error when the license is absent" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
 
       # When/Then
@@ -63,15 +62,14 @@ defmodule Tuist.LicenseTest do
 
     test "raises an error when the server reports that the license is invalid" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: -1) |> Timex.format!("{RFC3339}")
-      license_key = UUIDv7.generate() |> String.to_atom()
-      Environment |> stub(:get_license_key, fn -> license_key end)
+      license_key = String.to_atom(UUIDv7.generate())
+      stub(Environment, :get_license_key, fn -> license_key end)
 
-      Req
-      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
          %{
            status: 200,
@@ -99,14 +97,13 @@ defmodule Tuist.LicenseTest do
 
     test "raises an error when the request to validate the license fails" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
-      license_key = UUIDv7.generate() |> String.to_atom()
-      Environment |> stub(:get_license_key, fn -> license_key end)
+      license_key = String.to_atom(UUIDv7.generate())
+      stub(Environment, :get_license_key, fn -> license_key end)
 
-      Req
-      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:ok,
          %{
            status: 500
@@ -123,14 +120,13 @@ defmodule Tuist.LicenseTest do
 
     test "raises an error when the Req errors" do
       # Given
-      cache = UUIDv7.generate() |> String.to_atom()
+      cache = String.to_atom(UUIDv7.generate())
       {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
-      license_key = UUIDv7.generate() |> String.to_atom()
-      Environment |> stub(:get_license_key, fn -> license_key end)
+      license_key = String.to_atom(UUIDv7.generate())
+      stub(Environment, :get_license_key, fn -> license_key end)
 
-      Req
-      |> stub(:post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
+      stub(Req, :post, fn ^validation_url, [json: %{meta: %{key: ^license_key}}] ->
         {:error, "req error."}
       end)
 

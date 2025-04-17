@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
   A collection of components that are used in the marketing home page.
   """
   use TuistWeb, :live_component
+
   import TuistWeb.Marketing.MarketingComponents
 
   embed_templates "marketing_home_components/*"

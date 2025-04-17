@@ -1,9 +1,10 @@
 defmodule Tuist.API.PipelineTest do
-  alias Tuist.API.Pipeline
   use TuistTestSupport.Cases.DataCase, async: false
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.CommandEvents
+
+  alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
+  alias Tuist.CommandEvents
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -34,18 +35,13 @@ defmodule Tuist.API.PipelineTest do
 
     # When
     first_ref =
-      Broadway.test_message(Pipeline, {:create_cache_event, first_event},
-        metadata: %{ecto_sandbox: self()}
-      )
+      Broadway.test_message(Pipeline, {:create_cache_event, first_event}, metadata: %{ecto_sandbox: self()})
 
     second_ref =
-      Broadway.test_message(Pipeline, {:create_cache_event, second_event},
-        metadata: %{ecto_sandbox: self()}
-      )
+      Broadway.test_message(Pipeline, {:create_cache_event, second_event}, metadata: %{ecto_sandbox: self()})
 
     # Then
-    assert_receive {:ack, ^first_ref,
-                    [%Broadway.Message{data: {:create_cache_event, ^first_event}}], []}
+    assert_receive {:ack, ^first_ref, [%Broadway.Message{data: {:create_cache_event, ^first_event}}], []}
 
     got_first_cache_event =
       CommandEvents.get_cache_event(%{
@@ -55,8 +51,7 @@ defmodule Tuist.API.PipelineTest do
 
     assert got_first_cache_event.size == 1024
 
-    assert_receive {:ack, ^second_ref,
-                    [%Broadway.Message{data: {:create_cache_event, ^second_event}}], []}
+    assert_receive {:ack, ^second_ref, [%Broadway.Message{data: {:create_cache_event, ^second_event}}], []}
 
     got_second_event =
       CommandEvents.get_cache_event(%{

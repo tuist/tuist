@@ -6,57 +6,33 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
 
-  alias Tuist.Repo
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   def init(opts), do: opts
 
   def put_project(conn, %Project{} = project) do
-    conn |> assign(:selected_project, project)
+    assign(conn, :selected_project, project)
   end
 
-  def call(
-        %{
-          body_params: %{
-            project_id: project_id
-          }
-        } = conn,
-        _opts
-      ) do
+  def call(%{body_params: %{project_id: project_id}} = conn, _opts) do
     assign_request_project_to_conn(project_id, conn)
   end
 
-  def call(
-        %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_name
-          }
-        } = conn,
-        _opts
-      ) do
+  def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
     assign_request_project_to_conn("#{account_handle}/#{project_name}", conn)
   end
 
-  def call(
-        %{query_params: %{"project_id" => project_slug}} = conn,
-        _opts
-      ) do
+  def call(%{query_params: %{"project_id" => project_slug}} = conn, _opts) do
     assign_request_project_to_conn(project_slug, conn)
   end
 
-  def call(
-        %{
-          path_params: %{
-            "run_id" => run_id
-          }
-        } = conn,
-        _opts
-      ) do
+  def call(%{path_params: %{"run_id" => run_id}} = conn, _opts) do
     command_event =
-      CommandEvents.get_command_event_by_id(run_id)
+      run_id
+      |> CommandEvents.get_command_event_by_id()
       |> Repo.preload(project: [:account])
 
     if is_nil(command_event) do
@@ -65,32 +41,30 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
       |> json(%{message: "The command event #{run_id} was not found."})
       |> halt()
     else
-      conn |> assign(:selected_project, command_event.project)
+      assign(conn, :selected_project, command_event.project)
     end
   end
 
   defp assign_request_project_to_conn(project_slug, conn) do
     project =
-      case Map.get(conn.assigns, :caching, false) do
-        true ->
-          Tuist.Cache.get_value(
-            [Atom.to_string(__MODULE__), "project", project_slug],
-            [
-              ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
-              cache: Map.get(conn.assigns, :cache, :tuist)
-            ],
-            fn ->
-              Projects.get_project_by_slug(project_slug, preload: [:account])
-            end
-          )
-
-        false ->
-          Projects.get_project_by_slug(project_slug, preload: [:account])
+      if Map.get(conn.assigns, :caching, false) do
+        Tuist.Cache.get_value(
+          [Atom.to_string(__MODULE__), "project", project_slug],
+          [
+            ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
+            cache: Map.get(conn.assigns, :cache, :tuist)
+          ],
+          fn ->
+            Projects.get_project_by_slug(project_slug, preload: [:account])
+          end
+        )
+      else
+        Projects.get_project_by_slug(project_slug, preload: [:account])
       end
 
     case project do
       {:ok, project} ->
-        conn |> assign(:selected_project, project)
+        assign(conn, :selected_project, project)
 
       {:error, :not_found} ->
         conn

@@ -3,6 +3,7 @@ defmodule Tuist.Runs.Build do
   A build represents a single build run of a project, such as when building an app from Xcode.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @derive {

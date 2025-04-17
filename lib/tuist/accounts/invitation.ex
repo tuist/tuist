@@ -3,8 +3,11 @@ defmodule Tuist.Accounts.Invitation do
   A module that represents an invitation to join an organization.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
-  alias Tuist.Accounts.{Organization, User}
+
+  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
 
   schema "invitations" do
     field(:token, :string)

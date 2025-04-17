@@ -4,7 +4,8 @@ defmodule TuistWeb.Noora.Utils do
   def has_slot_content?(slot, assigns) do
     case slot do
       [%{inner_block: fun} | _] when is_function(fun) ->
-        fun.(assigns, [])
+        assigns
+        |> fun.([])
         |> Phoenix.HTML.Safe.to_iodata()
         |> IO.iodata_to_binary()
         |> String.trim()

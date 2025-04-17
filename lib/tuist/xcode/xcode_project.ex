@@ -3,6 +3,7 @@ defmodule Tuist.Xcode.XcodeProject do
   Xcode graph project
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key {:id, UUIDv7, autogenerate: true}

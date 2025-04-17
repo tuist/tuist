@@ -3,6 +3,7 @@ defmodule Tuist.Registry.Swift.Packages.Package do
   A module that represents a Swift package.
   """
   use Ecto.Schema
+
   import Ecto.Changeset
 
   alias Tuist.Registry.Swift.Packages.PackageRelease
@@ -39,7 +40,6 @@ defmodule Tuist.Registry.Swift.Packages.Package do
   end
 
   def update_changeset(package, attrs) do
-    package
-    |> cast(attrs, [:last_updated_releases_at])
+    cast(package, attrs, [:last_updated_releases_at])
   end
 end

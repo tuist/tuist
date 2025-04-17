@@ -1,13 +1,17 @@
 defmodule TuistWeb.Marketing.MarketingBlogLive do
+  @moduledoc false
   use TuistWeb, :live_view
+
   import TuistWeb.Marketing.StructuredMarkup
 
+  alias Tuist.Marketing.Blog
+
   def mount(params, _session, socket) do
-    posts = Tuist.Marketing.Blog.get_posts()
-    categories = Tuist.Marketing.Blog.get_categories()
+    posts = Blog.get_posts()
+    categories = Blog.get_categories()
     highlighted_posts = posts |> Enum.filter(& &1.highlighted) |> Enum.take(5)
-    category = params |> Map.get("category")
-    posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
+    category = Map.get(params, "category")
+    posts = if is_nil(category), do: posts, else: Enum.filter(posts, &(&1.category == category))
 
     socket =
       socket
@@ -24,11 +28,11 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   end
 
   def handle_params(params, _url, socket) do
-    posts = Tuist.Marketing.Blog.get_posts()
-    category = params |> Map.get("category")
-    hero_post = posts |> List.first()
+    posts = Blog.get_posts()
+    category = Map.get(params, "category")
+    hero_post = List.first(posts)
 
-    posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
+    posts = if is_nil(category), do: posts, else: Enum.filter(posts, &(&1.category == category))
 
     {:noreply,
      socket

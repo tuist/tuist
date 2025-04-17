@@ -7,7 +7,7 @@ defmodule Tuist.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
+      start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       aliases: aliases(),
       deps: deps(),
       compilers: [:boundary] ++ Mix.compilers()
@@ -44,17 +44,10 @@ defmodule Tuist.MixProject do
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
-       github: "tailwindlabs/heroicons",
-       tag: "v2.1.1",
-       sparse: "optimized",
-       app: false,
-       compile: false,
-       depth: 1},
+       github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4.0"},
       {:finch,
-       git: "https://github.com/sneako/finch.git",
-       ref: "8cf00ee131d2a8235397a2ef05b590f5b1fdf662",
-       override: true},
+       git: "https://github.com/sneako/finch.git", ref: "8cf00ee131d2a8235397a2ef05b590f5b1fdf662", override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -129,7 +122,8 @@ defmodule Tuist.MixProject do
       {:broadway, "~> 1.2"},
       {:off_broadway_memory, "~> 1.2"},
       {:broadway_dashboard, "~> 0.4.1"},
-      {:zxcvbn, "~> 0.3.0"}
+      {:zxcvbn, "~> 0.3.0"},
+      {:styler, "~> 1.4.0"}
     ]
   end
 

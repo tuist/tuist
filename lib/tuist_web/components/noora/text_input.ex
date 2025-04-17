@@ -3,17 +3,20 @@ defmodule TuistWeb.Noora.TextInput do
   Renders text input and digit input components with customizable types, labels, placeholders, prefixes, suffixes, and event handling.
   """
   use Phoenix.Component
-  import TuistWeb.Noora.Utils
+
+  import TuistWeb.Noora.HintText
   import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.Label
   import TuistWeb.Noora.ShortcutKey
   import TuistWeb.Noora.Tooltip
-  import TuistWeb.Noora.HintText
-  import TuistWeb.Noora.Label
+  import TuistWeb.Noora.Utils
+
+  alias Phoenix.HTML.FormField
   alias Phoenix.LiveView.JS
 
   attr :id, :string, required: false
 
-  attr :field, Phoenix.HTML.FormField, doc: "A Phoenix form field"
+  attr :field, FormField, doc: "A Phoenix form field"
 
   attr :type, :string,
     values: ~w(basic email card_number search password),
@@ -25,8 +28,7 @@ defmodule TuistWeb.Noora.TextInput do
   attr :hint, :string, default: nil, doc: "Hint text to be rendered below the input."
   attr :hint_variant, :string, default: "default", doc: "Hint text variant."
 
-  attr :error, :string,
-    doc: "Errors to be rendered below the input. Takes precedence over `hint`."
+  attr :error, :string, doc: "Errors to be rendered below the input. Takes precedence over `hint`."
 
   attr :show_error_message, :boolean,
     default: true,
@@ -42,8 +44,7 @@ defmodule TuistWeb.Noora.TextInput do
 
   attr :suffix_hint, :string,
     default: nil,
-    doc:
-      "Hint text to show as tooltip at the end of the input. Takes precedence over the suffix set by `type`."
+    doc: "Hint text to show as tooltip at the end of the input. Takes precedence over the suffix set by `type`."
 
   attr :name, :string, doc: "The name of the input"
   attr :value, :string, doc: "The value of the input"
@@ -61,13 +62,13 @@ defmodule TuistWeb.Noora.TextInput do
     required: false,
     doc: "Suffix to be rendered in the input. Takes precedence over `suffix_hint`."
 
-  def text_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def text_input(%{field: %FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
     |> assign_new(:name, fn -> field.name end)
     |> assign_new(:value, fn -> field.value end)
     |> assign_new(:error, fn ->
-      Enum.map(field.errors, fn {message, _opts} -> message end) |> List.first()
+      field.errors |> Enum.map(fn {message, _opts} -> message end) |> List.first()
     end)
     |> text_input()
   end
@@ -207,20 +208,17 @@ defmodule TuistWeb.Noora.TextInput do
 
   attr :on_change, :string,
     default: nil,
-    doc:
-      "Event handler for when the input changes. Triggers the event with value `{ value: string[],
+    doc: "Event handler for when the input changes. Triggers the event with value `{ value: string[],
     valueAsString: string }`"
 
   attr :on_complete, :string,
     default: nil,
-    doc:
-      "Event handler for when the input is complete. Triggers the event with value `{ value: string[],
+    doc: "Event handler for when the input is complete. Triggers the event with value `{ value: string[],
     valueAsString: string }`"
 
   attr :on_invalid, :string,
     default: nil,
-    doc:
-      "Event handler for when the input is invalid. Triggers the event with value `{ value: string[],
+    doc: "Event handler for when the input is invalid. Triggers the event with value `{ value: string[],
     valueAsString: string }`"
 
   attr :rest, :global

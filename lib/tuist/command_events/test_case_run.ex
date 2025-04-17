@@ -2,11 +2,13 @@ defmodule Tuist.CommandEvents.TestCaseRun do
   @moduledoc """
   Test action represents a single test case run, such as a `testExample()` method from an arbitrary test suite.
   """
-  alias Tuist.CommandEvents.TestCase
-  alias Tuist.CommandEvents.Event
-  alias Tuist.Xcode.XcodeTarget
   use Ecto.Schema
+
   import Ecto.Changeset
+
+  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.TestCase
+  alias Tuist.Xcode.XcodeTarget
 
   @derive {
     Flop.Schema,

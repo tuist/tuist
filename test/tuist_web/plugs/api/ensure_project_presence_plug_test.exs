@@ -1,11 +1,13 @@
 defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
+  import Plug.Test
+
+  alias Tuist.Accounts
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  use TuistTestSupport.Cases.ConnCase, async: false
-  import Plug.Test
-  use Mimic
   alias TuistWeb.API.EnsureProjectPresencePlug
 
   # This is needed in combination with "async: false" to ensure
@@ -13,7 +15,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
   setup :set_mimic_from_context
 
   setup do
-    cache = UUIDv7.generate() |> String.to_atom()
+    cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
     {:ok, cache: cache}
   end
@@ -25,20 +27,20 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     opts = EnsureProjectPresencePlug.init([])
     slug = account.name <> "/" <> project.name
 
-    Tuist.Projects
-    |> expect(:get_project_by_slug, 1, fn ^slug, _opts ->
+    expect(Tuist.Projects, :get_project_by_slug, 1, fn ^slug, _opts ->
       {:ok, project}
     end)
 
     conn =
-      build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
+      :get
+      |> build_conn(~p"/api/cache", project_id: account.name <> "/" <> project.name)
       |> assign(:caching, true)
       |> assign(:cache, cache)
-      |> assign(:cache_ttl, :timer.minutes(1))
+      |> assign(:cache_ttl, to_timeout(minute: 1))
 
     # When/Then
     for _n <- 0..10 do
-      conn = conn |> EnsureProjectPresencePlug.call(opts)
+      conn = EnsureProjectPresencePlug.call(conn, opts)
       assert conn.assigns[:selected_project] == project
     end
   end
@@ -51,7 +53,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     conn = build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
 
     # When
-    conn = conn |> EnsureProjectPresencePlug.call(opts)
+    conn = EnsureProjectPresencePlug.call(conn, opts)
 
     # Then
     assert conn.assigns[:selected_project] == project
@@ -63,8 +65,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
     opts = EnsureProjectPresencePlug.init(:command_event)
 
-    Storage
-    |> expect(:multipart_start, fn _ ->
+    expect(Storage, :multipart_start, fn _ ->
       "id"
     end)
 
@@ -75,7 +76,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
       |> post(~p"/api/runs/#{command_event.id}/start", type: "result_bundle")
 
     # When
-    conn = conn |> EnsureProjectPresencePlug.call(opts)
+    conn = EnsureProjectPresencePlug.call(conn, opts)
 
     # Then
     assert conn.assigns[:selected_project] == project
@@ -106,7 +107,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     conn = build_conn(:get, ~p"/api/cache", project_id: "non/existing")
 
     # When
-    conn = conn |> EnsureProjectPresencePlug.call(opts)
+    conn = EnsureProjectPresencePlug.call(conn, opts)
 
     # Then
     assert conn.halted == true
@@ -119,7 +120,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
     conn = build_conn(:get, ~p"/api/cache", project_id: "only-project-name")
 
     # When
-    conn = conn |> EnsureProjectPresencePlug.call(opts)
+    conn = EnsureProjectPresencePlug.call(conn, opts)
 
     # Then
     assert conn.halted == true

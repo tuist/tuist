@@ -5,13 +5,15 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
   test "render 401.html" do
     # Given/When
     html =
-      TuistWeb.ErrorHTML.render("401.html", %{})
+      "401.html"
+      |> TuistWeb.ErrorHTML.render(%{})
       |> Phoenix.LiveViewTest.rendered_to_string()
       |> Floki.parse_document!()
 
     # Then
     assert not is_nil(
-             Floki.find(html, "title:fl-contains('#{gettext("Unauthorized")} · Tuist')")
+             html
+             |> Floki.find("title:fl-contains('#{gettext("Unauthorized")} · Tuist')")
              |> List.first()
            )
   end
@@ -19,13 +21,15 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
   test "render 404.html" do
     # Given/When
     html =
-      TuistWeb.ErrorHTML.render("404.html", %{reason: %{message: "reason"}})
+      "404.html"
+      |> TuistWeb.ErrorHTML.render(%{reason: %{message: "reason"}})
       |> Phoenix.LiveViewTest.rendered_to_string()
       |> Floki.parse_document!()
 
     # Then
     assert not is_nil(
-             Floki.find(html, "title:fl-contains('#{gettext("Not found")} · Tuist')")
+             html
+             |> Floki.find("title:fl-contains('#{gettext("Not found")} · Tuist')")
              |> List.first()
            )
   end
@@ -33,13 +37,15 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
   test "render 429.html" do
     # Given/When
     html =
-      TuistWeb.ErrorHTML.render("429.html", %{reason: %{message: "reason"}})
+      "429.html"
+      |> TuistWeb.ErrorHTML.render(%{reason: %{message: "reason"}})
       |> Phoenix.LiveViewTest.rendered_to_string()
       |> Floki.parse_document!()
 
     # Then
     assert not is_nil(
-             Floki.find(html, "title:fl-contains('#{gettext("Too many requests")} · Tuist')")
+             html
+             |> Floki.find("title:fl-contains('#{gettext("Too many requests")} · Tuist')")
              |> List.first()
            )
   end
@@ -47,13 +53,15 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
   test "render 500.html" do
     # Given/When
     html =
-      TuistWeb.ErrorHTML.render("500.html", %{reason: %{message: "reason"}})
+      "500.html"
+      |> TuistWeb.ErrorHTML.render(%{reason: %{message: "reason"}})
       |> Phoenix.LiveViewTest.rendered_to_string()
       |> Floki.parse_document!()
 
     # Then
     assert not is_nil(
-             Floki.find(html, "title:fl-contains('#{gettext("Server error")} · Tuist')")
+             html
+             |> Floki.find("title:fl-contains('#{gettext("Server error")} · Tuist')")
              |> List.first()
            )
   end

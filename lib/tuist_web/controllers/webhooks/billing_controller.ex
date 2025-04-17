@@ -1,7 +1,9 @@
 defmodule TuistWeb.Webhooks.BillingController do
-  use TuistWeb, :controller
-  alias Tuist.Billing
   @behaviour Stripe.WebhookHandler
+
+  use TuistWeb, :controller
+
+  alias Tuist.Billing
 
   @impl true
   def handle_event(%Stripe.Event{type: "customer.subscription.created"} = event) do

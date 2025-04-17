@@ -3,8 +3,10 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
   A worker that notifies us in Slack about the new organizations and users created in the last hour.
   """
   use Oban.Worker
+
   alias Tuist.Accounts
-  alias Tuist.Accounts.{Organization, User}
+  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
   alias Tuist.Slack
 
   @impl Oban.Worker
@@ -14,8 +16,7 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
 
     if length(organizations_and_users) != 0 do
       bullet_list =
-        organizations_and_users
-        |> Enum.map_join("\n", fn
+        Enum.map_join(organizations_and_users, "\n", fn
           %Organization{account: account} ->
             "• Organization: #{account.name}"
 

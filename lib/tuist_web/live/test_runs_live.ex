@@ -1,18 +1,19 @@
 defmodule TuistWeb.TestRunsLive do
-  alias Tuist.Projects
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.Runs.RanByBadge
+
   import TuistWeb.Components.EmptyCardSection
-  alias Tuist.Runs.Analytics
+  import TuistWeb.Runs.RanByBadge
+
   alias Tuist.CommandEvents
+  alias Tuist.Projects
+  alias Tuist.Runs.Analytics
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
-    {:ok,
-     socket
-     |> assign(:head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")}
+    {:ok, assign(socket, :head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")}
   end
 
   def handle_params(params, _uri, socket) do
@@ -42,21 +43,18 @@ defmodule TuistWeb.TestRunsLive do
       end
 
     uri =
-      ("?" <>
-         URI.encode_query(
-           Map.take(params, [
-             "analytics_date_range",
-             "analytics_environment",
-             "analytics_selected_widget"
-           ])
-         ))
-      |> URI.new!()
+      URI.new!(
+        "?" <>
+          URI.encode_query(
+            Map.take(params, ["analytics_date_range", "analytics_environment", "analytics_selected_widget"])
+          )
+      )
 
     test_runs_analytics =
       Analytics.runs_analytics(project.id, "test", opts)
 
     failed_test_runs_analytics =
-      Analytics.runs_analytics(project.id, "test", opts |> Keyword.put(:status, :failure))
+      Analytics.runs_analytics(project.id, "test", Keyword.put(opts, :status, :failure))
 
     test_runs_duration_analytics =
       Analytics.runs_duration_analytics("test", opts)
@@ -85,8 +83,7 @@ defmodule TuistWeb.TestRunsLive do
           %{
             dates: test_runs_duration_analytics.dates,
             values:
-              test_runs_duration_analytics.values
-              |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))),
+              Enum.map(test_runs_duration_analytics.values, &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))),
             name: gettext("Avg. test run duration"),
             value_formatter: "{value}s"
           }
@@ -236,8 +233,7 @@ defmodule TuistWeb.TestRunsLive do
           |> Map.put(:after, Keyword.get(attrs, :after))
 
         true ->
-          options
-          |> Map.put(:first, 20)
+          Map.put(options, :first, 20)
       end
 
     CommandEvents.list_command_events(options)

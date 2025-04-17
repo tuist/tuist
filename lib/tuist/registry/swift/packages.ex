@@ -3,17 +3,18 @@ defmodule Tuist.Registry.Swift.Packages do
   A module for interacting with Swift packages.
   """
 
-  alias Tuist.Registry.Swift.Packages.PackageManifest
+  import Ecto.Query
+
+  alias Tuist.Accounts.Account
   alias Tuist.Crypto
-  alias Tuist.VCS.Repositories.Content
-  alias Tuist.Registry.Swift.Packages.PackageRelease
   alias Tuist.Registry.Swift.Packages.Package
   alias Tuist.Registry.Swift.Packages.PackageDownloadEvent
-  alias Tuist.VCS
+  alias Tuist.Registry.Swift.Packages.PackageManifest
+  alias Tuist.Registry.Swift.Packages.PackageRelease
   alias Tuist.Repo
   alias Tuist.Storage
-  alias Tuist.Accounts.Account
-  import Ecto.Query
+  alias Tuist.VCS
+  alias Tuist.VCS.Repositories.Content
 
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
@@ -24,17 +25,10 @@ defmodule Tuist.Registry.Swift.Packages do
       from p in Package,
         preload: ^preload
 
-    query |> Flop.validate_and_run!(attrs, for: Package)
+    Flop.validate_and_run!(query, attrs, for: Package)
   end
 
-  def create_package(
-        %{
-          scope: scope,
-          name: name,
-          repository_full_handle: repository_full_handle
-        },
-        opts \\ []
-      ) do
+  def create_package(%{scope: scope, name: name, repository_full_handle: repository_full_handle}, opts \\ []) do
     %Package{}
     |> Package.create_changeset(%{
       scope: scope,
@@ -53,7 +47,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   def all_packages(opts \\ []) do
-    preload = opts |> Keyword.get(:preload, [])
+    preload = Keyword.get(opts, :preload, [])
     Repo.all(from p in Package, preload: ^preload)
   end
 
@@ -66,9 +60,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   def get_packages_by_scope_and_name_pairs(packages, opts \\ []) do
-    scope_name_pairs =
-      packages
-      |> Enum.map(&{&1.scope, &1.name})
+    scope_name_pairs = Enum.map(packages, &{&1.scope, &1.name})
 
     preload = Keyword.get(opts, :preload, [])
 
@@ -93,22 +85,21 @@ defmodule Tuist.Registry.Swift.Packages do
 
     %{
       scope: scope,
-      name: name |> String.replace(".", "_"),
+      name: String.replace(name, ".", "_"),
       repository_full_handle: repository_full_handle
     }
   end
 
   def create_missing_package_releases(%{
-        package:
-          %Package{repository_full_handle: repository_full_handle} =
-            package,
+        package: %Package{repository_full_handle: repository_full_handle} = package,
         token: token
       }) do
-    VCS.get_tags(%{
+    %{
       repository_full_handle: repository_full_handle,
       provider: :github,
       token: token
-    })
+    }
+    |> VCS.get_tags()
     |> Enum.map(& &1.name)
     |> Enum.filter(fn version ->
       # Matches semantic version as per: https://semver.org/
@@ -127,9 +118,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp semantic_version(version) do
-    version =
-      version
-      |> String.trim_leading("v")
+    version = String.trim_leading(version, "v")
 
     case String.split(version, "-") do
       [version, pre_release] ->
@@ -137,11 +126,11 @@ defmodule Tuist.Registry.Swift.Packages do
         # Semantic version: 1.0.0-alpha.1
         # SwiftPM version: 1.0.0-alpha+1
         pre_release_with_replaced_dot = String.replace(pre_release, ".", "+")
-        version = version |> add_trailing_semantic_version_zeros()
+        version = add_trailing_semantic_version_zeros(version)
         "#{version}-#{pre_release_with_replaced_dot}"
 
       _ ->
-        version |> add_trailing_semantic_version_zeros()
+        add_trailing_semantic_version_zeros(version)
     end
   end
 
@@ -157,12 +146,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
   def create_package_release(%{
         package:
-          %Package{
-            id: package_id,
-            scope: scope,
-            name: name,
-            repository_full_handle: repository_full_handle
-          } = package,
+          %Package{id: package_id, scope: scope, name: name, repository_full_handle: repository_full_handle} = package,
         version: version,
         token: token
       }) do
@@ -185,7 +169,8 @@ defmodule Tuist.Registry.Swift.Packages do
 
     new_source_archive_directory = "#{source_archive_directory}/source_archive.zip"
 
-    File.ls!(source_archive_directory <> "/" <> source_directory)
+    (source_archive_directory <> "/" <> source_directory)
+    |> File.ls!()
     |> Enum.each(fn file_name ->
       file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
 
@@ -227,7 +212,8 @@ defmodule Tuist.Registry.Swift.Packages do
     Storage.put_object(object_key, data)
 
     checksum =
-      Crypto.hash_init(:sha256)
+      :sha256
+      |> Crypto.hash_init()
       |> Crypto.hash_update(data)
       |> Crypto.hash_final()
       |> Base.encode16()
@@ -253,10 +239,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp create_package_manifests(%{
-         package:
-           %Package{
-             repository_full_handle: repository_full_handle
-           } = package,
+         package: %Package{repository_full_handle: repository_full_handle} = package,
          token: token,
          reference: reference,
          package_release: %PackageRelease{} = package_release
@@ -271,8 +254,7 @@ defmodule Tuist.Registry.Swift.Packages do
         reference: reference
       )
 
-    root_contents
-    |> Enum.each(fn %Content{path: path} ->
+    Enum.each(root_contents, fn %Content{path: path} ->
       swift_version =
         case Regex.run(@alternate_package_manifest_regex, path) do
           [_, major] -> major
@@ -309,11 +291,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp create_package_manifest(%{
-         package: %Package{
-           scope: scope,
-           name: name,
-           repository_full_handle: repository_full_handle
-         },
+         package: %Package{scope: scope, name: name, repository_full_handle: repository_full_handle},
          token: token,
          package_release: %PackageRelease{id: package_release_id, version: version},
          swift_version: swift_version,
@@ -333,8 +311,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
     Storage.put_object(
       package_object_key(%{scope: scope, name: name}, version: version, path: path),
-      package_manifest_content
-      |> replace_package_by_name_references_with_product_in_package_manifest()
+      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content)
     )
 
     swift_tools_version =
@@ -360,13 +337,7 @@ defmodule Tuist.Registry.Swift.Packages do
     package |> Package.update_changeset(attrs) |> Repo.update()
   end
 
-  def get_package_release_by_version(
-        %{
-          package: %Package{id: package_id},
-          version: version
-        },
-        opts \\ []
-      ) do
+  def get_package_release_by_version(%{package: %Package{id: package_id}, version: version}, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
     PackageRelease
@@ -379,7 +350,8 @@ defmodule Tuist.Registry.Swift.Packages do
       extract_url_only_packages(package_manifest) ++ extract_named_url_packages(package_manifest)
 
     Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-      replace_targets_content(package, package_manifest)
+      package
+      |> replace_targets_content(package_manifest)
       |> String.replace(
         ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
         "\"#{package.name}\""
@@ -400,10 +372,9 @@ defmodule Tuist.Registry.Swift.Packages do
       fn [{bracket_position, length}], package_manifest ->
         case find_matching_bracket(package_manifest, bracket_position + length, 1) do
           {:ok, position} ->
-            {pre_content, content} = package_manifest |> String.split_at(bracket_position)
+            {pre_content, content} = String.split_at(package_manifest, bracket_position)
 
-            {content_to_replace, post_content} =
-              content |> String.split_at(position - bracket_position + 1)
+            {content_to_replace, post_content} = String.split_at(content, position - bracket_position + 1)
 
             replaced_content =
               content_to_replace
@@ -451,7 +422,8 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp extract_url_only_packages(package_manifest) do
-    Regex.scan(~r/\.package\(\s*url:\s*"([^"\\]+)"/, package_manifest)
+    ~r/\.package\(\s*url:\s*"([^"\\]+)"/
+    |> Regex.scan(package_manifest)
     |> Enum.map(&List.last/1)
     |> Enum.filter(&valid_repository_url?/1)
     |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
@@ -461,12 +433,14 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp extract_named_url_packages(package_manifest) do
-    Regex.scan(~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/, package_manifest)
+    ~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/
+    |> Regex.scan(package_manifest)
     |> Enum.map(&Enum.slice(&1, -2, 2))
     |> Enum.filter(&valid_repository_url?(List.last(&1)))
     |> Enum.map(fn [by_name_reference, package_url] ->
       [scope, package_name] =
-        VCS.get_repository_full_handle_from_url(package_url)
+        package_url
+        |> VCS.get_repository_full_handle_from_url()
         |> elem(1)
         |> String.split("/")
 
@@ -490,7 +464,8 @@ defmodule Tuist.Registry.Swift.Packages do
         Storage.get_object_as_string(object_key)
 
       packages =
-        Regex.scan(~r/url:\s*"([^"]+)"/, package_manifest)
+        ~r/url:\s*"([^"]+)"/
+        |> Regex.scan(package_manifest)
         |> Enum.map(&List.last/1)
         |> Enum.filter(&valid_repository_url?/1)
         |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
@@ -499,8 +474,8 @@ defmodule Tuist.Registry.Swift.Packages do
 
       package_manifest =
         Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-          package_manifest
-          |> String.replace(
+          String.replace(
+            package_manifest,
             ~r/(?<![package|name]: )"(#{package.name})"/i,
             ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
           )
@@ -515,7 +490,7 @@ defmodule Tuist.Registry.Swift.Packages do
   def package_object_key(%{scope: scope, name: name}, opts \\ []) do
     version = Keyword.get(opts, :version, nil)
     path = Keyword.get(opts, :path, nil)
-    object_key = "registry/swift/#{scope}/#{name}" |> String.downcase()
+    object_key = String.downcase("registry/swift/#{scope}/#{name}")
 
     object_key =
       if is_nil(version) do

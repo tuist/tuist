@@ -1,14 +1,16 @@
 defmodule TuistWeb.API.ProjectsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
-  alias Tuist.VCS
-  alias Tuist.Repo
-  alias TuistWeb.Authentication
+
   alias OpenApiSpex.Schema
-  alias TuistWeb.API.Schemas.{Project, Error}
-  alias Tuist.Projects
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Projects
+  alias Tuist.Repo
+  alias Tuist.VCS
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.Project
+  alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -46,20 +48,12 @@ defmodule TuistWeb.API.ProjectsController do
     responses: %{
       ok: {"The project was created", "application/json", Project},
       bad_request: {"The account was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
-  def create(
-        %{
-          body_params: body_params
-        } = conn,
-        _params
-      ) do
+  def create(%{body_params: body_params} = conn, _params) do
     user = Authentication.current_user(conn)
     organization_handle = Map.get(body_params, :organization, nil)
     project_handle = Map.get(body_params, :name, nil)
@@ -81,12 +75,11 @@ defmodule TuistWeb.API.ProjectsController do
         conn
         |> put_status(:bad_request)
         |> json(%Error{
-          message:
-            "The project full handle #{full_handle} is not in the format of account-handle/project-handle."
+          message: "The project full handle #{full_handle} is not in the format of account-handle/project-handle."
         })
 
       {:ok, handles} ->
-        conn |> create_project_with_project_and_account_handles(handles)
+        create_project_with_project_and_account_handles(conn, handles)
     end
   end
 
@@ -139,9 +132,10 @@ defmodule TuistWeb.API.ProjectsController do
         rescue
           e in Ecto.InvalidChangesetError ->
             message =
-              Ecto.Changeset.traverse_errors(e.changeset, fn {message, _opts} -> message end)
+              e.changeset
+              |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
               |> Enum.flat_map(fn {_key, value} -> value end)
-              |> hd
+              |> hd()
 
             conn
             |> put_status(:bad_request)
@@ -166,8 +160,7 @@ defmodule TuistWeb.API.ProjectsController do
            },
            required: [:projects]
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
     }
   )
 
@@ -175,7 +168,8 @@ defmodule TuistWeb.API.ProjectsController do
     user = Authentication.current_user(conn)
 
     projects =
-      Projects.get_all_project_accounts(user)
+      user
+      |> Projects.get_all_project_accounts()
       |> Enum.map(fn project_account ->
         %{
           id: project_account.project.id,
@@ -210,24 +204,13 @@ defmodule TuistWeb.API.ProjectsController do
     ],
     responses: %{
       ok: {"The project to show", "application/json", Project},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project was not found", "application/json", Error}
     }
   )
 
-  def show(
-        %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          }
-        } = conn,
-        _params
-      ) do
+  def show(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn, _params) do
     user = Authentication.current_user(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
@@ -311,14 +294,9 @@ defmodule TuistWeb.API.ProjectsController do
        }},
     responses: %{
       ok: {"The updated project", "application/json", Project},
-      not_found:
-        {"The project with the given account and project handles was not found",
-         "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      not_found: {"The project with the given account and project handles was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       bad_request:
         {"The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.",
          "application/json", Error}
@@ -327,10 +305,7 @@ defmodule TuistWeb.API.ProjectsController do
 
   def update(
         %{
-          path_params: %{
-            "account_handle" => account_handle,
-            "project_handle" => project_handle
-          },
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
           body_params: body_params
         } = conn,
         _params
@@ -338,16 +313,17 @@ defmodule TuistWeb.API.ProjectsController do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
     user =
-      Authentication.current_user(conn)
+      conn
+      |> Authentication.current_user()
       |> Repo.preload(:oauth2_identities)
 
-    new_repository_url = body_params |> Map.get(:repository_url)
+    new_repository_url = Map.get(body_params, :repository_url)
 
     repository =
       if is_nil(new_repository_url) do
         nil
       else
-        new_repository_url |> VCS.get_repository_from_repository_url()
+        VCS.get_repository_from_repository_url(new_repository_url)
       end
 
     case repository do
@@ -356,7 +332,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:bad_request)
         |> json(%{
           message:
-            "The given Git host is not supported. The supported Git hosts are: #{VCS.supported_vcs_hosts() |> Enum.join(", ")}."
+            "The given Git host is not supported. The supported Git hosts are: #{Enum.join(VCS.supported_vcs_hosts(), ", ")}."
         })
 
       {:error, message} ->
@@ -365,8 +341,7 @@ defmodule TuistWeb.API.ProjectsController do
         |> json(%{message: "Failed to update the repository due to: #{message}"})
 
       {:ok, repository} ->
-        conn
-        |> update_project(%{
+        update_project(conn, %{
           project: project,
           user: user,
           account_handle: account_handle,
@@ -376,8 +351,7 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       nil ->
-        conn
-        |> update_project(%{
+        update_project(conn, %{
           project: project,
           user: user,
           account_handle: account_handle,
@@ -418,7 +392,7 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       not is_nil(project) ->
-        default_branch = body_params |> Map.get(:default_branch, project.default_branch)
+        default_branch = Map.get(body_params, :default_branch, project.default_branch)
 
         default_branch =
           if is_nil(repository) do
@@ -439,7 +413,7 @@ defmodule TuistWeb.API.ProjectsController do
             default_branch: default_branch,
             vcs_provider: vcs_provider,
             vcs_repository_full_handle: vcs_repository_full_handle,
-            visibility: body_params |> Map.get(:visibility, project.visibility)
+            visibility: Map.get(body_params, :visibility, project.visibility)
           })
 
         conn
@@ -468,23 +442,13 @@ defmodule TuistWeb.API.ProjectsController do
     ],
     responses: %{
       no_content: "The project was successfully deleted.",
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project was not found", "application/json", Error}
     }
   )
 
-  def delete(
-        %{
-          path_params: %{
-            "id" => id
-          }
-        } = conn,
-        _params
-      ) do
+  def delete(%{path_params: %{"id" => id}} = conn, _params) do
     user = Authentication.current_user(conn)
     project_account = Projects.get_project_account_by_project_id(id)
 
@@ -504,8 +468,7 @@ defmodule TuistWeb.API.ProjectsController do
       project_account ->
         Projects.delete_project(project_account.project)
 
-        conn
-        |> send_resp(:no_content, "")
+        send_resp(conn, :no_content, "")
     end
   end
 end

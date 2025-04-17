@@ -2,18 +2,17 @@ defmodule TuistWeb.PreviewControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
 
-    conn =
-      conn
-      |> log_in_user(user)
+    conn = log_in_user(conn, user)
 
     %{conn: conn, user: user}
   end
@@ -25,9 +24,7 @@ defmodule TuistWeb.PreviewControllerTest do
         ProjectsFixtures.project_fixture(preload: [:account])
 
       # When
-      conn =
-        conn
-        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest/badge.svg")
+      conn = get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest/badge.svg")
 
       # Then
       assert redirected_to(conn) == ~p"/app/images/previews-badge.svg"
@@ -55,9 +52,7 @@ defmodule TuistWeb.PreviewControllerTest do
         )
 
       # When
-      conn =
-        conn
-        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest")
+      conn = get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest")
 
       # Then
       assert redirected_to(conn) ==
@@ -66,9 +61,8 @@ defmodule TuistWeb.PreviewControllerTest do
 
     test "raises not found error when the project does not exist", %{conn: conn} do
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get("/account/non-existing-project/previews/latest")
+      assert_raise NotFoundError, fn ->
+        get(conn, "/account/non-existing-project/previews/latest")
       end
     end
 
@@ -78,9 +72,8 @@ defmodule TuistWeb.PreviewControllerTest do
         ProjectsFixtures.project_fixture(preload: [:account])
 
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest")
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/#{project.account.name}/#{project.name}/previews/latest")
       end
     end
   end
@@ -91,21 +84,17 @@ defmodule TuistWeb.PreviewControllerTest do
       preview =
         PreviewsFixtures.preview_fixture(type: :ipa)
 
-      QRCode
-      |> expect(:create, fn url, _ ->
+      expect(QRCode, :create, fn url, _ ->
         assert url == url(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
         "qr-code"
       end)
 
-      QRCode
-      |> stub(:render, fn _ ->
+      stub(QRCode, :render, fn _ ->
         {:ok, "<svg></svg>"}
       end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.svg")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.svg")
 
       # Then
       assert response(conn, 200) =~ "<svg"
@@ -118,20 +107,16 @@ defmodule TuistWeb.PreviewControllerTest do
       preview =
         PreviewsFixtures.preview_fixture(type: :ipa)
 
-      QRCode
-      |> stub(:create, fn _ ->
+      stub(QRCode, :create, fn _ ->
         "qr-code"
       end)
 
-      QRCode
-      |> stub(:render, fn _, _ ->
+      stub(QRCode, :render, fn _, _ ->
         {:ok, "base64png"}
       end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.png")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.png")
 
       # Then
       assert response(conn, 200) =~ "base64png"
@@ -144,13 +129,10 @@ defmodule TuistWeb.PreviewControllerTest do
       preview =
         PreviewsFixtures.preview_fixture()
 
-      Storage
-      |> stub(:generate_download_url, fn _, _ -> "https://download-url.com" end)
+      stub(Storage, :generate_download_url, fn _, _ -> "https://download-url.com" end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/download")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/download")
 
       # Then
       assert redirected_to(conn) == "https://download-url.com"
@@ -170,9 +152,7 @@ defmodule TuistWeb.PreviewControllerTest do
         )
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/manifest.plist")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/manifest.plist")
 
       # Then
       plist_response = response(conn, 200)
@@ -183,11 +163,8 @@ defmodule TuistWeb.PreviewControllerTest do
 
     test "raises not found error when the preview does not exist", %{conn: conn} do
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get(
-          ~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9/manifest.plist"
-        )
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9/manifest.plist")
       end
     end
   end
@@ -204,13 +181,10 @@ defmodule TuistWeb.PreviewControllerTest do
           bundle_identifier: "com.tuist.app"
         )
 
-      Storage
-      |> stub(:get_object_as_string, fn _ -> "ipa-contents" end)
+      stub(Storage, :get_object_as_string, fn _ -> "ipa-contents" end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/app.ipa")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/app.ipa")
 
       # Then
       assert response(conn, 200) =~ "ipa-contents"
@@ -225,20 +199,16 @@ defmodule TuistWeb.PreviewControllerTest do
 
       icon_content = "icon-content"
 
-      Storage
-      |> stub(:object_exists?, fn _ ->
+      stub(Storage, :object_exists?, fn _ ->
         true
       end)
 
-      Storage
-      |> stub(:stream_object, fn _ ->
+      stub(Storage, :stream_object, fn _ ->
         Stream.map([icon_content], fn chunk -> chunk end)
       end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/icon.png")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/icon.png")
 
       # Then
       assert response(conn, 200) =~ icon_content
@@ -250,15 +220,12 @@ defmodule TuistWeb.PreviewControllerTest do
       preview =
         PreviewsFixtures.preview_fixture(type: :ipa)
 
-      Storage
-      |> stub(:object_exists?, fn _ ->
+      stub(Storage, :object_exists?, fn _ ->
         false
       end)
 
       # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/icon.png")
+      conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/icon.png")
 
       # Then
       assert response(conn, 404) =~ ""
@@ -266,11 +233,8 @@ defmodule TuistWeb.PreviewControllerTest do
 
     test "raises not found error when the preview does not exist", %{conn: conn} do
       # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get(
-          ~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9/icon.png"
-        )
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9/icon.png")
       end
     end
   end

@@ -5,19 +5,17 @@ defmodule TuistWeb.LayoutLive do
 
   use TuistWeb, :live_view
 
-  alias Tuist.Accounts
-  alias Tuist.Authorization
-  alias Tuist.Projects
-  alias Tuist.CommandEvents
   import Phoenix.Component
   import TuistWeb.AppLayoutComponents
 
-  def on_mount(
-        :optional_project,
-        params,
-        session,
-        socket
-      ) do
+  alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias Tuist.CommandEvents
+  alias Tuist.GitHub.Releases
+  alias Tuist.Projects
+  alias TuistWeb.Errors.NotFoundError
+
+  def on_mount(:optional_project, params, session, socket) do
     if TuistWeb.Authentication.authenticated?(socket.assigns) do
       on_mount(:project, params, session, socket)
     else
@@ -32,7 +30,7 @@ defmodule TuistWeb.LayoutLive do
         socket
       )
       when is_binary(account_handle) and is_binary(project_handle) do
-    current_user = session |> get_current_user()
+    current_user = get_current_user(session)
 
     TuistWeb.Authorization.require_user_can_read_project(%{
       user: current_user,
@@ -41,24 +39,22 @@ defmodule TuistWeb.LayoutLive do
     })
 
     selected_project =
-      Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preload: [:account]
-      )
+      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
 
     if is_nil(selected_project) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             gettext("The project you are looking for doesn't exist or has been moved.")
     end
 
     %{account: selected_account} = selected_project
 
-    selected_account_projects = selected_account |> get_account_projects(current_user)
+    selected_account_projects = get_account_projects(selected_account, current_user)
 
     current_user_accounts =
       if is_nil(current_user) do
         []
       else
-        (current_user |> get_user_organization_accounts()) ++ [current_user.account]
+        get_user_organization_accounts(current_user) ++ [current_user.account]
       end
 
     {:cont,
@@ -70,8 +66,7 @@ defmodule TuistWeb.LayoutLive do
        show_avatar: true,
        avatar_color: Accounts.avatar_color(selected_account),
        items:
-         current_user_accounts
-         |> Enum.map(fn account ->
+         Enum.map(current_user_accounts, fn account ->
            %{
              label: account.name,
              value: account.id,
@@ -85,8 +80,7 @@ defmodule TuistWeb.LayoutLive do
      |> append_breadcrumb(%{
        label: selected_project.name,
        items:
-         selected_account_projects
-         |> Enum.map(fn project ->
+         Enum.map(selected_account_projects, fn project ->
            %{
              label: project.name,
              value: project.id,
@@ -108,10 +102,10 @@ defmodule TuistWeb.LayoutLive do
   end
 
   def on_mount(:account, params, session, socket) do
-    current_user = session |> get_current_user()
+    current_user = get_current_user(session)
 
     current_user_accounts =
-      (current_user |> get_user_organization_accounts()) ++ [current_user.account]
+      get_user_organization_accounts(current_user) ++ [current_user.account]
 
     selected_account =
       case Map.get(params, "account_handle") do
@@ -120,7 +114,7 @@ defmodule TuistWeb.LayoutLive do
       end
 
     if is_nil(selected_account) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             gettext("The account you are looking for doesn't exist or has been moved.")
     end
 
@@ -132,8 +126,7 @@ defmodule TuistWeb.LayoutLive do
        show_avatar: true,
        avatar_color: Accounts.avatar_color(selected_account),
        items:
-         current_user_accounts
-         |> Enum.map(fn account ->
+         Enum.map(current_user_accounts, fn account ->
            %{
              label: account.name,
              value: account.id,
@@ -159,20 +152,20 @@ defmodule TuistWeb.LayoutLive do
     if is_nil(user) do
       []
     else
-      Accounts.get_user_organization_accounts(user) |> Enum.map(& &1.account)
+      user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
     end
   end
 
   defp assign_current_path(socket) do
-    socket
-    |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
+    attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
       %{path: current_path} = URI.parse(url)
-      {:cont, socket |> assign(:current_path, current_path)}
+      {:cont, assign(socket, :current_path, current_path)}
     end)
   end
 
   defp get_account_projects(account, current_user) do
-    Projects.get_all_project_accounts(account)
+    account
+    |> Projects.get_all_project_accounts()
     |> Enum.filter(fn %{account: account, project: project} ->
       Authorization.can(current_user, :access, %{project | account: account}, :url)
     end)
@@ -194,18 +187,16 @@ defmodule TuistWeb.LayoutLive do
 
   defp assign_selected_run(socket, params) do
     if is_nil(params["run_id"]) do
-      socket
-      |> assign(:selected_run, nil)
+      assign(socket, :selected_run, nil)
     else
       run = CommandEvents.get_command_event_by_id(params["run_id"])
 
       if is_nil(run) do
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               gettext("The run you are looking for doesn't exist or has been moved.")
       end
 
-      socket
-      |> assign(:selected_run, run)
+      assign(socket, :selected_run, run)
     end
   end
 
@@ -213,8 +204,8 @@ defmodule TuistWeb.LayoutLive do
     assign_async(socket, :latest_app_release, &get_latest_app_release/0)
   end
 
-  defp get_latest_app_release() do
-    latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
+  defp get_latest_app_release do
+    latest_app_release = Releases.get_latest_app_release()
 
     latest_app_release =
       if not is_nil(latest_app_release) do
@@ -230,16 +221,15 @@ defmodule TuistWeb.LayoutLive do
     assign_async(socket, :latest_cli_release, &get_latest_cli_release/0)
   end
 
-  defp get_latest_cli_release() do
-    latest_cli_release = Tuist.GitHub.Releases.get_latest_cli_release()
+  defp get_latest_cli_release do
+    latest_cli_release = Releases.get_latest_cli_release()
 
     latest_cli_release =
       if not is_nil(latest_cli_release) do
         %{published_at: published_at} = latest_cli_release
 
         if Timex.after?(published_at, Timex.shift(Timex.today(), days: -1)),
-          do: latest_cli_release,
-          else: nil
+          do: latest_cli_release
       end
 
     {:ok, %{latest_cli_release: latest_cli_release}}

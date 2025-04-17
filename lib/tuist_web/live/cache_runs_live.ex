@@ -1,29 +1,22 @@
 defmodule TuistWeb.CacheRunsLive do
-  alias Tuist.Projects
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.Runs.RanByBadge
+
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.RanByBadge
+
   alias Tuist.CommandEvents
+  alias Tuist.Projects
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
-    {:ok,
-     socket
-     |> assign(:head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")}
+    {:ok, assign(socket, :head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")}
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
-    uri =
-      ("?" <>
-         URI.encode_query(
-           Map.take(params, [
-             "cache_runs_sort_by",
-             "cache_runs_sort_order"
-           ])
-         ))
-      |> URI.new!()
+    uri = URI.new!("?" <> URI.encode_query(Map.take(params, ["cache_runs_sort_by", "cache_runs_sort_order"])))
 
     cache_runs_sort_by = params["cache_runs_sort_by"] || "ran_at"
     cache_runs_sort_order = params["cache_runs_sort_order"] || "desc"
@@ -112,8 +105,7 @@ defmodule TuistWeb.CacheRunsLive do
           |> Map.put(:after, Keyword.get(attrs, :after))
 
         true ->
-          options
-          |> Map.put(:first, 20)
+          Map.put(options, :first, 20)
       end
 
     CommandEvents.list_command_events(options)
@@ -128,11 +120,7 @@ defmodule TuistWeb.CacheRunsLive do
   end
 
   def column_patch_sort(
-        %{
-          uri: uri,
-          cache_runs_sort_by: cache_runs_sort_by,
-          cache_runs_sort_order: cache_runs_sort_order
-        } = _assigns,
+        %{uri: uri, cache_runs_sort_by: cache_runs_sort_by, cache_runs_sort_order: cache_runs_sort_order} = _assigns,
         column_value
       ) do
     sort_order =

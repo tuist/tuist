@@ -1,11 +1,14 @@
 defmodule TuistWeb.PreviewsLive do
+  @moduledoc false
   use TuistWeb, :live_view
   use TuistWeb.Noora
+
+  import TuistWeb.EmptyState
   import TuistWeb.Previews.AppPreview
-  import TuistWeb.Previews.RunButton
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Previews.RanByBadge
-  import TuistWeb.EmptyState
+  import TuistWeb.Previews.RunButton
+
   alias Tuist.Previews
   alias Tuist.Projects
 
@@ -13,9 +16,7 @@ defmodule TuistWeb.PreviewsLive do
     {previews, previews_meta} =
       list_previews(project.id, first: 20)
 
-    uri =
-      ("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
-      |> URI.new!()
+    uri = URI.new!("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
 
     {:ok,
      socket
@@ -101,8 +102,7 @@ defmodule TuistWeb.PreviewsLive do
           |> Map.put(:after, Keyword.get(attrs, :after))
 
         true ->
-          options
-          |> Map.put(:first, 20)
+          Map.put(options, :first, 20)
       end
 
     Previews.list_previews(options,

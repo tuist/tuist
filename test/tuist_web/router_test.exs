@@ -1,13 +1,14 @@
 defmodule TuistWeb.RouterTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
+
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   test "marketing pages are non-indexable and non-followable when a production and on-premise environment",
        %{conn: conn} do
-    Tuist.Environment |> stub(:on_premise?, fn -> true end)
-    Tuist.Environment |> stub(:prod?, fn -> true end)
+    stub(Tuist.Environment, :on_premise?, fn -> true end)
+    stub(Tuist.Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
       assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["noindex, nofollow"]
@@ -16,7 +17,7 @@ defmodule TuistWeb.RouterTest do
 
   test "marketing pages are non-indexable and non-followable when a non-production environment",
        %{conn: conn} do
-    Tuist.Environment |> stub(:prod?, fn -> false end)
+    stub(Tuist.Environment, :prod?, fn -> false end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
       assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["noindex, nofollow"]
@@ -25,8 +26,8 @@ defmodule TuistWeb.RouterTest do
 
   test "marketing pages are indexable and followable when a production and non on-premise environment",
        %{conn: conn} do
-    Tuist.Environment |> stub(:on_premise?, fn -> false end)
-    Tuist.Environment |> stub(:prod?, fn -> true end)
+    stub(Tuist.Environment, :on_premise?, fn -> false end)
+    stub(Tuist.Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
       assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["index, follow"]
@@ -47,7 +48,7 @@ defmodule TuistWeb.RouterTest do
       )
 
     # When
-    conn = conn |> log_in_user(user)
+    conn = log_in_user(conn, user)
 
     # Then
     assert conn

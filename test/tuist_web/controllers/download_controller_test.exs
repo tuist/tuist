@@ -2,19 +2,19 @@ defmodule Tuist.DownloadControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.GitHub.Releases
+
   test "redirects to the browser_download_url", %{conn: conn} do
     # Given
-    Tuist.GitHub.Releases
-    |> stub(:get_latest_app_release, fn ->
+    stub(Releases, :get_latest_app_release, fn ->
       %{
-        published_at: Timex.format!(Timex.now(), "{ISO:Extended}"),
+        published_at: Timex.format!(DateTime.utc_now(), "{ISO:Extended}"),
         name: "v2.0.0",
         html_url: "https://github.com/release",
         assets: [
           %{
             name: "tuist.zip",
-            browser_download_url:
-              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
+            browser_download_url: "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
       }
@@ -30,13 +30,11 @@ defmodule Tuist.DownloadControllerTest do
 
   test "raises not found error when latest_app_release is nil", %{conn: conn} do
     # Given
-    Tuist.GitHub.Releases
-    |> stub(:get_latest_app_release, fn -> nil end)
+    stub(Releases, :get_latest_app_release, fn -> nil end)
 
     # When / Then
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      conn
-      |> get("/download")
+      get(conn, "/download")
     end
   end
 end

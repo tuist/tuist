@@ -2,13 +2,11 @@ defmodule TuistWeb.Storybook.ButtonGroup do
   @moduledoc false
   use PhoenixStorybook.Story, :component
 
-  def imports,
-    do: [
-      {TuistWeb.Noora.ButtonGroup, [button_group_item: 1]},
-      {TuistWeb.Noora.Icon, chevron_left: 1, chevron_right: 1}
-    ]
+  alias TuistWeb.Noora.ButtonGroup
 
-  def function, do: &TuistWeb.Noora.ButtonGroup.button_group/1
+  def imports, do: [{ButtonGroup, [button_group_item: 1]}, {TuistWeb.Noora.Icon, chevron_left: 1, chevron_right: 1}]
+
+  def function, do: &ButtonGroup.button_group/1
 
   def variations do
     [

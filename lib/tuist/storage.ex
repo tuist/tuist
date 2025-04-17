@@ -8,7 +8,7 @@ defmodule Tuist.Storage do
   require Logger
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
-    content_length = opts |> Keyword.get(:content_length)
+    content_length = Keyword.get(opts, :content_length)
 
     headers =
       if is_nil(content_length) do
@@ -18,7 +18,8 @@ defmodule Tuist.Storage do
       end
 
     {:ok, url} =
-      ExAws.Config.new(:s3)
+      :s3
+      |> ExAws.Config.new()
       |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
         query_params: [
           {"partNumber", part_number},
@@ -26,7 +27,7 @@ defmodule Tuist.Storage do
         ],
         headers: headers,
         virtual_host: true,
-        expires_in: opts |> Keyword.get(:expires_in, 3600)
+        expires_in: Keyword.get(opts, :expires_in, 3600)
       )
 
     :telemetry.execute(
@@ -63,10 +64,11 @@ defmodule Tuist.Storage do
     {time, url} =
       Performance.measure_time_in_milliseconds(fn ->
         {:ok, url} =
-          ExAws.Config.new(:s3)
+          :s3
+          |> ExAws.Config.new()
           |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
             query_params: [],
-            expires_in: opts |> Keyword.get(:expires_in, 3600),
+            expires_in: Keyword.get(opts, :expires_in, 3600),
             virtual_host: true
           )
 
@@ -84,10 +86,11 @@ defmodule Tuist.Storage do
 
   def generate_upload_url(object_key, opts \\ []) do
     {:ok, url} =
-      ExAws.Config.new(:s3)
+      :s3
+      |> ExAws.Config.new()
       |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
         query_params: [],
-        expires_in: opts |> Keyword.get(:expires_in, 3600),
+        expires_in: Keyword.get(opts, :expires_in, 3600),
         virtual_host: true
       )
 
@@ -118,7 +121,8 @@ defmodule Tuist.Storage do
   def upload(source, object_key) do
     bucket = Environment.s3_bucket_name()
 
-    ExAws.S3.upload(source, bucket, object_key)
+    source
+    |> ExAws.S3.upload(bucket, object_key)
     |> ExAws.request!()
   end
 
@@ -203,7 +207,8 @@ defmodule Tuist.Storage do
           |> ExAws.stream!()
           |> Stream.map(& &1.key)
 
-        ExAws.S3.delete_all_objects(Environment.s3_bucket_name(), stream)
+        Environment.s3_bucket_name()
+        |> ExAws.S3.delete_all_objects(stream)
         |> ExAws.request!()
       end)
 

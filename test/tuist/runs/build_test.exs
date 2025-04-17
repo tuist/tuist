@@ -24,32 +24,32 @@ defmodule Tuist.Runs.BuildTest do
     end
 
     test "ensures id is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:id]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :id))
       assert "can't be blank" in errors_on(changeset).id
     end
 
     test "ensures duration is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:duration]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :duration))
       assert "can't be blank" in errors_on(changeset).duration
     end
 
     test "ensures is_ci is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:is_ci]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :is_ci))
       assert "can't be blank" in errors_on(changeset).is_ci
     end
 
     test "ensures project_id is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:project_id]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :project_id))
       assert "can't be blank" in errors_on(changeset).project_id
     end
 
     test "ensures account_id is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:account_id]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :account_id))
       assert "can't be blank" in errors_on(changeset).account_id
     end
 
     test "ensures status is present" do
-      changeset = Build.create_changeset(%Build{}, Map.drop(@valid_attrs, [:status]))
+      changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :status))
       assert "can't be blank" in errors_on(changeset).status
     end
 

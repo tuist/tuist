@@ -1,6 +1,7 @@
 defmodule TuistWeb.API.AccountTokensControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -9,9 +10,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -35,9 +34,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       organization =
         AccountsFixtures.organization_fixture(creator: user, preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -58,9 +55,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =
@@ -82,9 +77,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(preload: [:account])
 
-      conn =
-        conn
-        |> TuistWeb.Authentication.put_current_user(user)
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
 
       # When
       conn =

@@ -8,8 +8,8 @@ defmodule Tuist.GitHub.App do
   @cache_key "github_app_token"
 
   def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
-    cache = opts |> get_cache()
-    ttl = opts |> Keyword.get(:ttl, :timer.minutes(10))
+    cache = get_cache(opts)
+    ttl = Keyword.get(opts, :ttl, to_timeout(minute: 10))
 
     result =
       Cachex.fetch(cache, @cache_key <> "_#{repository_full_handle}", fn ->
@@ -40,14 +40,12 @@ defmodule Tuist.GitHub.App do
   end
 
   def refresh_token(repository_full_handle, opts \\ []) do
-    private_key =
-      Environment.github_app_private_key()
-      |> JOSE.JWK.from_pem()
+    private_key = JOSE.JWK.from_pem(Environment.github_app_private_key())
 
-    now = DateTime.utc_now() |> DateTime.to_unix()
+    now = DateTime.to_unix(DateTime.utc_now())
 
     # Converted to seconds
-    expires_in = trunc(Keyword.get(opts, :expires_in, :timer.minutes(10)) / 1000)
+    expires_in = trunc(Keyword.get(opts, :expires_in, to_timeout(minute: 10)) / 1000)
 
     # JSON Web Token (JWT)
     claims = %{
@@ -57,7 +55,8 @@ defmodule Tuist.GitHub.App do
     }
 
     {_, jwt} =
-      JOSE.JWT.sign(private_key, %{"alg" => "RS256"}, claims)
+      private_key
+      |> JOSE.JWT.sign(%{"alg" => "RS256"}, claims)
       |> JOSE.JWS.compact()
 
     headers =
@@ -66,8 +65,7 @@ defmodule Tuist.GitHub.App do
         {"Authorization", "Bearer #{jwt}"}
       ]
 
-    with {:access_tokens_url,
-          {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
+    with {:access_tokens_url, {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
            {:access_tokens_url,
             Req.get("https://api.github.com/repos/#{repository_full_handle}/installation",
               headers: headers
@@ -79,9 +77,7 @@ defmodule Tuist.GitHub.App do
              body: %{"token" => token, "expires_at" => expires_at}
            }}} <-
            {:token, Req.post(access_tokens_url, headers: headers)} do
-      {:ok, expires_at, _} =
-        expires_at
-        |> DateTime.from_iso8601()
+      {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
 
       {:ok, %{token: token, expires_at: expires_at}}
     else
@@ -89,15 +85,13 @@ defmodule Tuist.GitHub.App do
         {:error, "The Tuist GitHub app is not installed for #{repository_full_handle}."}
 
       {:access_tokens_url, {:ok, %Req.Response{status: status, body: body}}} ->
-        {:error,
-         "Unexpected status code when getting the access token url: #{status}. Body: #{Jason.encode!(body)}"}
+        {:error, "Unexpected status code when getting the access token url: #{status}. Body: #{Jason.encode!(body)}"}
 
       {:access_tokens_url, {:error, reason}} ->
         {:error, "Request failed when getting the access token url: #{inspect(reason)}"}
 
       {:token, {:ok, %Req.Response{status: status, body: body}}} ->
-        {:error,
-         "Unexpected status code when getting the token: #{status}. Body: #{Jason.encode!(body)}"}
+        {:error, "Unexpected status code when getting the token: #{status}. Body: #{Jason.encode!(body)}"}
 
       {:token, {:error, reason}} ->
         {:error, "Request failed when getting the token: #{inspect(reason)}"}

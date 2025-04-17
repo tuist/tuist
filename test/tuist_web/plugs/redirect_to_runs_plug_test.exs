@@ -1,6 +1,7 @@
 defmodule TuistWeb.RedirecToRunsPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
+
   alias TuistWeb.RedirectToRunsPlug
 
   test "redirects to runs when timescale is unavailable", %{conn: conn} do
@@ -10,10 +11,10 @@ defmodule TuistWeb.RedirecToRunsPlugTest do
         path_info: ["owner-name", "project-name"]
     }
 
-    Tuist.Repo |> stub(:timescale_available?, fn -> false end)
+    stub(Tuist.Repo, :timescale_available?, fn -> false end)
 
     # When
-    conn = conn |> RedirectToRunsPlug.call(%{})
+    conn = RedirectToRunsPlug.call(conn, %{})
 
     # Then
     assert redirected_to(conn) == ~p"/owner-name/project-name/runs"
@@ -26,10 +27,10 @@ defmodule TuistWeb.RedirecToRunsPlugTest do
         path_info: ["owner-name", "project-name"]
     }
 
-    Tuist.Repo |> stub(:timescale_available?, fn -> true end)
+    stub(Tuist.Repo, :timescale_available?, fn -> true end)
 
     # When
-    got = conn |> RedirectToRunsPlug.call(%{})
+    got = RedirectToRunsPlug.call(conn, %{})
 
     # Then
     assert got == conn
@@ -40,7 +41,7 @@ defmodule TuistWeb.RedirecToRunsPlugTest do
     conn = build_conn(:get, "/random-path", nil)
 
     # When
-    got = conn |> RedirectToRunsPlug.call(%{})
+    got = RedirectToRunsPlug.call(conn, %{})
 
     # Then
     assert got == conn

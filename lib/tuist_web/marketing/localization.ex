@@ -26,8 +26,7 @@ defmodule TuistWeb.Marketing.Localization do
     else
       Gettext.put_locale(locale)
 
-      conn
-      |> put_session(:locale, locale)
+      put_session(conn, :locale, locale)
     end
   end
 
@@ -43,9 +42,9 @@ defmodule TuistWeb.Marketing.Localization do
       redirect_to_path =
         Path.join(
           locale_path_prefix(headers_locale),
-          if(conn.query_string != "",
-            do: "#{path_without_locale(conn.request_path)}?#{conn.query_string}",
-            else: path_without_locale(conn.request_path)
+          if(conn.query_string == "",
+            do: path_without_locale(conn.request_path),
+            else: "#{path_without_locale(conn.request_path)}?#{conn.query_string}"
           )
         )
 
@@ -125,8 +124,6 @@ defmodule TuistWeb.Marketing.Localization do
       [^locale] ->
         if locale in supported_locales do
           locale
-        else
-          nil
         end
     end
   end

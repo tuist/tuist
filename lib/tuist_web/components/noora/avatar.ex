@@ -21,8 +21,7 @@ defmodule TuistWeb.Noora.Avatar do
   attr :fallback, :string,
     values: ~w(initials placeholder),
     default: "initials",
-    doc:
-      "Determines the fallback for when an image is not available. Can be either initials or a placeholder image"
+    doc: "Determines the fallback for when an image is not available. Can be either initials or a placeholder image"
 
   attr :on_status_change, :string,
     default: nil,
@@ -47,7 +46,7 @@ defmodule TuistWeb.Noora.Avatar do
         "2xlarge" -> 2
       end
 
-    assigns = assigns |> assign(:number_of_initials, number_of_initials)
+    assigns = assign(assigns, :number_of_initials, number_of_initials)
 
     ~H"""
     <div

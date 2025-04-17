@@ -1,7 +1,8 @@
 defmodule Tuist.CommandEvents.EventTest do
-  alias Tuist.CommandEvents.Event
   use TuistTestSupport.Cases.DataCase
   use Mimic
+
+  alias Tuist.CommandEvents.Event
 
   describe "create_changeset" do
     test "ensures status is either success or failure" do

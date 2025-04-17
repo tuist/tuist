@@ -2,9 +2,10 @@ defmodule TuistWeb.Previews.PlatformIcon do
   @moduledoc """
   A component used to render a preview's platform icon.
   """
-  alias Tuist.Previews
   use Phoenix.Component
   use TuistWeb.Noora
+
+  alias Tuist.Previews
 
   attr :platform, :map, required: true
 

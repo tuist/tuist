@@ -1,11 +1,12 @@
 defmodule TuistWeb.DashboardController do
-  alias Tuist.Projects
   use TuistWeb, :controller
+
+  alias Tuist.Projects
 
   def dashboard(%{assigns: %{current_user: current_user}} = conn, _params) do
     project_account =
       if is_nil(current_user.last_visited_project_id) do
-        Projects.get_all_project_accounts(current_user) |> List.first()
+        current_user |> Projects.get_all_project_accounts() |> List.first()
       else
         Projects.get_project_account_by_project_id(current_user.last_visited_project_id)
       end

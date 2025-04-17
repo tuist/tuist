@@ -16,15 +16,11 @@ defmodule Tuist.Slack do
         {"Content-Type", "application/json"}
       ]
 
-      body =
-        %{
-          channel: channel,
-          blocks: blocks
-        }
-        |> Jason.encode!()
+      body = Jason.encode!(%{channel: channel, blocks: blocks})
 
       response =
-        Req.post(@api_url, headers: headers, body: body)
+        @api_url
+        |> Req.post(headers: headers, body: body)
         |> handle_response()
 
       case response do

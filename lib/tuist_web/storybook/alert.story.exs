@@ -53,8 +53,7 @@ defmodule TuistWeb.Storybook.Alert do
             attributes: %{
               size: "large",
               title: "Insert your text here",
-              description:
-                "Insert your description here. Description in this case is usually two lines",
+              description: "Insert your description here. Description in this case is usually two lines",
               status: "error"
             }
           }
@@ -158,8 +157,7 @@ defmodule TuistWeb.Storybook.Alert do
               status: "error",
               size: "large",
               title: "Insert your text here",
-              description:
-                "Insert your description here. Description in this case is usually two lines"
+              description: "Insert your description here. Description in this case is usually two lines"
             }
           }
         ]
@@ -186,8 +184,7 @@ defmodule TuistWeb.Storybook.Alert do
               status: "error",
               size: "large",
               title: "Insert your text here",
-              description:
-                "Insert your description here. Description in this case is usually two lines"
+              description: "Insert your description here. Description in this case is usually two lines"
             },
             slots: [
               """

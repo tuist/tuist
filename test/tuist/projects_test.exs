@@ -1,18 +1,18 @@
 defmodule Tuist.ProjectsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
-
-  alias Tuist.Base64
-  alias Tuist.Projects.ProjectToken
-  alias Tuist.CommandEvents
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Accounts.ProjectAccount
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias Tuist.Projects
-  alias Tuist.Accounts
   use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Accounts.ProjectAccount
+  alias Tuist.Base64
+  alias Tuist.CommandEvents
+  alias Tuist.Projects
+  alias Tuist.Projects.ProjectToken
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "get_projects_count/0" do
     test "returns the right count" do
@@ -97,7 +97,7 @@ defmodule Tuist.ProjectsTest do
     # Then
     assert [
              "#{account.name}/#{project.name}"
-           ] == got |> Enum.map(& &1.handle)
+           ] == Enum.map(got, & &1.handle)
   end
 
   test "returns missing handle or project name" do
@@ -198,19 +198,17 @@ defmodule Tuist.ProjectsTest do
       got = Projects.get_all_project_accounts(user)
 
       # Then
-      assert [
-               %ProjectAccount{
-                 handle: "#{account.name}/#{project_one.name}",
-                 account: account,
-                 project: project_one
-               },
-               %ProjectAccount{
-                 handle: "#{user_account.name}/#{project_two.name}",
-                 account: user_account,
-                 project: project_two
-               }
-             ]
-             |> Enum.sort_by(& &1.handle) == got |> Enum.sort_by(& &1.handle)
+      assert Enum.sort_by(
+               [
+                 %ProjectAccount{handle: "#{account.name}/#{project_one.name}", account: account, project: project_one},
+                 %ProjectAccount{
+                   handle: "#{user_account.name}/#{project_two.name}",
+                   account: user_account,
+                   project: project_two
+                 }
+               ],
+               & &1.handle
+             ) == Enum.sort_by(got, & &1.handle)
     end
   end
 
@@ -239,11 +237,13 @@ defmodule Tuist.ProjectsTest do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, token_one} =
-        Projects.create_project_token(project)
+        project
+        |> Projects.create_project_token()
         |> Projects.get_project_token()
 
       {:ok, token_two} =
-        Projects.create_project_token(project)
+        project
+        |> Projects.create_project_token()
         |> Projects.get_project_token()
 
       _token_three = Projects.create_project_token(ProjectsFixtures.project_fixture())
@@ -252,7 +252,7 @@ defmodule Tuist.ProjectsTest do
       got = Projects.get_project_tokens(project)
 
       # Then
-      assert got |> Enum.sort_by(& &1.id) == [token_one, token_two] |> Enum.sort_by(& &1.id)
+      assert Enum.sort_by(got, & &1.id) == Enum.sort_by([token_one, token_two], & &1.id)
     end
 
     test "returns empty array if there are no project's tokens" do
@@ -338,7 +338,8 @@ defmodule Tuist.ProjectsTest do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, token} =
-        Projects.create_project_token(project)
+        project
+        |> Projects.create_project_token()
         |> Projects.get_project_token()
 
       # When
@@ -365,8 +366,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      Base64
-      |> expect(:encode, fn _ -> "generated-hash" end)
+      expect(Base64, :encode, fn _ -> "generated-hash" end)
 
       # When
       got = Projects.create_project_token(project)
@@ -383,7 +383,8 @@ defmodule Tuist.ProjectsTest do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, token} =
-        Projects.create_project_token(project)
+        project
+        |> Projects.create_project_token()
         |> Projects.get_project_token()
 
       # When

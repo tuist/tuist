@@ -2,18 +2,19 @@ defmodule Tuist.VCS.Repositories do
   @moduledoc """
   A module that provides functions to interact with VCS repositories.
   """
-  alias Tuist.VCS
   alias Tuist.GitHub
   alias Tuist.Repo
+  alias Tuist.VCS
 
   def get_repository_from_repository_url(repository_url) do
-    vcs_uri = repository_url |> URI.parse()
-    host = vcs_uri |> Map.get(:host)
+    vcs_uri = URI.parse(repository_url)
+    host = Map.get(vcs_uri, :host)
 
     if host == "github.com" do
       client = get_client_for_provider(:github)
 
-      get_repository_full_handle_from_url(repository_url)
+      repository_url
+      |> get_repository_full_handle_from_url()
       |> client.get_repository()
     else
       {:error, :unsupported_vcs}
@@ -26,9 +27,7 @@ defmodule Tuist.VCS.Repositories do
       }) do
     user = Repo.preload(user, :oauth2_identities)
 
-    github_identity =
-      user.oauth2_identities
-      |> Enum.find(&(&1.provider == provider))
+    github_identity = Enum.find(user.oauth2_identities, &(&1.provider == provider))
 
     client = get_client_for_provider(provider)
 

@@ -53,16 +53,15 @@ defmodule Tuist.Analytics.Posthog do
     )
   end
 
-  defp events() do
-    Tuist.Analytics.all_events()
-    |> Enum.reject(fn event ->
+  defp events do
+    Enum.reject(Tuist.Analytics.all_events(), fn event ->
       # We send many of these events so it's expensive.
       event == [:analytics, :cache_artifact, :upload] or
         event == [:analytics, :cache_artifact, :download]
     end)
   end
 
-  def detach() do
+  def detach do
     :telemetry.detach(@handler_id)
   end
 
@@ -90,8 +89,8 @@ defmodule Tuist.Analytics.Posthog do
     table_id = config[:table_id]
     date = DateTime.utc_now()
 
-    {user_id, metadata} = metadata |> Map.pop(:user_id)
-    {project_id, metadata} = metadata |> Map.pop(:project_id)
+    {user_id, metadata} = Map.pop(metadata, :user_id)
+    {project_id, metadata} = Map.pop(metadata, :project_id)
 
     distinct_id_params =
       cond do
@@ -100,17 +99,13 @@ defmodule Tuist.Analytics.Posthog do
         true -> %{}
       end
 
-    event_name =
-      event_id
-      |> Enum.map_join("_", &Atom.to_string/1)
+    event_name = Enum.map_join(event_id, "_", &Atom.to_string/1)
 
     event =
-      %{
-        event: event_name,
-        properties: metadata |> Map.merge(measurements),
-        timestamp: DateTime.to_iso8601(date)
-      }
-      |> Map.merge(distinct_id_params)
+      Map.merge(
+        %{event: event_name, properties: Map.merge(metadata, measurements), timestamp: DateTime.to_iso8601(date)},
+        distinct_id_params
+      )
 
     :ets.insert(
       table_id,

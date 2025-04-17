@@ -2,17 +2,19 @@ defmodule Tuist.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
-  alias Tuist.Base64
-  alias Tuist.CommandEvents.Event
-  alias Tuist.Repo
-  alias Tuist.Accounts
-  alias Tuist.Accounts.{Account, ProjectAccount, User}
-  alias Tuist.Projects.Project
-  alias Tuist.Projects.ProjectToken
-
   import Ecto.Query
 
-  def get_projects_count() do
+  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.ProjectAccount
+  alias Tuist.Accounts.User
+  alias Tuist.Base64
+  alias Tuist.CommandEvents.Event
+  alias Tuist.Projects.Project
+  alias Tuist.Projects.ProjectToken
+  alias Tuist.Repo
+
+  def get_projects_count do
     Repo.aggregate(Project, :count, :id)
   end
 
@@ -21,9 +23,8 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_full_token(full_token) do
-    if full_token |> legacy_token?() do
-      from(p in Project, where: p.token == ^full_token, preload: [:account])
-      |> Repo.one()
+    if legacy_token?(full_token) do
+      Repo.one(from(p in Project, where: p.token == ^full_token, preload: [:account]))
     else
       case get_project_token(full_token) do
         {:error, _} -> nil
@@ -33,8 +34,7 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_id(project_id) do
-    from(p in Project, where: p.id == ^project_id, preload: [:account])
-    |> Repo.one()
+    Repo.one(from(p in Project, where: p.id == ^project_id, preload: [:account]))
   end
 
   def get_project_account_by_project_id(project_id) do
@@ -81,7 +81,7 @@ defmodule Tuist.Projects do
                 where: p.account_id == ^account_id
               )
             )} do
-      project |> Repo.preload(Keyword.get(opts, :preload, [:account]))
+      Repo.preload(project, Keyword.get(opts, :preload, [:account]))
     else
       {:account, nil} -> nil
       {:project, nil} -> nil
@@ -107,8 +107,6 @@ defmodule Tuist.Projects do
   def get_project_slug_from_id(id) do
     if project = Repo.one(from p in Project, where: p.id == ^id, preload: [:account]) do
       "#{project.account.name}/#{project.name}"
-    else
-      nil
     end
   end
 
@@ -116,7 +114,8 @@ defmodule Tuist.Projects do
     user_account = Accounts.get_account_from_user(user)
 
     organization_account_ids =
-      Accounts.get_user_organization_accounts(user)
+      user
+      |> Accounts.get_user_organization_accounts()
       |> Enum.map(& &1.account.id)
 
     account_ids = [user_account.id | organization_account_ids]
@@ -128,7 +127,8 @@ defmodule Tuist.Projects do
         where: p.account_id in ^account_ids,
         select: %{project: p, account: a}
 
-    Repo.all(query)
+    query
+    |> Repo.all()
     |> Enum.map(fn %{project: project, account: account} ->
       %ProjectAccount{
         handle: "#{account.name}/#{project.name}",
@@ -141,7 +141,8 @@ defmodule Tuist.Projects do
   def get_all_project_accounts(%Account{id: account_id} = account) do
     query = from p in Project, where: p.account_id == ^account_id, select: p
 
-    Repo.all(query)
+    query
+    |> Repo.all()
     |> Enum.map(fn project ->
       %ProjectAccount{
         handle: "#{account.name}/#{project.name}",
@@ -152,27 +153,28 @@ defmodule Tuist.Projects do
   end
 
   def create_project(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = opts |> Keyword.get(:token, Tuist.Tokens.generate_token())
-    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    visibility = opts |> Keyword.get(:visibility, :private)
+    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    visibility = Keyword.get(opts, :visibility, :private)
 
-    Project.create_changeset(%{
+    %{
       token: token,
       name: name,
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      vcs_repository_full_handle: opts |> Keyword.get(:vcs_repository_full_handle),
-      vcs_provider: opts |> Keyword.get(:vcs_provider)
-    })
+      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
+      vcs_provider: Keyword.get(opts, :vcs_provider)
+    }
+    |> Project.create_changeset()
     |> Repo.insert()
   end
 
   def create_project!(%{name: name, account: %{id: account_id}}, opts \\ []) do
-    token = opts |> Keyword.get(:token, Tuist.Tokens.generate_token())
-    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    visibility = opts |> Keyword.get(:visibility, :private)
-    preload = opts |> Keyword.get(:preload, [])
+    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    visibility = Keyword.get(opts, :visibility, :private)
+    preload = Keyword.get(opts, :preload, [])
 
     %Project{}
     |> Project.create_changeset(%{
@@ -181,8 +183,8 @@ defmodule Tuist.Projects do
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      vcs_repository_full_handle: opts |> Keyword.get(:vcs_repository_full_handle),
-      vcs_provider: opts |> Keyword.get(:vcs_provider)
+      vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
+      vcs_provider: Keyword.get(opts, :vcs_provider)
     })
     |> Repo.insert!()
     |> Repo.preload(preload)
@@ -220,28 +222,20 @@ defmodule Tuist.Projects do
   end
 
   def get_project_tokens(%Project{} = project) do
-    from(t in ProjectToken, where: t.project_id == ^project.id)
-    |> Repo.all()
+    Repo.all(from(t in ProjectToken, where: t.project_id == ^project.id))
   end
 
   def get_project_token_by_id(%Project{} = project, token_id) do
-    from(t in ProjectToken, where: t.id == ^token_id and t.project_id == ^project.id)
-    |> Repo.one()
+    Repo.one(from(t in ProjectToken, where: t.id == ^token_id and t.project_id == ^project.id))
   end
 
   def get_project_token(full_token) do
     full_token_components = String.split(full_token, "_")
 
-    if length(full_token_components) != 3 do
-      {:error, :invalid_token}
-    else
+    if length(full_token_components) == 3 do
       [_audience, token_id, token_hash] = full_token_components
 
-      token =
-        from(t in ProjectToken,
-          where: t.id == ^token_id
-        )
-        |> Tuist.Repo.one()
+      token = Tuist.Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
 
       cond do
         is_nil(token) ->
@@ -253,6 +247,8 @@ defmodule Tuist.Projects do
         true ->
           {:error, :invalid_token}
       end
+    else
+      {:error, :invalid_token}
     end
   end
 
@@ -275,10 +271,7 @@ defmodule Tuist.Projects do
     |> Repo.update()
   end
 
-  def get_repository_url(%Project{
-        vcs_provider: vcs_provider,
-        vcs_repository_full_handle: vcs_repository_full_handle
-      }) do
+  def get_repository_url(%Project{vcs_provider: vcs_provider, vcs_repository_full_handle: vcs_repository_full_handle}) do
     case vcs_provider do
       :github ->
         "https://github.com/#{vcs_repository_full_handle}"
@@ -299,12 +292,8 @@ defmodule Tuist.Projects do
   end
 
   def get_last_command_event_date(project) do
-    from(ce in Event,
-      where: ce.project_id == ^project.id,
-      order_by: [desc: ce.ran_at],
-      limit: 1,
-      select: ce.ran_at
+    Repo.one(
+      from(ce in Event, where: ce.project_id == ^project.id, order_by: [desc: ce.ran_at], limit: 1, select: ce.ran_at)
     )
-    |> Repo.one()
   end
 end

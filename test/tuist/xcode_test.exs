@@ -1,9 +1,9 @@
 defmodule Tuist.XcodeTest do
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias Tuist.Xcode
-  alias Tuist.Repo
-
   use TuistTestSupport.Cases.DataCase
+
+  alias Tuist.Repo
+  alias Tuist.Xcode
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "create_xcode_graph/1" do
     test "creates an Xcode graph with projects and targets" do
@@ -51,11 +51,11 @@ defmodule Tuist.XcodeTest do
       xcode_targets =
         xcode_graph.xcode_projects |> hd() |> Map.get(:xcode_targets) |> Enum.sort_by(& &1.name)
 
-      assert xcode_targets |> Enum.map(& &1.name) == ["TargetA", "TargetB", "TargetBTests"]
-      assert xcode_targets |> Enum.map(& &1.binary_cache_hash) == ["hash-a", "hash-b", nil]
-      assert xcode_targets |> Enum.map(& &1.binary_cache_hit) == [:miss, :local, nil]
-      assert xcode_targets |> Enum.map(& &1.selective_testing_hash) == [nil, nil, "hash-c"]
-      assert xcode_targets |> Enum.map(& &1.selective_testing_hit) == [nil, nil, :remote]
+      assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetB", "TargetBTests"]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", "hash-b", nil]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:miss, :local, nil]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, nil, "hash-c"]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, nil, :remote]
     end
   end
 end

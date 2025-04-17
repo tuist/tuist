@@ -2,8 +2,9 @@ defmodule TuistWeb.API.Schemas.Account do
   @moduledoc """
   The schema for the account response.
   """
-  require OpenApiSpex
   alias OpenApiSpex.Schema
+
+  require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,

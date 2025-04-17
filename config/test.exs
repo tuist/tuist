@@ -3,6 +3,18 @@ import Config
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 
+# Print only warnings and errors during test
+config :logger, level: :warning
+
+# Initialize plugs at runtime for faster test compilation
+config :phoenix, :plug_init_mode, :runtime
+
+# Oban
+config :tuist, Oban, testing: :inline
+
+# Configures Bamboo API Client
+config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -22,18 +34,6 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
-
-# Configures Bamboo API Client
-config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
-
-# Print only warnings and errors during test
-config :logger, level: :warning
-
-# Initialize plugs at runtime for faster test compilation
-config :phoenix, :plug_init_mode, :runtime
-
-# Oban
-config :tuist, Oban, testing: :inline
 
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,

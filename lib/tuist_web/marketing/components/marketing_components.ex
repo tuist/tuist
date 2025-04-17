@@ -3,8 +3,9 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
-  import TuistWeb.Marketing.MarketingIcons
+
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
+  import TuistWeb.Marketing.MarketingIcons
 
   embed_templates "marketing_layout_components/*"
 
@@ -14,7 +15,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   def marketing_link(assigns) do
     rest = Map.get(assigns, :rest, %{})
     href = Map.get(rest, :href) || ""
-    local = href |> String.starts_with?("/")
+    local = String.starts_with?(href, "/")
 
     href =
       if local do
@@ -26,7 +27,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
         href
       end
 
-    assigns = assign(assigns, :rest, Map.merge(rest, %{href: href}))
+    assigns = assign(assigns, :rest, Map.put(rest, :href, href))
 
     ~H"""
     <Phoenix.Component.link {@rest}>
@@ -43,11 +44,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
 
   def marketing_mobile_menu_dropdown(assigns) do
     assigns =
-      assigns
-      |> assign(
-        :selector,
-        ".marketing__header__bar__mobile__menu__main__dropdown[data-key=\"#{assigns[:key]}\"]"
-      )
+      assign(assigns, :selector, ".marketing__header__bar__mobile__menu__main__dropdown[data-key=\"#{assigns[:key]}\"]")
 
     ~H"""
     <div
@@ -188,7 +185,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
         "small" -> "font-xs-strong"
       end
 
-    assigns = assigns |> assign(:font_class, font_class)
+    assigns = assign(assigns, :font_class, font_class)
 
     ~H"""
     <%= if assigns[:href] do %>
@@ -228,7 +225,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
         "small" -> "font-xs-strong"
       end
 
-    assigns = assigns |> assign(:font_class, font_class)
+    assigns = assign(assigns, :font_class, font_class)
 
     ~H"""
     <%= if assigns[:href] do %>

@@ -2,9 +2,6 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
   @moduledoc """
   A worker that updates Swift package releases.
   """
-  alias Tuist.Environment
-  import Environment, only: [run_if_error_tracking_enabled: 1]
-
   use Oban.Worker,
     unique: [
       period: :infinity,
@@ -12,8 +9,12 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
     ],
     max_attempts: 10
 
-  alias Tuist.Time
+  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
+
+  alias Tuist.Environment
   alias Tuist.Registry.Swift.Packages
+  alias Tuist.Time
+
   require Logger
 
   @impl Oban.Worker
