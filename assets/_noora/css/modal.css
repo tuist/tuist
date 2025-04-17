@@ -40,7 +40,7 @@
       overflow: hidden;
 
       & > [data-part="body"] {
-        padding: var(--noora-spacing-6) var(--noora-spacing-7);
+        padding: var(--noora-spacing-2) var(--noora-spacing-7);
         font: var(--noora-font-body-medium);
       }
 
@@ -48,7 +48,7 @@
         display: flex;
         align-items: center;
         box-sizing: border-box;
-        padding: var(--noora-spacing-6) var(--noora-spacing-6);
+        padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-6) var(--noora-spacing-7);
         width: 100%;
 
         & [data-part="header-content"] {
@@ -143,7 +143,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--noora-spacing-6) var(--noora-spacing-7);
+    padding: var(--noora-spacing-7);
 
     & [data-part="actions"] {
       display: flex;

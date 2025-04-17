@@ -9,6 +9,20 @@ body {
   margin: 0;
 }
 
+html:not(:has([data-theme])) {
+  @media (prefers-color-scheme: dark) {
+    & img[data-theme="light"] {
+      display: none;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    & img[data-theme="dark"] {
+      display: none;
+    }
+  }
+}
+
 body:not(html[data-noora] body) {
   margin: 0;
   background-color: var(--bg-primary);
@@ -995,9 +1009,11 @@ input:checked + .slider:before {
     gap: var(--noora-spacing-3);
 
     & [data-part="indicator"] {
+      border-radius: var(--noora-radius-xsmall);
       background-color: var(--indicator-color);
       width: 6px;
     }
+
     & > [data-part="title"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);

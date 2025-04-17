@@ -66,9 +66,3 @@
     }
   }
 }
-
-@media (prefers-color-scheme: dark) {
-  img[data-theme="light"] {
-    display: none;
-  }
-}

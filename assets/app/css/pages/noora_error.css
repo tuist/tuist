@@ -34,15 +34,3 @@
     }
   }
 }
-
-@media (prefers-color-scheme: dark) {
-  img[data-theme="light"] {
-    display: none;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  img[data-theme="dark"] {
-    display: none;
-  }
-}

@@ -17,7 +17,7 @@ export default {
   mounted() {
     this.render();
     this.colorSchemeListener = () => this.render();
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", this.colorSchemeListener);
+    window.addEventListener("changed-preferred-theme", this.colorSchemeListener);
   },
   render() {
     if (this.chart) this.chart.dispose();
@@ -40,7 +40,7 @@ export default {
   },
   destroyed() {
     this.chart.dispose();
-    window.matchMedia("(prefers-color-scheme: dark)").removeEventListener("change", this.colorSchemeListener);
+    window.removeEventListener("changed-preferred-theme", this.colorSchemeListener);
     window.removeEventListener("resize", this.resizeListener);
   },
   option() {
@@ -144,7 +144,14 @@ function resolveLightDark(string) {
   const regex = /light-dark\(\s*(.*?)\s*,\s*(.*?)\s*\)$/;
   const match = string.match(regex);
   if (!match) return string;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? match[1] : match[2];
+  const currentTheme = localStorage.getItem("preferred-theme");
+  if (currentTheme == "light") {
+    return match[1];
+  } else if (currentTheme == "dark") {
+    return match[2];
+  } else {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? match[1] : match[2];
+  }
 }
 
 function colors(option) {

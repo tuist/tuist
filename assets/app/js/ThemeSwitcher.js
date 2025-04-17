@@ -3,6 +3,7 @@ function setTheme(theme) {
   document.documentElement.style.setProperty("color-scheme", theme === "system" ? "light dark" : theme);
   document.documentElement.setAttribute("data-theme", theme === "system" ? resolvedColorScheme : theme);
   localStorage.setItem("preferred-theme", theme);
+  window.dispatchEvent(new CustomEvent("changed-preferred-theme", { detail: theme }));
 }
 
 function getPreferredTheme() {
