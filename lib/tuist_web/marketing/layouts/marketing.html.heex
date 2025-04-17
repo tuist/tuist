@@ -92,16 +92,22 @@
 <!-- hCaptcha -->
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
-    
-<!-- Inkeep -->
-    <script
-      :if={Tuist.Environment.analytics_enabled?()}
-      nonce={get_csp_nonce()}
-      src="https://cdn.jsdelivr.net/npm/@inkeep/cxkit-js@0.5/dist/embed.js"
-      type="module"
-      ,
-      defer="true"
-    >
+    <!-- Chat box -->
+    <script nonce={get_csp_nonce()}>
+      (function(d,t) {
+        var BASE_URL="https://app.chatwoot.com";
+        var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+        g.src=BASE_URL+"/packs/js/sdk.js";
+        g.defer = true;
+        g.async = true;
+        s.parentNode.insertBefore(g,s);
+        g.onload=function(){
+          window.chatwootSDK.run({
+            websiteToken: 'CuDUmBD5kcMEB26o8w4CJuTJ',
+            baseUrl: BASE_URL
+          })
+        }
+      })(document,"script");
     </script>
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
