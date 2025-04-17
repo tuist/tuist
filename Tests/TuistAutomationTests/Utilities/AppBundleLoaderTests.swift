@@ -78,10 +78,35 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         )
     }
 
-    // TODO: Ask for signed tvOS app
-    func test_load_appletv_app_bundle() async throws {
+    func test_load_appletv_info_plist() async throws {
         // Given
-        let appBundlePath = fixturePath(path: try RelativePath(validating: "tvOS-App.app"))
+        let appBundlePath = try temporaryPath()
+        let infoPlistPath = appBundlePath.appending(component: "Info.plist")
+        try fileHandler.write("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleIcons</key>
+            <dict>
+                <key>CFBundlePrimaryIcon</key>
+                <string>App Icon</string>
+            </dict>
+            <key>CFBundleIdentifier</key>
+            <string>io.tuist.TVApp</string>
+            <key>CFBundleName</key>
+            <string>App</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleSupportedPlatforms</key>
+            <array>
+                <string>AppleTVOS</string>
+            </array>
+            <key>MinimumOSVersion</key>
+            <string>18.2</string>
+        </dict>
+        </plist>
+        """, path: infoPlistPath, atomically: true)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -94,7 +119,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
                     name: "App",
-                    bundleId: "io.tuist.App",
+                    bundleId: "io.tuist.TVApp",
                     minimumOSVersion: Version("18.2"),
                     supportedPlatforms: [.device(.tvOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
