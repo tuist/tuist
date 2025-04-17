@@ -50,7 +50,8 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
-    socket_options: maybe_ipv6
+    socket_options: maybe_ipv6,
+    connection_listeners: [Tuist.DBConnection.TelemetryListener]
   ]
 
   database_options =

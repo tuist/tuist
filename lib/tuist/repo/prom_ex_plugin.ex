@@ -27,6 +27,20 @@ defmodule Tuist.Repo.PromExPlugin do
             event_name: Telemetry.event_name_repo_pool_metrics(),
             description: "The number of connections that are available to run queries.",
             measurement: :ready_conn_count
+          ),
+          counter(
+            [:tuist, :repo, :pool, :db_connection, :connected],
+            event_name: [:db_connection, :connected],
+            tags: [:tag],
+            description: "The number of pool connections that have been established.",
+            measurement: :count
+          ),
+          counter(
+            [:tuist, :repo, :pool, :db_connection, :disconnected],
+            event_name: [:db_connection, :disconnected],
+            tags: [:tag],
+            description: "The number of pool connections that have been dropped.",
+            measurement: :count
           )
         ]
       )

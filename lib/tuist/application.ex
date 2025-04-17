@@ -63,6 +63,7 @@ defmodule Tuist.Application do
     children =
       [
         TuistWeb.Telemetry,
+        {DBConnection.TelemetryListener, name: Tuist.DBConnection.TelemetryListener},
         Tuist.Repo,
         {Cachex,
          [
