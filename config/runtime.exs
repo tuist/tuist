@@ -40,7 +40,11 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   parsed_url = URI.parse(database_url)
   [username, password] = parsed_url.userinfo |> String.split(":")
-  maybe_ipv6 = if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1), do: [:inet6], else: []
+
+  socket_opts =
+    if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
+      do: [:inet6, {:keepalive, true}],
+      else: [{:keepalive, true}]
 
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
@@ -50,8 +54,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
-    socket_options: maybe_ipv6,
-    connection_listeners: [Tuist.DBConnection.TelemetryListener]
+    socket_options: socket_opts
   ]
 
   database_options =
@@ -61,7 +64,12 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
       |> Keyword.put(:ssl_opts,
         # TODO: Add proper certificate verification
         server_name_indication: to_charlist(parsed_url.host),
-        verify: :verify_none
+        verify: :verify_none,
+        parameters: [
+          tcp_keepalives_idle: 300,
+          tcp_keepalives_interval: 60,
+          tcp_keepalives_count: 5
+        ]
       )
     else
       database_options

@@ -64,7 +64,7 @@ defmodule Tuist.Application do
       [
         TuistWeb.Telemetry,
         {DBConnection.TelemetryListener, name: Tuist.DBConnection.TelemetryListener},
-        Tuist.Repo,
+        {Tuist.Repo, connection_listeners: [Tuist.DBConnection.TelemetryListener]},
         {Cachex,
          [
            :tuist,

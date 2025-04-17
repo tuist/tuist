@@ -92,9 +92,6 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 # Oban
-
-# Tuist.Slack.InternalDailyReportWorker
-
 config :tuist, Oban,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG,
