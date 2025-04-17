@@ -314,7 +314,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         switch target.product {
         case .app, .appClip, .appExtension, .watch2App, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
              .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension:
-            guard !pbxBuildFiles.isEmpty else { return }
+            if pbxBuildFiles.isEmpty { return }
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
         case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .xpc, .macro, .unitTests, .uiTests, .bundle:
