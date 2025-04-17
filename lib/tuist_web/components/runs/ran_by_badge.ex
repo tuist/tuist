@@ -11,14 +11,14 @@ defmodule TuistWeb.Runs.RanByBadge do
     ~H"""
     <.badge_cell :if={@run.is_ci} label="CI" icon="settings" color="information" style="light-fill" />
     <.badge_cell
-      :if={Map.has_key?(@run, :user)}
+      :if={Map.has_key?(@run, :user) and not is_nil(@run.user)}
       label={@run.user.account.name}
       icon="user"
       color="primary"
       style="light-fill"
     />
     <.badge_cell
-      :if={!@run.is_ci and !Map.has_key?(@run, :user)}
+      :if={!@run.is_ci and (!Map.has_key?(@run, :user) or is_nil(@run.user))}
       label={gettext("Unknown")}
       color="neutral"
       style="light-fill"
