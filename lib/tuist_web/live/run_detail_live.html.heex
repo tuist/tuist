@@ -250,6 +250,17 @@
     </.card>
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
       <.card_section data-part="binary-cache-section">
+        <.form phx-change="search-modules" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="module-search"
+            name="module-search"
+            placeholder={gettext("Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@binary_cache_filter}
+          />
+        </.form>
         <.table id="binary-cache-table" rows={@binary_cache_current_page_modules}>
           <:col
             :let={binary_cache_module}
@@ -275,6 +286,19 @@
           <:col :let={binary_cache_module} label={gettext("Hash")}>
             <.text_cell label={binary_cache_module.binary_cache_hash || gettext("Unknown")} />
           </:col>
+          <:empty_state>
+            <div data-part="empty-state">
+              <div data-part="icon">
+                <.filter_question />
+              </div>
+              <div data-part="title">
+                {gettext("No modules found")}
+              </div>
+              <div data-part="subtitle">
+                {gettext("Try changing your search term")}
+              </div>
+            </div>
+          </:empty_state>
         </.table>
         <.pagination_group
           :if={@binary_cache_page_count > 1}

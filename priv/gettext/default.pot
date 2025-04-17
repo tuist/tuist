@@ -1146,13 +1146,13 @@ msgid "Happiness"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:204
-#: lib/tuist_web/live/run_detail_live.html.heex:275
+#: lib/tuist_web/live/run_detail_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:194
-#: lib/tuist_web/live/run_detail_live.html.heex:265
+#: lib/tuist_web/live/run_detail_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -1318,7 +1318,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:27
 #: lib/tuist_web/live/overview_live.html.heex:363
 #: lib/tuist_web/live/run_detail_live.html.heex:199
-#: lib/tuist_web/live/run_detail_live.html.heex:270
+#: lib/tuist_web/live/run_detail_live.html.heex:281
 #: lib/tuist_web/live/test_runs_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Local"
@@ -1386,7 +1386,7 @@ msgid "Millions"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:201
-#: lib/tuist_web/live/run_detail_live.html.heex:272
+#: lib/tuist_web/live/run_detail_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
@@ -1397,7 +1397,7 @@ msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the 
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:185
-#: lib/tuist_web/live/run_detail_live.html.heex:256
+#: lib/tuist_web/live/run_detail_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr ""
@@ -1814,7 +1814,7 @@ msgid "Reading time"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:197
-#: lib/tuist_web/live/run_detail_live.html.heex:268
+#: lib/tuist_web/live/run_detail_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
@@ -2562,7 +2562,7 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:22
 #: lib/tuist_web/live/run_detail_live.html.heex:205
-#: lib/tuist_web/live/run_detail_live.html.heex:276
+#: lib/tuist_web/live/run_detail_live.html.heex:287
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -3109,6 +3109,7 @@ msgid "Revoke invite"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:109
+#: lib/tuist_web/live/run_detail_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
@@ -3211,4 +3212,14 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Supercharge your Swift app development"
+msgstr ""
+
+#: lib/tuist_web/live/run_detail_live.html.heex:295
+#, elixir-autogen, elixir-format
+msgid "No modules found"
+msgstr ""
+
+#: lib/tuist_web/live/run_detail_live.html.heex:258
+#, elixir-autogen, elixir-format
+msgid "Search..."
 msgstr ""

@@ -81,12 +81,22 @@ defmodule TuistWeb.RunDetailLive do
         @table_page_size
       )
 
+    binary_cache_filter = params["binary-cache-filter"] || ""
     binary_cache_page = (params["binary-cache-page"] || "1") |> String.to_integer()
     binary_cache_sort_by = params["binary-cache-sort-by"] || "module"
     binary_cache_sort_order = params["binary-cache-sort-order"] || "desc"
 
-    binary_cache_current_page_modules =
+    binary_cache_filtered_modules =
       binary_cache_analytics.cacheable_targets
+      |> Enum.filter(
+        &String.contains?(String.downcase(&1.name), String.downcase(binary_cache_filter))
+      )
+
+    binary_cache_page_count =
+      max(div(length(binary_cache_filtered_modules), @table_page_size), 1)
+
+    binary_cache_current_page_modules =
+      binary_cache_filtered_modules
       |> sort_binary_cache_modules(
         binary_cache_sort_by,
         binary_cache_sort_order
@@ -116,10 +126,12 @@ defmodule TuistWeb.RunDetailLive do
         :selective_testing_sort_order,
         selective_testing_sort_order
       )
+      |> assign(:binary_cache_filter, binary_cache_filter)
       |> assign(
         :binary_cache_page,
         binary_cache_page
       )
+      |> assign(:binary_cache_page_count, binary_cache_page_count)
       |> assign(
         :binary_cache_current_page_modules,
         binary_cache_current_page_modules
@@ -134,6 +146,17 @@ defmodule TuistWeb.RunDetailLive do
       )
       |> assign(:uri, uri)
     }
+  end
+
+  def handle_event("search-modules", %{"module-search" => search}, socket) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{URI.encode_query(URI.decode_query(socket.assigns.uri.query) |> Map.put("binary-cache-filter", search))}"
+      )
+
+    {:noreply, socket}
   end
 
   defp sort_test_modules(modules, "module", "asc") do
