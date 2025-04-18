@@ -78,6 +78,61 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         )
     }
 
+    func test_load_appletv_info_plist() async throws {
+        // Given
+        let appBundlePath = try temporaryPath()
+        let infoPlistPath = appBundlePath.appending(component: "Info.plist")
+        try fileHandler.write("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleIcons</key>
+            <dict>
+                <key>CFBundlePrimaryIcon</key>
+                <string>App Icon</string>
+            </dict>
+            <key>CFBundleIdentifier</key>
+            <string>io.tuist.TVApp</string>
+            <key>CFBundleName</key>
+            <string>App</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleSupportedPlatforms</key>
+            <array>
+                <string>AppleTVOS</string>
+            </array>
+            <key>MinimumOSVersion</key>
+            <string>18.2</string>
+        </dict>
+        </plist>
+        """, path: infoPlistPath, atomically: true)
+
+        // When
+        let appBundle = try await subject.load(appBundlePath)
+
+        // Then
+        XCTAssertBetterEqual(
+            appBundle,
+            AppBundle(
+                path: appBundlePath,
+                infoPlist: AppBundle.InfoPlist(
+                    version: "1.0",
+                    name: "App",
+                    bundleId: "io.tuist.TVApp",
+                    minimumOSVersion: Version("18.2"),
+                    supportedPlatforms: [.device(.tvOS)],
+                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                            name: "App Icon",
+                            iconFiles: nil
+                        )
+                    )
+                )
+            )
+        )
+    }
+
     func test_load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
         // Given
         let appBundlePath = try temporaryPath()
