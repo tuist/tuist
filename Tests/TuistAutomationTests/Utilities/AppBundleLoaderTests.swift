@@ -42,7 +42,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.simulator(.iOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon.dictionary(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
                             name: "AppIcon",
                             iconFiles: ["AppIcon60x60"]
                         )
@@ -123,7 +123,10 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("18.2"),
                     supportedPlatforms: [.device(.tvOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon.string("App Icon")
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                            name: "App Icon",
+                            iconFiles: nil
+                        )
                     )
                 )
             )
