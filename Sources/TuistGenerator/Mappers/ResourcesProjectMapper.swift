@@ -50,7 +50,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 destinations: target.destinations,
                 product: .bundle,
                 productName: bundleName,
-                bundleId: "\(target.bundleId).resources",
+                bundleId: "\(target.bundleId).generated.resources",
                 deploymentTargets: target.deploymentTargets,
                 infoPlist: .extendingDefault(with: [:]),
                 settings: Settings(

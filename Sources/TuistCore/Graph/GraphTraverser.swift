@@ -1404,7 +1404,7 @@ public class GraphTraverser: GraphTraversing {
         guard case let GraphDependency.target(name, path, _) = dependency,
               let graphTarget = target(path: path, name: name)
         else { return false }
-        return graphTarget.target.isEmbeddablePlugin()
+        return graphTarget.target.isEmbeddablePlugin() && !graphTarget.target.isGeneratedResourcesBundle
     }
 
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {

@@ -725,7 +725,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj: PBXProj
     ) throws {
         let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
-        let plugins = targetDependencies.filter { $0.target.isEmbeddablePlugin() }
+        let plugins = targetDependencies.filter { $0.target.isEmbeddablePlugin() && !$0.target.isGeneratedResourcesBundle }
         guard !plugins.isEmpty else { return }
 
         let embedPluginsBuildPhase = PBXCopyFilesBuildPhase(
