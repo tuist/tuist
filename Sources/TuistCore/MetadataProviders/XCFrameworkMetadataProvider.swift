@@ -58,9 +58,14 @@ public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// - Parameter binaryPath: Path to the binary.
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
 
-    /// Loads all the metadata associated with an XCFramework at the specified path
+    /// Loads all the metadata associated with an xcframework at the specified path with the given expected signature if the
+    /// xcframework is signed.
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws
+    func loadMetadata(
+        at path: AbsolutePath,
+        expectedSignature: XCFrameworkSignature?,
+        status: LinkingStatus
+    ) async throws
         -> XCFrameworkMetadata
 
     /// Returns the info.plist of the xcframework at the given path.
@@ -87,11 +92,13 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
 
     public func loadMetadata(
         at path: AbsolutePath,
+        expectedSignature: XCFrameworkSignature?,
         status: LinkingStatus
     ) async throws -> XCFrameworkMetadata {
         guard try await fileSystem.exists(path) else {
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
+
         let infoPlist = try await infoPlist(xcframeworkPath: path)
         let linking = try await linking(
             xcframeworkPath: path,
@@ -105,7 +112,8 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             status: status,
             macroPath: try await macroPath(xcframeworkPath: path),
             swiftModules: try await fileSystem.glob(directory: path, include: ["**/*.swiftmodule"]).collect().sorted(),
-            moduleMaps: try await fileSystem.glob(directory: path, include: ["**/*.modulemap"]).collect().sorted()
+            moduleMaps: try await fileSystem.glob(directory: path, include: ["**/*.modulemap"]).collect().sorted(),
+            expectedSignature: expectedSignature
         )
     }
 

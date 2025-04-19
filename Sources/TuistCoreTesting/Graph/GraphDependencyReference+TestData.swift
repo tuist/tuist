@@ -44,6 +44,7 @@ extension GraphDependencyReference {
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
             path: path,
+            expectedSignature: nil,
             infoPlist: infoPlist,
             status: status,
             condition: condition

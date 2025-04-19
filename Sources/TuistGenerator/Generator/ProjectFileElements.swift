@@ -219,9 +219,10 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .xcframework(path, _, _, _):
+            case let .xcframework(path, expectedSignature, _, _, _):
                 try generatePrecompiledDependency(
                     path,
+                    expectedSignature: expectedSignature,
                     groups: groups,
                     pbxproj: pbxproj,
                     group: filesGroup,
@@ -272,6 +273,7 @@ class ProjectFileElements {
 
     func generatePrecompiledDependency(
         _ path: AbsolutePath,
+        expectedSignature: String? = nil,
         groups: ProjectGroups,
         pbxproj: PBXProj,
         group: ProjectGroup,
@@ -287,6 +289,7 @@ class ProjectFileElements {
                 from: sourceRootPath,
                 fileAbsolutePath: path,
                 name: path.basename,
+                expectedSignature: expectedSignature,
                 toGroup: groups.cachedFrameworks,
                 pbxproj: pbxproj
             )
@@ -295,6 +298,7 @@ class ProjectFileElements {
             let fileElement = GroupFileElement(path: path, group: group)
             try generate(
                 fileElement: fileElement,
+                expectedSignature: expectedSignature,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: sourceRootPath
@@ -324,6 +328,7 @@ class ProjectFileElements {
 
     func generate(
         fileElement: GroupFileElement,
+        expectedSignature: String? = nil,
         groups: ProjectGroups,
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
@@ -364,6 +369,7 @@ class ProjectFileElements {
             if lastGroup == nil { return }
             guard let element = addElement(
                 relativePath: try RelativePath(validating: component.element),
+                expectedSignature: expectedSignature,
                 isLeaf: component.offset == components.count - 1,
                 from: lastPath,
                 toGroup: lastGroup!,
@@ -381,6 +387,7 @@ class ProjectFileElements {
 
     @discardableResult func addElement(
         relativePath: RelativePath,
+        expectedSignature: String? = nil,
         isLeaf: Bool,
         from: AbsolutePath,
         toGroup: PBXGroup,
@@ -438,6 +445,7 @@ class ProjectFileElements {
                 fileAbsolutePath: absolutePath,
                 fileRelativePath: relativePath,
                 name: name,
+                expectedSignature: expectedSignature,
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
@@ -562,6 +570,7 @@ class ProjectFileElements {
         fileAbsolutePath: AbsolutePath,
         fileRelativePath: RelativePath,
         name: String?,
+        expectedSignature: String? = nil,
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) {
@@ -571,6 +580,7 @@ class ProjectFileElements {
             name: name,
             lastKnownFileType: lastKnownFileType,
             path: fileRelativePath.pathString,
+            expectedSignature: expectedSignature,
             xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
         )
         pbxproj.add(object: file)
@@ -583,6 +593,7 @@ class ProjectFileElements {
         from _: AbsolutePath,
         fileAbsolutePath: AbsolutePath,
         name: String?,
+        expectedSignature: String?,
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) -> PBXFileReference {
@@ -592,6 +603,7 @@ class ProjectFileElements {
             name: name,
             lastKnownFileType: lastKnownFileType,
             path: fileAbsolutePath.pathString,
+            expectedSignature: expectedSignature,
             xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
         )
         pbxproj.add(object: file)

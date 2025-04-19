@@ -217,7 +217,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case let .xcframework(path, _, _, condition):
+            case let .xcframework(path, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
@@ -431,7 +431,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition, status: status)
             case let .library(path, _, _, _, condition):
                 try addBuildFile(path, condition: condition)
-            case let .xcframework(path, _, status, condition):
+            case let .xcframework(path, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
             case .bundle, .macro, .packageProduct:
                 break
@@ -580,7 +580,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .xcframework(path: path, _, _, condition):
+            case let .xcframework(path: path, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }

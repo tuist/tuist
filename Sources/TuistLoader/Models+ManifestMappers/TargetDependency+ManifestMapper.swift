@@ -86,10 +86,11 @@ extension XcodeGraph.TargetDependency {
                     condition: condition?.asGraphCondition
                 ),
             ]
-        case let .xcframework(path, status, condition):
+        case let .xcframework(path, expectedSignature, status, condition):
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
+                    expectedSignature: expectedSignature?.asGraphSignature,
                     status: .from(manifest: status),
                     condition: condition?.asGraphCondition
                 ),
@@ -159,6 +160,19 @@ extension ProjectDescription.SDKType {
             return "tbd"
         case .framework:
             return "framework"
+        }
+    }
+}
+
+extension ProjectDescription.XCFrameworkSignature {
+    var asGraphSignature: XcodeGraph.XCFrameworkSignature {
+        switch self {
+        case .unsigned:
+            return .unsigned
+        case let .selfSigned(fingerprint):
+            return .selfSigned(fingerprint: fingerprint)
+        case let .signedByApple(teamIdentifier, teamName):
+            return .signedByApple(teamIdentifier: teamIdentifier, teamName: teamName)
         }
     }
 }
