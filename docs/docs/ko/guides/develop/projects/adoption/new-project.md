@@ -6,32 +6,9 @@ description: Tuist로 새로운 프로젝트를 어떻게 생성하는지 배웁
 
 # Create a new project {#create-a-new-project}
 
-Tuist로 새로운 프로젝트를 시작하는 가장 간단한 방법은 `tuist init` 명령어를 사용하는 것입니다. 이 명령어는 기본 구조와 구성으로 새로운 프로젝트를 생성합니다.
+Tuist로 새로운 프로젝트를 시작하는 가장 간단한 방법은 `tuist init` 명령어를 사용하는 것입니다. This command launches an interactive CLI that guides you through setting up your project. When prompted, make sure to select the option to create a "generated project".
 
-## 애플리케이션 프로젝트 초기화 {#initializing-an-application-project}
-
-시작하려면 프로젝트를 생성할 디렉토리를 만들어야 합니다.
-
-```bash
-mkdir MyApp
-cd MyApp
-```
-
-디렉토리가 생성되면 해당 디렉토리로 이동해서 아래의 명령어를 수행합니다:
-
-::: code-group
-
-```bash [iOS project]
-tuist init --platform ios
-```
-
-```bash [macOS project]
-tuist init --platform macos
-```
-
-:::
-
-이 명령어는 현재 디렉토리에 프로젝트를 초기화 합니다. 생성된 파일 중 하나 인 `Project.swift` 는 프로젝트의 정의를 포함하고 있습니다. Swift Package Manager에 익숙하다면 Xcode 프로젝트에서 사용하는 `Package.swift`라고 생각하면 됩니다. `tuist edit`을 수행하여 <LocalizedLink href="/guides/develop/projects/editing">프로젝트를 수정</LocalizedLink>할 수 있으며, 해당 프로젝트를 수정할 수 있게 Xcode가 열립니다.
+생성된 파일 중 하나 인 `Project.swift` 는 프로젝트의 정의를 포함하고 있습니다. Swift Package Manager에 익숙하다면 Xcode 프로젝트에서 사용하는 `Package.swift`라고 생각하면 됩니다. `tuist edit`을 수행하여 <LocalizedLink href="/guides/develop/projects/editing">프로젝트를 수정</LocalizedLink>할 수 있으며, 해당 프로젝트를 수정할 수 있게 Xcode가 열립니다.
 
 ::: code-group
 
