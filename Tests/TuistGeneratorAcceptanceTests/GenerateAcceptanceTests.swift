@@ -1043,6 +1043,14 @@ final class GeneratediOSStaticLibraryWithStringResources: TuistAcceptanceTestCas
         try await setUpFixture(.generatediOSStaticLibraryWithStringResources)
         try await run(InstallCommand.self)
         try await run(BuildCommand.self)
+
+        let targetName = "GeneratediOSStaticLibraryWithStringResources"
+        let productName = "\(targetName)_\(targetName)"
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "\(productName).bundle",
+            destination: "Debug-iphonesimulator",
+            resource: productName
+        )
     }
 }
 
