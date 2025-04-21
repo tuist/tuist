@@ -275,6 +275,11 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/rbkbusiness.svg" alt="rbkbusiness_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://snoonu.com/" target="_blank">
+          <img src="assets/companies/snoonu.svg" alt="rbkbusiness_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -597,6 +602,8 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukevanin"><img src="https://avatars.githubusercontent.com/u/550579?v=4" width="100px;" alt=""/><br /><sub><b>Luke Van In</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://mustafataibah.vercel.app/"><img src="https://avatars.githubusercontent.com/u/83141712?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Taibah</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vkondrashkov"><img src="https://avatars.githubusercontent.com/u/16046780?v=4" width="100px;" alt=""/><br /><sub><b>Vladislav Kondrashkov</b></sub></a></td>
     </tr>
   </tbody>
 </table>

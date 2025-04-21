@@ -192,6 +192,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         return """
+        // periphery:ignore:all
         // swiftlint:disable:this file_name
         // swiftlint:disable all
         // swift-format-ignore-file

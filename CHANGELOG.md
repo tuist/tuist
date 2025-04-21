@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.48.1 - 2025-04-14
+
+### CLI
+
+#### Fixed
+
+- Ignore unused symbols in synthesized resource interface files by Periphery [#7492](https://github.com/tuist/tuist/pull/7492) by [@juicyfru1t](https://github.com/juicyfru1t)
+- Fix issue where targets with no sources generated an empty compile sources phase, leading to issues in watchOS apps [#7493](https://github.com/tuist/tuist/pull/7493) by [@cooksimo](https://github.com/cooksimo)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.48.0 - 2025-04-10
 
 ### CLI

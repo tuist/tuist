@@ -1789,6 +1789,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mustafataibah",
+      "name": "Mustafa Taibah",
+      "avatar_url": "https://avatars.githubusercontent.com/u/83141712?v=4",
+      "profile": "https://mustafataibah.vercel.app/",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "vkondrashkov",
+      "name": "Vladislav Kondrashkov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16046780?v=4",
+      "profile": "https://github.com/vkondrashkov",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

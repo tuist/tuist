@@ -1,42 +1,36 @@
 ---
-title: Editing
+title: Редактирование
 titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities.
+description: Узнайте, как использовать редактор Tuist, чтобы объявить свой проект, используя возможности системы сборки и редактора Xcode.
 ---
 
-# Editing {#editing}
+# Редактирование {#editing}
 
-Unlike traditional Xcode projects or Swift Packages,
-where changes are done through Xcode's UI,
-Tuist-managed projects are defined in Swift code contained in **manifest files**.
-If you're familiar with Swift Packages and the `Package.swift` file,
-the approach is very similar.
+В отличие от традиционных проектов Xcode или пакетов Swift Packages, где изменения вносятся через интерфейс Xcode, проекты, управляемые Tuist, определяются в коде Swift, содержащемся в **манифест файлах**.
+Если вы знакомы с Swift Packages и файлом `Package.swift`,
+то подход окажется очень похож.
 
-You could edit these files using any text editor,
-but we recommend to use Tuist-provided workflow for that,
-`tuist edit`.
-The workflow creates an Xcode project that contains all manifest files and allows you to edit and compile them.
-Thanks to using Xcode,
-you get all the benefits of **code completion, syntax highlighting, and error checking**.
+Вы можете редактировать эти файлы с помощью любого текстового редактора, но мы рекомендуем использовать для этого редактор, предоставляемый Tuist – `tuist edit`.
+Редактор создает проект Xcode, содержащий все манифест файлы, и позволяет редактировать и компилировать их.
+Благодаря использованию Xcode, вы получаете все преимущества **дополнения кода, подсветки синтаксиса и проверки ошибок**.
 
 ## Редактирование проекта {#edit-the-project}
 
-To edit your project, you can run the following command in a Tuist project directory or a sub-directory:
+Чтобы отредактировать проект, вы можете выполнить следующую команду в директории проекта Tuist или его поддиректории:
 
 ```bash
 tuist edit
 ```
 
-The command creates an Xcode project in a global directory and opens it in Xcode.
-The project includes a `Manifests` directory that you can build to ensure all your manifests are valid.
+Команда создает проект Xcode в глобальной директории и открывает его в Xcode.
+Проект включает в себя директорию `Manifests`, который вы можете собрать, чтобы убедиться, что все ваши манифесты верны.
 
-> [!INFO] GLOB-RESOLVED MANIFESTS
-> `tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
+> [!INFO] ПОИСК МАНИФЕСТОВ ЧЕРЕЗ ШАБЛОН
+> `tuist edit` включает манифесты, найденные с помощью шаблона поиска `**/{Manifest}.swift` из корневой директории проекта (содержащего файл `Tuist.swift`). Убедитесь, что в корне проекта есть корректный файл `Tuist.swift`.
 
-## Edit and generate workflow {#edit-and-generate-workflow}
+## Процесс редактирования и генерации {#edit-and-generate-workflow}
 
-As you might have noticed, the editing can't be done from the generated Xcode project.
-That's by design to prevent the generated project from having a dependency on Tuist,
-ensuring you can move from Tuist in the future with little effort.
+Как вы могли заметить, редактирование невозможно выполнить из сгенерированного проекта Xcode.
+Это сделано специально, чтобы предотвратить зависимость созданного проекта от Tuist, гарантируя, что в будущем вы сможете без особых усилий перейти с Tuist.
 
-When iterating on a project, we recommend running `tuist edit` from a terminal session to get an Xcode project to edit the project, and use another terminal session to run `tuist generate`.
+При итерации проекта мы рекомендуем запускать `tuist edit` из терминала, чтобы получить проект Xcode для редактирования проекта, и использовать другой сеанс в терминале для запуска `tuist generate`.
