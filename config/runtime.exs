@@ -263,7 +263,6 @@ config :tuist, Oban,
     {Oban.Plugins.Cron,
      crontab:
        [
-         {"@hourly", Tuist.CommandEvents.UpdateCacheEventCountWorker},
          {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
          {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
        ] ++
