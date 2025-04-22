@@ -19,7 +19,8 @@ defmodule Tuist.Repo.PromExPlugin do
           last_value(
             [:tuist, :repo, :pool, :checkout_queue, :length],
             event_name: Telemetry.event_name_repo_pool_metrics(),
-            description: "The total number of queries that are in the queue waiting to be checked out",
+            description:
+              "The total number of queries that are in the queue waiting to be checked out",
             measurement: :checkout_queue_length
           ),
           last_value(
@@ -28,14 +29,14 @@ defmodule Tuist.Repo.PromExPlugin do
             description: "The number of connections that are available to run queries.",
             measurement: :ready_conn_count
           ),
-          counter(
+          last_value(
             [:tuist, :repo, :pool, :db_connection, :connected],
             event_name: [:db_connection, :connected],
             tags: [:tag],
             description: "The number of pool connections that have been established.",
             measurement: :count
           ),
-          counter(
+          last_value(
             [:tuist, :repo, :pool, :db_connection, :disconnected],
             event_name: [:db_connection, :disconnected],
             tags: [:tag],
