@@ -302,3 +302,23 @@ remote storage로 업로드가 완료된 총 횟수.
 ### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
 
 사용자의 총 수.
+
+## Database metrics {#database-metrics}
+
+A set of metrics related to the database connection.
+
+### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
+
+The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
+
+### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
+
+The number of database connections that are ready to be assigned to a database query.
+
+### `tuist_repo_pool_db_connection_connected` (last_value) {#tuist_repo_pool_db_connection_connected-last_value}
+
+The number of connections that have been established to the database.
+
+### `tuist_repo_pool_db_connection_disconnected` (last_value) {#tuist_repo_pool_db_connection_disconnected-last_value}
+
+The number of connections that have been disconnected from the database.
