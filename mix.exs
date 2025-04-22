@@ -138,9 +138,20 @@ defmodule Tuist.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.create": ["db.create"],
-      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
-      "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      "ecto.setup": [
+        "ecto.create",
+        "ecto.migrate",
+        "run priv/repo/timezone.exs",
+        "run priv/repo/seeds.exs"
+      ],
+      "ecto.reset": [
+        "ecto.drop",
+        "ecto.create",
+        "run priv/repo/timezone.exs",
+        "ecto.load",
+        "ecto.migrate"
+      ],
+      test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
       "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs", "esbuild storybook"],
       "assets.deploy": [
