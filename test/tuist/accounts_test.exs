@@ -1959,7 +1959,9 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
 
       # When
-      got = Accounts.get_organization_members_with_role(organization)
+      got =
+        Accounts.get_organization_members_with_role(organization)
+        |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then
       assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got

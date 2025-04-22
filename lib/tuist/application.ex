@@ -102,14 +102,9 @@ defmodule Tuist.Application do
         TuistWeb.Endpoint
       ]
 
-    children =
-      if Environment.analytics_enabled?() do
-        children ++ [Tuist.Analytics.Posthog]
-      else
-        children
-      end
-
     children
+    |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
+    |> Kernel.++(if Environment.redis_url(), do: [{Redix, redis_opts()}], else: [])
   end
 
   # Tell Phoenix to update the endpoint configuration
@@ -118,5 +113,33 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  def redis_opts() do
+    %URI{} = parsed_url = URI.parse(Environment.redis_url())
+
+    database = String.trim_leading(parsed_url.path, "/")
+
+    opts = [
+      name: :redis,
+      database: database,
+      host: parsed_url.host,
+      port: parsed_url.port
+    ]
+
+    case parsed_url.userinfo do
+      nil ->
+        opts
+
+      userinfo ->
+        auth_opts =
+          case String.split(userinfo, ":", parts: 2) do
+            [username] -> [username: username]
+            [username, password] -> [username: username, password: password]
+            _ -> []
+          end
+
+        Keyword.merge(opts, auth_opts)
+    end
   end
 end

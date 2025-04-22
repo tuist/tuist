@@ -79,6 +79,10 @@ defmodule Tuist.Environment do
     get([:use_ipv6], secrets)
   end
 
+  def redis_url(secrets \\ secrets()) do
+    get([:redis_url], secrets)
+  end
+
   def database_pool_size(secrets \\ secrets()) do
     case get([:database, :pool_size], secrets) do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
