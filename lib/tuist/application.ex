@@ -118,11 +118,8 @@ defmodule Tuist.Application do
   def redis_opts() do
     %URI{} = parsed_url = URI.parse(Environment.redis_url())
 
-    database = String.trim_leading(parsed_url.path, "/")
-
     opts = [
       name: :redis,
-      database: database,
       host: parsed_url.host,
       port: parsed_url.port
     ]
