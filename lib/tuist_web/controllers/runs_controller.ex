@@ -8,7 +8,7 @@ defmodule TuistWeb.RunsController do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
 
-  def download(conn, %{"id" => command_event_id}) do
+  def download(conn, %{"run_id" => command_event_id}) do
     user = Authentication.current_user(conn)
 
     command_event =

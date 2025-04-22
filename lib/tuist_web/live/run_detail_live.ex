@@ -5,6 +5,7 @@ defmodule TuistWeb.RunDetailLive do
 
   import TuistWeb.Runs.RanByBadge
 
+  alias Tuist.CommandEvents
   alias Tuist.Projects
 
   @table_page_size 20
@@ -37,7 +38,8 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:selective_testing_analytics, selective_testing_analytics)
      |> assign(:selective_testing_page_count, selective_testing_page_count)
      |> assign(:binary_cache_analytics, binary_cache_analytics)
-     |> assign(:binary_cache_page_count, binary_cache_page_count)}
+     |> assign(:binary_cache_page_count, binary_cache_page_count)
+     |> assign_async(:has_result_bundle, fn -> {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run)}} end)}
   end
 
   def handle_params(

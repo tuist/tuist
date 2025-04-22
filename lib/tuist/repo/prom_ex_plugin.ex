@@ -19,8 +19,7 @@ defmodule Tuist.Repo.PromExPlugin do
           last_value(
             [:tuist, :repo, :pool, :checkout_queue, :length],
             event_name: Telemetry.event_name_repo_pool_metrics(),
-            description:
-              "The total number of queries that are in the queue waiting to be checked out",
+            description: "The total number of queries that are in the queue waiting to be checked out",
             measurement: :checkout_queue_length
           ),
           last_value(

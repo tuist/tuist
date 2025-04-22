@@ -6,12 +6,14 @@ defmodule TuistWeb.RunDetailLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
+    stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
     %{conn: conn, user: user}
   end
 
@@ -75,5 +77,55 @@ defmodule TuistWeb.RunDetailLiveTest do
     assert has_element?(lv, "span", "Compilation Optimizations")
     assert has_element?(lv, "table span", "AppTests")
     assert has_element?(lv, "table span", "AppTests-hash")
+  end
+
+  test "shows download result button when available", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    user: user
+  } do
+    # Given
+    stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
+
+    test_run =
+      CommandEventsFixtures.command_event_fixture(
+        project: project,
+        name: "test",
+        cacheable_targets: ["Framework"],
+        user_id: user.id
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+
+    # Then
+    assert has_element?(lv, ".noora-button", "Download result")
+  end
+
+  test "does not show download result button when not available", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    user: user
+  } do
+    # Given
+    stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+
+    test_run =
+      CommandEventsFixtures.command_event_fixture(
+        project: project,
+        name: "test",
+        cacheable_targets: ["Framework"],
+        user_id: user.id
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+
+    # Then
+    refute has_element?(lv, ".noora-button", "Download result")
   end
 end

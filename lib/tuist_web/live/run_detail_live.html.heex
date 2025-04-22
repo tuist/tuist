@@ -39,6 +39,34 @@
       <.icon name="arrow_left" />
     </:icon_left>
   </.button>
+  <div data-part="header">
+    <div data-part="title">
+      <div :if={@run.status == :success} data-part="badge-success">
+        <div data-part="icon">
+          <.circle_check />
+        </div>
+      </div>
+      <div :if={@run.status == :failure} data-part="badge-failure">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <h1 data-part="label">
+        {"tuist #{@run.name}" <> if @run.subcommand, do: " #{@run.subcommand}", else: ""}
+      </h1>
+    </div>
+    <.button
+      :if={@has_result_bundle.ok? && @has_result_bundle.result}
+      href={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.id}/download"
+      }
+      label={gettext("Download result")}
+      variant="secondary"
+      size="medium"
+    >
+      <:icon_left><.download /></:icon_left>
+    </.button>
+  </div>
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
       label={gettext("Overview")}

@@ -25,7 +25,7 @@ defmodule TuistWeb.RunsControllerTest do
       # When
       conn =
         RunsController.download(conn, %{
-          "id" => command_event.id
+          "run_id" => command_event.id
         })
 
       # Then
@@ -41,7 +41,7 @@ defmodule TuistWeb.RunsControllerTest do
 
       assert_raise NotFoundError, fn ->
         RunsController.download(conn, %{
-          "id" => unique_integer()
+          "run_id" => unique_integer()
         })
       end
     end
@@ -55,7 +55,7 @@ defmodule TuistWeb.RunsControllerTest do
       # When
       assert_raise UnauthorizedError, fn ->
         RunsController.download(conn, %{
-          "id" => command_event.id
+          "run_id" => command_event.id
         })
       end
     end
