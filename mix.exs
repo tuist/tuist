@@ -47,7 +47,7 @@ defmodule Tuist.MixProject do
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4.0"},
       {:finch,
-       git: "https://github.com/sneako/finch.git", ref: "8cf00ee131d2a8235397a2ef05b590f5b1fdf662", override: true},
+       git: "https://github.com/sneako/finch.git", ref: "3cf1406ff88043fae155958c6c032eef882fddfb", override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
