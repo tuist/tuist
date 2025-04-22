@@ -11,6 +11,7 @@ import TuistHasher
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 
 import protocol XcodeGraphMapper.XcodeGraphMapping
@@ -18,7 +19,7 @@ import protocol XcodeGraphMapper.XcodeGraphMapping
 @testable import TuistKit
 
 @Suite
-struct XcodeBuildServiceTests {
+struct XcodeBuildTestCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcodeGraphMapper = MockXcodeGraphMapping()
     private let xcodeBuildController = MockXcodeBuildControlling()
@@ -28,7 +29,7 @@ struct XcodeBuildServiceTests {
     private let selectiveTestingService = MockSelectiveTestingServicing()
     private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     private let uniqueIDGenerator = MockUniqueIDGenerating()
-    private let subject: XcodeBuildService
+    private let subject: XcodeBuildTestCommandService
     init() {
         let cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -50,7 +51,7 @@ struct XcodeBuildServiceTests {
             .uniqueID()
             .willReturn("unique-id")
 
-        subject = XcodeBuildService(
+        subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
             xcodeGraphMapper: xcodeGraphMapper,
             xcodeBuildController: xcodeBuildController,
@@ -63,7 +64,7 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func throwsErrorWhenSchemeNotFound() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             // Given
             let project: Project = .test(
@@ -82,7 +83,7 @@ struct XcodeBuildServiceTests {
                 )
 
             // When / Then
-            await #expect(throws: XcodeBuildServiceError.schemeNotFound("MyScheme")) {
+            await #expect(throws: XcodeBuildTestCommandServiceError.schemeNotFound("MyScheme")) {
                 try await subject.run(passthroughXcodebuildArguments: [
                     "test", "-scheme", "MyScheme",
                 ])
@@ -91,16 +92,16 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func throwsErrorWhenSchemeNotPassed() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") { _ in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") { _ in
             // When / Then
-            await #expect(throws: XcodeBuildServiceError.schemeNotPassed) {
+            await #expect(throws: XcodeBuildTestCommandServiceError.schemeNotPassed) {
                 try await subject.run(passthroughXcodebuildArguments: ["test"])
             }
         }
     }
 
     @Test func existsEarlyIfAllTestsAreCached() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
@@ -242,7 +243,7 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func skipsCachedTests() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
@@ -389,8 +390,113 @@ struct XcodeBuildServiceTests {
         }
     }
 
+    @Test func updatesAnalyicsWhenXcodeBuildFails() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
+            temporaryPath in
+            var context = ServiceContext.current ?? ServiceContext.topLevel
+            let runMetadataStorage = RunMetadataStorage()
+            context.runMetadataStorage = runMetadataStorage
+            try await ServiceContext.withValue(context) {
+                // Given
+                let aUnitTestsTarget: Target = .test(name: "AUnitTests")
+                let project: Project = .test(
+                    path: temporaryPath,
+                    targets: [
+                        aUnitTestsTarget,
+                    ],
+                    schemes: [
+                        .test(
+                            name: "App",
+                            testAction: .test(
+                                targets: [
+                                    .test(
+                                        target: TargetReference(
+                                            projectPath: temporaryPath,
+                                            name: "AUnitTests"
+                                        )
+                                    ),
+                                ]
+                            )
+                        ),
+                    ]
+                )
+
+                given(xcodeGraphMapper)
+                    .map(at: .any)
+                    .willReturn(
+                        .test(
+                            projects: [
+                                temporaryPath: project,
+                            ]
+                        )
+                    )
+
+                given(selectiveTestingGraphHasher)
+                    .hash(
+                        graph: .any,
+                        additionalStrings: .any
+                    )
+                    .willReturn(
+                        [
+                            GraphTarget(
+                                path: project.path,
+                                target: aUnitTestsTarget,
+                                project: project
+                            ): "hash-a-unit-tests",
+                        ]
+                    )
+                given(selectiveTestingService)
+                    .cachedTests(
+                        testableGraphTargets: .any,
+                        selectiveTestingHashes: .any,
+                        selectiveTestingCacheItems: .any
+                    )
+                    .willReturn(
+                        []
+                    )
+
+                given(cacheStorage)
+                    .fetch(.any, cacheCategory: .any)
+                    .willReturn(
+                        [:]
+                    )
+                xcodeBuildController.reset()
+                given(xcodeBuildController)
+                    .run(arguments: .any)
+                    .willThrow(TestError("failed"))
+
+                // When
+                await #expect(
+                    throws: TestError("failed"),
+                    performing: {
+                        try await subject.run(
+                            passthroughXcodebuildArguments: [
+                                "test",
+                                "-scheme", "App",
+                            ]
+                        )
+                    }
+                )
+
+                // Then
+                await #expect(
+                    runMetadataStorage.selectiveTestingCacheItems == [
+                        temporaryPath: [
+                            "AUnitTests": CacheItem(
+                                name: "AUnitTests",
+                                hash: "hash-a-unit-tests",
+                                source: .miss,
+                                cacheCategory: .selectiveTests
+                            ),
+                        ],
+                    ]
+                )
+            }
+        }
+    }
+
     @Test func skipsCachedTestsOfDefaultTestPlan() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             // Given
             let aUnitTestsTarget: Target = .test(name: "AUnitTests")
@@ -519,7 +625,7 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func skipsCachedTestsOfCustomTestPlan() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             // Given
             let aUnitTestsTarget: Target = .test(name: "AUnitTests")
@@ -641,7 +747,7 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func preservesResultBundlePathWhenPassed() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
             var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()

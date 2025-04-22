@@ -12,16 +12,13 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-enum XcodeBuildServiceError: FatalError, Equatable {
-    case actionNotSupported
+enum XcodeBuildTestCommandServiceError: LocalizedError, Equatable {
     case schemeNotFound(String)
     case schemeNotPassed
     case testPlanNotFound(testPlan: String, scheme: String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
-        case .actionNotSupported:
-            return "The used 'xcodebuild' action is currently not supported. Supported actions are: test, test-without-building."
         case let .schemeNotFound(scheme):
             return "The scheme \(scheme) was not found in the Xcode project. Make sure it's present."
         case .schemeNotPassed:
@@ -30,16 +27,9 @@ enum XcodeBuildServiceError: FatalError, Equatable {
             return "Test plan \(testPlan) for scheme \(scheme) was not found. Make sure it's present."
         }
     }
-
-    var type: ErrorType {
-        switch self {
-        case .actionNotSupported, .schemeNotFound, .schemeNotPassed, .testPlanNotFound:
-            return .abort
-        }
-    }
 }
 
-struct XcodeBuildService {
+struct XcodeBuildTestCommandService {
     private let fileSystem: FileSysteming
     private let xcodeGraphMapper: XcodeGraphMapping
     private let xcodeBuildController: XcodeBuildControlling
@@ -77,24 +67,14 @@ struct XcodeBuildService {
     ) async throws {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
-        let buildActions = ["build", "build-for-testing", "archive"]
-        if passthroughXcodebuildArguments.contains("test") || passthroughXcodebuildArguments.contains("test-without-building") {
-            try await runTests(
-                passthroughXcodebuildArguments: passthroughXcodebuildArguments,
-                path: path,
-                config: config
-            )
-        } else if passthroughXcodebuildArguments.contains(where: { buildActions.contains($0) }) {
-            var passthroughXcodebuildArguments = passthroughXcodebuildArguments
-            try await passthroughXcodebuildArguments.append(
-                contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-            )
-            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
-        } else {
-            throw XcodeBuildServiceError.actionNotSupported
-        }
+        try await runTests(
+            passthroughXcodebuildArguments: passthroughXcodebuildArguments,
+            path: path,
+            config: config
+        )
     }
 
+    // swiftlint:disable:next function_body_length
     private func runTests(
         passthroughXcodebuildArguments: [String],
         path: AbsolutePath,
@@ -103,7 +83,7 @@ struct XcodeBuildService {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         guard let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
         else {
-            throw XcodeBuildServiceError.schemeNotPassed
+            throw XcodeBuildTestCommandServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
         await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
@@ -111,7 +91,7 @@ struct XcodeBuildService {
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
         }) else {
-            throw XcodeBuildServiceError.schemeNotFound(schemeName)
+            throw XcodeBuildTestCommandServiceError.schemeNotFound(schemeName)
         }
         let additionalStrings = [
             "-configuration",
@@ -142,7 +122,7 @@ struct XcodeBuildService {
         let testableTargets: [TestableTarget]
         if let testPlanName = passedValue(for: "-testPlan", arguments: passthroughXcodebuildArguments) {
             guard let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }) else {
-                throw XcodeBuildServiceError.testPlanNotFound(testPlan: testPlanName, scheme: scheme.name)
+                throw XcodeBuildTestCommandServiceError.testPlanNotFound(testPlan: testPlanName, scheme: scheme.name)
             }
             testableTargets = testPlan.testTargets
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }) {
@@ -188,26 +168,36 @@ struct XcodeBuildService {
             "-skip-testing:\($0.target)"
         }
 
-        try await xcodeBuildController
-            .run(
-                arguments: [
-                    passthroughXcodebuildArguments,
-                    skipTestingArguments,
-                    resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments),
-                ]
-                .flatMap { $0 }
+        do {
+            try await xcodeBuildController
+                .run(
+                    arguments: [
+                        passthroughXcodebuildArguments,
+                        skipTestingArguments,
+                        resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments),
+                    ]
+                    .flatMap { $0 }
+                )
+        } catch {
+            await updateRunMetadataStorage(
+                with: testableGraphTargets,
+                selectiveTestingHashes: selectiveTestingHashes,
+                targetTestCacheItems: targetTestCacheItems
             )
+            throw error
+        }
+
+        await updateRunMetadataStorage(
+            with: testableGraphTargets,
+            selectiveTestingHashes: selectiveTestingHashes,
+            targetTestCacheItems: targetTestCacheItems
+        )
 
         try await storeTestableGraphTargets(
             testableGraphTargets,
             selectiveTestingHashes: selectiveTestingHashes,
             targetTestCacheItems: targetTestCacheItems,
             cacheStorage: cacheStorage
-        )
-        await updateRunMetadataStorage(
-            with: testableGraphTargets,
-            selectiveTestingHashes: selectiveTestingHashes,
-            targetTestCacheItems: targetTestCacheItems
         )
     }
 
