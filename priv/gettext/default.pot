@@ -3032,12 +3032,12 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:81
+#: lib/tuist_web/plugs/loader_plug.ex:49
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:43
+#: lib/tuist_web/plugs/loader_plug.ex:24
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -3222,4 +3222,9 @@ msgstr ""
 #: lib/tuist_web/live/run_detail_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Search..."
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:62
+#, elixir-autogen, elixir-format
+msgid "The account %{account_handle} was not found."
 msgstr ""

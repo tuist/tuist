@@ -57,17 +57,19 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
 
       conn = TuistWeb.Authentication.put_current_user(conn, user)
 
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/accounts/tuist/tokens", %{
-          scopes: ["account_registry_read"]
-        })
+      # When/Then
+      {404, _, response_json_string} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/accounts/tuist/tokens", %{
+            scopes: ["account_registry_read"]
+          })
+        end
 
-      # Then
-      response = json_response(conn, :not_found)
-      assert response == %{"message" => "The account tuist was not found."}
+      assert Jason.decode!(response_json_string) == %{
+               "message" => "The account tuist was not found."
+             }
     end
 
     test "returns forbidden when a user can't create a new organization access token", %{

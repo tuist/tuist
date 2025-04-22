@@ -27,7 +27,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     conn =
       :get
       |> build_conn(~p"/api/accounts/#{account.name}/registry/swift/availability")
-      |> assign(:url_account, account)
+      |> assign(:selected_account, account)
       |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
         scopes: [:account_registry_read]
@@ -89,9 +89,11 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     test "caches authorization responses", %{cache: cache} do
       # Given
       project =
-        %{account: %{name: account_handle}} = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+        %{account: %{name: account_handle}} =
+        Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
-      opts = AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
+      opts =
+        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
       # We check that the authorization API, which hits the DB, is onnly invoked once.
       expect(Authorization, :can?, 1, fn :project_cache_read, _, _ -> false end)

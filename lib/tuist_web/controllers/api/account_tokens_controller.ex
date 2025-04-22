@@ -9,7 +9,7 @@ defmodule TuistWeb.API.AccountTokensController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.API.EnsureAccountPresencePlug)
+  plug(TuistWeb.Plugs.LoaderPlug)
 
   tags ["Account tokens"]
 
@@ -68,11 +68,11 @@ defmodule TuistWeb.API.AccountTokensController do
     }
   )
 
-  def create(%{params: %{"scopes" => scopes}, assigns: %{url_account: url_account}} = conn, _opts) do
+  def create(%{params: %{"scopes" => scopes}, assigns: %{selected_account: selected_account}} = conn, _opts) do
     current_user = Authentication.current_user(conn)
 
     if is_nil(current_user) or
-         not Authorization.can(current_user, :create, url_account, :token) do
+         not Authorization.can(current_user, :create, selected_account, :token) do
       conn
       |> put_status(:forbidden)
       |> json(%{
@@ -81,7 +81,7 @@ defmodule TuistWeb.API.AccountTokensController do
     else
       {_, token} =
         Accounts.create_account_token(%{
-          account: url_account,
+          account: selected_account,
           scopes: Enum.map(scopes, &String.to_atom/1)
         })
 

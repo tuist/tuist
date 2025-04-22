@@ -6,8 +6,10 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Plugs.LoaderPlug
+  alias Tuist.Accounts
 
   setup :set_mimic_from_context
 
@@ -26,7 +28,13 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
 
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
-      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id, [preload: [user: :account, project: :account]] ->
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id,
+                                                            [
+                                                              preload: [
+                                                                user: :account,
+                                                                project: :account
+                                                              ]
+                                                            ] ->
         run
       end)
 
@@ -75,7 +83,9 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       slug = "#{project.account.name}/#{project.name}"
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
-      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] -> {:ok, project} end)
+      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+        {:ok, project}
+      end)
 
       # When
       first_response =
@@ -117,6 +127,58 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
         |> assign(:cache, cache)
         |> LoaderPlug.call(plug_opts)
       end
+    end
+  end
+
+  describe "call/2 when the 'account_handle' param is present" do
+    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      account_handle = user.account.name
+
+      expect(Accounts, :get_account_by_handle, 1, fn ^account_handle ->
+        user.account
+      end)
+
+      # When
+      first_response =
+        %{
+          conn
+          | params: %{"account_handle" => user.account.name}
+        }
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      second_response =
+        %{
+          conn
+          | params: %{"account_handle" => user.account.name}
+        }
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      # Then
+      assert first_response.assigns[:selected_account] == user.account
+      assert second_response.assigns[:selected_account] == user.account
+    end
+
+    test "raises when the account is not found", %{conn: conn, cache: cache} do
+      # Given
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+      account_handle = UUIDv7.generate()
+
+      # When/Then
+      assert_raise NotFoundError,
+                   "The account #{account_handle} was not found.",
+                   fn ->
+                     %{
+                       conn
+                       | params: %{"account_handle" => account_handle}
+                     }
+                     |> assign(:cache, cache)
+                     |> LoaderPlug.call(plug_opts)
+                   end
     end
   end
 end

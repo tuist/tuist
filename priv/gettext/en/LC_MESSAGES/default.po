@@ -35,7 +35,7 @@ msgid "$0.5"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:172
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "$0.50"
 msgstr ""
 
@@ -112,7 +112,7 @@ msgid "%{test_runs_average_duration}s"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "/per month"
 msgstr ""
 
@@ -336,7 +336,7 @@ msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:258
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Billing email"
 msgstr ""
 
@@ -485,7 +485,7 @@ msgid "Change your password"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:116
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
 msgstr ""
 
@@ -561,7 +561,7 @@ msgid "Community support"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:182
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr ""
 
@@ -688,7 +688,7 @@ msgid "Create organization"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:223
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr ""
 
@@ -753,7 +753,7 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:197
 #: lib/tuist_web/live/account_settings_live.html.heex:218
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Delete account"
 msgstr ""
 
@@ -1089,7 +1089,7 @@ msgid "Generous free monthly tier"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:87
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr ""
 
@@ -1109,7 +1109,7 @@ msgid "Get started with Tuist at no cost, and only invest more when you’re rea
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:177
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr ""
 
@@ -1403,7 +1403,7 @@ msgid "Module"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:138
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr ""
 
@@ -1717,7 +1717,7 @@ msgid "Pricing"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:129
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Pricing details"
 msgstr ""
 
@@ -1820,24 +1820,24 @@ msgid "Remote"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:177
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Remote cache hits"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:28
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Remote cache hits:"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:60
 #: lib/tuist_web/live/account_settings_live.html.heex:186
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:9
 #: lib/tuist_web/live/account_settings_live.html.heex:30
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Rename organization"
 msgstr ""
 
@@ -2130,12 +2130,12 @@ msgid "Standard support"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:206
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:101
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
 msgstr ""
 
@@ -2616,12 +2616,12 @@ msgid "Upgrade"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:122
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Upgrade plan"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:159
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""
 
@@ -2641,7 +2641,7 @@ msgid "Usage unit"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:63
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Usage-based"
 msgstr ""
 
@@ -2651,7 +2651,7 @@ msgid "Usage-based pricing"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.ex:200
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr ""
 
@@ -3032,24 +3032,24 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:81
+#: lib/tuist_web/plugs/loader_plug.ex:49
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:43
+#: lib/tuist_web/plugs/loader_plug.ex:24
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:177
 #: lib/tuist_web/live/projects_live.ex:94
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
 #: lib/tuist_web/live/projects_live.ex:83
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
@@ -3069,12 +3069,12 @@ msgid "All members"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:76
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:84
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Member"
 msgstr ""
 
@@ -3094,7 +3094,7 @@ msgid "Search members..."
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:96
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "E-mail"
 msgstr ""
 
@@ -3125,42 +3125,42 @@ msgid "No invitations created"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:72
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:35
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:33
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:47
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:43
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr ""
 
 #: lib/tuist_web/live/device_codes_success_live.ex:45
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
 #: lib/tuist_web/live/projects_live.ex:101
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
 
@@ -3195,7 +3195,7 @@ msgid "Go to dashboard"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:73
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
 msgstr ""
 
@@ -3205,12 +3205,12 @@ msgid "Oops, we couldn't find that page"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:19
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Supercharge your Swift app development"
 msgstr ""
 
@@ -3222,4 +3222,9 @@ msgstr ""
 #: lib/tuist_web/live/run_detail_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Search..."
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:62
+#, elixir-autogen, elixir-format
+msgid "The account %{account_handle} was not found."
 msgstr ""

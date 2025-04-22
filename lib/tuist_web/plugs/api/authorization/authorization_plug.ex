@@ -41,13 +41,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     end
   end
 
-  defp authorize_account(%{assigns: %{url_account: url_account}} = conn, category) do
+  defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
     action = get_action(conn)
 
     subject =
       Authentication.authenticated_subject(conn)
 
-    if authorize(subject, action, url_account, category) do
+    if authorize(subject, action, selected_account, category) do
       conn
     else
       status =

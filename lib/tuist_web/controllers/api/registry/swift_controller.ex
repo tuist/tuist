@@ -14,7 +14,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
   alias TuistWeb.Authentication
 
   plug(:assign_package when action in [:list_releases, :show_release, :show_package_swift])
-  plug(TuistWeb.API.EnsureAccountPresencePlug)
+  plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :registry)
 
   def availability(conn, _params) do
