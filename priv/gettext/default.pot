@@ -258,7 +258,7 @@ msgstr ""
 msgid "Already have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:79
+#: lib/tuist_web/live/connect_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
@@ -947,7 +947,7 @@ msgstr ""
 msgid "Essential reading"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:60
+#: lib/tuist_web/live/connect_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr ""
@@ -1450,7 +1450,7 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:58
+#: lib/tuist_web/live/connect_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Next steps"
 msgstr ""
@@ -1497,7 +1497,7 @@ msgstr ""
 msgid "Not found"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:75
+#: lib/tuist_web/live/connect_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "OR"
 msgstr ""
@@ -1748,7 +1748,7 @@ msgstr ""
 msgid "Pro"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:77
+#: lib/tuist_web/live/connect_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
@@ -2507,12 +2507,12 @@ msgstr ""
 msgid "Tuist Tests"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:83
+#: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "Tuist dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/connect_live.ex:66
+#: lib/tuist_web/live/connect_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
 msgstr ""
@@ -2985,6 +2985,7 @@ msgid "charged on %{next_charge_date}"
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:44
+#: lib/tuist_web/live/connect_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "homebrew"
 msgstr ""
@@ -2995,6 +2996,7 @@ msgid "macOS version"
 msgstr ""
 
 #: lib/tuist_web/live/connect_live.ex:43
+#: lib/tuist_web/live/connect_live.ex:55
 #, elixir-autogen, elixir-format
 msgid "mise"
 msgstr ""

@@ -49,10 +49,18 @@ defmodule TuistWeb.ConnectLive do
             <span data-part="description">
               {gettext("Run this command to link your project to the dashboard.")}
             </span>
-            <.terminal
-              id="init"
-              command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
-            />
+            <.terminal id="init">
+              <:tab
+                id="mise"
+                label={gettext("mise")}
+                command={"mise x tuist@latest -- tuist init #{@selected_account.name}/#{@selected_project.name}"}
+              />
+              <:tab
+                id="homebrew"
+                label={gettext("homebrew")}
+                command={"tuist init #{@selected_account.name}/#{@selected_project.name}"}
+              />
+            </.terminal>
           </div>
           <div data-part="step">
             <span data-part="title">{gettext("Next steps")}</span>
