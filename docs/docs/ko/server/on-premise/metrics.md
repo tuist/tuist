@@ -303,22 +303,22 @@ remote storage로 업로드가 완료된 총 횟수.
 
 사용자의 총 수.
 
-## Database metrics {#database-metrics}
+## 데이터베이스 메트릭 {#database-metrics}
 
-A set of metrics related to the database connection.
+데이터베이스 연결과 관련된 메트릭입니다.
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
+데이터베이스 연결에 할당되기를 기다리며 큐에 대기 중인 데이터베이스 쿼리 수입니다.
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-The number of database connections that are ready to be assigned to a database query.
+데이터베이스 쿼리에 할당될 준비가 된 데이터베이스 연결 수입니다.
 
 ### `tuist_repo_pool_db_connection_connected` (last_value) {#tuist_repo_pool_db_connection_connected-last_value}
 
-The number of connections that have been established to the database.
+데이터베이스에 설정된 연결 수입니다.
 
 ### `tuist_repo_pool_db_connection_disconnected` (last_value) {#tuist_repo_pool_db_connection_disconnected-last_value}
 
-The number of connections that have been disconnected from the database.
+데이터베이스에서 해제된 연결 수입니다.
