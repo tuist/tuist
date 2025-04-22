@@ -115,7 +115,7 @@ defmodule Tuist.Application do
     :ok
   end
 
-  def redis_opts() do
+  def redis_opts do
     %URI{} = parsed_url = URI.parse(Environment.redis_url())
 
     opts = [

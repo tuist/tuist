@@ -4,7 +4,6 @@ defmodule Tuist.CommandEvents do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
   alias Tuist.CommandEvents.CacheEvent
   alias Tuist.CommandEvents.Event
   alias Tuist.CommandEvents.ResultBundle.ActionRecord
@@ -66,38 +65,6 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  def update_cache_event_counts do
-    start_date = DateTime.add(Time.utc_now(), -30, :day)
-
-    query =
-      from(
-        a in Account,
-        join: p in Project,
-        on: a.id == p.account_id,
-        join: c in CacheEvent,
-        on: c.project_id == p.id,
-        where: c.created_at > ^start_date,
-        group_by: [a.id, c.event_type],
-        select: {a, c.event_type, count(c.id)}
-      )
-
-    Repo.transaction(fn ->
-      query
-      |> Repo.stream()
-      |> Enum.each(&update_cache_event_count/1)
-    end)
-  end
-
-  defp update_cache_event_count({account, event_type, count}) do
-    case event_type do
-      :download ->
-        account |> Ecto.Changeset.change(cache_download_event_count: count) |> Repo.update()
-
-      :upload ->
-        account |> Ecto.Changeset.change(cache_upload_event_count: count) |> Repo.update()
-    end
-  end
-
   def list_command_events(attrs, opts \\ []) do
     query = preload(Event, user: :account)
 
@@ -124,7 +91,10 @@ defmodule Tuist.CommandEvents do
           fragment(
             "? && ?",
             p.supported_platforms,
-            ^Enum.map(preview_supported_platforms, &Ecto.Enum.mappings(Tuist.Previews.Preview, :supported_platforms)[&1])
+            ^Enum.map(
+              preview_supported_platforms,
+              &Ecto.Enum.mappings(Tuist.Previews.Preview, :supported_platforms)[&1]
+            )
           )
         )
 
@@ -532,7 +502,11 @@ defmodule Tuist.CommandEvents do
                 [path, name] -> {path, name}
               end
 
-            project = Enum.find(command_event.xcode_graph.xcode_projects, &(&1.name == name && &1.path == path))
+            project =
+              Enum.find(
+                command_event.xcode_graph.xcode_projects,
+                &(&1.name == name && &1.path == path)
+              )
 
             target = Enum.find(project.xcode_targets, &(&1.name == module_name))
 
@@ -580,8 +554,13 @@ defmodule Tuist.CommandEvents do
 
       flaky_test_case_ids = Repo.all(subquery)
 
-      Repo.update_all(from(t1 in TestCaseRun, where: t1.test_case_id in ^flaky_test_case_ids), set: [flaky: true])
-      Repo.update_all(from(t in TestCase, where: t.id in ^flaky_test_case_ids), set: [flaky: true])
+      Repo.update_all(from(t1 in TestCaseRun, where: t1.test_case_id in ^flaky_test_case_ids),
+        set: [flaky: true]
+      )
+
+      Repo.update_all(from(t in TestCase, where: t.id in ^flaky_test_case_ids),
+        set: [flaky: true]
+      )
     end)
   end
 
@@ -737,7 +716,9 @@ defmodule Tuist.CommandEvents do
     if is_nil(type) do
       get_in(json, [key, "_values"]) || []
     else
-      Enum.filter(get_in(json, [key, "_values"]) || [], fn value -> value["_type"]["_name"] == type end)
+      Enum.filter(get_in(json, [key, "_values"]) || [], fn value ->
+        value["_type"]["_name"] == type
+      end)
     end
   end
 end

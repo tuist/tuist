@@ -195,7 +195,12 @@ defmodule Tuist.CommandEventsTest do
         |> Repo.preload(user: :account)
 
       command_event_three =
-        [project_id: project.id, name: "three", duration: 500, created_at: ~N[2024-03-05 04:00:00]]
+        [
+          project_id: project.id,
+          name: "three",
+          duration: 500,
+          created_at: ~N[2024-03-05 04:00:00]
+        ]
         |> CommandEventsFixtures.command_event_fixture()
         |> Repo.preload(user: :account)
 
@@ -272,95 +277,6 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "update_cache_event_counts/0" do
-    test "updates cache event counts" do
-      # Given
-      stub(Time, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      user_one = AccountsFixtures.user_fixture()
-      account_one = Accounts.get_account_from_user(user_one)
-      project_one = ProjectsFixtures.project_fixture(account_id: account_one.id)
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_one.id,
-        name: "a",
-        event_type: :upload,
-        size: 1000,
-        hash: "hash-1"
-      })
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_one.id,
-        name: "a",
-        event_type: :download,
-        size: 1000,
-        hash: "hash-1"
-      })
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_one.id,
-        name: "b",
-        event_type: :download,
-        size: 2000,
-        created_at: ~N[2024-04-02 03:00:00],
-        hash: "hash-2"
-      })
-
-      project_two = ProjectsFixtures.project_fixture(account_id: account_one.id)
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_two.id,
-        name: "c",
-        event_type: :upload,
-        size: 3000,
-        created_at: ~N[2024-04-01 03:00:00],
-        hash: "hash-3"
-      })
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_two.id,
-        name: "c",
-        event_type: :download,
-        size: 3000,
-        created_at: ~N[2024-04-01 03:00:00],
-        hash: "hash-3"
-      })
-
-      CommandEvents.create_cache_event(
-        %{
-          project_id: project_two.id,
-          name: "c",
-          event_type: :download,
-          size: 10_000,
-          hash: "hash-4"
-        },
-        created_at: ~N[2024-03-29 03:00:00]
-      )
-
-      user_two = AccountsFixtures.user_fixture()
-      account_two = Accounts.get_account_from_user(user_two)
-      project_three = ProjectsFixtures.project_fixture(account_id: account_two.id)
-
-      CommandEvents.create_cache_event(%{
-        project_id: project_three.id,
-        name: "d",
-        event_type: :download,
-        size: 4000,
-        hash: "hash-5"
-      })
-
-      AccountsFixtures.organization_fixture(name: "tuist-org")
-
-      # When
-      CommandEvents.update_cache_event_counts()
-
-      # Then
-      assert Accounts.get_account_by_id(account_one.id).cache_download_event_count == 3
-      assert Accounts.get_account_by_id(account_one.id).cache_upload_event_count == 2
-      assert Accounts.get_account_by_id(account_two.id).cache_download_event_count == 1
-      assert Accounts.get_account_by_id(account_two.id).cache_upload_event_count == 0
-    end
-  end
-
   describe "get_result_bundle_key/1" do
     test "returns the result bundle object key" do
       # Given
@@ -415,7 +331,8 @@ defmodule Tuist.CommandEventsTest do
   describe "get_test_summary/1" do
     test "returns nil if the invocation record does not exist" do
       # Given
-      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
+      command_event =
+        Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -436,7 +353,8 @@ defmodule Tuist.CommandEventsTest do
 
     test "gets test summary" do
       # Given
-      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
+      command_event =
+        Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -529,7 +447,8 @@ defmodule Tuist.CommandEventsTest do
 
     test "gets test summary when there's no result bundle" do
       # Given
-      command_event = Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
+      command_event =
+        Repo.preload(CommandEventsFixtures.command_event_fixture(), project: :account)
 
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
@@ -838,7 +757,12 @@ defmodule Tuist.CommandEventsTest do
 
       # The
       test_case_runs =
-        Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id, order_by: t.xcode_target_id))
+        Repo.all(
+          from(t in TestCaseRun,
+            where: t.command_event_id == ^command_event.id,
+            order_by: t.xcode_target_id
+          )
+        )
 
       assert test_case_runs |> Enum.map(& &1.flaky) |> Enum.sort() == [
                false,

@@ -50,11 +50,6 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_cache_upload_event_count(%Account{} = account, count) do
-    {:ok, _} = account |> Ecto.Changeset.change(cache_upload_event_count: count) |> Repo.update()
-    Repo.reload(account)
-  end
-
   def get_users_count do
     Repo.aggregate(User, :count, :id)
   end
@@ -243,7 +238,8 @@ defmodule Tuist.Accounts do
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count = Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count =
+      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
     Ecto.Multi.new()
     |> Ecto.Multi.insert(
@@ -402,8 +398,6 @@ defmodule Tuist.Accounts do
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count = Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     multi =
       Ecto.Multi.new()
       |> Ecto.Multi.insert(
@@ -427,7 +421,9 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: handle,
-            current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
+            current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
+            current_month_remote_cache_hits_count_updated_at:
+              Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
             customer_id: customer_id,
             billing_email: email
           })
@@ -492,6 +488,43 @@ defmodule Tuist.Accounts do
       true ->
         {:error, Utils.errors_on(changeset)}
     end
+  end
+
+  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}) do
+    %Account{id: account_id}
+    |> Account.billing_changeset(%{
+      current_month_remote_cache_hits_count: remote_cache_hits_count,
+      current_month_remote_cache_hits_count_updated_at: DateTime.utc_now()
+    })
+    |> Repo.update!()
+  end
+
+  def account_current_month_usage(account_id) do
+    now = DateTime.utc_now()
+    beginning_of_month = Timex.beginning_of_month(now)
+
+    query =
+      from c in Event,
+        join: p in Project,
+        on: p.id == c.project_id and p.account_id == ^account_id,
+        where: c.created_at >= ^beginning_of_month,
+        where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
+        select: %{remote_cache_hits_count: count(c.id)}
+
+    Repo.one(query)
+  end
+
+  def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do
+    start_of_today = Timex.beginning_of_day(DateTime.utc_now())
+
+    query =
+      from(a in Account,
+        where:
+          is_nil(a.current_month_remote_cache_hits_count_updated_at) or
+            a.current_month_remote_cache_hits_count_updated_at < ^start_of_today
+      )
+
+    Flop.validate_and_run!(query, attrs, for: Account)
   end
 
   def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
@@ -940,7 +973,9 @@ defmodule Tuist.Accounts do
 
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
     {:ok, user} =
-      user |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id) |> Repo.update()
+      user
+      |> Ecto.Changeset.change(last_visited_project_id: last_visited_project_id)
+      |> Repo.update()
 
     user
   end

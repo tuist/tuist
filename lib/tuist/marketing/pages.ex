@@ -15,9 +15,5 @@ defmodule Tuist.Marketing.Pages do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  alias Tuist.Earmark.ASTProcessor
-  alias Tuist.Marketing.Pages.Page
-  alias Tuist.Marketing.Pages.PageParser
-
   def get_pages, do: @pages
 end

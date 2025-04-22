@@ -1445,7 +1445,7 @@ msgstr ""
 msgid "Newsletter issues are sent bi-weekly and you can unsubscribe at any time."
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:160
+#: lib/tuist_web/components/app_components.ex:159
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -1465,7 +1465,7 @@ msgstr ""
 msgid "No credit card required"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:66
+#: lib/tuist_web/components/app_components.ex:65
 #: lib/tuist_web/live/cache_runs_live.html.heex:122
 #: lib/tuist_web/live/generate_runs_live.html.heex:122
 #: lib/tuist_web/live/test_runs_live.html.heex:172
@@ -1673,7 +1673,7 @@ msgstr ""
 msgid "Posts"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:151
+#: lib/tuist_web/components/app_components.ex:150
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""

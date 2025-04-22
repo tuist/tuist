@@ -14,10 +14,6 @@ defmodule Tuist.Marketing.Changelog do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  alias Tuist.Earmark.ASTProcessor
-  alias Tuist.Marketing.Changelog.Entry
-  alias Tuist.Marketing.Changelog.EntryParser
-
   @entries Enum.reverse(@entries)
   @categories @entries |> Enum.map(& &1.category) |> Enum.uniq()
 

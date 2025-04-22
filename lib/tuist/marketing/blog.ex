@@ -14,10 +14,6 @@ defmodule Tuist.Marketing.Blog do
       postprocessor: &Tuist.Earmark.ASTProcessor.process/1
     ]
 
-  alias Tuist.Earmark.ASTProcessor
-  alias Tuist.Marketing.Blog.Post
-  alias Tuist.Marketing.Blog.PostParser
-
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
 

@@ -111,7 +111,106 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "list_customer_id_and_remote_cache_hits_count_pairs/0" do
+  describe "update_account_current_month_usage/2" do
+    test "updates the account usage" do
+      # Given
+      now = ~U[2025-05-18 15:27:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+
+      # When
+      got =
+        Accounts.update_account_current_month_usage(account_id, %{
+          remote_cache_hits_count: 20
+        })
+
+      # Then
+      assert %{
+               current_month_remote_cache_hits_count: 20,
+               current_month_remote_cache_hits_count_updated_at: ~N[2025-05-18 15:27:00]
+             } = got
+    end
+  end
+
+  describe "account_current_month_usage/1" do
+    test "returns the right value when there are remote cache hits" do
+      # Given
+      now = ~U[2025-05-18 15:27:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+      _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
+
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project_id,
+          remote_test_target_hits: ["Core"],
+          remote_cache_target_hits: ["Kit"],
+          created_at: ~U[2025-05-17 15:27:00Z]
+        )
+
+      # When
+      got = Accounts.account_current_month_usage(account_id)
+
+      # Then
+      assert %{remote_cache_hits_count: 1} == got
+    end
+
+    test "returns the right value when there are no remote cache hits" do
+      # Given
+      now = ~U[2025-05-18 15:27:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+      _project = %{id: _project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
+
+      # When
+      got = Accounts.account_current_month_usage(account_id)
+
+      # Then
+      assert %{remote_cache_hits_count: 0} == got
+    end
+  end
+
+  describe "list_accounts_with_usage_not_updated_today/1" do
+    test "returns the accounts not updated today" do
+      # Given
+      now = ~U[2025-05-18 14:30:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
+      _user_not_updated_today =
+        %{account: %{id: account_id_from_user_not_updated_today}} =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-17 14:30:00Z])
+
+      _user_updated_today =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-18 12:30:00Z])
+
+      # When
+      got = Accounts.list_accounts_with_usage_not_updated_today()
+
+      # Then
+      assert {[%{id: ^account_id_from_user_not_updated_today}], _flop_meta} = got
+    end
+
+    test "returns the accounts that have never been updated" do
+      # Given
+      now = ~U[2025-05-18 14:30:00Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
+      _user_never_updated =
+        %{account: %{id: account_id_from_user_never_updated}} =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: nil)
+
+      _user_updated_today =
+        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count_updated_at: ~U[2025-05-18 12:30:00Z])
+
+      # When
+      got = Accounts.list_accounts_with_usage_not_updated_today()
+
+      # Then
+      assert {[%{id: ^account_id_from_user_never_updated}], _flop_meta} = got
+    end
+  end
+
+  describe "list_customer_id_and_remote_cache_hits_count_pairs/1" do
     test "returns only the customers with a customer_id present" do
       # Given
       first_user =
@@ -1960,7 +2059,8 @@ defmodule Tuist.AccountsTest do
 
       # When
       got =
-        Accounts.get_organization_members_with_role(organization)
+        organization
+        |> Accounts.get_organization_members_with_role()
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then

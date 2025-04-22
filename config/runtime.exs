@@ -265,7 +265,7 @@ config :tuist, Oban,
        [
          {"@hourly", Tuist.CommandEvents.UpdateCacheEventCountWorker},
          {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-         {"@daily", Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorker}
+         {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
        ] ++
          if(not Tuist.Environment.on_premise?() and env == :prod,
            do: [

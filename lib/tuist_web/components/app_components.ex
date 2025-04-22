@@ -19,7 +19,6 @@ defmodule TuistWeb.AppComponents do
   use TuistWeb.Noora
 
   import TuistWeb.Components.EmptyStateBackground
-  import TuistWeb.Components.IconComponents
 
   alias Phoenix.LiveView.JS
 

@@ -10,7 +10,7 @@ defmodule Tuist.Accounts.Account do
 
   @derive {
     Flop.Schema,
-    filterable: [:customer_id], sortable: [:name]
+    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at], sortable: [:name]
   }
 
   schema "accounts" do
@@ -18,8 +18,6 @@ defmodule Tuist.Accounts.Account do
     field :billing_email, :string
     field :user_id, :integer
     field :organization_id, :integer
-    field :cache_upload_event_count, :integer
-    field :cache_download_event_count, :integer
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
@@ -46,7 +44,8 @@ defmodule Tuist.Accounts.Account do
         :user_id,
         :organization_id,
         :customer_id,
-        :current_month_remote_cache_hits_count
+        :current_month_remote_cache_hits_count,
+        :current_month_remote_cache_hits_count_updated_at
       ])
 
     user_id = get_field(changeset, :user_id)
