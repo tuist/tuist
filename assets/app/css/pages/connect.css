@@ -125,16 +125,24 @@
   }
 
   & [data-part="list"] {
+    display: flex;
+    position: relative;
+    gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-2) var(--noora-spacing-4);
 
-    & [data-part="border"] {
-      display: flex;
-      gap: var(--noora-spacing-8);
+    &::after {
+      position: absolute;
+      right: var(--noora-spacing-4);
+      bottom: 3px;
+      left: var(--noora-spacing-4);
       border-bottom: 1px solid var(--noora-surface-border-primary);
+      pointer-events: none;
+      content: "";
     }
   }
 
   & [data-part="trigger"] {
+    z-index: var(--noora-z-index-1);
     cursor: pointer;
     margin-bottom: -1px;
     outline: 0;

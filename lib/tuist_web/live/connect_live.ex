@@ -199,11 +199,9 @@ defmodule TuistWeb.ConnectLive do
     >
       <div data-part="root">
         <div data-part="list">
-          <div data-part="border">
-            <button :for={tab <- @tab} data-part="trigger" data-value={tab.id}>
-              {tab.label}
-            </button>
-          </div>
+          <button :for={tab <- @tab} data-part="trigger" data-value={tab.id}>
+            {tab.label}
+          </button>
         </div>
         <div :for={tab <- @tab} data-part="content" data-tab data-value={tab.id}>
           <span>{tab.command}</span>
