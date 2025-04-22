@@ -512,7 +512,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.0.0")),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.20.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
-        .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.0.11")),
+        .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.3.1")),
         .package(
             url: "https://github.com/apple/swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
         ),

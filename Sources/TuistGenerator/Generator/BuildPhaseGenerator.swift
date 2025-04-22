@@ -309,7 +309,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
 
-        if !pbxBuildFiles.isEmpty {
+        // Only add sources build phase if there are build files or if the product requires the sources build phase to be valid,
+        // such as `.framework`
+        switch target.product {
+        case .app, .appClip, .appExtension, .watch2App, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
+             .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension:
+            if pbxBuildFiles.isEmpty { return }
+            pbxproj.add(object: sourcesBuildPhase)
+            pbxTarget.buildPhases.append(sourcesBuildPhase)
+        case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .xpc, .macro, .unitTests, .uiTests, .bundle:
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
         }
