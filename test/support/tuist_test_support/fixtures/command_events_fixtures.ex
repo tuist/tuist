@@ -19,7 +19,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     CommandEvents.create_command_event(
       %{
         name: Keyword.get(attrs, :name, "generate"),
-        subcommand: "",
+        subcommand: Keyword.get(attrs, :subcommand, ""),
         command_arguments: Keyword.get(attrs, :command_arguments, []),
         duration: Keyword.get(attrs, :duration, 0),
         tuist_version: "4.1.0",

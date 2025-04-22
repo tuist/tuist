@@ -77,10 +77,10 @@ defmodule Tuist.Runs.Analytics do
           from(e in Event,
             where:
               e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
                 e.project_id == ^project_id
           ),
-          opts
+          Keyword.put(opts, :name, name)
         )
       end,
       average_durations: fn start_date, end_date, date_period, time_bucket ->
@@ -93,7 +93,7 @@ defmodule Tuist.Runs.Analytics do
                 e.project_id == ^project_id,
             select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), average: avg(e.duration)}
           ),
-          opts
+          Keyword.put(opts, :name, name)
         )
       end
     })
@@ -209,11 +209,11 @@ defmodule Tuist.Runs.Analytics do
             group_by: selected_as(^date_period),
             where:
               e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
                 e.project_id == ^project_id,
             select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), count: count(e)}
           ),
-          opts
+          Keyword.put(opts, :name, name)
         )
       end
     })
@@ -608,7 +608,24 @@ defmodule Tuist.Runs.Analytics do
         _ -> where(query, [e], e.status == ^status)
       end
 
-    query
+    add_name_filter(query, opts)
+  end
+
+  defp add_name_filter(query, opts) do
+    name = Keyword.get(opts, :name)
+
+    case name do
+      "test" ->
+        where(
+          query,
+          [e],
+          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+            e.name == "test"
+        )
+
+      _ ->
+        query
+    end
   end
 
   defp date_range_for_date_period(date_period, opts) do

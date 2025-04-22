@@ -48,11 +48,10 @@ defmodule TuistWeb.OverviewLive do
 
   defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
-      CommandEvents.list_command_events(%{
+      CommandEvents.list_test_runs(%{
         last: 40,
         filters: [
-          %{field: :project_id, op: :==, value: project.id},
-          %{field: :name, op: :==, value: "test"}
+          %{field: :project_id, op: :==, value: project.id}
         ],
         order_by: [:created_at],
         order_directions: [:asc]

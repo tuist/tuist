@@ -213,8 +213,7 @@ defmodule TuistWeb.TestRunsLive do
   defp list_test_runs(project_id, attrs \\ []) do
     options = %{
       filters: [
-        %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :==, value: "test"}
+        %{field: :project_id, op: :==, value: project_id}
       ],
       order_by: [:created_at],
       order_directions: [:desc]
@@ -236,6 +235,6 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    CommandEvents.list_command_events(options)
+    CommandEvents.list_test_runs(options)
   end
 end

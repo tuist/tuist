@@ -269,7 +269,7 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:249
+#: lib/tuist_web/live/overview_live.ex:248
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:355
 #: lib/tuist_web/live/test_runs_live.ex:148
@@ -440,7 +440,7 @@ msgstr ""
 msgid "Bundle identifier"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:257
+#: lib/tuist_web/live/overview_live.ex:256
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:371
 #: lib/tuist_web/live/test_runs_live.ex:156
@@ -1314,7 +1314,7 @@ msgstr ""
 msgid "Like, totally free: All features, no credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:253
+#: lib/tuist_web/live/overview_live.ex:252
 #: lib/tuist_web/live/overview_live.html.heex:27
 #: lib/tuist_web/live/overview_live.html.heex:363
 #: lib/tuist_web/live/run_detail_live.html.heex:199
@@ -3004,19 +3004,19 @@ msgstr ""
 msgid "read more"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:244
+#: lib/tuist_web/live/overview_live.ex:243
 #: lib/tuist_web/live/test_runs_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:246
+#: lib/tuist_web/live/overview_live.ex:245
 #: lib/tuist_web/live/test_runs_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:245
+#: lib/tuist_web/live/overview_live.ex:244
 #: lib/tuist_web/live/test_runs_live.ex:144
 #, elixir-autogen, elixir-format
 msgid "since last year"

@@ -236,6 +236,73 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "list_test_runs/1" do
+    test "returns test runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      _command_event_one =
+        [
+          project_id: project.id,
+          name: "xcodebuild",
+          subcommand: "build",
+          duration: 1000,
+          created_at: ~N[2024-03-04 01:00:00]
+        ]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+
+      command_event_two =
+        [
+          project_id: project.id,
+          name: "xcodebuild",
+          subcommand: "test",
+          duration: 500,
+          created_at: ~N[2024-03-05 03:00:00]
+        ]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+
+      command_event_three =
+        [
+          project_id: project.id,
+          name: "xcodebuild",
+          subcommand: "test",
+          duration: 500,
+          created_at: ~N[2024-03-05 04:00:00]
+        ]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+
+      _command_event_four =
+        [project_id: project.id, name: "four", duration: 500, created_at: ~N[2024-03-05 05:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+
+      command_event_five =
+        [project_id: project.id, name: "test", duration: 500, created_at: ~N[2024-03-05 06:00:00]]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+
+      # When
+      {got_command_events_first_page, got_meta_first_page} =
+        CommandEvents.list_test_runs(%{
+          first: 2,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:created_at],
+          order_directions: [:desc]
+        })
+
+      {got_command_events_second_page, _got_meta_second_page} =
+        CommandEvents.list_test_runs(Flop.to_next_cursor(got_meta_first_page))
+
+      # Then
+      assert got_command_events_first_page == [command_event_five, command_event_three]
+      assert got_command_events_second_page == [command_event_two]
+    end
+  end
+
   describe "get_cache_event/1" do
     test "returns cache download event" do
       # Given

@@ -439,6 +439,54 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.hit_rate == 0.5
     end
 
+    test "returns selective testing analytics for tuist xcodebuild test" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+    end
+
     test "returns selective testing analytics for the last three days for ci only" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)

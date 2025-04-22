@@ -120,6 +120,19 @@ defmodule Tuist.CommandEvents do
     Flop.validate_and_run!(query, attrs, for: Event)
   end
 
+  def list_test_runs(attrs) do
+    query =
+      Event
+      |> preload(user: :account)
+      |> where(
+        [e],
+        e.name == "test" or
+          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building"))
+      )
+
+    Flop.validate_and_run!(query, attrs, for: Event)
+  end
+
   def get_command_events_by_name_git_ref_and_project(
         %{name: name, git_ref: git_ref, project: %Project{id: project_id}},
         opts \\ []
