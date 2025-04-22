@@ -10,6 +10,7 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.User
   alias Tuist.Base64
   alias Tuist.CommandEvents.Event
+  alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Repo
@@ -282,18 +283,31 @@ defmodule Tuist.Projects do
   end
 
   def platforms(project) do
-    project
-    |> Repo.preload(:previews)
-    |> Map.get(:previews)
-    |> Enum.map(& &1.supported_platforms)
-    |> List.flatten()
-    |> Enum.uniq()
-    |> Enum.reject(&is_nil/1)
+    integers =
+      Repo.all(
+        from(p in Preview,
+          where: p.project_id == ^project.id,
+          select: fragment("DISTINCT UNNEST(?)", p.supported_platforms)
+        )
+      )
+
+    {:array, {:parameterized, {Ecto.Enum, enum_opts_map}}} =
+      Preview.__schema__(:type, :supported_platforms)
+
+    mappings_kv = Map.fetch!(enum_opts_map, :mappings)
+    int_to_atom_map = Map.new(mappings_kv, fn {atom, int} -> {int, atom} end)
+
+    Enum.map(integers, &Map.get(int_to_atom_map, &1))
   end
 
   def get_last_command_event_date(project) do
     Repo.one(
-      from(ce in Event, where: ce.project_id == ^project.id, order_by: [desc: ce.ran_at], limit: 1, select: ce.ran_at)
+      from(ce in Event,
+        where: ce.project_id == ^project.id,
+        order_by: [desc: ce.ran_at],
+        limit: 1,
+        select: ce.ran_at
+      )
     )
   end
 end
