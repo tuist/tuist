@@ -141,7 +141,11 @@
           <:footer>
             <.modal_footer>
               <:action>
-                <.button label="Cancel" variant="secondary" />
+                <.button
+                  label="Cancel"
+                  variant="secondary"
+                  phx-click="close-billing-upgrade-modal"
+                />
               </:action>
             </.modal_footer>
           </:footer>

@@ -2,14 +2,14 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Plugs.LoaderPlug
-  alias Tuist.Accounts
 
   setup :set_mimic_from_context
 

@@ -86,6 +86,11 @@ defmodule TuistWeb.BillingLive do
      |> push_event("close-modal", %{id: "billing-upgrade-modal"})}
   end
 
+  def handle_event("close-billing-upgrade-modal", _, socket) do
+    socket = push_event(socket, "close-modal", %{id: "billing-upgrade-modal"})
+    {:noreply, socket}
+  end
+
   def handle_info(:change_plan, %{assigns: %{new_plan: new_plan, selected_account: selected_account, uri: uri}} = socket) do
     socket =
       case Billing.update_plan(%{
