@@ -318,7 +318,7 @@ defmodule Tuist.PreviewsTest do
         Previews.list_previews(%{
           first: 2,
           filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:inserted_at_naive],
+          order_by: [:inserted_at],
           order_directions: [:desc]
         })
 
@@ -360,7 +360,7 @@ defmodule Tuist.PreviewsTest do
           %{
             first: 20,
             filters: [%{field: :project_id, op: :==, value: project.id}],
-            order_by: [:inserted_at_naive],
+            order_by: [:inserted_at],
             order_directions: [:desc]
           },
           supported_platforms: [:ios, :visionos]
@@ -403,7 +403,7 @@ defmodule Tuist.PreviewsTest do
           %{
             first: 20,
             filters: [%{field: :project_id, op: :==, value: project.id}],
-            order_by: [:inserted_at_naive],
+            order_by: [:inserted_at],
             order_directions: [:desc]
           },
           distinct: [:bundle_identifier]

@@ -35,8 +35,7 @@ defmodule Tuist.Previews.PreviewTest do
       got =
         Preview.create_changeset(preview, %{
           project_id: 1,
-          type: :app_bundle,
-          inserted_at_naive: NaiveDateTime.utc_now()
+          type: :app_bundle
         })
 
       # Then
@@ -54,8 +53,7 @@ defmodule Tuist.Previews.PreviewTest do
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app",
-          inserted_at_naive: NaiveDateTime.utc_now()
+          bundle_identifier: "com.tuist.app"
         })
 
       # Then
@@ -72,10 +70,7 @@ defmodule Tuist.Previews.PreviewTest do
           project_id: 1,
           type: :ipa,
           display_name: "App",
-          version: "1.0.0",
-          bundle_identifier: "com.tuist.app",
-          supported_platforms: [:ios, :ios_simulator],
-          inserted_at_naive: NaiveDateTime.utc_now()
+          version: "1.0.0"
         })
 
       # Then
@@ -94,8 +89,7 @@ defmodule Tuist.Previews.PreviewTest do
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "com.tuist.app",
-          supported_platforms: [:invalid],
-          inserted_at_naive: NaiveDateTime.utc_now()
+          supported_platforms: [:invalid]
         })
 
       # Then

@@ -17,7 +17,7 @@ defmodule Tuist.Previews.Preview do
       :git_commit_sha,
       :bundle_identifier
     ],
-    sortable: [:inserted_at_naive, :bundle_identifier]
+    sortable: [:inserted_at, :bundle_identifier]
   }
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -31,10 +31,6 @@ defmodule Tuist.Previews.Preview do
     field :version, :string
     field :git_branch, :string
     field :git_commit_sha, :string
-
-    # This field is needed because paging with Flop when using a timestamp with timezone is broken.
-    # For more details, see: https://github.com/woylie/flop/issues/547#issuecomment-2768830180
-    field :inserted_at_naive, :naive_datetime
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [
@@ -61,13 +57,12 @@ defmodule Tuist.Previews.Preview do
       :bundle_identifier,
       :version,
       :inserted_at,
-      :inserted_at_naive,
       :supported_platforms,
       :git_branch,
       :git_commit_sha,
       :ran_by_account_id
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
-    |> validate_required([:project_id, :type, :inserted_at_naive])
+    |> validate_required([:project_id, :type])
   end
 end

@@ -31,11 +31,6 @@ defmodule Tuist.Previews do
       version: version,
       supported_platforms: supported_platforms,
       inserted_at: Keyword.get(opts, :inserted_at),
-      inserted_at_naive:
-        opts
-        |> Keyword.get(:inserted_at, DateTime.utc_now())
-        |> DateTime.shift_zone!("Etc/UTC")
-        |> DateTime.to_naive(),
       git_branch: git_branch,
       git_commit_sha: git_commit_sha,
       ran_by_account_id: ran_by_account_id
@@ -64,7 +59,7 @@ defmodule Tuist.Previews do
           filters: [
             %{field: :project_id, op: :==, value: project.id}
           ],
-          order_by: [:inserted_at_naive],
+          order_by: [:inserted_at],
           order_directions: [:desc]
         },
         distinct: [:bundle_identifier],
@@ -81,7 +76,7 @@ defmodule Tuist.Previews do
       |> Enum.member?(:bundle_identifier)
 
     order_by =
-      attrs |> Map.get(:order_by, [:inserted_at_naive]) |> hd()
+      attrs |> Map.get(:order_by, [:inserted_at]) |> hd()
 
     order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
 
@@ -133,7 +128,7 @@ defmodule Tuist.Previews do
       p.project_id == ^project.id and
         (p.git_branch == ^project.default_branch or e.git_branch == ^project.default_branch)
     )
-    |> order_by(desc: :inserted_at_naive)
+    |> order_by(desc: :inserted_at)
     |> limit(1)
     |> preload(:command_event)
     |> Repo.one()
