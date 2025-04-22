@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-04-17 09:15\n"
+"PO-Revision-Date: 2025-04-22 02:14\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:426
 #, elixir-autogen, elixir-format
@@ -491,17 +491,17 @@ msgstr "카테고리"
 #: lib/tuist_web/live/noora_billing_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
-msgstr ""
+msgstr "구독 플랜 변경하기"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Change your password"
-msgstr ""
+msgstr "비밀번호 변경하기"
 
 #: lib/tuist_web/live/noora_billing_live.html.heex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change your subscription to fit your needs."
-msgstr ""
+msgstr "나에게 맞는 구독으로 변경해보세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:87
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:169
@@ -531,17 +531,17 @@ msgstr "모든 변화가 일어나는 곳- 협업과 마법이 펼쳐지는 GitH
 #: lib/tuist_web/live/user_forgot_password_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Check your email"
-msgstr ""
+msgstr "이메일 확인하기"
 
 #: lib/tuist_web/live/user_registration_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr ""
+msgstr "받은 메일함에서 확인 이메일을 열람하고 링크를 클릭해주세요."
 
 #: lib/tuist_web/live/create_project_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Choose an account to create your project or set up a new organization."
-msgstr ""
+msgstr "계정을 선택하여 프로젝트를 생성하거나 새로운 조직을 구성하세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:127
 #, elixir-autogen, elixir-format
@@ -578,12 +578,12 @@ msgstr "커뮤니티 지원"
 #: lib/tuist_web/live/noora_billing_live.ex:199
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Community support via forum"
-msgstr ""
+msgstr "커뮤니티 포럼을 통한 지원"
 
 #: lib/tuist_web/live/noora_billing_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Community support: Support via community forum"
-msgstr ""
+msgstr "커뮤니티 지원: 커뮤니티 포럼을 통한 지원"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:103
 #, elixir-autogen, elixir-format
@@ -593,7 +593,7 @@ msgstr "회사"
 #: lib/tuist_web/live/run_detail_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Compilation Optimizations"
-msgstr ""
+msgstr "컴파일 최적화"
 
 #: lib/tuist_web/live/noora_billing_live.html.heex:111
 #, elixir-autogen, elixir-format
