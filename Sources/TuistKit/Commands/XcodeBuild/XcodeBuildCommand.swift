@@ -15,30 +15,20 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "xcodebuild",
-            abstract: "tuist xcodebuild extends the xcodebuild CLI with server capabilities such as selective testing or analytics."
+            abstract: "tuist xcodebuild extends the xcodebuild CLI with server capabilities such as selective testing or analytics.",
+            subcommands: [
+                XcodeBuildTestCommand.self,
+                XcodeBuildTestWithoutBuildingCommand.self,
+                XcodeBuildBuildCommand.self,
+                XcodeBuildBuildForTestingCommand.self,
+                XcodeBuildArchiveCommand.self,
+            ]
         )
     }
 
     var analyticsRequired: Bool { true }
 
     public init() {}
-
-    @Argument(
-        parsing: .captureForPassthrough,
-        help: "xcodebuild arguments that will be passed through to the xcodebuild CLI."
-    )
-    public var passthroughXcodebuildArguments: [String] = []
-
-    public func run() async throws {
-        try await XcodeBuildService(
-            cacheStorageFactory: Self.cacheStorageFactory,
-            selectiveTestingGraphHasher: Self.selectiveTestingGraphHasher,
-            selectiveTestingService: Self.selectiveTestingService
-        )
-        .run(
-            passthroughXcodebuildArguments: passthroughXcodebuildArguments
-        )
-    }
 }
 
 struct EmptySelectiveTestingGraphHasher: SelectiveTestingGraphHashing {
