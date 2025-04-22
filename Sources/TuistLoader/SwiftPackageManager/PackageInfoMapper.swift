@@ -836,7 +836,9 @@ extension ProjectDescription.ResourceFileElements {
         @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) async throws -> ProjectDescription
             .ResourceFileElement?
         {
-            let absolutePathGlob = if try await fileSystem.exists(resourceAbsolutePath, isDirectory: true), !resourceAbsolutePath.isOpaqueDirectory {
+            let absolutePathGlob = if try await fileSystem.exists(resourceAbsolutePath, isDirectory: true),
+                                      !resourceAbsolutePath.isOpaqueDirectory
+            {
                 resourceAbsolutePath
                     .appending(component: "**")
             } else {
