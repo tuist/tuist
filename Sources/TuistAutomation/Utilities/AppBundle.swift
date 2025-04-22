@@ -36,20 +36,37 @@ public struct AppBundle: Equatable {
             }
 
             public let name: String
-            public let iconFiles: [String]
+            public let iconFiles: [String]?
 
             public init(
                 name: String,
-                iconFiles: [String]
+                iconFiles: [String]?
             ) {
                 self.name = name
                 self.iconFiles = iconFiles
             }
 
             public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                name = try container.decode(String.self, forKey: .name)
-                iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                    let name = try container.decode(String.self, forKey: .name)
+                    let iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                    self.init(name: name, iconFiles: iconFiles)
+                } else {
+                    let container = try decoder.singleValueContainer()
+                    let name = try container.decode(String.self)
+                    self.init(name: name, iconFiles: nil)
+                }
+            }
+
+            public func encode(to encoder: any Encoder) throws {
+                if let iconFiles {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(name, forKey: .name)
+                    try container.encode(iconFiles, forKey: .iconFiles)
+                } else {
+                    var container = encoder.singleValueContainer()
+                    try container.encode(name)
+                }
             }
         }
 
