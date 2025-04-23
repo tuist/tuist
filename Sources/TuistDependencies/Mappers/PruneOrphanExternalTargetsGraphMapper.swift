@@ -29,7 +29,11 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
                 let project = graph.projects[projectPath]!
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
                 var target = target
-                if orphanExternalTargets.contains(graphTarget) || target.destinations.isEmpty {
+
+                let isOrphanTarget = orphanExternalTargets.contains(graphTarget)
+                let isUnitTest = target.product == .unitTests
+
+                if (isOrphanTarget && !isUnitTest) || target.destinations.isEmpty {
                     target.prune = true
                 }
                 return (target.name, target)

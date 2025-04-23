@@ -148,7 +148,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_pruned() throws {
+    func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_not_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -176,7 +176,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         // When
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
-        let expectingTargets = [bTarget, cTarget, aTestTarget]
+        let expectingTargets = [bTarget, cTarget]
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted().filter(\.prune)
 
         // Then

@@ -398,9 +398,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .regular, .system, .macro:
+        case .regular, .system, .macro, .test:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
             case .external:
                 ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
@@ -445,7 +445,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
-        case .regular:
+        case .regular, .test:
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: target.name,
