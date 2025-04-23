@@ -66,7 +66,7 @@ defmodule TuistWeb.API.CacheController do
 
   def get_cache_action_item(%{assigns: %{selected_project: selected_project}} = conn, %{hash: hash} = _params) do
     cache_action_item =
-      Tuist.Cache.get_value(
+      Tuist.KeyValueStore.get_value(
         [
           Atom.to_string(__MODULE__),
           "get_cache_action_item",
@@ -336,7 +336,7 @@ defmodule TuistWeb.API.CacheController do
         _params
       ) do
     cache_action_item =
-      Tuist.Cache.get_value(
+      Tuist.KeyValueStore.get_value(
         [
           Atom.to_string(__MODULE__),
           "upload_cache_action_item",
@@ -439,7 +439,12 @@ defmodule TuistWeb.API.CacheController do
       data: %{
         upload_id:
           Storage.multipart_start(
-            get_object_key(%{hash: hash, name: name, project_slug: project_slug, cache_category: cache_category})
+            get_object_key(%{
+              hash: hash,
+              name: name,
+              project_slug: project_slug,
+              cache_category: cache_category
+            })
           )
       }
     })

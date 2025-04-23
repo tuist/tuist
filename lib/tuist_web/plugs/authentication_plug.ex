@@ -56,7 +56,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
     authenticated_subject =
       if Map.get(conn.assigns, :caching, false) do
-        Tuist.Cache.get_value(cache_key, cache_opts, get_authenticated_subject)
+        Tuist.KeyValueStore.get_value(cache_key, cache_opts, get_authenticated_subject)
       else
         get_authenticated_subject.()
       end

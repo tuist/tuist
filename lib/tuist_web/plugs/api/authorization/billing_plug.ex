@@ -40,7 +40,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   def call_tuist_hosted(conn, _) do
     subscription_data =
       if Map.get(conn.assigns, :caching, false) do
-        Tuist.Cache.get_value(
+        Tuist.KeyValueStore.get_value(
           [
             Atom.to_string(__MODULE__),
             "subscription_data",

@@ -81,7 +81,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
     authorized? =
       if caching do
-        Tuist.Cache.get_value(
+        Tuist.KeyValueStore.get_value(
           cache_key,
           [
             cache: Map.get(conn.assigns, :cache, :tuist),

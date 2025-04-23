@@ -124,7 +124,8 @@ defmodule Tuist.MixProject do
       {:broadway_dashboard, "~> 0.4.1"},
       {:zxcvbn, "~> 0.3.0"},
       {:styler, "~> 1.4.0"},
-      {:redix, "~> 1.1"}
+      {:redix, "~> 1.1"},
+      {:redis_mutex, "~> 1.1"}
     ]
   end
 

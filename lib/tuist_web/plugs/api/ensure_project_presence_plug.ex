@@ -48,7 +48,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
   defp assign_request_project_to_conn(project_slug, conn) do
     project =
       if Map.get(conn.assigns, :caching, false) do
-        Tuist.Cache.get_value(
+        Tuist.KeyValueStore.get_value(
           [Atom.to_string(__MODULE__), "project", project_slug],
           [
             ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),

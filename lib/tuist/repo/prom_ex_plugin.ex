@@ -7,6 +7,31 @@ defmodule Tuist.Repo.PromExPlugin do
   alias Tuist.Telemetry
 
   @impl true
+  def event_metrics(_opts) do
+    [
+      Event.build(
+        :tuist_repo_pool_event_metrics,
+        [
+          counter(
+            [:tuist, :repo, :pool, :db_connection, :connected],
+            event_name: [:db_connection, :connected],
+            tags: [:tag],
+            description: "The number of pool connections that have been established.",
+            measurement: :count
+          ),
+          counter(
+            [:tuist, :repo, :pool, :db_connection, :disconnected],
+            event_name: [:db_connection, :disconnected],
+            tags: [:tag],
+            description: "The number of pool connections that have been dropped.",
+            measurement: :count
+          )
+        ]
+      )
+    ]
+  end
+
+  @impl true
   def polling_metrics(opts) do
     poll_rate = Keyword.get(opts, :poll_rate, 100)
 
@@ -27,20 +52,6 @@ defmodule Tuist.Repo.PromExPlugin do
             event_name: Telemetry.event_name_repo_pool_metrics(),
             description: "The number of connections that are available to run queries.",
             measurement: :ready_conn_count
-          ),
-          last_value(
-            [:tuist, :repo, :pool, :db_connection, :connected],
-            event_name: [:db_connection, :connected],
-            tags: [:tag],
-            description: "The number of pool connections that have been established.",
-            measurement: :count
-          ),
-          last_value(
-            [:tuist, :repo, :pool, :db_connection, :disconnected],
-            event_name: [:db_connection, :disconnected],
-            tags: [:tag],
-            description: "The number of pool connections that have been dropped.",
-            measurement: :count
           )
         ]
       )

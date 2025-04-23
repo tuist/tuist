@@ -117,10 +117,17 @@ defmodule Tuist.Application do
   def redis_opts do
     %URI{} = parsed_url = URI.parse(Environment.redis_url())
 
+    socket_opts =
+      if Environment.use_ipv6?() in ~w(true 1),
+        do: [:inet6, {:keepalive, true}],
+        else: [{:keepalive, true}]
+
     opts = [
       name: :redis,
       host: parsed_url.host,
-      port: parsed_url.port
+      port: parsed_url.port,
+      sync_connect: false,
+      socket_opts: socket_opts
     ]
 
     case parsed_url.userinfo do
