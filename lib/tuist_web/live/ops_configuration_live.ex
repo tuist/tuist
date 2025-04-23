@@ -53,7 +53,7 @@ defmodule TuistWeb.OpsConfigurationLive do
       %{name: "S3 connection pool count", value: Tuist.Environment.s3_pool_count()},
       %{
         name: "S3 connection protocol",
-        value: Atom.to_string(Tuist.Environment.s3_protocol())
+        value: JSON.encode!(Tuist.Environment.s3_protocols())
       }
     ]
 

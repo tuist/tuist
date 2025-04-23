@@ -53,12 +53,16 @@ defmodule Tuist.Application do
           Environment.s3_endpoint() => [
             conn_opts: [
               log: true,
-              verify: :verify_peer,
-              cacertfile: CAStore.file_path()
+              protocols: Environment.s3_protocols(),
+              transport_opts: [
+                inet6: Environment.use_ipv6?() in ~w(true 1),
+                cacertfile: CAStore.file_path(),
+                verify: :verify_peer
+              ]
             ],
             size: Environment.s3_pool_size(),
             count: Environment.s3_pool_count(),
-            protocols: [Environment.s3_protocol()]
+            protocols: Environment.s3_protocols()
           ]
         }
       end
