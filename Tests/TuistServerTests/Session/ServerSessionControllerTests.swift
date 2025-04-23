@@ -87,11 +87,11 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
                 .user(
                     legacyToken: nil,
                     accessToken: .test(
-                        email: "tuist@tuist.io",
+                        email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
                     ),
                     refreshToken: .test(
-                        email: "tuist@tuist.io",
+                        email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
                     )
                 )
@@ -142,11 +142,11 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
                 .user(
                     legacyToken: nil,
                     accessToken: .test(
-                        email: "tuist@tuist.io",
+                        email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
                     ),
                     refreshToken: .test(
-                        email: "tuist@tuist.io",
+                        email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
                     )
                 )
