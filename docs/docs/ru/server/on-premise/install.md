@@ -9,7 +9,7 @@ description: Learn how to install Tuist on your infrastructure.
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
 > [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
-> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
+> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
 ## Release cadence {#release-cadence}
 
@@ -59,7 +59,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
 
 > [!IMPORTANT] EXPIRATION DATE
-> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
+> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
 ### Base environment configuration {#base-environment-configuration}
 
