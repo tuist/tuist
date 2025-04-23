@@ -85,6 +85,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
             "GENERATE_MASTER_OBJECT_FILE": "NO",
+            "VERSIONING_SYSTEM": "",
         ])
     }
 

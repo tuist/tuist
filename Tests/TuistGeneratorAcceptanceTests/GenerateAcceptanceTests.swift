@@ -1038,6 +1038,22 @@ final class GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest: TuistAcc
     }
 }
 
+final class GeneratediOSStaticLibraryWithStringResources: TuistAcceptanceTestCase {
+    func test_generated_ios_static_library_with_string_resources() async throws {
+        try await setUpFixture(.generatediOSStaticLibraryWithStringResources)
+        try await run(InstallCommand.self)
+        try await run(BuildCommand.self)
+
+        let targetName = "GeneratediOSStaticLibraryWithStringResources"
+        let productName = "\(targetName)_\(targetName)"
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "\(productName).bundle",
+            destination: "Debug-iphonesimulator",
+            resource: productName
+        )
+    }
+}
+
 final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
     func test_app_with_metal_options() async throws {
         try await setUpFixture(.appWithMetalOptions)
