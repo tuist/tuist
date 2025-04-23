@@ -27,7 +27,7 @@ defmodule TuistWeb.ProjectsLive do
       |> Projects.get_all_project_accounts()
       |> Enum.map(&Map.get(&1, :project))
       |> Tuist.Repo.preload(:previews)
-      |> Enum.sort_by(&(last_command_date(&1) || &1.created_at), :desc)
+      |> Enum.sort_by(&(Projects.get_last_command_event_date(&1) || &1.created_at), :desc)
 
     form = to_form(Project.create_changeset(%{}))
 
@@ -76,10 +76,10 @@ defmodule TuistWeb.ProjectsLive do
               />
             </div>
           </div>
-          <span :if={last_command_date(project)} data-part="time">
-            {gettext("Last interacted with %{time}", %{time: last_command_date(project)})}
+          <span :if={Projects.get_last_command_event_date(project)} data-part="time">
+            {gettext("Last interacted with %{time}", %{time: Timex.from_now(Projects.get_last_command_event_date(project))})}
           </span>
-          <span :if={!last_command_date(project)} data-part="time">
+          <span :if={!Projects.get_last_command_event_date(project)} data-part="time">
             {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
           </span>
         </div>
@@ -158,15 +158,6 @@ defmodule TuistWeb.ProjectsLive do
       |> push_event("close-modal", %{id: "create-project-form-empty-state-modal"})
 
     {:noreply, socket}
-  end
-
-  defp last_command_date(project) do
-    project
-    |> Projects.get_last_command_event_date()
-    |> case do
-      nil -> nil
-      date -> Timex.from_now(date)
-    end
   end
 
   defp project_background(assigns) do
