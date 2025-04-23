@@ -9,7 +9,7 @@ description: Tuist를 인프라에 설치하는 방법을 배워봅니다.
 인프라에 대한 더 많은 제어를 요구하는 조직을 위해 Tuist 서버의 자체 호스팅 버전을 제공합니다. 이 버전은 Tuist를 자체 인프라에 호스팅하여 사용자의 데이터가 안전하고 비공개로 유지되도록 보장합니다.
 
 > [!IMPORTANT] 기업 고객 전용\
-> Tuist의 On-Premise 버전은 Enterprise 플랜을 가입한 조직만 사용 가능합니다. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> Tuist의 On-Premise 버전은 Enterprise 플랜을 가입한 조직만 사용 가능합니다. On-Premise 버전에 관심이 있다면, [contact@tuist.dev](mailto:contact@tuist.dev)로 연락 바랍니다.
 
 ## 출시 주기 {#release-cadence}
 
@@ -59,7 +59,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 | `TUIST_LICENSE` | 서비스 수준 계약 (SLA) 을 체결한 후 제공되는 라이센스 | Yes   |     | `******` |
 
 > [!IMPORTANT] 만료일\
-> 라이센스는 만료일이 있습니다. 사용자가 서버와 상호 작용하는 Tuist 명령어를 사용할 때, 라이센스가 30일 이내에 만료가 된다면 경고가 표시됩니다. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> 라이센스는 만료일이 있습니다. 사용자가 서버와 상호 작용하는 Tuist 명령어를 사용할 때, 라이센스가 30일 이내에 만료가 된다면 경고가 표시됩니다. 라이센스를 갱신하고 싶다면, [contact@tuist.dev](mailto:contact@tuist.dev)로 연락 바랍니다.
 
 ### 기본 환경 구성 {#base-environment-configuration}
 
