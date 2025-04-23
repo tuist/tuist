@@ -37,7 +37,7 @@ extension ServerInvitation {
     extension ServerInvitation {
         public static func test(
             id: Int = 0,
-            inviteeEmail: String = "test@tuist.io",
+            inviteeEmail: String = "test@tuist.dev",
             inviter: ServerUser = .test(),
             organizationId: Int = 0,
             token: String = "token"
