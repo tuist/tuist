@@ -95,7 +95,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
 
-        let packageInfos: [
+        var packageInfos: [
             // swiftlint:disable:next large_tuple
             (
                 id: String,
@@ -103,10 +103,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
                 info: PackageInfo,
-                hash: String?
+                hash: String?,
+                kind: String
             )
-        ]
-        packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
+        ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             let hash: String?
@@ -147,8 +147,20 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo,
-                hash: hash
+                hash: hash,
+                kind: dependency.packageRef.kind
             )
+        }
+
+        packageInfos = packageInfos.filter { packageInfo in
+            if packageInfo.kind == "registry" {
+                return true
+            } else {
+                return !packageInfos
+                    .contains(where: {
+                        $0.kind == "registry" && String($0.name.split(separator: ".").last ?? "") == packageInfo.name
+                    })
+            }
         }
 
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
