@@ -19,22 +19,22 @@ defmodule TuistWeb.Router do
 
   pipeline :content_security_policy do
     plug :put_content_security_policy,
-      img_src: "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
+      img_src:
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
-      style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
-      # 'unsafe-inline' is needed for Chatwoot, which doesn't support nonce:
-      # https://github.com/chatwoot/chatwoot/issues/8892
+      style_src:
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net",
       style_src_attr: "'unsafe-inline'",
       style_src_elem:
-        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net",
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://*.chatwoot.com https://*.getkoala.com https://*.posthog.com",
+        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.getkoala.com https://*.posthog.com",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com",
-      frame_src: "'self' https://app.chatwoot.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' wss://*.getkoala.com https://*.getkoala.com https://*.chatwoot.com https://*.posthog.com",
-      connect_src: "'self' 'nonce' https://*.posthog.com"
+      frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
+      connect_src:
+        "'self' wss://*.getkoala.com https://*.getkoala.com https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
 
   pipeline :browser_app do

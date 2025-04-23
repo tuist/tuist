@@ -2517,7 +2517,7 @@ msgstr ""
 msgid "Tuist documentation"
 msgstr ""
 
-#: lib/tuist_web/components/layout_components.ex:12
+#: lib/tuist_web/components/layout_components.ex:53
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""

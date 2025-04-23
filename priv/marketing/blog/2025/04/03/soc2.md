@@ -92,7 +92,7 @@ We’re also launching the **[Tuist Security Center](https://security.tuist.dev)
 
 - Learn how we protect your data.  
 - Request a copy of our SOC 2 audit report.  
-- Get in touch with our security team at [security@tuist.dev](mailto:security@tuist.dev).  
+- Get in touch with our security team at [contact@tuist.dev](mailto:contact@tuist.dev).  
 
 Security is an ongoing effort, not a one-time project. We’ll continue improving our security posture, refining our processes, and making sure Tuist stays a trusted tool for developers everywhere.  
 

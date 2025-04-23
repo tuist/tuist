@@ -6,6 +6,47 @@ defmodule TuistWeb.LayoutComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
+  attr :current_user, :map, default: nil
+
+  def head_plain_script(assigns) do
+    current_user = Map.get(assigns, :current_user)
+    plain_authentication_secret = Tuist.Environment.plain_authentication_secret()
+
+    plain_opts =
+      Map.merge(
+        %{appId: "liveChatApp_01JSH0MMH3KHE7PX1781CV2HZG"},
+        if(is_nil(current_user) or is_nil(plain_authentication_secret),
+          do: %{},
+          else: %{
+            customerDetails: %{
+              email: current_user.email,
+              emailHash:
+                :hmac
+                |> :crypto.mac(:sha256, plain_authentication_secret, current_user.email)
+                |> Base.encode16(case: :lower),
+              chatAvatarUrl: Tuist.Accounts.User.gravatar_url(current_user)
+            }
+          }
+        )
+      )
+
+    assigns = assign(assigns, :plain_opts, plain_opts)
+
+    ~H"""
+    <script :if={Tuist.Environment.analytics_enabled?()} nonce={get_csp_nonce()}>
+      (function(d, script) {
+        script = d.createElement('script');
+        script.async = false;
+        script.onload = function(){
+          Plain.init(<%= raw JSON.encode!(@plain_opts) %>);
+        };
+        script.src = 'https://chat.cdn-plain.com/index.js';
+        d.getElementsByTagName('head')[0].appendChild(script);
+      }(document));
+    </script>
+    """
+  end
+
   def head_meta_meta_tags(assigns) do
     ~H"""
     <% default_description =

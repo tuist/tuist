@@ -83,6 +83,10 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def plain_authentication_secret(secrets \\ secrets()) do
+    get([:plain, :authentication_secret], secrets)
+  end
+
   def database_pool_size(secrets \\ secrets()) do
     case get([:database, :pool_size], secrets) do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)

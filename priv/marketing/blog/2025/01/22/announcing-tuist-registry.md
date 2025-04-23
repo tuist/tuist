@@ -39,7 +39,7 @@ We take security very seriously at Tuist and the Tuist Registry is no exception.
 - Sources are always pulled directly from the original package repository.
 - The `swift` CLI always verifies the downloaded package source archive checksums against the checksums provided by the registry.
 
-Additionally, we're in the process of obtaining the [SOC 2](https://secureframe.com/hub/soc-2/what-is-soc-2) certification to have a formal verification that our security practices are up to the highest standards. If you have questions around the security, shoot us an email at [legal@tuist.dev](mailto:) and we'll be happy to answer them.
+Additionally, we're in the process of obtaining the [SOC 2](https://secureframe.com/hub/soc-2/what-is-soc-2) certification to have a formal verification that our security practices are up to the highest standards. If you have questions around the security, shoot us an email at [contact@tuist.dev](mailto:contact@tuist.dev) and we'll be happy to answer them.
 
 ## Get started
 
