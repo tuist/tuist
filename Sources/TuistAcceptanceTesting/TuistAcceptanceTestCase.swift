@@ -195,6 +195,15 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
+    public func run(_ command: XcodeBuildTestCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: XcodeBuildTestCommand.Type, _ arguments: [String] = []) async throws {
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: String...) async throws {
         try await run(command, Array(arguments))
     }
