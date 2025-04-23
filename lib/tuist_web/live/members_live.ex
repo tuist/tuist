@@ -101,17 +101,11 @@ defmodule TuistWeb.MembersLive do
               </:col>
 
               <:empty_state>
-                <div data-part="empty-state">
-                  <div data-part="icon">
-                    <.user_x />
-                  </div>
-                  <div data-part="title">
-                    {gettext("No members found")}
-                  </div>
-                  <div data-part="subtitle">
-                    {gettext("Try changing your search term")}
-                  </div>
-                </div>
+                <.table_empty_state
+                  icon="user_x"
+                  title={gettext("No members found")}
+                  subtitle={gettext("Try changing your search term")}
+                />
               </:empty_state>
             </.table>
           </div>
@@ -148,7 +142,7 @@ defmodule TuistWeb.MembersLive do
                 </.dropdown>
               </:col>
               <:empty_state>
-                <div data-part="empty-state">
+                <.table_empty_state>
                   <.background_grid_light />
                   <.cards_light />
                   <.background_grid_dark />
@@ -161,7 +155,7 @@ defmodule TuistWeb.MembersLive do
                     {gettext("Invite members to your organization")}
                   </div>
                   <.invite_member_form id="invite-member-form-empty-state" form={@form} />
-                </div>
+                </.table_empty_state>
               </:empty_state>
             </.table>
           </div>

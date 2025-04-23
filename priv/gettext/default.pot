@@ -880,12 +880,12 @@ msgid "Effortlessly share your app with a single URL."
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:282
-#: lib/tuist_web/live/members_live.ex:131
+#: lib/tuist_web/live/members_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:186
+#: lib/tuist_web/live/members_live.ex:180
 #: lib/tuist_web/live/user_forgot_password_live.ex:47
 #: lib/tuist_web/live/user_login_live.ex:103
 #: lib/tuist_web/live/user_registration_live.ex:114
@@ -2161,7 +2161,7 @@ msgstr ""
 msgid "Start for free, pay as you benefit"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:134
+#: lib/tuist_web/live/members_live.ex:128
 #: lib/tuist_web/live/run_detail_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Status"
@@ -3044,7 +3044,7 @@ msgstr ""
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:177
+#: lib/tuist_web/live/members_live.ex:171
 #: lib/tuist_web/live/projects_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Create project"
@@ -3080,7 +3080,7 @@ msgstr ""
 msgid "Member"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:135
+#: lib/tuist_web/live/members_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
@@ -3100,28 +3100,28 @@ msgstr ""
 msgid "E-mail"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:109
+#: lib/tuist_web/live/members_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "No members found"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:141
+#: lib/tuist_web/live/members_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:112
-#: lib/tuist_web/live/run_detail_live.html.heex:326
+#: lib/tuist_web/live/members_live.ex:107
+#: lib/tuist_web/live/run_detail_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:161
+#: lib/tuist_web/live/members_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:158
+#: lib/tuist_web/live/members_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
 msgstr ""
@@ -3166,7 +3166,7 @@ msgstr ""
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:179
+#: lib/tuist_web/live/members_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""
@@ -3216,7 +3216,7 @@ msgstr ""
 msgid "Supercharge your Swift app development"
 msgstr ""
 
-#: lib/tuist_web/live/run_detail_live.html.heex:323
+#: lib/tuist_web/live/run_detail_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr ""

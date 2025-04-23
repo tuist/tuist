@@ -315,17 +315,11 @@
             <.text_cell label={binary_cache_module.binary_cache_hash || gettext("Unknown")} />
           </:col>
           <:empty_state>
-            <div data-part="empty-state">
-              <div data-part="icon">
-                <.filter_question />
-              </div>
-              <div data-part="title">
-                {gettext("No modules found")}
-              </div>
-              <div data-part="subtitle">
-                {gettext("Try changing your search term")}
-              </div>
-            </div>
+            <.table_empty_state
+              icon="database"
+              title={gettext("No modules found")}
+              subtitle={gettext("Try changing your search term")}
+            />
           </:empty_state>
         </.table>
         <.pagination_group

@@ -121,7 +121,8 @@ defmodule TuistWeb.Noora.Table do
 
   slot :image,
     required: false,
-    doc: "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
+    doc:
+      "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
 
   def text_cell(assigns) do
     ~H"""
@@ -290,6 +291,32 @@ defmodule TuistWeb.Noora.Table do
       <span data-part="label">
         <.time time={@time} show_time={@show_time} relative={@relative} />
       </span>
+    </div>
+    """
+  end
+
+  attr :icon, :string, default: nil, doc: "Icon to show in the empty state."
+  attr :title, :string, required: true, doc: "Title of the empty state."
+  attr :subtitle, :string, default: nil, doc: "Subtitle of the empty state."
+
+  slot :inner_block, doc: "Custom empty state content. Supersedes all attributes."
+
+  def table_empty_state(assigns) do
+    ~H"""
+    <div class="noora-table-empty-state">
+      <%= if has_slot_content?(@inner_block, assigns) do %>
+        {render_slot(@inner_block)}
+      <% else %>
+        <div :if={@icon} data-part="icon">
+          <.icon name={@icon} />
+        </div>
+        <div data-part="title">
+          {@title}
+        </div>
+        <div :if={@subtitle} data-part="subtitle">
+          {@subtitle}
+        </div>
+      <% end %>
     </div>
     """
   end
