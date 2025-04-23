@@ -145,4 +145,10 @@ extension Target {
     public var containsResources: Bool {
         !resources.resources.isEmpty || !coreDataModels.isEmpty
     }
+
+    /// Returns if target is a generated resources bundle.
+    public var isGeneratedResourcesBundle: Bool {
+        guard product == .bundle else { return false }
+        return bundleId.hasSuffix(".generated.resources")
+    }
 }
