@@ -117,8 +117,6 @@ workflows:
           mise install
       - name: Install Tuist dependencies
         script: mise x -- tuist install
-      - name: Print hashes
-        script: mise x -- tuist cache --print-hashes
       - name: Cache
         script: mise x -- tuist cache
     triggering: &main_triggering
