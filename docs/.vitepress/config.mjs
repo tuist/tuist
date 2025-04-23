@@ -231,6 +231,23 @@ export default defineConfig({
       },
       "",
     ],
+    [
+      "script",
+      {},
+      `
+      (function(d, script) {
+        script = d.createElement('script');
+        script.async = false;
+        script.onload = function(){
+          Plain.init({
+            appId: 'liveChatApp_01JSH1T6AJCSB6QZ1VQ60YC2KM',
+          });
+        };
+        script.src = 'https://chat.cdn-plain.com/index.js';
+        d.getElementsByTagName('head')[0].appendChild(script);
+      }(document));
+      `,
+    ],
   ],
   sitemap: {
     hostname: "https://docs.tuist.io",
