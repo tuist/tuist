@@ -6,24 +6,19 @@ defmodule TuistWeb.API.AuthControllerTest do
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.RateLimit.Auth
 
   setup context do
     if Map.get(context, :rate_limited, false) do
-      remote_ip = "127.0.0.1"
-      rate_limit_key = "api_auth_authenticate:#{remote_ip}"
-      rate_limit_scale = to_timeout(minute: 1)
-      rate_limit_limit = 10
-      stub(TuistWeb.RemoteIp, :get, fn _ -> remote_ip end)
-
-      TuistWeb.RateLimit
-      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+      Auth
+      |> expect(:hit, fn _conn ->
         {:allow, 1}
       end)
-      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+      |> expect(:hit, fn _conn ->
         {:deny, 1}
       end)
     else
-      stub(TuistWeb.RateLimit, :hit, fn _, _, _ ->
+      stub(Auth, :hit, fn _conn ->
         {:allow, 1000}
       end)
     end
@@ -209,7 +204,9 @@ defmodule TuistWeb.API.AuthControllerTest do
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()
-      user = [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
+
+      user =
+        [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
 
       # When
       conn =

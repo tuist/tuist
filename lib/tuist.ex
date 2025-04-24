@@ -23,7 +23,6 @@ defmodule Tuist do
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
       # among them. They must only depend on core and utility modules.
-      Cache,
       CacheActionItems,
       CommandEvents,
       CommandEvents.Event,
@@ -69,6 +68,7 @@ defmodule Tuist do
       Incidents,
       License,
       PubSub,
+      KeyValueStore,
       # We should not be exposing this one
       Repo,
       Storage,

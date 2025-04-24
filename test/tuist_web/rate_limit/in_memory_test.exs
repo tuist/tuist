@@ -1,10 +1,10 @@
-defmodule TuistWeb.RateLimitTest do
+defmodule TuistWeb.RateLimit.InMemoryTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   alias Hammer.ETS.FixWindow
   alias Tuist.Environment
-  alias TuistWeb.RateLimit
+  alias TuistWeb.RateLimit.InMemory
 
   describe "rate_limit/2" do
     test "allows the request when the rate limit is not reached" do
@@ -13,7 +13,7 @@ defmodule TuistWeb.RateLimitTest do
       conn = build_conn()
 
       # When
-      got = RateLimit.rate_limit(conn, %{})
+      got = InMemory.rate_limit(conn, %{})
 
       # Then
       assert conn == got
@@ -26,7 +26,7 @@ defmodule TuistWeb.RateLimitTest do
 
       # When
       assert_raise TuistWeb.Errors.TooManyRequestsError, fn ->
-        RateLimit.rate_limit(conn, %{})
+        InMemory.rate_limit(conn, %{})
       end
     end
 
@@ -38,7 +38,7 @@ defmodule TuistWeb.RateLimitTest do
       conn = build_conn()
 
       # When
-      got = RateLimit.rate_limit(conn, %{})
+      got = InMemory.rate_limit(conn, %{})
 
       # Then
       assert conn == got

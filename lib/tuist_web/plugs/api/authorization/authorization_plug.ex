@@ -81,11 +81,12 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
     authorized? =
       if caching do
-        Tuist.KeyValueStore.get_value(
+        Tuist.KeyValueStore.get_or_update(
           cache_key,
           [
             cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1))
+            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
+            locking: true
           ],
           fn ->
             authorize(subject, action, selected_project, category)

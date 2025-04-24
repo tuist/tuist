@@ -19,80 +19,100 @@ defmodule Tuist.KeyValueStore do
 
   ## Examples
 
-  iex> Tuist.KeyValueStore.get_value(:example_key, fn -> "example_value" end)
+  iex> Tuist.KeyValueStore.get_or_update(:example_key, fn -> "example_value" end)
   "example_value"
   """
-
-  def get_value(cache_key, opts \\ [], func) do
-    if Keyword.get(opts, :persist_across_deployments, false) and
-         not is_nil(Environment.redis_url()) do
+  def get_or_update(cache_key, opts \\ [], func) do
+    if use_redis?(opts) do
       try do
-        get_redis_value(cache_key, opts, func)
+        get_or_update_from_redis(cache_key, opts, func)
       rescue
         # With the current setup, we can't assume a valid Redis connection available,
         # therefore we need a fallback mechanism in those cases.
         error in Redix.ConnectionError ->
           Appsignal.set_error(error, __STACKTRACE__)
-          get_cachex_value(cache_key, opts, func)
+          get_or_update_from_cachex(cache_key, opts, func)
       end
     else
-      get_cachex_value(cache_key, opts, func)
+      get_or_update_from_cachex(cache_key, opts, func)
     end
   end
 
-  defp get_redis_value(cache_key, opts \\ [], func) do
-    cache_key = Enum.join(cache_key, "-")
+  defp get_or_update_from_redis(cache_key, opts \\ [], func) do
+    cache_key = cache_key(cache_key)
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
 
-    RedisMutex.with_lock(
-      "#{cache_key}-lock",
-      fn ->
-        case Redix.command(:redis, ["GET", cache_key]) do
-          {:ok, nil} ->
-            value = func.()
+    read_or_update = fn ->
+      case Redix.command(Tuist.Environment.redis_conn_name(), ["GET", cache_key]) do
+        {:ok, nil} ->
+          value = func.()
 
-            Redix.command(:redis, [
-              "SET",
-              cache_key,
-              :erlang.term_to_binary(value),
-              "EX",
-              div(cache_ttl, 1000)
-            ])
+          Redix.command(Tuist.Environment.redis_conn_name(), [
+            "SET",
+            cache_key,
+            :erlang.term_to_binary(value),
+            "EX",
+            div(cache_ttl, 1000)
+          ])
 
-            value
+          value
 
-          {:ok, value} ->
-            :erlang.binary_to_term(value)
-        end
-      end,
-      name: :redis,
-      timeout: to_timeout(second: 5),
-      expiry: to_timeout(second: 2)
-    )
+        {:ok, value} ->
+          :erlang.binary_to_term(value)
+      end
+    end
+
+    if Keyword.get(opts, :locking, true) do
+      RedisMutex.with_lock(
+        "#{cache_key}-lock",
+        read_or_update,
+        name: Tuist.Environment.redis_conn_name(),
+        timeout: to_timeout(second: 5),
+        expiry: to_timeout(second: 2)
+      )
+    else
+      read_or_update.()
+    end
   end
 
-  defp get_cachex_value(cache_key, opts \\ [], func) do
-    cache = Keyword.get(opts, :cache, :tuist)
-    cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
-
-    # Cachex.transaction! takes a list of keys, storing the same value under multiple keys.
-    # However, since Cachex is setup to be distributed, only one key is allowed, so we allow
-    # the caller of `get_value` to define the key as an array of keys (strings), which we then
-    # turn into a single key by joining them with a hyphen.
-    cache_key = [Enum.join(cache_key, "-")]
-
-    Cachex.transaction!(cache, cache_key, fn cache ->
-      {:ok, cached_value} = Cachex.get(cache, cache_key)
+  defp get_or_update_from_cachex(cache_key, opts \\ [], func) do
+    read_or_update = fn cache ->
+      {:ok, cached_value} = Cachex.get(cachex_cache(opts), cache_key(cache_key))
 
       case cached_value do
         nil ->
           value = func.()
-          Cachex.put(cache, cache_key, value, ttl: cache_ttl)
+
+          Cachex.put(cachex_cache(opts), cache_key(cache_key), value, ttl: cachex_cache_ttl(opts))
+
           value
 
         value ->
           value
       end
-    end)
+    end
+
+    if Keyword.get(opts, :locking, true) do
+      Cachex.transaction!(cachex_cache(opts), [cache_key(cache_key)], read_or_update)
+    else
+      read_or_update.(cachex_cache(opts))
+    end
+  end
+
+  defp cachex_cache(opts) do
+    Keyword.get(opts, :cache, :tuist)
+  end
+
+  defp cachex_cache_ttl(opts) do
+    Keyword.get(opts, :ttl, to_timeout(minute: 1))
+  end
+
+  defp cache_key(cache_key) do
+    Enum.join(cache_key, "-")
+  end
+
+  defp use_redis?(opts) do
+    Keyword.get(opts, :persist_across_deployments, false) and
+      not is_nil(Environment.redis_url())
   end
 end

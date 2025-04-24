@@ -204,11 +204,7 @@ defmodule TuistWeb.API.AuthController do
   )
 
   def authenticate(conn, params) do
-    case TuistWeb.RateLimit.hit(
-           "api_auth_authenticate:#{TuistWeb.RemoteIp.get(conn)}",
-           to_timeout(minute: 1),
-           10
-         ) do
+    case TuistWeb.RateLimit.Auth.hit(conn) do
       {:allow, count} ->
         do_authenticate(conn, params)
 

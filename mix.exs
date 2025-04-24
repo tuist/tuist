@@ -125,7 +125,8 @@ defmodule Tuist.MixProject do
       {:zxcvbn, "~> 0.3.0"},
       {:styler, "~> 1.4.0"},
       {:redix, "~> 1.1"},
-      {:redis_mutex, "~> 1.1"}
+      {:redis_mutex, "~> 1.1"},
+      {:hammer_backend_redis, "~> 7.0"}
     ]
   end
 

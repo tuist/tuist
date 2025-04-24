@@ -77,7 +77,9 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
           <span :if={Projects.get_last_command_event_date(project)} data-part="time">
-            {gettext("Last interacted with %{time}", %{time: Timex.from_now(Projects.get_last_command_event_date(project))})}
+            {gettext("Last interacted with %{time}", %{
+              time: Timex.from_now(Projects.get_last_command_event_date(project))
+            })}
           </span>
           <span :if={!Projects.get_last_command_event_date(project)} data-part="time">
             {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}

@@ -83,11 +83,12 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
     cache_opts = [
       ttl: cache_ttl,
-      cache: cache
+      cache: cache,
+      locking: true
     ]
 
     if Map.get(conn.assigns, :caching, true) do
-      Tuist.KeyValueStore.get_value(cache_key, cache_opts, fetch_value)
+      Tuist.KeyValueStore.get_or_update(cache_key, cache_opts, fetch_value)
     else
       fetch_value.()
     end

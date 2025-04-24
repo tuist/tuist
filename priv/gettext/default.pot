@@ -1415,7 +1415,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
-#: lib/tuist_web/live/projects_live.ex:106
+#: lib/tuist_web/live/projects_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -2918,7 +2918,7 @@ msgstr ""
 msgid "You're Almost Set!"
 msgstr ""
 
-#: lib/tuist_web/controllers/user_session_controller.ex:34
+#: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
 msgstr ""
@@ -3045,12 +3045,12 @@ msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:171
-#: lib/tuist_web/live/projects_live.ex:94
+#: lib/tuist_web/live/projects_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:83
+#: lib/tuist_web/live/projects_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
@@ -3060,7 +3060,7 @@ msgstr ""
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:96
+#: lib/tuist_web/live/projects_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
@@ -3162,7 +3162,7 @@ msgstr ""
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:101
+#: lib/tuist_web/live/projects_live.ex:103
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""

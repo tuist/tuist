@@ -66,7 +66,7 @@ defmodule TuistWeb.API.CacheController do
 
   def get_cache_action_item(%{assigns: %{selected_project: selected_project}} = conn, %{hash: hash} = _params) do
     cache_action_item =
-      Tuist.KeyValueStore.get_value(
+      Tuist.KeyValueStore.get_or_update(
         [
           Atom.to_string(__MODULE__),
           "get_cache_action_item",
@@ -75,7 +75,8 @@ defmodule TuistWeb.API.CacheController do
         ],
         [
           ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
-          cache: Map.get(conn.assigns, :cache, :tuist)
+          cache: Map.get(conn.assigns, :cache, :tuist),
+          locking: true
         ],
         fn ->
           CacheActionItems.get_cache_action_item(%{
@@ -336,7 +337,7 @@ defmodule TuistWeb.API.CacheController do
         _params
       ) do
     cache_action_item =
-      Tuist.KeyValueStore.get_value(
+      Tuist.KeyValueStore.get_or_update(
         [
           Atom.to_string(__MODULE__),
           "upload_cache_action_item",
@@ -345,7 +346,8 @@ defmodule TuistWeb.API.CacheController do
         ],
         [
           ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
-          cache: Map.get(conn.assigns, :cache, :tuist)
+          cache: Map.get(conn.assigns, :cache, :tuist),
+          locking: true
         ],
         fn ->
           CacheActionItems.get_cache_action_item(%{

@@ -79,6 +79,10 @@ defmodule Tuist.Environment do
     get([:use_ipv6], secrets)
   end
 
+  def redis_conn_name do
+    :redis
+  end
+
   def redis_url(secrets \\ secrets()) do
     get([:redis_url], secrets)
   end

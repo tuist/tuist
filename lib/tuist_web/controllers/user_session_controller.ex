@@ -3,8 +3,6 @@ defmodule TuistWeb.UserSessionController do
 
   alias Tuist.Accounts
   alias TuistWeb.Authentication
-  alias TuistWeb.RateLimit
-  alias TuistWeb.RemoteIp
 
   def create(conn, %{"_action" => "registered"} = params) do
     create(conn, params, "Account created successfully!")
@@ -21,11 +19,7 @@ defmodule TuistWeb.UserSessionController do
   end
 
   defp create(conn, params, info) do
-    case RateLimit.hit(
-           "users_log_in:#{RemoteIp.get(conn)}",
-           to_timeout(minute: 1),
-           10
-         ) do
+    case TuistWeb.RateLimit.Auth.hit(conn) do
       {:allow, _count} ->
         do_create(conn, params, info)
 

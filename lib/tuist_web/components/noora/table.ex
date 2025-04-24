@@ -121,8 +121,7 @@ defmodule TuistWeb.Noora.Table do
 
   slot :image,
     required: false,
-    doc:
-      "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
+    doc: "An optional image to render next to the label. Mutually exclusive with `icon`. Takes precedence over `icon`."
 
   def text_cell(assigns) do
     ~H"""

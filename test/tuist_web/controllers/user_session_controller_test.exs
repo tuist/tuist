@@ -5,26 +5,19 @@ defmodule TuistWeb.UserSessionControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias TuistWeb.RateLimit
-  alias TuistWeb.RemoteIp
+  alias TuistWeb.RateLimit.Auth
 
   setup context do
     if Map.get(context, :rate_limited, false) do
-      remote_ip = "127.0.0.1"
-      rate_limit_key = "users_log_in:#{remote_ip}"
-      rate_limit_scale = to_timeout(minute: 1)
-      rate_limit_limit = 10
-      stub(RemoteIp, :get, fn _ -> remote_ip end)
-
-      RateLimit
-      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+      Auth
+      |> expect(:hit, fn _conn ->
         {:allow, 1}
       end)
-      |> expect(:hit, 1, fn ^rate_limit_key, ^rate_limit_scale, ^rate_limit_limit ->
+      |> expect(:hit, 1, fn _conn ->
         {:deny, 1}
       end)
     else
-      stub(RateLimit, :hit, fn _, _, _ ->
+      stub(Auth, :hit, fn _ ->
         {:allow, 1000}
       end)
     end

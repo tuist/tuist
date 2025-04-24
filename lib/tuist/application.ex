@@ -98,7 +98,7 @@ defmodule Tuist.Application do
         },
         {Tuist.API.Pipeline, []},
         # Rate limit
-        {TuistWeb.RateLimit, [clean_period: 60_000 * 10]},
+        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         # Start a worker by calling: Tuist.Worker.start_link(arg)
         # {Tuist.Worker, arg},
         # Start to serve requests, typically the last entry
@@ -107,7 +107,14 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
-    |> Kernel.++(if Environment.redis_url(), do: [{Redix, redis_opts()}], else: [])
+    |> Kernel.++(
+      if Environment.redis_url(),
+        do: [
+          {Redix, redis_opts()},
+          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+        ],
+        else: []
+    )
   end
 
   # Tell Phoenix to update the endpoint configuration
@@ -127,7 +134,7 @@ defmodule Tuist.Application do
         else: [{:keepalive, true}]
 
     opts = [
-      name: :redis,
+      name: Environment.redis_conn_name(),
       host: parsed_url.host,
       port: parsed_url.port,
       sync_connect: false,

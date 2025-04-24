@@ -40,7 +40,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   def call_tuist_hosted(conn, _) do
     subscription_data =
       if Map.get(conn.assigns, :caching, false) do
-        Tuist.KeyValueStore.get_value(
+        Tuist.KeyValueStore.get_or_update(
           [
             Atom.to_string(__MODULE__),
             "subscription_data",
@@ -48,7 +48,8 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
           ],
           [
             ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
-            cache: Map.get(conn.assigns, :cache, :tuist)
+            cache: Map.get(conn.assigns, :cache, :tuist),
+            locking: true
           ],
           fn ->
             get_subscription_data(conn)

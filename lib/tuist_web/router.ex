@@ -8,7 +8,7 @@ defmodule TuistWeb.Router do
   import Redirect
   import TuistWeb.Authentication
   import TuistWeb.Authorization
-  import TuistWeb.RateLimit
+  import TuistWeb.RateLimit.InMemory
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
