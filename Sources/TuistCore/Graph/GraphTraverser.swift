@@ -1413,7 +1413,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func canEmbedFrameworks(target: Target) -> Bool {
-        let validProducts: [Product] = [
+        var validProducts: [Product] = [
             .app,
             .watch2App,
             .appClip,
@@ -1422,8 +1422,10 @@ public class GraphTraverser: GraphTraversing {
             .watch2Extension,
             .systemExtension,
             .xpc,
-            .bundle,
         ]
+        if target.supportedPlatforms == Set([.macOS]) {
+            validProducts.append(.bundle)
+        }
         return validProducts.contains(target.product)
     }
 
