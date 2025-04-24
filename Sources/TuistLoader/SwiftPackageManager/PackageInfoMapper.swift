@@ -1063,6 +1063,7 @@ extension ProjectDescription.Settings {
             "RxTest", // https://github.com/ReactiveX/RxSwift
             "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
             "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
+            "IssueReportingTestSupport", // https://github.com/pointfreeco/swift-issue-reporting
             "SwiftyMocky", // https://github.com/MakeAWishFoundation/SwiftyMocky
             "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
             "TSCTestSupport", // https://github.com/apple/swift-tools-support-core

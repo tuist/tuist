@@ -3694,6 +3694,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             "RxTest",
             "RxTest-Dynamic",
             "SnapshotTesting",
+            "IssueReportingTestSupport",
             "TempuraTesting",
             "TSCTestSupport",
             "ViewInspector",
