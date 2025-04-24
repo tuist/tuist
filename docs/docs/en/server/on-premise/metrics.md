@@ -344,8 +344,7 @@ The number of outgoing HTTP requests.
 
 The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
-### `tuist_http_request_duration_nanosecond_summary` (sum) {#tuist_http_request_duration_nanosecond_summary-last_value}
-
+### `tuist_http_request_duration_nanosecond_summary` (summary) {#tuist_http_request_duration_nanosecond_summary-last_value}
 The summary of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
 ### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
