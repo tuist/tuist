@@ -1,21 +1,5 @@
 import ProjectDescription
 
-func appTarget(name: String) -> Target {
-    .target(
-        name: name,
-        destinations: [.mac],
-        product: .app,
-        bundleId: "io.tuist.\(name)",
-        infoPlist: .file(path: .relativeToManifest("Info.plist")),
-        sources: .paths([.relativeToManifest("Sources/App/**")]),
-        dependencies: [
-            .target(name: "MyBundle"),
-            .target(name: "MyFramework"),
-        ],
-        settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])
-    )
-}
-
 func bundleTarget(name: String) -> Target {
     .target(
         name: name,
@@ -44,9 +28,8 @@ func frameworkTarget(name: String) -> Target {
 }
 
 let project = Project(
-    name: "App",
+    name: "Bundle",
     targets: [
-        appTarget(name: "App"),
         bundleTarget(name: "MyBundle"),
         frameworkTarget(name: "MyFramework"),
     ]
