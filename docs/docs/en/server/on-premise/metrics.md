@@ -357,8 +357,7 @@ The time it takes to retrieve a connection from the pool.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-The time a has been idle waiting to be retrieved.
-
+The time a connection has been idle waiting to be retrieved.
 ### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
 
 The number of connections that have been established.
