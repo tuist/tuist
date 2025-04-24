@@ -16,6 +16,10 @@ private enum TuistServiceContextError: LocalizedError {
     }
 }
 
+struct IgnoreOutputPipeline: StandardPipelining {
+    func write(content _: String) {}
+}
+
 extension ServiceContext {
     public static func tuist(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
         if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
@@ -40,7 +44,15 @@ extension ServiceContext {
 
             var context = ServiceContext.topLevel
             context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-            context.ui = Noora()
+            if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+                context.ui = Noora(
+                    standardPipelines: StandardPipelines(
+                        output: IgnoreOutputPipeline()
+                    )
+                )
+            } else {
+                context.ui = Noora()
+            }
             context.alerts = AlertController()
             context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
 

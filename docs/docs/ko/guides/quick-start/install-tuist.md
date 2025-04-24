@@ -31,7 +31,7 @@ mise use -g tuist@x.y.z # 시스템의 기본값으로 tuist-x.y.z 사용
 mise use -g tuist@system # 시스템의 tuist를 전역 기본값으로 사용합니다.
 ```
 
-### <0>Homebrew</0> {#recommended-homebrew}
+### <a href="https://brew.sh">Homebrew</a>{#recommended-homebrew}
 
 Tuist는 [Homebrew](https://brew.sh) 및 [우리의 포뮬러](https://github.com/tuist/homebrew-tuist)를 사용하여 설치할 수 있습니다:
 

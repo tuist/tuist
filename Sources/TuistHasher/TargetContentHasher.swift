@@ -11,6 +11,7 @@ public protocol TargetContentHashing {
         for target: GraphTarget,
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
+        destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String]
     ) async throws -> TargetContentHash
 }
@@ -92,6 +93,7 @@ public final class TargetContentHasher: TargetContentHashing {
         for graphTarget: GraphTarget,
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
+        destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String] = []
     ) async throws -> TargetContentHash {
         let projectHash: String? = switch graphTarget.project.type {
@@ -137,6 +139,14 @@ public final class TargetContentHasher: TargetContentHashing {
         )
         hashedPaths = dependenciesHash.hashedPaths
         let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.mapValues(\.value))
+        let destinationHashes: [String] = if let destination, graphTarget.target.product == .uiTests {
+            [
+                destination.device.name,
+                destination.device.runtimeIdentifier,
+            ]
+        } else {
+            []
+        }
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.product.rawValue,
@@ -149,7 +159,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ] + destinations + additionalStrings
+        ] + destinations + additionalStrings + destinationHashes
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 

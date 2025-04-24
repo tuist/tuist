@@ -3,7 +3,7 @@ workflows:
     name: Lint
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - github_credentials
     scripts:
@@ -32,7 +32,7 @@ workflows:
     name: SPM Build
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - github_credentials
     scripts:
@@ -51,7 +51,7 @@ workflows:
     name: Build Documentation
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -75,7 +75,7 @@ workflows:
     name: Unit tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -100,7 +100,7 @@ workflows:
     name: Cache
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -117,8 +117,6 @@ workflows:
           mise install
       - name: Install Tuist dependencies
         script: mise x -- tuist install
-      - name: Print hashes
-        script: mise x -- tuist cache --print-hashes
       - name: Cache
         script: mise x -- tuist cache
     triggering: &main_triggering
@@ -132,7 +130,7 @@ workflows:
     name: Deploy Documentation
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -167,7 +165,7 @@ workflows:
     name: Tuist automation acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -197,7 +195,7 @@ workflows:
     name: Tuist dependencies acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -236,7 +234,7 @@ workflows:
     name: Tuist generator acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -266,7 +264,7 @@ workflows:
     name: TuistKit acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials
@@ -295,7 +293,7 @@ workflows:
     name: Tuist App tests
     max_build_duration: 60
     environment:
-      xcode: 16.1
+      xcode: 16.3
       groups:
         - tuist
         - github_credentials

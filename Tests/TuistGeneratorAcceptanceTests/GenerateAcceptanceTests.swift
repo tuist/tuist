@@ -1038,6 +1038,22 @@ final class GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest: TuistAcc
     }
 }
 
+final class GeneratediOSStaticLibraryWithStringResources: TuistAcceptanceTestCase {
+    func test_generated_ios_static_library_with_string_resources() async throws {
+        try await setUpFixture(.generatediOSStaticLibraryWithStringResources)
+        try await run(InstallCommand.self)
+        try await run(BuildCommand.self)
+
+        let targetName = "GeneratediOSStaticLibraryWithStringResources"
+        let productName = "\(targetName)_\(targetName)"
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "\(productName).bundle",
+            destination: "Debug-iphonesimulator",
+            resource: productName
+        )
+    }
+}
+
 final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
     func test_app_with_metal_options() async throws {
         try await setUpFixture(.appWithMetalOptions)
@@ -1202,6 +1218,16 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
             resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
@@ -1217,12 +1243,7 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Resources/MacPlugin.bundle"
-        )
-        try await XCTAssertProductWithDestinationDoesNotContainResource(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            resource: "PlugIns/MacPlugin.bundle"
+            resource: "MacPlugin.bundle"
         )
     }
 
@@ -1232,6 +1253,16 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App-macOS")
 
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+        )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",

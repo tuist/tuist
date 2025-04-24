@@ -174,8 +174,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         let googleMapsPath = projectPath
             .parentDirectory
             .appending(component: "GoogleMaps.xcframework")
-        let googleMapsPrimaryBinaryPath = googleMapsPath
-            .appending(components: "ios-arm64", "GoogleMaps.framework")
         let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
         try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
         try await fileSystem.writeText(
@@ -568,6 +566,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     "-Xcc", "value-two",
                     "-Xcc", "value-three",
                     "-Xcc", "value-two",
+                    "-I", "value-one",
+                    "-I", "value-two",
                     "-Xfrontend", "value-five",
                     "-Xfrontend", "value-five",
                     "-Xfrontend", "value-two",
@@ -589,6 +589,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "value-one",
                         "-Xcc", "value-two",
                         "-Xcc", "value-three",
+                        "-I", "value-one",
+                        "-I", "value-two",
                         "-Xfrontend", "value-five",
                         "-Xfrontend", "value-two",
                         "value-four",

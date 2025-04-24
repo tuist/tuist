@@ -1855,6 +1855,17 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/scheme`.
                 internal var scheme: Swift.String?
+                /// The status of the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/status`.
+                internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// The status of the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/status`.
+                internal var status: Components.Schemas.RunParams.Case1Payload.statusPayload?
                 /// The type of the run, which is 'build' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/type`.
@@ -1878,6 +1889,7 @@ internal enum Components {
                 ///   - macos_version: The version of macOS used during the run.
                 ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                 ///   - scheme: The scheme used for the build.
+                ///   - status: The status of the build run.
                 ///   - _type: The type of the run, which is 'build' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 internal init(
@@ -1887,6 +1899,7 @@ internal enum Components {
                     macos_version: Swift.String? = nil,
                     model_identifier: Swift.String? = nil,
                     scheme: Swift.String? = nil,
+                    status: Components.Schemas.RunParams.Case1Payload.statusPayload? = nil,
                     _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
@@ -1896,6 +1909,7 @@ internal enum Components {
                     self.macos_version = macos_version
                     self.model_identifier = model_identifier
                     self.scheme = scheme
+                    self.status = status
                     self._type = _type
                     self.xcode_version = xcode_version
                 }
@@ -1906,6 +1920,7 @@ internal enum Components {
                     case macos_version
                     case model_identifier
                     case scheme
+                    case status
                     case _type = "type"
                     case xcode_version
                 }
@@ -2489,6 +2504,17 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/scheme`.
             internal var scheme: Swift.String?
+            /// The status of the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+            }
+            /// The status of the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/status`.
+            internal var status: Components.Schemas.BuildRun.statusPayload?
             /// The type of the run, which is 'build' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/type`.
@@ -2512,6 +2538,7 @@ internal enum Components {
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the build.
+            ///   - status: The status of the build run.
             ///   - _type: The type of the run, which is 'build' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             internal init(
@@ -2521,6 +2548,7 @@ internal enum Components {
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
+                status: Components.Schemas.BuildRun.statusPayload? = nil,
                 _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
@@ -2530,6 +2558,7 @@ internal enum Components {
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
                 self.scheme = scheme
+                self.status = status
                 self._type = _type
                 self.xcode_version = xcode_version
             }
@@ -2540,6 +2569,7 @@ internal enum Components {
                 case macos_version
                 case model_identifier
                 case scheme
+                case status
                 case _type = "type"
                 case xcode_version
             }
@@ -14897,6 +14927,17 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/scheme`.
                         internal var scheme: Swift.String?
+                        /// The status of the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/status`.
+                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// The status of the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/status`.
+                        internal var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload?
                         /// The type of the run, which is 'build' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/type`.
@@ -14920,6 +14961,7 @@ internal enum Operations {
                         ///   - macos_version: The version of macOS used during the run.
                         ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                         ///   - scheme: The scheme used for the build.
+                        ///   - status: The status of the build run.
                         ///   - _type: The type of the run, which is 'build' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         internal init(
@@ -14929,6 +14971,7 @@ internal enum Operations {
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
+                            status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = nil,
                             _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -14938,6 +14981,7 @@ internal enum Operations {
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
+                            self.status = status
                             self._type = _type
                             self.xcode_version = xcode_version
                         }
@@ -14948,6 +14992,7 @@ internal enum Operations {
                             case macos_version
                             case model_identifier
                             case scheme
+                            case status
                             case _type = "type"
                             case xcode_version
                         }

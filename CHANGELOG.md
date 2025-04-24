@@ -1,5 +1,60 @@
 # Changelog
 
+## 4.48.2 - 2025-04-23
+
+### CLI
+
+#### Fixed
+
+- Fix missing sources build phase for some products when no build files present [#7501](https://github.com/tuist/tuist/pull/7501) by [@fortmarek](https://github.com/fortmarek)
+- Add support for tvOS bundle icon format [#7498](https://github.com/tuist/tuist/pull/7498) by [@vkondrashkov](https://github.com/vkondrashkov)
+- Fix hashing of XCFrameworks with relative symlinks [#7507](https://github.com/tuist/tuist/pull/7507) by [@fortmarek](https://github.com/fortmarek)
+- Fix sending tuist xcodebuild insights [#7516](https://github.com/tuist/tuist/pull/7516) by [@fortmarek](https://github.com/fortmarek)
+- Fix unstable hash when a dependency is resolved both via registry and scm [#7518](https://github.com/tuist/tuist/pull/7518) by [@fortmarek](https://github.com/fortmarek)
+- Do not treat generated resource bundles as plugins [#7479](https://github.com/tuist/tuist/pull/7479) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+- Fix bundles including executables [#7490](https://github.com/tuist/tuist/pull/7490) by [@fdzsergio](https://github.com/fdzsergio)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.48.1 - 2025-04-14
+
+### CLI
+
+#### Fixed
+
+- Ignore unused symbols in synthesized resource interface files by Periphery [#7492](https://github.com/tuist/tuist/pull/7492) by [@juicyfru1t](https://github.com/juicyfru1t)
+- Fix issue where targets with no sources generated an empty compile sources phase, leading to issues in watchOS apps [#7493](https://github.com/tuist/tuist/pull/7493) by [@cooksimo](https://github.com/cooksimo)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.48.0 - 2025-04-10
+
+### CLI
+
+#### Changed
+
+- Improve tuist run CLI output [#7462](https://github.com/tuist/tuist/pull/7462) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add support for selectively testing UI tests [#7467](https://github.com/tuist/tuist/pull/7467) by [@fortmarek](https://github.com/fortmarek)
+- Include build status in build insights [#7476](https://github.com/tuist/tuist/pull/7476) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix tree-shaking target references from test plans when selective testing [#7471](https://github.com/tuist/tuist/pull/7471) by [@fortmarek](https://github.com/fortmarek)
+- Efficiently precompute hash for registry dependencies [#7469](https://github.com/tuist/tuist/pull/7469) by [@fortmarek](https://github.com/fortmarek)
+- Do not output informational messages when --json is passed [#7473](https://github.com/tuist/tuist/pull/7473) by [@fortmarek](https://github.com/fortmarek)
+- Do not remove duplicated -I "include path" parameter from OTHER_SWIFT_FLAGS [#7478](https://github.com/tuist/tuist/pull/7478) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.47.0 - 2025-04-07
 
 ### CLI

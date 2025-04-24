@@ -40,6 +40,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithSPMBundle
     case generatedBunleWithMetalFiles
     case generatediOSAppWithoutConfigManifest
+    case generatediOSStaticLibraryWithStringResources
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
@@ -191,6 +192,8 @@ public enum TuistAcceptanceFixtures {
             return "generated_bundle_with_metal_files"
         case .generatediOSAppWithoutConfigManifest:
             return "generated_ios_app_without_config_manifest"
+        case .generatediOSStaticLibraryWithStringResources:
+            return "generated_ios_static_library_with_string_resources"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:

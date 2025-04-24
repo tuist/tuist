@@ -59,9 +59,15 @@ public struct ContentHasher: ContentHashing {
 
     public func hash(path filePath: AbsolutePath) async throws -> String {
         if try await fileSystem.exists(filePath, isDirectory: true) {
-            return try await fileHandler.contentsOfDirectory(filePath)
+            return try await fileSystem.glob(directory: filePath, include: ["*"])
+                .collect()
                 .filter { filesFilter($0) }
-                .concurrentMap(maxConcurrentTasks: 100) { try await hash(path: $0) }
+                .concurrentMap(maxConcurrentTasks: 100) { filePath -> String? in
+                    guard try await fileSystem.exists(filePath) else { return nil }
+                    let filePath = try await fileSystem.resolveSymbolicLink(filePath)
+                    return try await hash(path: filePath)
+                }
+                .compactMap { $0 }
                 .sorted()
                 .joined(separator: "-")
         }

@@ -1,18 +1,18 @@
 ---
 title: はじめに
-titleTemplate: :title · クイックスタート · ガイド · Tuist
-description: 開発環境にTuistをインストールする方法を学びます
+titleTemplate: :title · 導入の手順 · Tuist
+description: 開発環境にTuistをインストールする方法を学びます。
 ---
 
 # はじめに {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory of your Xcode project or workspace:
+任意のディレクトリ、または Xcode プロジェクトおよびワークスペースのディレクトリで、以下のコマンドを実行するのが Tuist を始める最も簡単な方法です：
 
 ```bash
 tuist init
 ```
 
-The command will walk you through the steps to <LocalizedLink href="/guides/develop/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/develop/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/share/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/develop/registry">registry</LocalizedLink>.
+このコマンドを実行することで、<LocalizedLink href="/guides/develop/projects">生成されたプロジェクトの作成</LocalizedLink>や、既存の Xcode プロジェクトおよびワークスペースの統合手順を順を追って確認できます。 つまり、ローカル環境をリモートサーバーに接続し、<LocalizedLink href="/guides/develop/cache">選択肢のあるテスト</LocalizedLink>、<LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">プレビュー</LocalizedLink>、<2>レジストリ</2>などの機能にアクセスできるようにします。 つまり、ローカル環境をリモートサーバーに接続し、<LocalizedLink href="/guides/develop/cache">選択肢のあるテスト</LocalizedLink>、<LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">プレビュー</LocalizedLink>、<2>レジストリ</2>などの機能にアクセスできるようにします。 つまり、ローカル環境をリモートサーバーに接続し、<LocalizedLink href="/guides/develop/cache">選択肢のあるテスト</LocalizedLink>、<LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">プレビュー</LocalizedLink>、<2>レジストリ</2>などの機能にアクセスできるようにします。 つまり、ローカル環境をリモートサーバーに接続し、<LocalizedLink href="/guides/develop/cache">選択肢のあるテスト</LocalizedLink>、<LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">プレビュー</LocalizedLink>、<2>レジストリ</2>などの機能にアクセスできるようにします。
 
-> [!NOTE] MIGRATE AN EXISTING PROJECT
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/develop/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> [!NOTE] 既存プロジェクトの移行
+> 既存のプロジェクトを生成プロジェクトに移行して、開発体験を向上させたり、<LocalizedLink href="/guides/develop/cache">キャッシュ</LocalizedLink>などの機能を活用したい場合は、<LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">移行ガイド</LocalizedLink>をご覧ください。

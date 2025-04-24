@@ -10,7 +10,8 @@ public protocol CacheGraphContentHashing {
         for graph: Graph,
         configuration: String?,
         defaultConfiguration: String?,
-        excludedTargets: Set<String>
+        excludedTargets: Set<String>,
+        destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: String]
 }
 
@@ -56,7 +57,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         for graph: Graph,
         configuration: String?,
         defaultConfiguration: String?,
-        excludedTargets: Set<String>
+        excludedTargets: Set<String>,
+        destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
@@ -75,6 +77,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
                     excludedTargets: excludedTargets
                 )
             },
+            destination: destination,
             additionalStrings: [
                 configuration,
                 try swiftVersionProvider.swiftlangVersion(),

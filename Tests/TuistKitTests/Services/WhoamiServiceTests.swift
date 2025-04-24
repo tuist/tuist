@@ -43,13 +43,13 @@ final class WhoamiServiceTests: TuistUnitTestCase {
             // Given
             given(serverSessionController)
                 .authenticatedHandle(serverURL: .value(serverURL))
-                .willReturn("tuist@tuist.io")
+                .willReturn("tuist@tuist.dev")
 
             // When
             try await subject.run(directory: nil)
 
             // Then
-            XCTAssertPrinterOutputContains("tuist@tuist.io")
+            XCTAssertPrinterOutputContains("tuist@tuist.dev")
         }
     }
 

@@ -14,7 +14,8 @@ public protocol CreateBuildServicing {
         modelIdentifier: String?,
         macOSVersion: String,
         scheme: String?,
-        xcodeVersion: String?
+        xcodeVersion: String?,
+        status: ServerBuildRunStatus
     ) async throws
 }
 
@@ -35,6 +36,10 @@ enum CreateBuildServiceError: LocalizedError {
     }
 }
 
+public enum ServerBuildRunStatus {
+    case success, failure
+}
+
 public final class CreateBuildService: CreateBuildServicing {
     private let fullHandleService: FullHandleServicing
 
@@ -53,10 +58,17 @@ public final class CreateBuildService: CreateBuildServicing {
         modelIdentifier: String?,
         macOSVersion: String,
         scheme: String?,
-        xcodeVersion: String?
+        xcodeVersion: String?,
+        status: ServerBuildRunStatus
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
+        let status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = switch status {
+        case .success:
+            .success
+        case .failure:
+            .failure
+        }
 
         let response = try await client.createRun(
             .init(
@@ -73,6 +85,7 @@ public final class CreateBuildService: CreateBuildServicing {
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
                             scheme: scheme,
+                            status: status,
                             xcode_version: xcodeVersion
                         )
                     )

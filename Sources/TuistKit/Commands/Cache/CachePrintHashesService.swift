@@ -58,7 +58,8 @@ final class CachePrintHashesService {
             for: graph,
             configuration: configuration,
             defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)

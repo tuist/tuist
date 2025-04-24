@@ -190,6 +190,54 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test(product: .watch2App)
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: [],
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+
+        XCTAssertNil(buildPhase)
+    }
+
+    func test_generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test(product: .framework)
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: [],
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+        let files = try XCTUnwrap(buildPhase?.files)
+        XCTAssertEmpty(files)
+    }
+
     func test_generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
@@ -1223,6 +1271,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
+    }
+
+    func test_generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let generatedResourceBundle = Target.test(
+            name: "Feature_Resources",
+            platform: .macOS,
+            product: .bundle,
+            bundleId: ".generated.resources"
+        )
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, generatedResourceBundle])
+        let project = Project.test(targets: [app, generatedResourceBundle])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: generatedResourceBundle.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: generatedResourceBundle.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertEmpty(nativeTarget.buildPhases)
     }
 
     func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
