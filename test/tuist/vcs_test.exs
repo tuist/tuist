@@ -40,7 +40,10 @@ defmodule Tuist.VCSTest do
           }
         })
 
-      expect(GitHub.Client, :get_user_by_id, fn %{id: "123", repository_full_handle: "tuist/tuist"} ->
+      expect(GitHub.Client, :get_user_by_id, fn %{
+                                                  id: "123",
+                                                  repository_full_handle: "tuist/tuist"
+                                                } ->
         {:ok, %VCS.User{username: "tuist"}}
       end)
 
@@ -328,6 +331,7 @@ defmodule Tuist.VCSTest do
         )
 
       stub(Req, :get, fn [
+                           finch: Tuist.Finch,
                            headers: @default_headers,
                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
                          ] ->
@@ -358,6 +362,7 @@ defmodule Tuist.VCSTest do
         """
 
       stub(Req, :post, fn [
+                            finch: Tuist.Finch,
                             headers: @default_headers,
                             url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
                             json: %{body: ^expected_body}
@@ -417,6 +422,7 @@ defmodule Tuist.VCSTest do
         )
 
       stub(Req, :get, fn [
+                           finch: Tuist.Finch,
                            headers: @default_headers,
                            url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
                          ] ->
@@ -439,6 +445,7 @@ defmodule Tuist.VCSTest do
         """
 
       expect(Req, :post, fn [
+                              finch: Tuist.Finch,
                               headers: @default_headers,
                               url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
                               json: %{body: ^expected_body}
@@ -591,6 +598,7 @@ defmodule Tuist.VCSTest do
       end)
 
       stub(Req, :patch, fn [
+                             finch: Tuist.Finch,
                              headers: [
                                {"Accept", "application/vnd.github.v3+json"},
                                {"Authorization", "token github_token"}

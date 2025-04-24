@@ -937,7 +937,7 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:105
+#: lib/tuist_web/controllers/error_html.ex:103
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
@@ -1492,7 +1492,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:39
+#: lib/tuist_web/controllers/error_html.ex:37
 #, elixir-autogen, elixir-format
 msgid "Not found"
 msgstr ""
@@ -1653,7 +1653,7 @@ msgstr ""
 msgid "Platform"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:22
+#: lib/tuist_web/controllers/error_html.ex:20
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
@@ -1996,7 +1996,7 @@ msgstr ""
 msgid "Self-host your instance of Tuist"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:72
+#: lib/tuist_web/controllers/error_html.ex:70
 #, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr ""
@@ -2078,17 +2078,17 @@ msgstr ""
 msgid "Social Media Links"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:76
+#: lib/tuist_web/controllers/error_html.ex:74
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:33
+#: lib/tuist_web/controllers/error_html.ex:31
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:54
+#: lib/tuist_web/controllers/error_html.ex:52
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
@@ -2390,12 +2390,12 @@ msgstr ""
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:60
+#: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:61
+#: lib/tuist_web/controllers/error_html.ex:59
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
 msgstr ""
@@ -2555,7 +2555,7 @@ msgstr ""
 msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:18
+#: lib/tuist_web/controllers/error_html.ex:16
 #, elixir-autogen, elixir-format
 msgid "Unauthorized"
 msgstr ""
@@ -3172,42 +3172,42 @@ msgstr ""
 msgid "Invite members"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:24
+#: lib/tuist_web/controllers/error_html.ex:22
 #, elixir-autogen, elixir-format
 msgid "401"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:45
+#: lib/tuist_web/controllers/error_html.ex:43
 #, elixir-autogen, elixir-format
 msgid "404"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:66
+#: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
 msgid "429"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:78
+#: lib/tuist_web/controllers/error_html.ex:76
 #, elixir-autogen, elixir-format
 msgid "500"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:127
+#: lib/tuist_web/controllers/error_html.ex:125
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:73
+#: lib/tuist_web/controllers/error_html.ex:71
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:40
+#: lib/tuist_web/controllers/error_html.ex:38
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:19
+#: lib/tuist_web/controllers/error_html.ex:17
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
 msgstr ""

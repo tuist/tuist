@@ -25,7 +25,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url ->
+        fn ^releases_url, [finch: Tuist.Finch] ->
           {:ok, %Req.Response{status: 200, body: [release]}}
         end
       )
@@ -61,7 +61,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url ->
+        fn ^releases_url, [finch: Tuist.Finch] ->
           {:ok,
            %Req.Response{
              status: 200,
@@ -96,7 +96,7 @@ defmodule Tuist.GitHub.ReleasesTest do
     stub(
       Req,
       :get,
-      fn ^releases_url ->
+      fn ^releases_url, [finch: Tuist.Finch] ->
         {:ok, %Req.Response{status: 502}}
       end
     )
@@ -136,7 +136,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url ->
+        fn ^releases_url, [finch: Tuist.Finch] ->
           {:ok, %Req.Response{status: 200, body: [release]}}
         end
       )
@@ -160,7 +160,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url ->
+        fn ^releases_url, [finch: Tuist.Finch] ->
           {:ok,
            %Req.Response{
              status: 200,
@@ -209,7 +209,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       stub(
         Req,
         :get,
-        fn ^releases_url ->
+        fn ^releases_url, [finch: Tuist.Finch] ->
           {:ok,
            %Req.Response{
              status: 200,

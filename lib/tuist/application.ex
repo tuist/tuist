@@ -44,32 +44,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    finch_pools =
-      if Environment.test?() do
-        %{:default => [size: 10]}
-      else
-        %{
-          :default => [size: 10],
-          Environment.s3_endpoint() => [
-            conn_opts: [
-              log: true,
-              protocols: Environment.s3_protocols(),
-              transport_opts: [
-                inet6: Environment.use_ipv6?() in ~w(true 1),
-                cacertfile: CAStore.file_path(),
-                verify: :verify_peer
-              ]
-            ],
-            size: Environment.s3_pool_size(),
-            count: Environment.s3_pool_count(),
-            protocols: Environment.s3_protocols()
-          ]
-        }
-      end
-
     children =
       [
-        TuistWeb.Telemetry,
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
         {Cachex,
@@ -88,8 +64,7 @@ defmodule Tuist.Application do
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},
-        # Start the Finch HTTP client for sending emails
-        {Finch, name: Tuist.Finch, pools: finch_pools},
+        {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
         # Distributed supervisor & process registry
         {
@@ -99,6 +74,7 @@ defmodule Tuist.Application do
         {Tuist.API.Pipeline, []},
         # Rate limit
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+        TuistWeb.Telemetry,
         # Start a worker by calling: Tuist.Worker.start_link(arg)
         # {Tuist.Worker, arg},
         # Start to serve requests, typically the last entry
@@ -115,6 +91,31 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+  end
+
+  defp finch_pools do
+    if Environment.test?() do
+      %{:default => [size: 10]}
+    else
+      %{
+        :default => [size: 10, start_pool_metrics?: true],
+        Environment.s3_endpoint() => [
+          conn_opts: [
+            log: true,
+            protocols: Environment.s3_protocols(),
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          start_pool_metrics?: true
+        ]
+      }
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

@@ -68,7 +68,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
   end
 
-  def call(conn, opts) do
+  def call(conn, _opts) do
     conn
   end
 

@@ -103,7 +103,11 @@ defmodule Tuist.Analytics.Posthog do
 
     event =
       Map.merge(
-        %{event: event_name, properties: Map.merge(metadata, measurements), timestamp: DateTime.to_iso8601(date)},
+        %{
+          event: event_name,
+          properties: Map.merge(metadata, measurements),
+          timestamp: DateTime.to_iso8601(date)
+        },
         distinct_id_params
       )
 
@@ -119,7 +123,12 @@ defmodule Tuist.Analytics.Posthog do
     body = %{batch: entries, api_key: Tuist.Environment.posthog_api_key()}
 
     base_request()
-    |> Req.post(url: "/capture", json: body, headers: [{"Content-Type", "application/json"}])
+    |> Req.post(
+      url: "/capture",
+      json: body,
+      headers: [{"Content-Type", "application/json"}],
+      finch: Tuist.Finch
+    )
     |> transform_response()
   end
 
@@ -130,7 +139,7 @@ defmodule Tuist.Analytics.Posthog do
   defp transform_response(response), do: response
 
   defp base_request do
-    Req.new(base_url: Tuist.Environment.posthog_url())
+    Req.new(base_url: Tuist.Environment.posthog_url(), finch: Tuist.Finch)
   end
 
   defp create_table(name) do

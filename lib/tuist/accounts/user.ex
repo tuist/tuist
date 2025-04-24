@@ -105,9 +105,12 @@ defmodule Tuist.Accounts.User do
   defp password_strength_to_messages(%{feedback: feedback}) do
     messages = []
 
-    if feedback.warning != "" do
-      messages = messages ++ [feedback.warning]
-    end
+    messages =
+      if feedback.warning == "" do
+        messages
+      else
+        messages ++ [feedback.warning]
+      end
 
     messages ++ feedback.suggestions
   end

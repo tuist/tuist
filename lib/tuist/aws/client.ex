@@ -18,7 +18,14 @@ defmodule Tuist.AWS.Client do
 
   @impl true
   def request(method, url, body \\ "", headers \\ [], http_opts \\ []) do
-    [method: method, url: url, body: body, headers: headers, decode_body: false]
+    [
+      method: method,
+      url: url,
+      body: body,
+      headers: headers,
+      decode_body: false,
+      finch: Tuist.Finch
+    ]
     |> Keyword.merge(Application.get_env(:ex_aws, :req_opts, @default_opts))
     # the temporary fix!
     |> Keyword.merge(Keyword.delete(http_opts, :follow_redirect))

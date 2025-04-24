@@ -68,7 +68,8 @@ defmodule Tuist.GitHub.App do
     with {:access_tokens_url, {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
            {:access_tokens_url,
             Req.get("https://api.github.com/repos/#{repository_full_handle}/installation",
-              headers: headers
+              headers: headers,
+              finch: Tuist.Finch
             )},
          {:token,
           {:ok,
@@ -76,7 +77,7 @@ defmodule Tuist.GitHub.App do
              status: 201,
              body: %{"token" => token, "expires_at" => expires_at}
            }}} <-
-           {:token, Req.post(access_tokens_url, headers: headers)} do
+           {:token, Req.post(access_tokens_url, headers: headers, finch: Tuist.Finch)} do
       {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
 
       {:ok, %{token: token, expires_at: expires_at}}

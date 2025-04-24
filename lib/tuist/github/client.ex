@@ -110,6 +110,7 @@ defmodule Tuist.GitHub.Client do
            url: url,
            headers: default_headers(token),
            decode_body: false,
+           finch: Tuist.Finch,
            into: File.stream!(path, [:write])
          ) do
       {:ok, %{status: 200}} ->
@@ -139,7 +140,8 @@ defmodule Tuist.GitHub.Client do
 
     case Req.get(
            url: url,
-           headers: default_headers(token)
+           headers: default_headers(token),
+           finch: Tuist.Finch
          ) do
       {:ok, %{status: 200, body: %{"content" => content, "path" => path}}} ->
         {:ok, %Content{path: path, content: Base64.decode(content)}}
@@ -169,6 +171,7 @@ defmodule Tuist.GitHub.Client do
             {"Accept", "application/vnd.github.v3+json"},
             {"Authorization", "token #{token}"}
           ])
+          |> Keyword.put(:finch, Tuist.Finch)
           |> Keyword.delete(:repository_full_handle)
 
         attrs_with_headers
@@ -213,7 +216,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp get_all_tags_recursively(%{url: url, token: token, tags: tags}) do
-    case Req.get(url: url, headers: default_headers(token)) do
+    case Req.get(url: url, headers: default_headers(token), finch: Tuist.Finch) do
       {:ok, %Req.Response{status: 200, body: page_tags, headers: response_headers}} ->
         page_tags = Enum.map(page_tags, &%Tag{name: &1["name"]})
 

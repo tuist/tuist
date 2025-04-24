@@ -14,7 +14,9 @@ defmodule Tuist.Incidents do
       Cachex.fetch(cache, "ongoing_incident", fn ->
         active_incident? =
           retry with: exponential_backoff() |> randomize() |> cap(1_000) |> expiry(10_000) do
-            {:ok, %{body: body}} = Req.get("https://status.tuist.dev/proxy/status.tuist.dev")
+            {:ok, %{body: body}} =
+              Req.get("https://status.tuist.dev/proxy/status.tuist.dev", finch: Tuist.Finch)
+
             %{"summary" => %{"ongoing_incidents" => ongoing_incidents}} = body
 
             length(ongoing_incidents) > 0

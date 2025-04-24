@@ -29,7 +29,7 @@ defmodule Tuist.IncidentsTest do
       stub(
         Req,
         :get,
-        fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
+        fn "https://status.tuist.dev/proxy/status.tuist.dev", [finch: Tuist.Finch] ->
           {:error, %Req.TransportError{reason: :timeout}}
         end
       )
@@ -37,7 +37,7 @@ defmodule Tuist.IncidentsTest do
       stub(
         Req,
         :get,
-        fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
+        fn "https://status.tuist.dev/proxy/status.tuist.dev", [finch: Tuist.Finch] ->
           {:ok, %Req.Response{status: 200, body: status}}
         end
       )
@@ -73,7 +73,7 @@ defmodule Tuist.IncidentsTest do
       stub(
         Req,
         :get,
-        fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
+        fn "https://status.tuist.dev/proxy/status.tuist.dev", [finch: Tuist.Finch] ->
           {:ok, %Req.Response{status: 200, body: status}}
         end
       )

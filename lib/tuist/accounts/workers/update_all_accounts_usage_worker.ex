@@ -6,7 +6,6 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Workers.UpdateAccountUsageWorker
-  alias Tuist.Repo
 
   @page_size 100
 

@@ -55,7 +55,7 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp req_releases do
-    case Req.get(releases_url()) do
+    case Req.get(releases_url(), finch: Tuist.Finch) do
       {:ok, %Req.Response{status: 200, body: releases}} ->
         releases
 
@@ -72,7 +72,11 @@ defmodule Tuist.GitHub.Releases do
       name: release["name"],
       published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
       html_url: release["html_url"],
-      assets: Enum.map(release["assets"], &%{name: &1["name"], browser_download_url: &1["browser_download_url"]})
+      assets:
+        Enum.map(
+          release["assets"],
+          &%{name: &1["name"], browser_download_url: &1["browser_download_url"]}
+        )
     }
   end
 end

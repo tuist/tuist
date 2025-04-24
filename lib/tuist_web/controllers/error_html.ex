@@ -2,8 +2,6 @@ defmodule TuistWeb.ErrorHTML do
   use TuistWeb, :html
   use TuistWeb.Noora
 
-  alias Tuist.Accounts
-
   # If you want to customize your error pages,
   # uncomment the embed_templates/1 call below
   # and add pages to the error directory:

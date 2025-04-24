@@ -73,7 +73,8 @@ defmodule Tuist.PromEx do
         Tuist.Previews.PromExPlugin,
         Tuist.Registry.Swift.PromExPlugin,
         Tuist.Repo.PromExPlugin,
-        Tuist.KeyValueStore.PromExPlugin
+        Tuist.KeyValueStore.PromExPlugin,
+        Tuist.HTTP.PromExPlugin
       ]
 
     plugins =

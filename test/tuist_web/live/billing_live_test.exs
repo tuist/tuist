@@ -5,7 +5,6 @@ defmodule TuistWeb.BillingLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Accounts
   alias Tuist.Billing
   alias TuistTestSupport.Fixtures.AccountsFixtures
 

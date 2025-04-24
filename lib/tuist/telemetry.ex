@@ -1,5 +1,9 @@
 defmodule Tuist.Telemetry do
   @moduledoc false
+  def event_name_http_queue_status do
+    [:tuist, :http, :queue, :status]
+  end
+
   def event_name_projects_count do
     [:tuist, :projects, :count]
   end

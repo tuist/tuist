@@ -10,7 +10,6 @@ defmodule Tuist.CommandEventsTest do
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestSummary
   alias Tuist.Storage
-  alias Tuist.Time
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -240,7 +239,7 @@ defmodule Tuist.CommandEventsTest do
     test "returns test runs" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      project_two = ProjectsFixtures.project_fixture()
+      _project_two = ProjectsFixtures.project_fixture()
 
       _command_event_one =
         [
