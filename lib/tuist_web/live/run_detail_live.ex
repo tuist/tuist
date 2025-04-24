@@ -39,7 +39,9 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:selective_testing_page_count, selective_testing_page_count)
      |> assign(:binary_cache_analytics, binary_cache_analytics)
      |> assign(:binary_cache_page_count, binary_cache_page_count)
-     |> assign_async(:has_result_bundle, fn -> {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run)}} end)}
+     |> assign_async(:has_result_bundle, fn ->
+       {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run)}}
+     end)}
   end
 
   def handle_params(
@@ -68,12 +70,22 @@ defmodule TuistWeb.RunDetailLive do
           )
       )
 
+    selective_testing_filter = params["selective-testing-filter"] || ""
     selective_testing_page = String.to_integer(params["selective-testing-page"] || "1")
     selective_testing_sort_by = params["selective-testing-sort-by"] || "module"
     selective_testing_sort_order = params["selective-testing-sort-order"] || "desc"
 
+    selective_testing_filtered_modules =
+      Enum.filter(
+        selective_testing_analytics.test_modules,
+        &String.contains?(String.downcase(&1.name), String.downcase(selective_testing_filter))
+      )
+
+    selective_testing_page_count =
+      max(div(length(selective_testing_filtered_modules), @table_page_size), 1)
+
     selective_testing_current_page_modules =
-      selective_testing_analytics.test_modules
+      selective_testing_filtered_modules
       |> sort_test_modules(
         selective_testing_sort_by,
         selective_testing_sort_order
@@ -112,10 +124,12 @@ defmodule TuistWeb.RunDetailLive do
       :noreply,
       socket
       |> assign(:selected_tab, selected_tab(params))
+      |> assign(:selective_testing_filter, selective_testing_filter)
       |> assign(
         :selective_testing_page,
         selective_testing_page
       )
+      |> assign(:selective_testing_page_count, selective_testing_page_count)
       |> assign(
         :selective_testing_current_page_modules,
         selective_testing_current_page_modules
@@ -150,7 +164,18 @@ defmodule TuistWeb.RunDetailLive do
     }
   end
 
-  def handle_event("search-modules", %{"module-search" => search}, socket) do
+  def handle_event("search-selective-testing", %{"search" => search}, socket) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("selective-testing-filter", search) |> URI.encode_query()}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("search-binary-cache", %{"search" => search}, socket) do
     socket =
       push_patch(
         socket,
@@ -244,9 +269,18 @@ defmodule TuistWeb.RunDetailLive do
 
     test_modules =
       Enum.sort_by(
-        Enum.map(local_test_target_hits, &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}) ++
-          Enum.map(remote_test_target_hits, &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}) ++
-          Enum.map(test_misses, &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}),
+        Enum.map(
+          local_test_target_hits,
+          &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}
+        ) ++
+          Enum.map(
+            remote_test_target_hits,
+            &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}
+          ) ++
+          Enum.map(
+            test_misses,
+            &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}
+          ),
         & &1.name
       )
 
@@ -293,8 +327,14 @@ defmodule TuistWeb.RunDetailLive do
 
     cacheable_targets =
       Enum.sort_by(
-        Enum.map(local_cache_target_hits, &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}) ++
-          Enum.map(remote_cache_target_hits, &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}) ++
+        Enum.map(
+          local_cache_target_hits,
+          &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}
+        ) ++
+          Enum.map(
+            remote_cache_target_hits,
+            &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}
+          ) ++
           Enum.map(cache_misses, &%{name: &1, binary_cache_hit: :miss, binary_cache_hash: nil}),
         & &1.name
       )

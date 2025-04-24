@@ -207,6 +207,17 @@
       data-part="selective-testing"
     >
       <.card_section data-part="selective-testing-section">
+        <.form phx-change="search-selective-testing" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-selective-testing"
+            name="search"
+            placeholder={gettext("Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@selective_testing_filter}
+          />
+        </.form>
         <.table id="selective-testing-table" rows={@selective_testing_current_page_modules}>
           <:col
             :let={test_module}
@@ -232,6 +243,13 @@
           <:col :let={test_module} label={gettext("Hash")}>
             <.text_cell label={test_module.selective_testing_hash || gettext("Unknown")} />
           </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="history_toggle"
+              title={gettext("No modules found")}
+              subtitle={gettext("Try changing your search term")}
+            />
+          </:empty_state>
         </.table>
         <.pagination_group
           :if={@selective_testing_page_count > 1}
@@ -278,11 +296,11 @@
     </.card>
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
       <.card_section data-part="binary-cache-section">
-        <.form phx-change="search-modules" phx-debounce="200">
+        <.form phx-change="search-binary-cache" phx-debounce="200">
           <.text_input
             type="search"
-            id="module-search"
-            name="module-search"
+            id="search-binary-cache"
+            name="search"
             placeholder={gettext("Search...")}
             show_suffix={false}
             data-part="search"
