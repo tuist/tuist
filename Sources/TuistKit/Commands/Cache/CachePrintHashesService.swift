@@ -6,22 +6,37 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistSupport
+import XcodeGraph
+import XcodeGraphMapper
 
 final class CachePrintHashesService {
     private let generatorFactory: GeneratorFactorying
     private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let configLoader: ConfigLoading
+    private let manifestLoader: ManifestLoading
+    private let manifestGraphLoader: ManifestGraphLoading
+    private let xcodeGraphMapper: XcodeGraphMapping
 
     convenience init(
         contentHasher: ContentHashing = CachedContentHasher(),
         generatorFactory: GeneratorFactorying
     ) {
+        let manifestLoader = ManifestLoaderFactory()
+            .createManifestLoader()
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader())
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader,
+            xcodeGraphMapper: XcodeGraphMapper()
         )
     }
 
@@ -29,12 +44,18 @@ final class CachePrintHashesService {
         generatorFactory: GeneratorFactorying,
         cacheGraphContentHasher: CacheGraphContentHashing,
         clock: Clock,
-        configLoader: ConfigLoading
+        configLoader: ConfigLoading,
+        manifestLoader: ManifestLoading,
+        manifestGraphLoader: ManifestGraphLoading,
+        xcodeGraphMapper: XcodeGraphMapping
     ) {
         self.generatorFactory = generatorFactory
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.clock = clock
         self.configLoader = configLoader
+        self.manifestLoader = manifestLoader
+        self.manifestGraphLoader = manifestGraphLoader
+        self.xcodeGraphMapper = xcodeGraphMapper
     }
 
     private func absolutePath(_ path: String?) throws -> AbsolutePath {
@@ -50,27 +71,35 @@ final class CachePrintHashesService {
         configuration: String?
     ) async throws {
         let absolutePath = try absolutePath(path)
-        let timer = clock.startTimer()
-        let config = try await configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-        let graph = try await generator.load(path: absolutePath)
+
+        let graph: XcodeGraph.Graph
+        let defaultConfiguration: String?
+        if try await manifestLoader.hasRootManifest(at: absolutePath) {
+            let config = try await configLoader.loadConfig(path: absolutePath)
+            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            graph = try await generator.load(path: absolutePath)
+            defaultConfiguration = config.project.generatedProject?.generationOptions.defaultConfiguration
+        } else {
+            defaultConfiguration = nil
+            graph = try await xcodeGraphMapper.map(at: absolutePath)
+        }
+
         let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,
             configuration: configuration,
-            defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
+            defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
             destination: nil
         )
-        let duration = timer.stop()
-        let time = String(format: "%.3f", duration)
-        guard hashes.count > 0 else {
-            ServiceContext.current?.logger?.notice("No cacheable targets were found")
-            return
-        }
+
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
-        for (target, hash) in sortedHashes {
-            ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+
+        if sortedHashes.isEmpty {
+            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets."))
+        } else {
+            for (target, hash) in sortedHashes {
+                ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+            }
         }
-        ServiceContext.current?.logger?.notice("Total time taken: \(time)s")
     }
 }
