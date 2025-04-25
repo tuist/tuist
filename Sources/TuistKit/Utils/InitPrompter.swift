@@ -57,7 +57,7 @@ enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
     var description: String {
         switch self {
         case let .userAccount(handle): "My personal account: '\(handle)'"
-        case let .organization(handle): handle
+        case let .organization(handle): "Organization: \(handle)"
         case .createOrganizationAccount: "A new organization account"
         }
     }
