@@ -51,11 +51,13 @@ enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
 
 enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
     case userAccount(String)
+    case organization(String)
     case createOrganizationAccount
 
     var description: String {
         switch self {
         case let .userAccount(handle): "My personal account: '\(handle)'"
+        case let .organization(handle): handle
         case .createOrganizationAccount: "A new organization account"
         }
     }
@@ -65,18 +67,19 @@ enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
 protocol InitPrompting {
     func promptWorkflowType(xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
-    func promptAccountType(authenticatedUserHandle: String) -> InitPromptingAccountType
+    func promptAccountType(authenticatedUserHandle: String, organizations: [String]) -> InitPromptingAccountType
     func promptNewOrganizationAccountHandle() -> String
     func promptGeneratedProjectPlatform() -> String
     func promptGeneratedProjectName() -> String
 }
 
 struct InitPrompter: InitPrompting {
-    func promptAccountType(authenticatedUserHandle: String) -> InitPromptingAccountType {
+    func promptAccountType(authenticatedUserHandle: String, organizations: [String]) -> InitPromptingAccountType {
         var promptOptions = [
             InitPromptingAccountType.userAccount(authenticatedUserHandle),
-            InitPromptingAccountType.createOrganizationAccount,
         ]
+        promptOptions += organizations.map { InitPromptingAccountType.organization($0) }
+        promptOptions.append(InitPromptingAccountType.createOrganizationAccount)
         return (ServiceContext.current?.ui?.singleChoicePrompt(
             title: "Account",
             question: "In which account would you like to create the project?",
