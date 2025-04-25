@@ -30,6 +30,7 @@ struct InitCommandServiceTests {
     private let startGeneratedProjectService = InitGeneratedProjectService()
     private let keystrokeListener = MockKeyStrokeListening()
     private let createOrganizationService = MockCreateOrganizationServicing()
+    private let listOrganizationsService = MockListOrganizationsServicing()
     private let getProjectService = MockGetProjectServicing()
     private let commandRunner = MockCommandRunning()
     private let serverURLService = MockServerURLServicing()
@@ -45,6 +46,7 @@ struct InitCommandServiceTests {
             initGeneratedProjectService: startGeneratedProjectService,
             keystrokeListener: keystrokeListener,
             createOrganizationService: createOrganizationService,
+            listOrganizationsService: listOrganizationsService,
             getProjectService: getProjectService,
             commandRunner: commandRunner,
             serverURLService: serverURLService
@@ -61,7 +63,7 @@ struct InitCommandServiceTests {
             given(prompter).promptGeneratedProjectName().willReturn("Test")
             given(prompter).promptIntegrateWithServer().willReturn(true)
             given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-            given(prompter).promptAccountType(authenticatedUserHandle: .value("account")).willReturn(.createOrganizationAccount)
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"])).willReturn(.createOrganizationAccount)
             given(prompter).promptNewOrganizationAccountHandle().willReturn("organization")
             given(createOrganizationService).createOrganization(
                 name: .value("organization"),
@@ -77,6 +79,9 @@ struct InitCommandServiceTests {
                 fullHandle: .value("organization/Test"),
                 serverURL: .value(Constants.URLs.production)
             ).willReturn(.test(fullName: "organization/Test"))
+            given(listOrganizationsService).listOrganizations(
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(["org"])
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
@@ -133,7 +138,7 @@ struct InitCommandServiceTests {
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
                 .willReturn(.connectProjectOrSwiftPackage(projectName))
             given(prompter).promptIntegrateWithServer().willReturn(true)
-            given(prompter).promptAccountType(authenticatedUserHandle: .value("account")).willReturn(.userAccount("account"))
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"])).willReturn(.userAccount("account"))
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
             given(getProjectService).getProject(
@@ -144,6 +149,9 @@ struct InitCommandServiceTests {
                 fullHandle: .value("account/\(projectName)"),
                 serverURL: .value(Constants.URLs.production)
             ).willReturn(.test(fullName: "account/\(projectName)"))
+            given(listOrganizationsService).listOrganizations(
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(["org"])
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
@@ -187,6 +195,49 @@ struct InitCommandServiceTests {
                 import ProjectDescription
 
                 let tuist = Tuist(project: .xcode())
+                """)
+            }
+        }
+    }
+
+    @Test func generatesTheRightConfiguration_whenGeneratedForOrganization_andConnectedToServer() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let organizationName = UUID().uuidString
+            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(.createGeneratedProject)
+            given(prompter).promptGeneratedProjectName().willReturn("Test")
+            given(prompter).promptIntegrateWithServer().willReturn(true)
+            given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value([organizationName])).willReturn(.organization(organizationName))
+            given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
+            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
+            given(getProjectService).getProject(
+                fullHandle: .value("\(organizationName)/Test"),
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(.test(fullName: "\(organizationName)/Test"))
+            given(createProjectService).createProject(
+                fullHandle: .value("\(organizationName)/Test"),
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(.test(fullName: "\(organizationName)/Test"))
+            given(listOrganizationsService).listOrganizations(
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn([organizationName])
+
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
+                    .willReturn(.init(unfolding: { nil }))
+
+                // When
+                try await subject.run(from: temporaryDirectory, answers: nil)
+
+                // Then
+                let tuistSwift = try await fileSystem.readTextFile(at: temporaryDirectory.appending(components: [
+                    "Test",
+                    "Tuist.swift",
+                ]))
+                #expect(tuistSwift == """
+                import ProjectDescription
+
+                let tuist = Tuist(fullHandle: "\(organizationName)/Test", project: .tuist())
                 """)
             }
         }
