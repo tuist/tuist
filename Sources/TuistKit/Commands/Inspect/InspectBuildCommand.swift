@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct InspectBuildCommand: AsyncParsableCommand {
+struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",

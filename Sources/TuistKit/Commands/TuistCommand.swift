@@ -123,9 +123,17 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                try await trackableCommand.run(
-                    backend: backend
-                )
+                if command is NooraReadyCommand {
+                    try await ServiceContext.current?.withLoggerForNoora(logFilePath: logFilePath) {
+                        try await trackableCommand.run(
+                            backend: backend
+                        )
+                    }
+                } else {
+                    try await trackableCommand.run(
+                        backend: backend
+                    )
+                }
             }
         } catch {
             parsingError = error
