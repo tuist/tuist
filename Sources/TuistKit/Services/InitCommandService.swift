@@ -268,7 +268,10 @@ public struct InitCommandService {
     ) async throws -> String {
         let accountHandle = try await serverSessionController.whoami(serverURL: serverURL)!
         let organizations = (try? await listOrganizationsService.listOrganizations(serverURL: serverURL)) ?? []
-        switch answers?.accountType ?? prompter.promptAccountType(authenticatedUserHandle: accountHandle, organizations: organizations) {
+        switch answers?.accountType ?? prompter.promptAccountType(
+            authenticatedUserHandle: accountHandle,
+            organizations: organizations
+        ) {
         case .createOrganizationAccount:
             let organizationHandle = answers?.newOrganizationAccountHandle ?? prompter.promptNewOrganizationAccountHandle()
             _ = try await createOrganizationService.createOrganization(
@@ -277,7 +280,7 @@ public struct InitCommandService {
             )
             return organizationHandle
         case let .userAccount(handle),
-            let .organization(handle):
+             let .organization(handle):
             return handle
         }
     }

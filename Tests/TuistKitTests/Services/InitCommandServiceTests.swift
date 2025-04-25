@@ -63,7 +63,8 @@ struct InitCommandServiceTests {
             given(prompter).promptGeneratedProjectName().willReturn("Test")
             given(prompter).promptIntegrateWithServer().willReturn(true)
             given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"])).willReturn(.createOrganizationAccount)
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"]))
+                .willReturn(.createOrganizationAccount)
             given(prompter).promptNewOrganizationAccountHandle().willReturn("organization")
             given(createOrganizationService).createOrganization(
                 name: .value("organization"),
@@ -138,7 +139,8 @@ struct InitCommandServiceTests {
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
                 .willReturn(.connectProjectOrSwiftPackage(projectName))
             given(prompter).promptIntegrateWithServer().willReturn(true)
-            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"])).willReturn(.userAccount("account"))
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value(["org"]))
+                .willReturn(.userAccount("account"))
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
             given(getProjectService).getProject(
@@ -207,7 +209,10 @@ struct InitCommandServiceTests {
             given(prompter).promptGeneratedProjectName().willReturn("Test")
             given(prompter).promptIntegrateWithServer().willReturn(true)
             given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-            given(prompter).promptAccountType(authenticatedUserHandle: .value("account"), organizations: .value([organizationName])).willReturn(.organization(organizationName))
+            given(prompter).promptAccountType(
+                authenticatedUserHandle: .value("account"),
+                organizations: .value([organizationName])
+            ).willReturn(.organization(organizationName))
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
             given(getProjectService).getProject(
