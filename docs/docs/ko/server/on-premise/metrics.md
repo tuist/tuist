@@ -315,10 +315,82 @@ remote storage로 업로드가 완료된 총 횟수.
 
 데이터베이스 쿼리에 할당될 준비가 된 데이터베이스 연결 수입니다.
 
-### `tuist_repo_pool_db_connection_connected` (last_value) {#tuist_repo_pool_db_connection_connected-last_value}
+### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
 
 데이터베이스에 설정된 연결 수입니다.
 
-### `tuist_repo_pool_db_connection_disconnected` (last_value) {#tuist_repo_pool_db_connection_disconnected-last_value}
+### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
 
 데이터베이스에서 해제된 연결 수입니다.
+
+## HTTP metrics {#http-metrics}
+
+A set of metrics related to Tuist's interactions with other services via HTTP.
+
+### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
+
+The number of outgoing HTTP requests.
+
+### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+
+The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
+
+### `tuist_http_request_duration_nanosecond_summary` (summary) {#tuist_http_request_duration_nanosecond_summary-last_value}
+
+The summary of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
+
+### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
+
+The number of requests that have been retrieved from the pool.
+
+### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
+
+The time it takes to retrieve a connection from the pool.
+
+### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+
+The time a connection has been idle waiting to be retrieved.
+
+### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
+
+The number of connections that have been established.
+
+### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+
+The time it takes to establish a connection against a host.
+
+### `tuist_http_connection_duration_nanoseconds_summary` (summary) {#tuist_http_connection_duration_nanoseconds_summary-summary}
+
+The summary of the time it takes to establish a connection against a host.
+
+### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
+
+The number of requests that have been sent once assigned to a connection from the pool.
+
+### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
+
+The time that it takes for requests to complete once assigned to a connection from the pool.
+
+### `tuist_http_send_duration_nanoseconds_summary` (summary) {#tuist_http_send_duration_nanoseconds_summary-summary}
+
+The summary of the time that it takes for requests to complete once assigned to a connection from the pool.
+
+### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
+
+The number of responses that have been received from sent requests.
+
+### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
+
+The time spent receiving responses.
+
+### `tuist_http_receive_duration_nanoseconds_summary` (summary) {#tuist_http_receive_duration_nanoseconds_summary-summary}
+
+The summary of the time spent receiving responses.
+
+### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
+
+The number of connections available in the queue.
+
+### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
+
+The number of queue connections that are in use.
