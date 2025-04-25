@@ -344,8 +344,8 @@ The number of outgoing HTTP requests.
 
 The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
-### `tuist_http_request_duration_nanosecond_summary` (summary) {#tuist_http_request_duration_nanosecond_summary-last_value}
-The summary of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
+### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+The distribution of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
 
 ### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
 
@@ -358,6 +358,15 @@ The time it takes to retrieve a connection from the pool.
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
 The time a connection has been idle waiting to be retrieved.
+
+### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+
+The time it takes to retrieve a connection from the pool.
+
+### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+
+The time a connection has been idle waiting to be retrieved.
+
 ### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
 
 The number of connections that have been established.
@@ -366,9 +375,9 @@ The number of connections that have been established.
 
 The time it takes to establish a connection against a host.
 
-### `tuist_http_connection_duration_nanoseconds_summary` (summary) {#tuist_http_connection_duration_nanoseconds_summary-summary}
+### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-The summary of the time it takes to establish a connection against a host.
+The distribution of the time it takes to establish a connection against a host.
 
 ### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
 
@@ -378,9 +387,9 @@ The number of requests that have been sent once assigned to a connection from th
 
 The time that it takes for requests to complete once assigned to a connection from the pool.
 
-### `tuist_http_send_duration_nanoseconds_summary` (summary) {#tuist_http_send_duration_nanoseconds_summary-summary}
+### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-The summary of the time that it takes for requests to complete once assigned to a connection from the pool.
+The distribution of the time that it takes for requests to complete once assigned to a connection from the pool.
 
 ### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
 
@@ -390,9 +399,9 @@ The number of responses that have been received from sent requests.
 
 The time spent receiving responses.
 
-### `tuist_http_receive_duration_nanoseconds_summary` (summary) {#tuist_http_receive_duration_nanoseconds_summary-summary}
+### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-The summary of the time spent receiving responses.
+The distribution of the time spent receiving responses.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
