@@ -25,19 +25,22 @@ defmodule Tuist.HTTP.PromExPlugin do
             tag_values: &request_metadata_to_tag_values/1,
             tags: [:response_status, :request_method, :request_host],
             description:
-              "Sums the duration of HTTP requests (including the time that they spent waiting to be assigned to a connection)",
+              "Summary of the duration of HTTP requests (including the time that they spent waiting to be assigned to a connection)",
             measurement: :duration,
             unit: {:native, :nanosecond}
           ),
-          summary(
-            [:tuist, :http, :request, :duration, :nanoseconds, :summary],
+          distribution(
+            [:tuist, :http, :request, :duration, :nanoseconds],
             event_name: [:finch, :request, :stop],
             tag_values: &request_metadata_to_tag_values/1,
             tags: [:response_status, :request_method, :request_host],
             description:
               "Summary of the duration of HTTP requests (including the time that they spent waiting to be assigned to a connection)",
             measurement: :duration,
-            unit: {:native, :nanosecond}
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
           )
         ]
       ),
@@ -68,6 +71,30 @@ defmodule Tuist.HTTP.PromExPlugin do
             description: "Sums the time the connection has been idle waiting to be retrieved.",
             measurement: :idle_time,
             unit: {:native, :nanosecond}
+          ),
+          distribution(
+            [:tuist, :http, :queue, :duration, :nanoseconds],
+            event_name: [:finch, :queue, :stop],
+            tag_values: &queue_metadata_to_tag_values/1,
+            tags: [:request_method, :request_host],
+            description: "Sums the time it takes to take a connection from the pool.",
+            measurement: :duration,
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
+          ),
+          distribution(
+            [:tuist, :http, :queue, :idle_time, :nanoseconds],
+            event_name: [:finch, :queue, :stop],
+            tag_values: &queue_metadata_to_tag_values/1,
+            tags: [:request_method, :request_host],
+            description: "Sums the time the connection has been idle waiting to be retrieved.",
+            measurement: :idle_time,
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
           )
         ]
       ),
@@ -84,17 +111,20 @@ defmodule Tuist.HTTP.PromExPlugin do
             [:tuist, :http, :connection, :duration, :nanoseconds, :sum],
             event_name: [:finch, :connect, :stop],
             tag_values: &connection_metadata_to_tag_values/1,
-            description: "Sums the time it takes to establish connections against the host.",
+            description: "Summary of the time it takes to establish connections against the host.",
             measurement: :duration,
             unit: {:native, :nanosecond}
           ),
-          summary(
-            [:tuist, :http, :connection, :duration, :nanoseconds, :summary],
+          distribution(
+            [:tuist, :http, :connection, :duration, :nanoseconds],
             event_name: [:finch, :connect, :stop],
             tag_values: &connection_metadata_to_tag_values/1,
             description: "Summary of the time it takes to establish connections against the host.",
             measurement: :duration,
-            unit: {:native, :nanosecond}
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
           )
         ]
       ),
@@ -113,18 +143,21 @@ defmodule Tuist.HTTP.PromExPlugin do
             event_name: [:finch, :send, :stop],
             tag_values: &send_metadata_to_tag_values/1,
             tags: [:status, :request_method, :request_host, :request_path],
-            description: "Sums the time it takes to finish sending the request to the server.",
+            description: "Summary of the time it takes to finish sending the request to the server.",
             measurement: :duration,
             unit: {:native, :nanosecond}
           ),
-          summary(
-            [:tuist, :http, :send, :duration, :nanoseconds, :summary],
+          distribution(
+            [:tuist, :http, :send, :duration, :nanoseconds],
             event_name: [:finch, :send, :stop],
             tag_values: &send_metadata_to_tag_values/1,
             tags: [:status, :request_method, :request_host, :request_path],
             description: "Summary of the time it takes to finish sending the request to the server.",
             measurement: :duration,
-            unit: {:native, :nanosecond}
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
           )
         ]
       ),
@@ -143,18 +176,21 @@ defmodule Tuist.HTTP.PromExPlugin do
             event_name: [:finch, :recv, :stop],
             tag_values: &receive_metadata_to_tag_values/1,
             tags: [:status, :request_host, :request_method],
-            description: "Sums the time it takes to receive responses.",
+            description: "Summary of the time it takes to receive responses.",
             measurement: :duration,
             unit: {:native, :nanosecond}
           ),
-          summary(
-            [:tuist, :http, :receive, :duration, :nanoseconds, :summary],
+          distribution(
+            [:tuist, :http, :receive, :duration, :nanoseconds],
             event_name: [:finch, :recv, :stop],
             tag_values: &receive_metadata_to_tag_values/1,
             tags: [:status, :request_host, :request_method],
             description: "Summary of the time it takes to receive responses.",
             measurement: :duration,
-            unit: {:native, :nanosecond}
+            unit: {:native, :nanosecond},
+            reporter_options: [
+              buckets: exponential!(50, 2, 15)
+            ]
           )
         ]
       )
@@ -233,7 +269,7 @@ defmodule Tuist.HTTP.PromExPlugin do
       request_host: request.host,
       request_path: request.path,
       request_scheme: request.scheme,
-      request_query: request.query,
+      request_query: request.query || "",
       request_port: request.port
     }
   end
