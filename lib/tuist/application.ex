@@ -66,11 +66,6 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        # Distributed supervisor & process registry
-        {
-          Horde.DynamicSupervisor,
-          name: Tuist.DistributedSupervisor, strategy: :one_for_one, children: []
-        },
         {Tuist.API.Pipeline, []},
         # Rate limit
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
