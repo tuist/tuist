@@ -16,8 +16,8 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
 
             let got = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ The account tuistrocks was successfully updated.
+            ✔ Success
+              The account tuistrocks was successfully updated.
             """
 
             XCTAssertEqual(got, expectedOutput)
@@ -32,8 +32,8 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
 
             let got = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ The account \(newHandle) was successfully updated.
+            ✔ Success
+              The account \(newHandle) was successfully updated.
             """
 
             XCTAssertEqual(got, expectedOutput)
