@@ -20,7 +20,7 @@ console_command = "/app/bin/tuist remote"
   TUIST_USE_SSL_FOR_DATABASE="1"
   TUIST_DATABASE_POOL_SIZE="30"
   TUIST_S3_POOL_COUNT="1"
-  TUIST_S3_POOL_SIZE="5000"
+  TUIST_S3_POOL_SIZE="50"
 
 [[vm]]
   cpu_kind = 'performance'

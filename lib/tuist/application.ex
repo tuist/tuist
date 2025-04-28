@@ -94,6 +94,21 @@ defmodule Tuist.Application do
     else
       %{
         :default => [size: 10, start_pool_metrics?: true],
+        "https://api.github.com" => [
+          conn_opts: [
+            log: true,
+            protocols: [:http2, :http1],
+            transport_opts: [
+              inet6: Environment.use_ipv6?() in ~w(true 1),
+              cacertfile: CAStore.file_path(),
+              verify: :verify_peer
+            ]
+          ],
+          size: 10,
+          count: 1,
+          protocols: [:http2, :http1],
+          start_pool_metrics?: true
+        ],
         Environment.s3_endpoint() => [
           conn_opts: [
             log: true,
