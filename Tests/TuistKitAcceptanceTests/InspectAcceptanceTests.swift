@@ -41,8 +41,8 @@ final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
             try await run(InspectBuildCommand.self)
             let got = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ Uploaded a build to the server.
+            ✔ Success
+              Uploaded a build to the server.
             """
             XCTAssertEqual(got, expectedOutput)
         }
