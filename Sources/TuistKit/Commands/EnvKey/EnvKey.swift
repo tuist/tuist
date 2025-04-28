@@ -96,6 +96,10 @@ public enum EnvKey: String, CaseIterable {
     // BUILD
     case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
 
+    // BUNDLE
+    case inspectBundlePath = "TUIST_INSPECT_BUNDLE_PATH"
+    case inspectBundleJSON = "TUIST_INSPECT_BUNDLE_JSON"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
