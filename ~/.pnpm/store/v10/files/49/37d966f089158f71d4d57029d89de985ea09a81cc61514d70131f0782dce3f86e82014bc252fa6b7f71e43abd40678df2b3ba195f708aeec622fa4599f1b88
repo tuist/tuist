@@ -1,0 +1,7 @@
+import o from "./ResponseLoadingOverlay.vue2.js";
+/* empty css                            */
+import e from "../../../_virtual/_plugin-vue_export-helper.js";
+const f = /* @__PURE__ */ e(o, [["__scopeId", "data-v-ef5f83d8"]]);
+export {
+  f as default
+};

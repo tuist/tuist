@@ -1,0 +1,148 @@
+import { defineComponent as D, ref as v, watch as K, onMounted as M, withDirectives as j, openBlock as n, createElementBlock as f, normalizeClass as F, Fragment as g, renderList as k, createBlock as m, unref as t, withCtx as p, createCommentVNode as w, createVNode as C, createTextVNode as H, toDisplayString as P, vShow as q } from "vue";
+import { useActiveEntities as G } from "@scalar/api-client/store";
+import { lazyBus as J } from "./lazyBus.js";
+import Q from "../Tag/Tag.vue.js";
+import R from "../../../features/Operation/Operation.vue.js";
+import U from "../../Section/SectionContainer.vue.js";
+import X from "../../Section/Section.vue.js";
+import Y from "../../Section/SectionContent.vue.js";
+import Z from "../../Section/SectionHeader.vue.js";
+import ee from "../../Anchor/Anchor.vue.js";
+import te from "../Schema/Schema.vue.js";
+import { useNavState as oe } from "../../../hooks/useNavState.js";
+import { getModels as h } from "../../../helpers/getModels.js";
+import { scrollToId as x } from "../../../helpers/scrollToId.js";
+const he = /* @__PURE__ */ D({
+  __name: "Loading",
+  props: {
+    layout: { default: "modern" },
+    parsedSpec: {}
+  },
+  setup(L) {
+    const i = L, T = v(!1), S = v([]), y = v([]), { activeCollection: O, activeServer: V } = G(), { getModelId: z, getSectionId: B, getTagId: N, hash: a, isIntersectionEnabled: I } = oe(), _ = v(i.layout !== "classic" && a.value);
+    K(
+      () => {
+        var r;
+        return (r = i.parsedSpec.tags) == null ? void 0 : r.length;
+      },
+      (r) => {
+        var e, u;
+        if (!a.value || typeof r != "number" || !i.parsedSpec.tags)
+          return;
+        const s = B();
+        if (s.startsWith("tag")) {
+          let o = 0;
+          const c = ((e = i.parsedSpec.tags) == null ? void 0 : e.findIndex(
+            (b) => N(b) === s
+          )) ?? 0, l = a.value.match(/tag\/([^/]+)\/([^/]+)\/(.+)/);
+          if ((l == null ? void 0 : l.length) === 4) {
+            const b = l[2], W = "/" + l[3];
+            o = (u = i.parsedSpec.tags[c]) == null ? void 0 : u.operations.findIndex(
+              ({ httpVerb: $, path: A }) => b === $ && W === A
+            );
+          }
+          const d = i.parsedSpec.tags[c];
+          if (!d) return;
+          d.name !== "default" && (T.value = s !== a.value && s.startsWith("tag")), S.value.push({
+            ...d,
+            lazyOperations: d.operations.slice(
+              o,
+              o + 2
+            )
+          });
+        } else if (a.value.startsWith("model")) {
+          const o = Object.keys(h(i.parsedSpec) ?? {}), [, c] = a.value.toLowerCase().split("/"), l = a.value === "models" ? 0 : o.findIndex((d) => d.toLowerCase() === c);
+          if (l === -1) return;
+          y.value = o.slice(l, l + 3);
+        } else
+          typeof window < "u" && x(a.value), setTimeout(() => I.value = !0, 1e3);
+      },
+      { immediate: !0 }
+    );
+    const E = J.on(({ id: r }) => {
+      const s = a.value;
+      !s || r !== s || (E(), setTimeout(() => {
+        typeof window < "u" && x(s), _.value = !1, setTimeout(() => I.value = !0, 1e3);
+      }, 300));
+    });
+    return M(() => {
+      a.value || setTimeout(() => I.value = !0, 1e3);
+    }), (r, s) => j((n(), f("div", {
+      class: F(["references-loading", {
+        "references-loading-hidden-tag": T.value,
+        "references-loading-top-spacer": S.value.length
+      }])
+    }, [
+      (n(!0), f(g, null, k(S.value, (e, u) => (n(), f(g, {
+        key: e.name + u
+      }, [
+        e.operations && e.operations.length > 0 ? (n(), m(t(Q), {
+          key: 0,
+          spec: r.parsedSpec,
+          tag: e
+        }, {
+          default: p(() => [
+            (n(!0), f(g, null, k(e.lazyOperations, (o) => (n(), m(t(R), {
+              key: `${o.httpVerb}-${o.operationId}`,
+              collection: t(O),
+              layout: r.layout,
+              server: t(V),
+              transformedOperation: o
+            }, null, 8, ["collection", "layout", "server", "transformedOperation"]))), 128))
+          ]),
+          _: 2
+        }, 1032, ["spec", "tag"])) : w("", !0)
+      ], 64))), 128)),
+      y.value.length ? (n(), m(t(U), { key: 0 }, {
+        default: p(() => [
+          (n(!0), f(g, null, k(y.value, (e) => (n(), m(t(X), {
+            key: e,
+            label: e
+          }, {
+            default: p(() => {
+              var u;
+              return [
+                (u = t(h)(r.parsedSpec)) != null && u[e] ? (n(), m(t(Y), { key: 0 }, {
+                  default: p(() => {
+                    var o;
+                    return [
+                      C(t(Z), { level: 2 }, {
+                        default: p(() => [
+                          C(t(ee), {
+                            id: t(z)({ name: e })
+                          }, {
+                            default: p(() => {
+                              var c;
+                              return [
+                                H(P(((c = t(h)(r.parsedSpec)) == null ? void 0 : c[e]).title ?? e), 1)
+                              ];
+                            }),
+                            _: 2
+                          }, 1032, ["id"])
+                        ]),
+                        _: 2
+                      }, 1024),
+                      C(t(te), {
+                        name: e,
+                        noncollapsible: "",
+                        value: (o = t(h)(r.parsedSpec)) == null ? void 0 : o[e]
+                      }, null, 8, ["name", "value"])
+                    ];
+                  }),
+                  _: 2
+                }, 1024)) : w("", !0)
+              ];
+            }),
+            _: 2
+          }, 1032, ["label"]))), 128))
+        ]),
+        _: 1
+      })) : w("", !0)
+    ], 2)), [
+      [q, _.value]
+    ]);
+  }
+});
+export {
+  he as default
+};

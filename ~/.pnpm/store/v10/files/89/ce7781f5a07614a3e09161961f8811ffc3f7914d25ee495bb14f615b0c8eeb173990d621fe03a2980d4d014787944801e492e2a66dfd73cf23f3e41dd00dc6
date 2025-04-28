@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * php/guzzle
+ */
+export declare const phpGuzzle: Plugin;
+//# sourceMappingURL=guzzle.d.ts.map

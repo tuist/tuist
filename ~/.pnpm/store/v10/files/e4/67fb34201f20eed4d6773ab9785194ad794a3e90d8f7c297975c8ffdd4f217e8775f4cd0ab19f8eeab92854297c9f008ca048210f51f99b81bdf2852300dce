@@ -1,0 +1,355 @@
+import { defineComponent as be, useId as ve, reactive as he, ref as Se, watch as K, onMounted as ge, onBeforeUnmount as ke, computed as N, openBlock as r, createElementBlock as g, Fragment as q, withDirectives as L, createVNode as c, unref as o, normalizeClass as p, createSlots as Re, withCtx as m, createElementVNode as n, createBlock as d, createCommentVNode as f, isRef as ye, withKeys as D, withModifiers as b, vShow as U, renderList as H, createTextVNode as O, toDisplayString as we, nextTick as xe } from "vue";
+import { ScalarIcon as $, ScalarSearchInput as Ie, ScalarSearchResultList as Ce, ScalarSearchResultItem as qe, ScalarButton as De } from "@scalar/components";
+import { LibraryIcon as Oe } from "@scalar/icons";
+import { useToasts as $e } from "@scalar/use-toasts";
+import { useRouter as Me } from "vue-router";
+import Ve from "../../assets/rabbit.ascii.js";
+import Pe from "../../assets/rabbitjump.ascii.js";
+import Te from "../../components/EnvironmentSelector/EnvironmentSelector.vue.js";
+import Ee from "../../components/HttpMethod/HttpMethod.vue.js";
+import G from "../../components/ScalarAsciiArt.vue.js";
+import { useSearch as We } from "../../components/Search/useSearch.js";
+import ze from "../../components/Sidebar/SidebarButton.vue.js";
+import Ae from "../../components/Sidebar/SidebarToggle.vue.js";
+import { PathId as j } from "../../routes.js";
+import { useActiveEntities as Be } from "../../store/active-entities.js";
+import { createInitialRequest as Fe } from "../../store/requests.js";
+import { dragHandlerFactory as Ke } from "./handle-drag.js";
+import Ne from "./RequestSidebarItemMenu.vue.js";
+import { isGettingStarted as Le } from "./RequestSection/helpers/getting-started.js";
+import Ue from "./RequestSidebarItem.vue.js";
+import He from "../../components/Sidebar/Sidebar.vue.js";
+import Ge from "./components/WorkspaceDropdown.vue.js";
+import { useLayout as je } from "../../hooks/useLayout.js";
+import { useWorkspace as Je } from "../../store/store.js";
+import { useSidebar as Qe } from "../../hooks/useSidebar.js";
+const Xe = { class: "bg-b-1 sticky top-0 z-20 flex h-12 items-center px-3" }, Ye = {
+  key: 1,
+  class: "text-c-3"
+}, Ze = {
+  class: "search-button-fade sticky top-12 z-10 px-3 py-2.5 pt-0 focus-within:z-20",
+  role: "search"
+}, _e = {
+  key: 1,
+  class: "contents"
+}, et = { class: "empty-sidebar-item-content px-2.5 py-2.5" }, tt = { class: "rabbit-ascii relative m-auto mt-2 h-[68px] w-[60px]" }, qt = /* @__PURE__ */ be({
+  __name: "RequestSidebar",
+  props: {
+    isSidebarOpen: { type: Boolean }
+  },
+  emits: ["update:modelValue", "update:isSidebarOpen", "newTab", "clearDrafts"],
+  setup(J, { emit: Q }) {
+    const X = J, M = Q, { layout: l } = je(), V = Je(), {
+      activeWorkspaceCollections: u,
+      activeRequest: Y,
+      activeWorkspaceRequests: P,
+      activeWorkspace: Z
+    } = Be(), { findRequestParents: _, events: k, requestMutators: T, requests: y } = V, { handleDragEnd: ee, isDroppable: te } = Ke(
+      Z,
+      V
+    ), { collapsedSidebarFolders: oe, setCollapsedSidebarFolder: se } = Qe(), { replace: E } = Me(), ae = () => {
+      k.commandPalette.emit({
+        commandName: "Import from OpenAPI/Swagger/Postman"
+      });
+    }, W = ve(), { toast: re } = $e(), v = he({ open: !1 }), h = Se(!1);
+    K(
+      Y,
+      (s) => {
+        s && _(s).forEach(
+          (e) => se(e, !0)
+        );
+      },
+      { immediate: !0 }
+    );
+    const {
+      searchText: S,
+      searchResultsWithPlaceholderResults: w,
+      selectedSearchResult: x,
+      onSearchResultClick: ie,
+      fuseSearch: ne,
+      searchInputRef: I,
+      searchResultRefs: le,
+      navigateSearchResults: z,
+      selectSearchResult: de
+    } = We(), A = (s) => {
+      var e;
+      s && (s.toggleSidebar && M("update:isSidebarOpen", X.isSidebarOpen), s.focusRequestSearch && ((e = I.value) == null || e.focus()));
+    };
+    ge(() => k.hotKeys.on(A)), ke(() => {
+      k.hotKeys.off(A);
+    });
+    const ue = (s) => {
+      if (s != null && s.documentUrl) {
+        s.watchMode = !s.watchMode;
+        const e = u.value.find(
+          (t) => t.uid === s.entity.uid
+        );
+        e && (e.watchMode = s.watchMode);
+      }
+    };
+    K(
+      () => u.value.map(
+        (s) => s.watchMode
+      ),
+      (s, e) => {
+        s.forEach((t, a) => {
+          var i, R, B;
+          if (l !== "modal" && t !== e[a] && ((R = (i = u.value[a]) == null ? void 0 : i.info) == null ? void 0 : R.title) !== "Drafts" && u.value[a]) {
+            const F = u.value[a];
+            if (!F) return;
+            const fe = `${(B = F.info) == null ? void 0 : B.title}: Watch Mode ${t ? "enabled" : "disabled"}`;
+            re(fe, "info");
+          }
+        });
+      }
+    );
+    const me = N(() => {
+      var e;
+      const s = w.value[x.value];
+      return (e = s == null ? void 0 : s.item) != null && e.id ? `#search-input-${s.item.id}` : void 0;
+    }), ce = () => {
+      const s = u.value.find(
+        (t) => {
+          var a;
+          return ((a = t.info) == null ? void 0 : a.title) === "Drafts";
+        }
+      );
+      if (s && s.requests.forEach((t) => {
+        y[t] && T.delete(y[t], s.uid);
+      }), P.value.length) {
+        const t = u.value[0], a = t == null ? void 0 : t.requests[0];
+        a && E({
+          name: "request",
+          params: {
+            [j.Request]: a
+          }
+        });
+      } else {
+        const { request: t } = Fe();
+        s && (T.add(t, s.uid), E({
+          name: "request",
+          params: {
+            [j.Request]: t.uid
+          }
+        }));
+      }
+    }, pe = () => {
+      h.value || (S.value = ""), h.value && xe(() => {
+        var s;
+        (s = I.value) == null || s.focus();
+      }), h.value = !h.value;
+    }, C = N(
+      () => Le(
+        u.value,
+        P.value,
+        y
+      )
+    );
+    return (s, e) => (r(), g(q, null, [
+      L(c(o(He), {
+        class: p([s.isSidebarOpen ? "sidebar-active-width" : ""]),
+        isSidebarOpen: s.isSidebarOpen,
+        "onUpdate:isSidebarOpen": e[9] || (e[9] = (t) => s.$emit("update:isSidebarOpen", t))
+      }, Re({
+        content: m(() => [
+          n("div", Xe, [
+            c(Ae, {
+              class: p(["xl:hidden", [{ "!flex": o(l) === "modal" }]]),
+              modelValue: s.isSidebarOpen,
+              "onUpdate:modelValue": e[0] || (e[0] = (t) => s.$emit("update:isSidebarOpen", t))
+            }, null, 8, ["class", "modelValue"]),
+            o(l) !== "modal" ? (r(), d(o(Ge), { key: 0 })) : f("", !0),
+            o(l) !== "modal" ? (r(), g("span", Ye, " / ")) : f("", !0),
+            o(l) !== "modal" ? (r(), d(Te, { key: 2 })) : f("", !0),
+            n("button", {
+              class: "ml-auto",
+              type: "button",
+              onClick: pe
+            }, [
+              c(o($), {
+                class: "text-c-3 hover:bg-b-2 p-1.75 max-h-8 max-w-8 rounded-lg text-sm",
+                icon: "Search"
+              })
+            ])
+          ]),
+          L(n("div", Ze, [
+            c(o(Ie), {
+              ref_key: "searchInputRef",
+              ref: I,
+              modelValue: o(S),
+              "onUpdate:modelValue": e[1] || (e[1] = (t) => ye(S) ? S.value = t : null),
+              "aria-activedescendant": me.value,
+              "aria-controls": o(W),
+              sidebar: "",
+              onInput: o(ne),
+              onKeydown: [
+                e[2] || (e[2] = D(b((t) => o(z)("down"), ["stop"]), ["down"])),
+                e[3] || (e[3] = D(b((t) => o(de)(), ["stop"]), ["enter"])),
+                e[4] || (e[4] = D(b((t) => o(z)("up"), ["stop"]), ["up"]))
+              ]
+            }, null, 8, ["modelValue", "aria-activedescendant", "aria-controls", "onInput"])
+          ], 512), [
+            [U, h.value]
+          ]),
+          n("div", {
+            class: p(["gap-1/2 flex flex-1 flex-col overflow-visible overflow-y-auto px-3 pb-3 pt-0", [
+              {
+                "pb-14": o(l) !== "modal"
+              },
+              {
+                "h-[calc(100%-273.5px)]": C.value
+              }
+            ]]),
+            onDragenter: e[7] || (e[7] = b(() => {
+            }, ["prevent"])),
+            onDragover: e[8] || (e[8] = b(() => {
+            }, ["prevent"]))
+          }, [
+            o(S) ? (r(), d(o(Ce), {
+              key: 0,
+              id: o(W),
+              "aria-label": "Search Results",
+              class: "gap-px",
+              noResults: !o(w).length
+            }, {
+              default: m(() => [
+                (r(!0), g(q, null, H(o(w), (t, a) => (r(), d(o(qe), {
+                  id: `#search-input-${t.item.id}`,
+                  key: t.refIndex,
+                  ref_for: !0,
+                  ref: (i) => o(le)[a] = i,
+                  active: o(x) === a,
+                  class: "px-2",
+                  href: t.item.link,
+                  onClick: b((i) => o(ie)(t), ["prevent"]),
+                  onFocus: (i) => x.value = a
+                }, {
+                  addon: m(() => [
+                    e[11] || (e[11] = n("span", { class: "sr-only" }, "HTTP Method:", -1)),
+                    c(Ee, {
+                      class: "font-bold",
+                      method: t.item.httpVerb ?? "get"
+                    }, null, 8, ["method"])
+                  ]),
+                  default: m(() => [
+                    O(we(t.item.title) + " ", 1)
+                  ]),
+                  _: 2
+                }, 1032, ["id", "active", "href", "onClick", "onFocus"]))), 128))
+              ]),
+              _: 1
+            }, 8, ["id", "noResults"])) : (r(), g("nav", _e, [
+              (r(!0), g(q, null, H(o(u), (t) => {
+                var a;
+                return r(), d(Ue, {
+                  key: t.uid,
+                  isDraggable: o(l) !== "modal" && ((a = t.info) == null ? void 0 : a.title) !== "Drafts",
+                  isDroppable: o(te),
+                  menuItem: v,
+                  parentUids: [],
+                  uid: t.uid,
+                  onNewTab: e[5] || (e[5] = (i, R) => M("newTab", { name: i, uid: R })),
+                  onOnDragEnd: o(ee),
+                  onOpenMenu: e[6] || (e[6] = (i) => Object.assign(v, i))
+                }, {
+                  leftIcon: m(() => {
+                    var i;
+                    return [
+                      ((i = t.info) == null ? void 0 : i.title) === "Drafts" ? (r(), d(o($), {
+                        key: 0,
+                        class: "text-sidebar-c-2 group-hover:hidden",
+                        icon: "Scribble",
+                        thickness: "2.25"
+                      })) : (r(), d(o(Oe), {
+                        key: 1,
+                        class: "text-sidebar-c-2 size-3.5 min-w-3.5 stroke-2 group-hover:hidden",
+                        src: t["x-scalar-icon"] || "interface-content-folder"
+                      }, null, 8, ["src"])),
+                      n("div", {
+                        class: p({
+                          "rotate-90": o(oe)[t.uid]
+                        })
+                      }, [
+                        c(o($), {
+                          class: "text-c-3 hover:text-c-1 hidden text-sm group-hover:block",
+                          icon: "ChevronRight",
+                          size: "md"
+                        })
+                      ], 2)
+                    ];
+                  }),
+                  _: 2
+                }, 1032, ["isDraggable", "isDroppable", "menuItem", "uid", "onOnDragEnd"]);
+              }), 128))
+            ]))
+          ], 34)
+        ]),
+        button: m(() => [
+          n("div", {
+            class: p({
+              "empty-sidebar-item": C.value
+            })
+          }, [
+            n("div", et, [
+              n("div", tt, [
+                c(G, {
+                  art: o(Ve),
+                  class: "rabbitsit font-bold"
+                }, null, 8, ["art"]),
+                c(G, {
+                  art: o(Pe),
+                  class: "rabbitjump absolute left-0 top-0 font-bold"
+                }, null, 8, ["art"])
+              ]),
+              e[12] || (e[12] = n("div", { class: "mb-2 mt-2 text-balance text-center text-sm" }, [
+                n("b", { class: "font-medium" }, "Let's Get Started"),
+                n("p", { class: "mt-2" }, " Create request, folder, collection or import from OpenAPI/Postman ")
+              ], -1))
+            ]),
+            o(l) !== "modal" ? (r(), d(o(De), {
+              key: 0,
+              class: p(["mb-1.5 hidden h-fit w-full p-1.5 opacity-0", {
+                "flex opacity-100": C.value
+              }]),
+              onClick: ae
+            }, {
+              default: m(() => e[13] || (e[13] = [
+                O(" Import Collection ")
+              ])),
+              _: 1
+            }, 8, ["class"])) : f("", !0),
+            o(l) !== "modal" ? (r(), d(ze, {
+              key: 1,
+              click: o(k).commandPalette.emit,
+              hotkey: "K"
+            }, {
+              title: m(() => e[14] || (e[14] = [
+                O(" Add Item ")
+              ])),
+              _: 1
+            }, 8, ["click"])) : f("", !0)
+          ], 2)
+        ]),
+        _: 2
+      }, [
+        o(l) !== "modal" ? {
+          name: "header",
+          fn: m(() => []),
+          key: "0"
+        } : void 0
+      ]), 1032, ["class", "isSidebarOpen"]), [
+        [U, s.isSidebarOpen]
+      ]),
+      o(l) !== "modal" && v ? (r(), d(Ne, {
+        key: 0,
+        menuItem: v,
+        onClearDrafts: ce,
+        onCloseMenu: e[10] || (e[10] = (t) => v.open = !1),
+        onToggleWatchMode: ue
+      }, null, 8, ["menuItem"])) : f("", !0)
+    ], 64));
+  }
+});
+export {
+  qt as default
+};

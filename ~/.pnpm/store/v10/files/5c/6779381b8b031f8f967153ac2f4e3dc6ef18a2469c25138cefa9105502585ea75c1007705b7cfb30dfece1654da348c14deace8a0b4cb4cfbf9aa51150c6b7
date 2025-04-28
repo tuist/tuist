@@ -1,0 +1,36 @@
+import { type ErrorResponse } from '../libs';
+import type { StoreContext } from '../store/store-context';
+import { type ImportSpecToWorkspaceArgs } from '@scalar/oas-utils/transforms';
+import type { OpenAPIV3, OpenAPIV3_1 } from '@scalar/openapi-types';
+import type { ReferenceConfiguration } from '@scalar/types/legacy';
+/** Maps the specs by URL */
+export declare const specDictionary: Record<string, {
+    hash: number;
+    schema: OpenAPIV3.Document | OpenAPIV3_1.Document;
+}>;
+type ImportSpecFileArgs = ImportSpecToWorkspaceArgs & Pick<ReferenceConfiguration, 'servers'>;
+/** Generate the import functions from a store context */
+export declare function importSpecFileFactory({ requestMutators, collectionMutators, serverMutators, tagMutators, securitySchemeMutators, requestExampleMutators, workspaceMutators, workspaces, }: StoreContext): {
+    importSpecFile: (_spec: string | Record<string, any>, workspaceUid: string, options?: ImportSpecFileArgs) => Promise<{
+        error: false;
+        collection: import("@scalar/oas-utils/entities/spec").Collection;
+        requests: import("@scalar/oas-utils/entities/spec").Request[];
+        schema: OpenAPIV3_1.Document;
+        examples: import("@scalar/oas-utils/entities/spec").RequestExample[];
+        servers: import("@scalar/oas-utils/entities/spec").Server[];
+        tags: import("@scalar/oas-utils/entities/spec").Tag[];
+        securitySchemes: import("@scalar/oas-utils/entities/spec").SecurityScheme[];
+    } | undefined>;
+    importSpecFromUrl: (url: string, workspaceUid: string, { proxyUrl, ...options }?: Omit<ImportSpecFileArgs, "documentUrl"> & Pick<ReferenceConfiguration, "proxyUrl">) => Promise<ErrorResponse<Awaited<ReturnType<(_spec: string | Record<string, any>, workspaceUid: string, options?: ImportSpecFileArgs) => Promise<{
+        error: false;
+        collection: import("@scalar/oas-utils/entities/spec").Collection;
+        requests: import("@scalar/oas-utils/entities/spec").Request[];
+        schema: OpenAPIV3_1.Document;
+        examples: import("@scalar/oas-utils/entities/spec").RequestExample[];
+        servers: import("@scalar/oas-utils/entities/spec").Server[];
+        tags: import("@scalar/oas-utils/entities/spec").Tag[];
+        securitySchemes: import("@scalar/oas-utils/entities/spec").SecurityScheme[];
+    } | undefined>>>>>;
+};
+export {};
+//# sourceMappingURL=import-spec.d.ts.map

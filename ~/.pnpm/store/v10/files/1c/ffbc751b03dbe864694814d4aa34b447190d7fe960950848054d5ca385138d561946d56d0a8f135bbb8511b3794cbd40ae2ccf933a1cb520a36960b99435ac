@@ -1,0 +1,15 @@
+import type { ClientId, HarRequest, TargetId } from './types/index.js';
+/**
+ * Generate code examples for HAR requests
+ */
+export declare function snippetz(): {
+    print<T extends TargetId>(target: T, client: ClientId<T>, request: Partial<HarRequest>): string | undefined;
+    clients(): import("./types/index.js").Target[];
+    plugins(): {
+        target: "c" | "clojure" | "csharp" | "go" | "http" | "java" | "js" | "kotlin" | "node" | "objc" | "ocaml" | "php" | "powershell" | "python" | "r" | "ruby" | "shell" | "swift" | "dart";
+        client: "libcurl" | "clj_http" | "httpclient" | "restsharp" | "native" | "http" | "http1.1" | "asynchttp" | "nethttp" | "okhttp" | "unirest" | "axios" | "fetch" | "jquery" | "ofetch" | "xhr" | "undici" | "nsurlsession" | "cohttp" | "curl" | "guzzle" | "restmethod" | "webrequest" | "python3" | "requests" | "httr" | "httpie" | "wget";
+    }[];
+    findPlugin: <T extends TargetId>(target: T | string, client: ClientId<T> | string) => import("./types/index.js").Plugin | undefined;
+    hasPlugin<T extends TargetId>(target: T | string, client: ClientId<T> | string): boolean;
+};
+//# sourceMappingURL=snippetz.d.ts.map

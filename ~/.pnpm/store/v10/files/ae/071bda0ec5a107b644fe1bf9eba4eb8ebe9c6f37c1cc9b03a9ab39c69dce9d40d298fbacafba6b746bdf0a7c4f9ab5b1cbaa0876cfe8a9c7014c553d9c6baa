@@ -1,0 +1,345 @@
+import type { StoryObj } from '@storybook/vue3';
+declare const meta: {
+    component: {
+        new (...args: any[]): import("vue").CreateComponentPublicInstanceWithMixins<Readonly<{
+            modelValue: string;
+            placeholder?: string;
+            label?: string;
+            labelShadowColor?: string;
+            error?: boolean;
+            isMultiline?: boolean;
+            helperText?: string;
+            emitOnBlur?: boolean;
+            handleFieldSubmit?: (e: string) => void;
+            handleFieldChange?: (e: string) => void;
+            disableTrim?: boolean;
+        }> & Readonly<{
+            onSubmit?: ((v: string) => any) | undefined;
+            "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+        }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+            submit: (v: string) => any;
+            "update:modelValue": (v: string) => any;
+        }, import("vue").PublicProps, {
+            labelShadowColor: string;
+            emitOnBlur: boolean;
+            disableTrim: boolean;
+        }, false, {}, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, {}, HTMLDivElement, import("vue").ComponentProvideOptions, {
+            P: {};
+            B: {};
+            D: {};
+            C: {};
+            M: {};
+            Defaults: {};
+        }, Readonly<{
+            modelValue: string;
+            placeholder?: string;
+            label?: string;
+            labelShadowColor?: string;
+            error?: boolean;
+            isMultiline?: boolean;
+            helperText?: string;
+            emitOnBlur?: boolean;
+            handleFieldSubmit?: (e: string) => void;
+            handleFieldChange?: (e: string) => void;
+            disableTrim?: boolean;
+        }> & Readonly<{
+            onSubmit?: ((v: string) => any) | undefined;
+            "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+        }>, {}, {}, {}, {}, {
+            labelShadowColor: string;
+            emitOnBlur: boolean;
+            disableTrim: boolean;
+        }>;
+        __isFragment?: never;
+        __isTeleport?: never;
+        __isSuspense?: never;
+    } & import("vue").ComponentOptionsBase<Readonly<{
+        modelValue: string;
+        placeholder?: string;
+        label?: string;
+        labelShadowColor?: string;
+        error?: boolean;
+        isMultiline?: boolean;
+        helperText?: string;
+        emitOnBlur?: boolean;
+        handleFieldSubmit?: (e: string) => void;
+        handleFieldChange?: (e: string) => void;
+        disableTrim?: boolean;
+    }> & Readonly<{
+        onSubmit?: ((v: string) => any) | undefined;
+        "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+    }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        submit: (v: string) => any;
+        "update:modelValue": (v: string) => any;
+    }, string, {
+        labelShadowColor: string;
+        emitOnBlur: boolean;
+        disableTrim: boolean;
+    }, {}, string, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, import("vue").ComponentProvideOptions> & import("vue").VNodeProps & import("vue").AllowedComponentProps & import("vue").ComponentCustomProps & (new () => {
+        $slots: {
+            default?(_: {}): any;
+        };
+    });
+    tags: string[];
+    argTypes: {
+        label: {
+            control: "text";
+            defaultValue: string;
+        };
+    };
+    render: (args: import("@storybook/vue3").ComponentPropsAndSlots<{
+        new (...args: any[]): import("vue").CreateComponentPublicInstanceWithMixins<Readonly<{
+            modelValue: string;
+            placeholder?: string;
+            label?: string;
+            labelShadowColor?: string;
+            error?: boolean;
+            isMultiline?: boolean;
+            helperText?: string;
+            emitOnBlur?: boolean;
+            handleFieldSubmit?: (e: string) => void;
+            handleFieldChange?: (e: string) => void;
+            disableTrim?: boolean;
+        }> & Readonly<{
+            onSubmit?: ((v: string) => any) | undefined;
+            "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+        }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+            submit: (v: string) => any;
+            "update:modelValue": (v: string) => any;
+        }, import("vue").PublicProps, {
+            labelShadowColor: string;
+            emitOnBlur: boolean;
+            disableTrim: boolean;
+        }, false, {}, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, {}, HTMLDivElement, import("vue").ComponentProvideOptions, {
+            P: {};
+            B: {};
+            D: {};
+            C: {};
+            M: {};
+            Defaults: {};
+        }, Readonly<{
+            modelValue: string;
+            placeholder?: string;
+            label?: string;
+            labelShadowColor?: string;
+            error?: boolean;
+            isMultiline?: boolean;
+            helperText?: string;
+            emitOnBlur?: boolean;
+            handleFieldSubmit?: (e: string) => void;
+            handleFieldChange?: (e: string) => void;
+            disableTrim?: boolean;
+        }> & Readonly<{
+            onSubmit?: ((v: string) => any) | undefined;
+            "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+        }>, {}, {}, {}, {}, {
+            labelShadowColor: string;
+            emitOnBlur: boolean;
+            disableTrim: boolean;
+        }>;
+        __isFragment?: never;
+        __isTeleport?: never;
+        __isSuspense?: never;
+    } & import("vue").ComponentOptionsBase<Readonly<{
+        modelValue: string;
+        placeholder?: string;
+        label?: string;
+        labelShadowColor?: string;
+        error?: boolean;
+        isMultiline?: boolean;
+        helperText?: string;
+        emitOnBlur?: boolean;
+        handleFieldSubmit?: (e: string) => void;
+        handleFieldChange?: (e: string) => void;
+        disableTrim?: boolean;
+    }> & Readonly<{
+        onSubmit?: ((v: string) => any) | undefined;
+        "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+    }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        submit: (v: string) => any;
+        "update:modelValue": (v: string) => any;
+    }, string, {
+        labelShadowColor: string;
+        emitOnBlur: boolean;
+        disableTrim: boolean;
+    }, {}, string, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, import("vue").ComponentProvideOptions> & import("vue").VNodeProps & import("vue").AllowedComponentProps & import("vue").ComponentCustomProps & (new () => {
+        $slots: {
+            default?(_: {}): any;
+        };
+    })>) => {
+        components: {
+            ScalarTextField: {
+                new (...args: any[]): import("vue").CreateComponentPublicInstanceWithMixins<Readonly<{
+                    modelValue: string;
+                    placeholder?: string;
+                    label?: string;
+                    labelShadowColor?: string;
+                    error?: boolean;
+                    isMultiline?: boolean;
+                    helperText?: string;
+                    emitOnBlur?: boolean;
+                    handleFieldSubmit?: (e: string) => void;
+                    handleFieldChange?: (e: string) => void;
+                    disableTrim?: boolean;
+                }> & Readonly<{
+                    onSubmit?: ((v: string) => any) | undefined;
+                    "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+                }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+                    submit: (v: string) => any;
+                    "update:modelValue": (v: string) => any;
+                }, import("vue").PublicProps, {
+                    labelShadowColor: string;
+                    emitOnBlur: boolean;
+                    disableTrim: boolean;
+                }, false, {}, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, {}, HTMLDivElement, import("vue").ComponentProvideOptions, {
+                    P: {};
+                    B: {};
+                    D: {};
+                    C: {};
+                    M: {};
+                    Defaults: {};
+                }, Readonly<{
+                    modelValue: string;
+                    placeholder?: string;
+                    label?: string;
+                    labelShadowColor?: string;
+                    error?: boolean;
+                    isMultiline?: boolean;
+                    helperText?: string;
+                    emitOnBlur?: boolean;
+                    handleFieldSubmit?: (e: string) => void;
+                    handleFieldChange?: (e: string) => void;
+                    disableTrim?: boolean;
+                }> & Readonly<{
+                    onSubmit?: ((v: string) => any) | undefined;
+                    "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+                }>, {}, {}, {}, {}, {
+                    labelShadowColor: string;
+                    emitOnBlur: boolean;
+                    disableTrim: boolean;
+                }>;
+                __isFragment?: never;
+                __isTeleport?: never;
+                __isSuspense?: never;
+            } & import("vue").ComponentOptionsBase<Readonly<{
+                modelValue: string;
+                placeholder?: string;
+                label?: string;
+                labelShadowColor?: string;
+                error?: boolean;
+                isMultiline?: boolean;
+                helperText?: string;
+                emitOnBlur?: boolean;
+                handleFieldSubmit?: (e: string) => void;
+                handleFieldChange?: (e: string) => void;
+                disableTrim?: boolean;
+            }> & Readonly<{
+                onSubmit?: ((v: string) => any) | undefined;
+                "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+            }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+                submit: (v: string) => any;
+                "update:modelValue": (v: string) => any;
+            }, string, {
+                labelShadowColor: string;
+                emitOnBlur: boolean;
+                disableTrim: boolean;
+            }, {}, string, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, import("vue").ComponentProvideOptions> & import("vue").VNodeProps & import("vue").AllowedComponentProps & import("vue").ComponentCustomProps & (new () => {
+                $slots: {
+                    default?(_: {}): any;
+                };
+            });
+        };
+        setup(this: void): {
+            args: import("@storybook/vue3").ComponentPropsAndSlots<{
+                new (...args: any[]): import("vue").CreateComponentPublicInstanceWithMixins<Readonly<{
+                    modelValue: string;
+                    placeholder?: string;
+                    label?: string;
+                    labelShadowColor?: string;
+                    error?: boolean;
+                    isMultiline?: boolean;
+                    helperText?: string;
+                    emitOnBlur?: boolean;
+                    handleFieldSubmit?: (e: string) => void;
+                    handleFieldChange?: (e: string) => void;
+                    disableTrim?: boolean;
+                }> & Readonly<{
+                    onSubmit?: ((v: string) => any) | undefined;
+                    "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+                }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+                    submit: (v: string) => any;
+                    "update:modelValue": (v: string) => any;
+                }, import("vue").PublicProps, {
+                    labelShadowColor: string;
+                    emitOnBlur: boolean;
+                    disableTrim: boolean;
+                }, false, {}, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, {}, HTMLDivElement, import("vue").ComponentProvideOptions, {
+                    P: {};
+                    B: {};
+                    D: {};
+                    C: {};
+                    M: {};
+                    Defaults: {};
+                }, Readonly<{
+                    modelValue: string;
+                    placeholder?: string;
+                    label?: string;
+                    labelShadowColor?: string;
+                    error?: boolean;
+                    isMultiline?: boolean;
+                    helperText?: string;
+                    emitOnBlur?: boolean;
+                    handleFieldSubmit?: (e: string) => void;
+                    handleFieldChange?: (e: string) => void;
+                    disableTrim?: boolean;
+                }> & Readonly<{
+                    onSubmit?: ((v: string) => any) | undefined;
+                    "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+                }>, {}, {}, {}, {}, {
+                    labelShadowColor: string;
+                    emitOnBlur: boolean;
+                    disableTrim: boolean;
+                }>;
+                __isFragment?: never;
+                __isTeleport?: never;
+                __isSuspense?: never;
+            } & import("vue").ComponentOptionsBase<Readonly<{
+                modelValue: string;
+                placeholder?: string;
+                label?: string;
+                labelShadowColor?: string;
+                error?: boolean;
+                isMultiline?: boolean;
+                helperText?: string;
+                emitOnBlur?: boolean;
+                handleFieldSubmit?: (e: string) => void;
+                handleFieldChange?: (e: string) => void;
+                disableTrim?: boolean;
+            }> & Readonly<{
+                onSubmit?: ((v: string) => any) | undefined;
+                "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+            }>, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+                submit: (v: string) => any;
+                "update:modelValue": (v: string) => any;
+            }, string, {
+                labelShadowColor: string;
+                emitOnBlur: boolean;
+                disableTrim: boolean;
+            }, {}, string, {}, import("vue").GlobalComponents, import("vue").GlobalDirectives, string, import("vue").ComponentProvideOptions> & import("vue").VNodeProps & import("vue").AllowedComponentProps & import("vue").ComponentCustomProps & (new () => {
+                $slots: {
+                    default?(_: {}): any;
+                };
+            })>;
+            model: import("vue").Ref<string, string>;
+        };
+        template: string;
+    };
+};
+export default meta;
+type Story = StoryObj<typeof meta>;
+export declare const Base: Story;
+export declare const HelperText: Story;
+export declare const Error: Story;
+export declare const MultiLine: Story;
+export declare const NoLabel: Story;
+//# sourceMappingURL=ScalarTextField.stories.d.ts.map

@@ -1,0 +1,190 @@
+import { defineComponent as F, computed as N, ref as P, openBlock as o, createElementBlock as n, Fragment as i, renderList as U, createBlock as _, unref as f, normalizeClass as C, withCtx as l, createVNode as u, createTextVNode as b, toDisplayString as $, createCommentVNode as k, mergeProps as v, createElementVNode as T, capitalize as x } from "vue";
+import { useWorkspace as j } from "../../../../store/store.js";
+import q from "./OAuth2.vue.js";
+import m from "./RequestAuthDataTableInput.vue.js";
+import s from "../../../../components/DataTable/DataTableRow.vue.js";
+import R from "../../../../components/DataTable/DataTableCell.vue.js";
+const z = {
+  key: 0,
+  class: "flex min-h-8 border-t text-sm"
+}, M = { class: "flex h-8 max-w-full gap-2.5 overflow-x-auto px-3" }, Q = ["onClick"], D = { class: "relative z-10" }, E = {
+  key: 4,
+  class: "text-c-3 bg-b-1 flex min-h-16 items-center justify-center border-t px-4 text-sm"
+}, X = /* @__PURE__ */ F({
+  __name: "RequestAuthTab",
+  props: {
+    collection: {},
+    environment: {},
+    envVariables: {},
+    layout: {},
+    securitySchemeUids: {},
+    server: {},
+    workspace: {}
+  },
+  setup(w) {
+    const { securitySchemes: S, securitySchemeMutators: B } = j(), g = N(
+      () => w.securitySchemeUids.map((t) => ({
+        scheme: S[t]
+      }))
+    ), d = P(""), I = (t) => {
+      if (t.type === "apiKey")
+        return `${x(t.nameKey)}: ${t.in}`;
+      if (t.type === "oauth2") {
+        const r = Object.values(t.flows ?? {})[0];
+        return `${x(t.nameKey)}: ${d.value ? d.value : (r == null ? void 0 : r.type) ?? ""}`;
+      }
+      return t.type === "http" ? `${x(t.nameKey)}: ${t.scheme}` : `${x(t.nameKey)}: ${t.type}`;
+    }, V = (t, r, e) => B.edit(t, r, e), y = {
+      environment: w.environment,
+      envVariables: w.envVariables,
+      workspace: w.workspace
+    };
+    return (t, r) => (o(!0), n(i, null, U(g.value, ({ scheme: e }, K) => (o(), n(i, {
+      key: e == null ? void 0 : e.uid
+    }, [
+      g.value.length > 1 ? (o(), _(f(s), {
+        key: 0,
+        class: C({
+          "request-example-references-header": t.layout === "reference"
+        })
+      }, {
+        default: l(() => [
+          u(f(R), {
+            class: C([
+              "text-c-3 flex items-center pl-2 font-medium",
+              t.layout === "reference" && `border-t ${K !== 0 ? "mt-2" : ""}`
+            ])
+          }, {
+            default: l(() => [
+              b($(I(e)), 1)
+            ]),
+            _: 2
+          }, 1032, ["class"])
+        ]),
+        _: 2
+      }, 1032, ["class"])) : k("", !0),
+      (e == null ? void 0 : e.type) === "http" ? (o(), n(i, { key: 1 }, [
+        e.scheme === "bearer" ? (o(), _(f(s), { key: 0 }, {
+          default: l(() => [
+            u(m, v({ ref_for: !0 }, y, {
+              containerClass: t.layout === "reference" && "border-t",
+              modelValue: e.token,
+              placeholder: "Token",
+              type: "password",
+              "onUpdate:modelValue": (a) => V(e.uid, "token", a)
+            }), {
+              default: l(() => r[0] || (r[0] = [
+                b(" Bearer Token ")
+              ])),
+              _: 2
+            }, 1040, ["containerClass", "modelValue", "onUpdate:modelValue"])
+          ]),
+          _: 2
+        }, 1024)) : (e == null ? void 0 : e.scheme) === "basic" ? (o(), n(i, { key: 1 }, [
+          u(f(s), null, {
+            default: l(() => [
+              u(m, v({ ref_for: !0 }, y, {
+                class: "text-c-2",
+                containerClass: t.layout === "reference" && "auth-blend-required border-t",
+                modelValue: e.username,
+                placeholder: "janedoe",
+                required: "",
+                "onUpdate:modelValue": (a) => V(e.uid, "username", a)
+              }), {
+                default: l(() => r[1] || (r[1] = [
+                  b(" Username ")
+                ])),
+                _: 2
+              }, 1040, ["containerClass", "modelValue", "onUpdate:modelValue"])
+            ]),
+            _: 2
+          }, 1024),
+          u(f(s), null, {
+            default: l(() => [
+              u(m, v({ ref_for: !0 }, y, {
+                modelValue: e.password,
+                placeholder: "********",
+                type: "password",
+                "onUpdate:modelValue": (a) => V(e.uid, "password", a)
+              }), {
+                default: l(() => r[2] || (r[2] = [
+                  b(" Password ")
+                ])),
+                _: 2
+              }, 1040, ["modelValue", "onUpdate:modelValue"])
+            ]),
+            _: 2
+          }, 1024)
+        ], 64)) : k("", !0)
+      ], 64)) : (e == null ? void 0 : e.type) === "apiKey" ? (o(), n(i, { key: 2 }, [
+        u(f(s), null, {
+          default: l(() => [
+            u(m, v({ ref_for: !0 }, y, {
+              containerClass: t.layout === "reference" && "border-t",
+              modelValue: e.name,
+              placeholder: "api-key",
+              "onUpdate:modelValue": (a) => V(e.uid, "name", a)
+            }), {
+              default: l(() => r[3] || (r[3] = [
+                b(" Name ")
+              ])),
+              _: 2
+            }, 1040, ["containerClass", "modelValue", "onUpdate:modelValue"])
+          ]),
+          _: 2
+        }, 1024),
+        u(f(s), null, {
+          default: l(() => [
+            u(m, v({ ref_for: !0 }, y, {
+              modelValue: e.value,
+              placeholder: "QUxMIFlPVVIgQkFTRSBBUkUgQkVMT05HIFRPIFVT",
+              "onUpdate:modelValue": (a) => V(e.uid, "value", a)
+            }), {
+              default: l(() => r[4] || (r[4] = [
+                b(" Value ")
+              ])),
+              _: 2
+            }, 1040, ["modelValue", "onUpdate:modelValue"])
+          ]),
+          _: 2
+        }, 1024)
+      ], 64)) : (e == null ? void 0 : e.type) === "oauth2" ? (o(), n(i, { key: 3 }, [
+        u(f(s), null, {
+          default: l(() => [
+            Object.keys(e.flows).length > 1 ? (o(), n("div", z, [
+              T("div", M, [
+                (o(!0), n(i, null, U(e == null ? void 0 : e.flows, (a, p, c) => (o(), n("button", {
+                  key: p,
+                  class: C(["floating-bg text-c-3 relative cursor-pointer border-b-[1px] border-transparent py-1 text-sm font-medium", {
+                    "!text-c-1 !rounded-none border-b-[1px] !border-current": t.layout !== "reference" && (d.value === p || c === 0 && !d.value),
+                    "!text-c-1 !rounded-none border-b-[1px] !border-current opacity-100": t.layout === "reference" && (d.value === p || c === 0 && !d.value)
+                  }]),
+                  type: "button",
+                  onClick: (L) => d.value = p
+                }, [
+                  T("span", D, $(p), 1)
+                ], 10, Q))), 128))
+              ])
+            ])) : k("", !0)
+          ]),
+          _: 2
+        }, 1024),
+        (o(!0), n(i, null, U(e == null ? void 0 : e.flows, (a, p, c) => (o(), n(i, { key: p }, [
+          d.value === p || c === 0 && !d.value ? (o(), _(q, v({
+            key: 0,
+            ref_for: !0
+          }, y, {
+            collection: t.collection,
+            flow: a,
+            scheme: e,
+            server: t.server,
+            workspace: t.workspace
+          }), null, 16, ["collection", "flow", "scheme", "server", "workspace"])) : k("", !0)
+        ], 64))), 128))
+      ], 64)) : (e == null ? void 0 : e.type) === "openIdConnect" ? (o(), n("div", E, " Coming soon ")) : k("", !0)
+    ], 64))), 128));
+  }
+});
+export {
+  X as default
+};

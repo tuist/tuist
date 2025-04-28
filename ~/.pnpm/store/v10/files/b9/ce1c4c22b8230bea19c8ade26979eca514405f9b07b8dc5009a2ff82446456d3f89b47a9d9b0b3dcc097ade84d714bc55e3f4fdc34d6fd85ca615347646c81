@@ -1,0 +1,118 @@
+import { defineComponent as q, ref as x, computed as B, openBlock as i, createBlock as b, withCtx as l, createVNode as r, unref as n, createElementVNode as k, createElementBlock as P, Fragment as W, renderList as $, createTextVNode as u, toDisplayString as h, createCommentVNode as I } from "vue";
+import _ from "../HttpMethod/HttpMethod.vue.js";
+import { PathId as c } from "../../routes.js";
+import { useActiveEntities as j } from "../../store/active-entities.js";
+import { ScalarDropdown as z, ScalarDropdownItem as M, ScalarButton as T, ScalarIcon as U } from "@scalar/components";
+import { isDefined as A } from "@scalar/oas-utils/helpers";
+import { useToasts as F } from "@scalar/use-toasts";
+import { useRouter as H } from "vue-router";
+import L from "./CommandActionForm.vue.js";
+import O from "./CommandActionInput.vue.js";
+import { useWorkspace as G } from "../../store/store.js";
+const J = { class: "flex items-center gap-2" }, K = { class: "max-h-40 custom-scroll" }, ne = /* @__PURE__ */ q({
+  __name: "CommandPaletteExample",
+  props: {
+    metaData: {}
+  },
+  emits: ["close", "back"],
+  setup(C, { emit: E }) {
+    var v;
+    const w = C, p = E, { push: D } = H(), { activeRequest: S, activeWorkspace: g, activeWorkspaceRequests: y } = j(), { requests: s, requestExampleMutators: N } = G(), { toast: d } = F(), m = x(""), a = x(
+      // Ensure we pre-select the correct request
+      s[((v = w.metaData) == null ? void 0 : v.itemUid) ?? ""] ?? S.value
+    ), f = (o) => a.value = o, V = () => {
+      var e;
+      if (!m.value) {
+        d("Please enter a name before creating an example.", "error");
+        return;
+      }
+      if (!a.value) {
+        d("Please select a request before creating an example.", "error");
+        return;
+      }
+      const o = N.add(
+        a.value,
+        m.value
+      );
+      o && (D({
+        name: "request.examples",
+        params: {
+          [c.Workspace]: (e = g.value) == null ? void 0 : e.uid,
+          [c.Request]: a.value.uid,
+          [c.Examples]: o.uid
+        }
+      }), p("close"));
+    }, R = B(
+      () => y.value.map((o) => s == null ? void 0 : s[o]).filter(A)
+    );
+    return (o, e) => a.value ? (i(), b(L, {
+      key: 0,
+      disabled: !m.value.trim(),
+      onSubmit: V
+    }, {
+      options: l(() => [
+        r(n(z), {
+          placement: "bottom",
+          resize: ""
+        }, {
+          items: l(() => [
+            k("div", K, [
+              (i(!0), P(W, null, $(R.value, (t) => (i(), b(n(M), {
+                key: t.uid,
+                class: "flex h-7 w-full items-center justify-between px-1 pr-[26px]",
+                onClick: (Q) => f(t)
+              }, {
+                default: l(() => [
+                  u(h(t.summary) + " ", 1),
+                  r(_, {
+                    method: t.method
+                  }, null, 8, ["method"])
+                ]),
+                _: 2
+              }, 1032, ["onClick"]))), 128))
+            ])
+          ]),
+          default: l(() => [
+            r(n(T), {
+              class: "justify-between p-2 max-h-8 w-full gap-1 text-xs hover:bg-b-2",
+              variant: "outlined",
+              onClick: e[2] || (e[2] = (t) => f(a.value))
+            }, {
+              default: l(() => [
+                u(h(a.value.summary) + " ", 1),
+                k("div", J, [
+                  r(_, {
+                    method: a.value.method
+                  }, null, 8, ["method"]),
+                  r(n(U), {
+                    class: "text-c-3",
+                    icon: "ChevronDown",
+                    size: "md"
+                  })
+                ])
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        })
+      ]),
+      submit: l(() => e[3] || (e[3] = [
+        u("Create Example")
+      ])),
+      default: l(() => [
+        r(O, {
+          modelValue: m.value,
+          "onUpdate:modelValue": e[0] || (e[0] = (t) => m.value = t),
+          label: "Example Name",
+          placeholder: "Example Name",
+          onOnDelete: e[1] || (e[1] = (t) => p("back", t))
+        }, null, 8, ["modelValue"])
+      ]),
+      _: 1
+    }, 8, ["disabled"])) : I("", !0);
+  }
+});
+export {
+  ne as default
+};

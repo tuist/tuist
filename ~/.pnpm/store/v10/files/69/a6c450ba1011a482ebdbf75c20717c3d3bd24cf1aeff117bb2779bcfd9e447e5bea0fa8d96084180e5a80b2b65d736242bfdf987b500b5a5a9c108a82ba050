@@ -1,0 +1,42 @@
+import type { WorkspaceStore } from '@scalar/api-client/store';
+/** Grabs the request from a path + method */
+export declare const getRequest: (requests: WorkspaceStore["requests"], path: string, method: string) => {
+    path: string;
+    type: "request";
+    uid: string & import("zod").BRAND<"operation">;
+    selectedSecuritySchemeUids: ((string & import("zod").BRAND<"securityScheme">) | (string & import("zod").BRAND<"securityScheme">)[])[];
+    selectedServerUid: (string & import("zod").BRAND<"server">) | null;
+    servers: (string & import("zod").BRAND<"server">)[];
+    examples: (string & import("zod").BRAND<"example">)[];
+    method: "options" | "connect" | "delete" | "get" | "head" | "patch" | "post" | "put" | "trace";
+    description?: string | undefined;
+    summary?: string | undefined;
+    externalDocs?: {
+        url: string;
+        description?: string | undefined;
+    } | undefined;
+    'x-internal'?: boolean | undefined;
+    'x-scalar-ignore'?: boolean | undefined;
+    security?: Record<string, string[]>[] | undefined;
+    tags?: string[] | undefined;
+    deprecated?: boolean | undefined;
+    operationId?: string | undefined;
+    parameters?: {
+        required: boolean;
+        name: string;
+        in: "path" | "cookie" | "query" | "header";
+        deprecated: boolean;
+        example?: unknown;
+        description?: string | undefined;
+        schema?: unknown;
+        content?: unknown;
+        style?: "matrix" | "simple" | "form" | "label" | "spaceDelimited" | "pipeDelimited" | "deepObject" | undefined;
+        examples?: Record<string, {
+            value?: unknown;
+            summary?: string | undefined;
+        }> | undefined;
+    }[] | undefined;
+    requestBody?: any;
+    responses?: Record<string, any> | undefined;
+} | undefined;
+//# sourceMappingURL=get-request.d.ts.map

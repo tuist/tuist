@@ -1,0 +1,58 @@
+import { isValidUrl as d, fetchSpecFromUrl as f, prettyPrintJson as h } from "@scalar/oas-utils/helpers";
+import { ref as u, reactive as v, watch as m, toValue as a } from "vue";
+import { parse as g } from "../helpers/parse.js";
+import { createEmptySpecification as l } from "../helpers/createEmptySpecification.js";
+const y = async ({ url: e, content: r }, n) => {
+  if (e) {
+    const s = performance.now();
+    try {
+      const c = d(e) ? await f(e, n) : await f(e), o = performance.now();
+      return console.log(`fetch: ${Math.round(o - s)} ms (${e})`), console.log("size:", Math.round(c.length / 1024), "kB"), c;
+    } catch (c) {
+      console.error("Failed to fetch spec from URL:", c);
+    }
+  }
+  const t = typeof r == "function" ? r() : r;
+  if (typeof t == "string")
+    return t;
+  if (typeof t == "object")
+    return h(t);
+};
+function C({
+  specConfig: e,
+  proxyUrl: r
+}) {
+  const n = u(""), t = v(l()), s = u(null);
+  function c(o) {
+    return o ? g(o, {
+      proxyUrl: r ? a(r) : void 0
+    }).then((i) => {
+      s.value = null, Object.assign(t, {
+        servers: [],
+        ...i
+      });
+    }).catch((i) => {
+      s.value = i.toString();
+    }) : Object.assign(t, l());
+  }
+  return m(
+    () => a(e),
+    async (o) => {
+      var i;
+      if (o) {
+        const p = (i = await y(o, a(r))) == null ? void 0 : i.trim();
+        typeof p == "string" && (n.value = p);
+      }
+    },
+    { immediate: !0, deep: !0 }
+  ), m(n, () => {
+    c(n.value);
+  }), {
+    rawSpec: n,
+    parsedSpec: t,
+    specErrors: s
+  };
+}
+export {
+  C as useReactiveSpec
+};

@@ -1,0 +1,48 @@
+import { defineComponent as u, onMounted as h, onBeforeUnmount as y, openBlock as f, createElementBlock as S, Fragment as k, createElementVNode as o, normalizeClass as b, unref as a, createVNode as r, toDisplayString as l } from "vue";
+import { useModal as w, ScalarIcon as K } from "@scalar/components";
+import v from "./SearchModal.vue.js";
+import { isMacOs as c } from "../../helpers/isMacOs.js";
+import { useApiClient as B } from "../ApiClientModal/useApiClient.js";
+const C = { class: "sidebar-search-input" }, E = { class: "sidebar-search-shortcut" }, H = { class: "sidebar-search-key" }, N = /* @__PURE__ */ u({
+  __name: "SearchButton",
+  props: {
+    spec: {},
+    searchHotKey: { default: "k" }
+  },
+  setup(i) {
+    const d = i, t = w(), { client: p } = B(), n = (s) => {
+      var e;
+      (c() ? s.metaKey : s.ctrlKey) && s.key === d.searchHotKey && !((e = p.value) != null && e.modalState.open) && (s.preventDefault(), s.stopPropagation(), t.open ? t.hide() : t.show());
+    };
+    return h(() => window.addEventListener("keydown", n)), y(() => window.removeEventListener("keydown", n)), (s, e) => (f(), S(k, null, [
+      o("button", {
+        class: b(["sidebar-search", s.$attrs.class]),
+        type: "button",
+        onClick: e[0] || (e[0] = //@ts-ignore
+        (...m) => a(t).show && a(t).show(...m))
+      }, [
+        r(a(K), {
+          class: "scalar-search-icon",
+          icon: "Search",
+          size: "sm",
+          thickness: "2.5"
+        }),
+        o("div", C, [
+          e[2] || (e[2] = o("span", { class: "sr-only" }, "Open ", -1)),
+          e[3] || (e[3] = o("span", { class: "sidebar-search-placeholder" }, "Search", -1)),
+          o("span", E, [
+            e[1] || (e[1] = o("span", { class: "sr-only" }, "(Keyboard Shortcut)", -1)),
+            o("kbd", H, l(a(c)() ? "⌘" : "⌃") + l(s.searchHotKey), 1)
+          ])
+        ])
+      ], 2),
+      r(v, {
+        modalState: a(t),
+        parsedSpec: s.spec
+      }, null, 8, ["modalState", "parsedSpec"])
+    ], 64));
+  }
+});
+export {
+  N as default
+};

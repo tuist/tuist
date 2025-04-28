@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * node/fetch
+ */
+export declare const nodeFetch: Plugin;
+//# sourceMappingURL=fetch.d.ts.map

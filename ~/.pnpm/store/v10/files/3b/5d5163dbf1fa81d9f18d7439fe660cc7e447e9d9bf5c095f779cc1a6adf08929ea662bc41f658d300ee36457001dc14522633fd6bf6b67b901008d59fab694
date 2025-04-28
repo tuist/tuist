@@ -1,0 +1,85 @@
+import { defineComponent as y, watch as w, computed as n, toRef as m, openBlock as f, createElementBlock as x, Fragment as U, createBlock as V, resolveDynamicComponent as $, withCtx as i, createTextVNode as b, toDisplayString as B, createCommentVNode as N, createVNode as R, unref as a, renderSlot as d } from "vue";
+import { migrateThemeVariables as T } from "@scalar/themes";
+import { useColorMode as _ } from "@scalar/use-hooks/useColorMode";
+import { useSeoMeta as h } from "@unhead/vue";
+import { useFavicon as E } from "@vueuse/core";
+import { useReactiveSpec as F } from "../hooks/useReactiveSpec.js";
+import A from "./Layouts/Layouts.vue.js";
+const K = /* @__PURE__ */ y({
+  __name: "ApiReference",
+  props: {
+    configuration: {}
+  },
+  emits: ["updateContent"],
+  setup(v) {
+    var c, u, l;
+    const t = v, { toggleColorMode: g, isDarkMode: s } = _({
+      initialColorMode: (c = t.configuration) != null && c.darkMode ? "dark" : void 0,
+      overrideColorMode: (u = t.configuration) == null ? void 0 : u.forceDarkModeState
+    });
+    w(
+      () => {
+        var o;
+        return (o = t.configuration) == null ? void 0 : o.darkMode;
+      },
+      (o) => s.value = !!o
+    );
+    const C = n(() => {
+      var o, r;
+      if ((o = t.configuration) != null && o.customCss)
+        return T((r = t.configuration) == null ? void 0 : r.customCss);
+    }), e = n(() => {
+      var o;
+      return {
+        spec: {
+          content: void 0,
+          url: void 0,
+          ...(o = t.configuration) == null ? void 0 : o.spec
+        },
+        proxyUrl: void 0,
+        theme: "default",
+        showSidebar: !0,
+        isEditable: !1,
+        ...t.configuration,
+        customCss: C.value
+      };
+    });
+    (l = e.value) != null && l.metaData && h(e.value.metaData);
+    const { parsedSpec: k, rawSpec: S } = F({
+      proxyUrl: m(
+        () => e.value.proxyUrl || e.value.proxy || ""
+      ),
+      specConfig: m(() => e.value.spec || {})
+    }), M = n(() => e.value.favicon);
+    return E(M), (o, r) => {
+      var p;
+      return f(), x(U, null, [
+        (p = e.value) != null && p.customCss ? (f(), V($("style"), { key: 0 }, {
+          default: i(() => [
+            b(B(e.value.customCss), 1)
+          ]),
+          _: 1
+        })) : N("", !0),
+        R(a(A), {
+          configuration: e.value,
+          isDark: a(s),
+          parsedSpec: a(k),
+          rawSpec: a(S),
+          onToggleDarkMode: r[0] || (r[0] = () => a(g)()),
+          onUpdateContent: r[1] || (r[1] = (D) => o.$emit("updateContent", D))
+        }, {
+          footer: i(() => [
+            d(o.$slots, "footer")
+          ]),
+          "content-end": i(() => [
+            d(o.$slots, "footer")
+          ]),
+          _: 3
+        }, 8, ["configuration", "isDark", "parsedSpec", "rawSpec"])
+      ], 64);
+    };
+  }
+});
+export {
+  K as default
+};

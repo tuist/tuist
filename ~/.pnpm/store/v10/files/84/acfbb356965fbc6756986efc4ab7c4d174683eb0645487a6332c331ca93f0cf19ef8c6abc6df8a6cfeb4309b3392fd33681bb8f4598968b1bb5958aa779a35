@@ -1,0 +1,1 @@
+{"version":3,"file":"useBindCx.d.ts","sourceRoot":"","sources":["../../src/hooks/useBindCx.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,KAAK,CAAA;AAKpC;;;;;;;;;;;;;;;;;;;;;;;;;;GA0BG;AACH,wBAAgB,SAAS;IAqBrB;;;;;;;;;;;;;OAaG;kBA1BoB,SAAS,KAAG;QACnC,iCAAiC;QACjC,KAAK,EAAE,MAAM,CAAA;QACb,+BAA+B;QAC/B,CAAC,GAAG,EAAE,MAAM,GAAG,GAAG,CAAA;KACnB;EAwBF"}

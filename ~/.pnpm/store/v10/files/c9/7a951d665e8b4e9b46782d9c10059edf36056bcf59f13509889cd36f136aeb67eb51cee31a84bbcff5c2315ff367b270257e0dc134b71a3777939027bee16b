@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * csharp/httpclient
+ */
+export declare const csharpHttpclient: Plugin;
+//# sourceMappingURL=httpclient.d.ts.map

@@ -1,0 +1,171 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { type RequestPayload, type ServerPayload, requestExampleSchema } from '@scalar/oas-utils/entities/spec';
+import type { z } from 'zod';
+export declare const VOID_URL = "http://127.0.0.1:5052";
+type RequestExamplePayload = z.input<typeof requestExampleSchema>;
+type MetaRequestPayload = {
+    serverPayload?: ServerPayload;
+    requestPayload?: RequestPayload;
+    requestExamplePayload?: RequestExamplePayload;
+    proxyUrl?: string;
+};
+/** Creates the payload for createRequestOperation */
+export declare const createRequestPayload: (metaRequestPayload?: MetaRequestPayload) => {
+    auth: {};
+    request: {
+        path: string;
+        type: "request";
+        uid: string & z.BRAND<"operation">;
+        selectedSecuritySchemeUids: ((string & z.BRAND<"securityScheme">) | (string & z.BRAND<"securityScheme">)[])[];
+        selectedServerUid: (string & z.BRAND<"server">) | null;
+        servers: (string & z.BRAND<"server">)[];
+        examples: (string & z.BRAND<"example">)[];
+        method: "options" | "connect" | "delete" | "get" | "head" | "patch" | "post" | "put" | "trace";
+        description?: string | undefined;
+        summary?: string | undefined;
+        externalDocs?: {
+            url: string;
+            description?: string | undefined;
+        } | undefined;
+        'x-internal'?: boolean | undefined;
+        'x-scalar-ignore'?: boolean | undefined;
+        security?: Record<string, string[]>[] | undefined;
+        tags?: string[] | undefined;
+        deprecated?: boolean | undefined;
+        operationId?: string | undefined;
+        parameters?: {
+            required: boolean;
+            name: string;
+            in: "path" | "cookie" | "query" | "header";
+            deprecated: boolean;
+            example?: unknown;
+            description?: string | undefined;
+            schema?: unknown;
+            content?: unknown;
+            style?: "matrix" | "simple" | "form" | "label" | "spaceDelimited" | "pipeDelimited" | "deepObject" | undefined;
+            examples?: Record<string, {
+                value?: unknown;
+                summary?: string | undefined;
+            }> | undefined;
+        }[] | undefined;
+        requestBody?: any;
+        responses?: Record<string, any> | undefined;
+    };
+    environment: {};
+    globalCookies: never[];
+    example: {
+        type: "requestExample";
+        uid: string & z.BRAND<"example">;
+        name: string;
+        parameters: {
+            path: {
+                value: string;
+                key: string;
+                enabled: boolean;
+                minimum?: number | undefined;
+                type?: string | string[] | undefined;
+                maximum?: number | undefined;
+                default?: any;
+                required?: boolean | undefined;
+                description?: string | undefined;
+                enum?: string[] | undefined;
+                examples?: string[] | undefined;
+                format?: string | undefined;
+                file?: any;
+                nullable?: boolean | undefined;
+            }[];
+            cookies: {
+                value: string;
+                key: string;
+                enabled: boolean;
+                minimum?: number | undefined;
+                type?: string | string[] | undefined;
+                maximum?: number | undefined;
+                default?: any;
+                required?: boolean | undefined;
+                description?: string | undefined;
+                enum?: string[] | undefined;
+                examples?: string[] | undefined;
+                format?: string | undefined;
+                file?: any;
+                nullable?: boolean | undefined;
+            }[];
+            query: {
+                value: string;
+                key: string;
+                enabled: boolean;
+                minimum?: number | undefined;
+                type?: string | string[] | undefined;
+                maximum?: number | undefined;
+                default?: any;
+                required?: boolean | undefined;
+                description?: string | undefined;
+                enum?: string[] | undefined;
+                examples?: string[] | undefined;
+                format?: string | undefined;
+                file?: any;
+                nullable?: boolean | undefined;
+            }[];
+            headers: {
+                value: string;
+                key: string;
+                enabled: boolean;
+                minimum?: number | undefined;
+                type?: string | string[] | undefined;
+                maximum?: number | undefined;
+                default?: any;
+                required?: boolean | undefined;
+                description?: string | undefined;
+                enum?: string[] | undefined;
+                examples?: string[] | undefined;
+                format?: string | undefined;
+                file?: any;
+                nullable?: boolean | undefined;
+            }[];
+        };
+        body: {
+            activeBody: "binary" | "formData" | "raw";
+            binary?: Blob | undefined;
+            formData?: {
+                value: {
+                    value: string;
+                    key: string;
+                    enabled: boolean;
+                    minimum?: number | undefined;
+                    type?: string | string[] | undefined;
+                    maximum?: number | undefined;
+                    default?: any;
+                    required?: boolean | undefined;
+                    description?: string | undefined;
+                    enum?: string[] | undefined;
+                    examples?: string[] | undefined;
+                    format?: string | undefined;
+                    file?: any;
+                    nullable?: boolean | undefined;
+                }[];
+                encoding: "form-data" | "urlencoded";
+            } | undefined;
+            raw?: {
+                value: string;
+                encoding: "xml" | "text" | "json" | "html" | "javascript" | "yaml" | "edn";
+            } | undefined;
+        };
+        requestUid?: (string & z.BRAND<"operation">) | undefined;
+        serverVariables?: Record<string, string[]> | undefined;
+    };
+    server: {
+        uid: string & z.BRAND<"server">;
+        url: string;
+        description?: string | undefined;
+        variables?: Record<string, Omit<import("@scalar/openapi-types").OpenAPIV3_1.ServerVariableObject, "enum"> & {
+            enum?: [string, ...string[]];
+            value?: string;
+        }> | undefined;
+    } | undefined;
+    proxyUrl: string | undefined;
+    securitySchemes: {};
+};
+export {};
+//# sourceMappingURL=create-request-operation.test.d.ts.map

@@ -1,0 +1,79 @@
+{
+  "name": "@hyperjump/json-schema",
+  "version": "1.11.0",
+  "description": "A JSON Schema validator with support for custom keywords, vocabularies, and dialects",
+  "type": "module",
+  "main": "./stable/index.js",
+  "exports": {
+    ".": "./stable/index.js",
+    "./draft-04": "./draft-04/index.js",
+    "./draft-06": "./draft-06/index.js",
+    "./draft-07": "./draft-07/index.js",
+    "./draft-2019-09": "./draft-2019-09/index.js",
+    "./draft-2020-12": "./draft-2020-12/index.js",
+    "./openapi-3-0": "./openapi-3-0/index.js",
+    "./openapi-3-1": "./openapi-3-1/index.js",
+    "./experimental": "./lib/experimental.js",
+    "./instance/experimental": "./lib/instance.js",
+    "./annotations/experimental": "./annotations/index.js",
+    "./annotated-instance/experimental": "./annotations/annotated-instance.js",
+    "./bundle": "./bundle/index.js"
+  },
+  "scripts": {
+    "clean": "xargs -a .gitignore rm -rf",
+    "lint": "eslint lib stable draft-* openapi-* bundle annotations",
+    "test": "vitest --watch=false",
+    "check-types": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperjump-io/json-schema.git"
+  },
+  "keywords": [
+    "JSON Schema",
+    "json-schema",
+    "jsonschema",
+    "JSON",
+    "Schema",
+    "2020-12",
+    "2019-09",
+    "draft-07",
+    "draft-06",
+    "draft-04",
+    "vocabulary",
+    "vocabularies"
+  ],
+  "author": "Jason Desrosiers <jdesrosi@gmail.com>",
+  "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jdesrosiers"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "*",
+    "@types/content-type": "*",
+    "@types/node": "*",
+    "@types/uuid": "*",
+    "@vitest/coverage-v8": "*",
+    "eslint-import-resolver-typescript": "*",
+    "eslint-plugin-import": "*",
+    "json-schema-test-suite": "github:json-schema-org/JSON-Schema-Test-Suite",
+    "typescript": "*",
+    "typescript-eslint": "*",
+    "undici": "*",
+    "vitest": "*",
+    "yaml": "*"
+  },
+  "dependencies": {
+    "@hyperjump/json-pointer": "^1.1.0",
+    "@hyperjump/pact": "^1.2.0",
+    "@hyperjump/uri": "^1.2.0",
+    "content-type": "^1.0.4",
+    "json-stringify-deterministic": "^1.0.12",
+    "just-curry-it": "^5.3.0",
+    "uuid": "^9.0.0"
+  },
+  "peerDependencies": {
+    "@hyperjump/browser": "^1.1.0"
+  }
+}

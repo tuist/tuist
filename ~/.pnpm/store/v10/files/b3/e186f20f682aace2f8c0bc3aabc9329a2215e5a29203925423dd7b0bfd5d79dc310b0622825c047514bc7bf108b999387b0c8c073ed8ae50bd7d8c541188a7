@@ -1,0 +1,72 @@
+import { defineComponent as H, computed as I, openBlock as n, createElementBlock as a, Fragment as u, renderList as S, createBlock as s, unref as i, withCtx as w, createVNode as C, createCommentVNode as B } from "vue";
+import N from "../../IntersectionObserver.vue.js";
+import { useNavState as b } from "../../../hooks/useNavState.js";
+import { splitContent as x, getHeadings as E } from "@scalar/code-highlight/markdown";
+import { ScalarMarkdown as c } from "@scalar/components";
+import d from "github-slugger";
+const F = {
+  key: 0,
+  class: "introduction-description"
+}, U = /* @__PURE__ */ H({
+  __name: "Description",
+  props: {
+    value: {}
+  },
+  setup(m) {
+    const o = m, p = I(() => {
+      if (!o.value)
+        return [];
+      const e = new d();
+      return x(o.value).map((t) => {
+        const [r] = E(t);
+        return {
+          id: r ? l({
+            ...r,
+            slug: e.slug(r.value)
+          }) : void 0,
+          content: t
+        };
+      });
+    }), { getHeadingId: l, getFullHash: g, isIntersectionEnabled: f, replaceUrlState: v } = b();
+    function h(e = "") {
+      f.value && v(e);
+    }
+    const _ = new d(), k = (e) => (e.data = {
+      hProperties: {
+        id: l({
+          depth: e.depth,
+          value: e.children[0].value,
+          slug: _.slug(e.children[0].value)
+        })
+      }
+    }, e);
+    return (e, y) => e.value ? (n(), a("div", F, [
+      (n(!0), a(u, null, S(p.value, (t) => (n(), a(u, {
+        key: t.id
+      }, [
+        t.id ? (n(), s(N, {
+          key: 0,
+          id: i(g)(t.id),
+          class: "introduction-description-heading",
+          onIntersecting: () => h(t.id)
+        }, {
+          default: w(() => [
+            C(i(c), {
+              transform: k,
+              transformType: "heading",
+              value: t.content
+            }, null, 8, ["value"])
+          ]),
+          _: 2
+        }, 1032, ["id", "onIntersecting"])) : (n(), s(i(c), {
+          key: 1,
+          value: t.content,
+          withImages: ""
+        }, null, 8, ["value"]))
+      ], 64))), 128))
+    ])) : B("", !0);
+  }
+});
+export {
+  U as default
+};

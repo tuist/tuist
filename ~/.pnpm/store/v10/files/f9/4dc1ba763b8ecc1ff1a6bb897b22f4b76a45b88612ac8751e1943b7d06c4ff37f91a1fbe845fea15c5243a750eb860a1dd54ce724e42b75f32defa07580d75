@@ -1,0 +1,168 @@
+import { defineComponent as P, computed as x, openBlock as i, createBlock as m, withCtx as l, createVNode as a, unref as o, createElementVNode as n, createElementBlock as d, Fragment as k, renderList as _, normalizeClass as g, toDisplayString as W, withModifiers as F, withDirectives as O, createCommentVNode as R, vShow as M, createTextVNode as q } from "vue";
+import { ScalarIcon as p, ScalarButton as y } from "@scalar/components";
+import { LibraryIcon as K } from "@scalar/icons";
+import { useRouter as T } from "vue-router";
+import G from "../../components/EmptyState.vue.js";
+import H from "../../components/Sidebar/SidebarButton.vue.js";
+import J from "../../components/Sidebar/SidebarList.vue.js";
+import Q from "../../components/Sidebar/SidebarListElement.vue.js";
+import X from "../../components/ViewLayout/ViewLayout.vue.js";
+import Y from "../../components/ViewLayout/ViewLayoutContent.vue.js";
+import { PathId as f } from "../../routes.js";
+import { useActiveEntities as Z } from "../../store/active-entities.js";
+import U from "./ServerForm.vue.js";
+import { useWorkspace as ee } from "../../store/store.js";
+import te from "../../components/Sidebar/Sidebar.vue.js";
+import { useSidebar as re } from "../../hooks/useSidebar.js";
+const oe = { class: "flex-1" }, se = ["onClick"], ae = { class: "flex h-5 max-w-[14px] items-center justify-center pr-px" }, ie = { class: "line-clamp-1 w-full break-all text-left font-medium" }, Ce = /* @__PURE__ */ P({
+  __name: "Servers",
+  setup(le) {
+    const { activeWorkspaceCollections: S, activeWorkspace: C, activeRouterParams: w } = Z(), { servers: v, events: z, serverMutators: D } = ee(), { push: A, resolve: L } = T(), { collapsedSidebarFolders: b, toggleSidebarFolder: N } = re(), V = (t) => b[t];
+    function u(t) {
+      z.commandPalette.emit({
+        commandName: "Add Server",
+        metaData: { parentUid: t }
+      });
+    }
+    const j = x(() => S.value.filter(
+      (t) => {
+        var s;
+        return ((s = t.info) == null ? void 0 : s.title) !== "Drafts";
+      }
+    )), E = (t, s, e) => {
+      var r;
+      const c = {
+        name: "servers",
+        params: {
+          [f.Workspace]: (r = C.value) == null ? void 0 : r.uid,
+          [f.Collection]: e,
+          [f.Servers]: s
+        }
+      };
+      t.metaKey ? window.open(L(c).href, "_blank") : A(c);
+    }, I = (t) => D.delete(
+      t,
+      w.value.collection
+    ), $ = x(() => Object.keys(v).length > 0);
+    return (t, s) => (i(), m(X, null, {
+      default: l(() => [
+        a(o(te), { title: "Servers" }, {
+          content: l(() => [
+            n("div", oe, [
+              a(J, null, {
+                default: l(() => [
+                  (i(!0), d(k, null, _(j.value, (e) => {
+                    var c;
+                    return i(), d("li", {
+                      key: e.uid,
+                      class: "gap-1/2 flex flex-col"
+                    }, [
+                      n("button", {
+                        class: "hover:bg-b-2 group flex w-full items-center gap-1.5 break-words rounded p-1.5 text-left text-sm font-medium",
+                        type: "button",
+                        onClick: (r) => o(N)(e.uid)
+                      }, [
+                        n("span", ae, [
+                          a(o(K), {
+                            class: "text-sidebar-c-2 size-3.5 min-w-3.5 stroke-2 group-hover:hidden",
+                            src: e["x-scalar-icon"] || "interface-content-folder"
+                          }, null, 8, ["src"]),
+                          n("div", {
+                            class: g({
+                              "rotate-90": o(b)[e.uid]
+                            })
+                          }, [
+                            a(o(p), {
+                              class: "text-c-3 hover:text-c-1 hidden text-sm group-hover:block",
+                              icon: "ChevronRight",
+                              size: "md"
+                            })
+                          ], 2)
+                        ]),
+                        n("span", ie, W(((c = e.info) == null ? void 0 : c.title) ?? ""), 1),
+                        a(o(y), {
+                          class: "hover:bg-b-3 hover:text-c-1 hidden aspect-square h-fit px-0.5 py-0 group-hover:block group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100",
+                          size: "sm",
+                          variant: "ghost",
+                          onClick: F((r) => u(e.uid), ["stop", "prevent"])
+                        }, {
+                          default: l(() => [
+                            a(o(p), {
+                              icon: "Add",
+                              size: "md",
+                              thickness: "2"
+                            })
+                          ]),
+                          _: 2
+                        }, 1032, ["onClick"])
+                      ], 8, se),
+                      O(n("div", {
+                        class: g({
+                          "before:bg-border before:z-1 gap-1/2 relative mb-[.5px] flex flex-col before:pointer-events-none before:absolute before:left-3 before:top-0 before:h-[calc(100%_+_.5px)] before:w-[.5px] last:mb-0 last:before:h-full": Object.keys(e.servers || {}).length > 0
+                        })
+                      }, [
+                        (i(!0), d(k, null, _(e.servers, (r) => {
+                          var h;
+                          return i(), m(Q, {
+                            key: r,
+                            class: "[&>a]:pl-[1.625rem]",
+                            collectionId: e.uid,
+                            isDeletable: !0,
+                            type: "servers",
+                            variable: {
+                              name: ((h = o(v)[r]) == null ? void 0 : h.url) ?? "",
+                              uid: r
+                            },
+                            onClick: (B) => E(B, r, e.uid),
+                            onDelete: I
+                          }, null, 8, ["collectionId", "variable", "onClick"]);
+                        }), 128)),
+                        Object.keys(e.servers || {}).length === 0 ? (i(), m(o(y), {
+                          key: 0,
+                          class: "text-c-1 hover:bg-b-2 mb-[.5px] flex h-8 w-full justify-start gap-1.5 py-0 pl-6 text-xs",
+                          variant: "ghost",
+                          onClick: (r) => u(e.uid)
+                        }, {
+                          default: l(() => [
+                            a(o(p), {
+                              icon: "Add",
+                              size: "sm"
+                            }),
+                            s[0] || (s[0] = n("span", null, "Add Server", -1))
+                          ]),
+                          _: 2
+                        }, 1032, ["onClick"])) : R("", !0)
+                      ], 2), [
+                        [M, V(e.uid)]
+                      ])
+                    ]);
+                  }), 128))
+                ]),
+                _: 1
+              })
+            ])
+          ]),
+          button: l(() => [
+            a(H, { click: u }, {
+              title: l(() => s[1] || (s[1] = [
+                q(" Add Server ")
+              ])),
+              _: 1
+            })
+          ]),
+          _: 1
+        }),
+        a(Y, { class: "flex-1" }, {
+          default: l(() => [
+            $.value ? (i(), m(U, { key: 0 })) : (i(), m(G, { key: 1 }))
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  Ce as default
+};

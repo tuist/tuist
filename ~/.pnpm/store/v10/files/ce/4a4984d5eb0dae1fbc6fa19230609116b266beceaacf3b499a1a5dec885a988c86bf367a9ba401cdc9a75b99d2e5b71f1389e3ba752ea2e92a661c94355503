@@ -1,0 +1,28 @@
+import { extractFilename as m } from "../libs/extractAttachmentFilename.js";
+import { computed as o } from "vue";
+import u from "whatwg-mimetype";
+function y(e) {
+  const i = (t) => t instanceof Blob, a = o(() => {
+    var n;
+    const t = ((n = e.headers.find(
+      (r) => r.name.toLowerCase() === "content-type"
+    )) == null ? void 0 : n.value) ?? "";
+    return new u(t);
+  }), c = o(() => {
+    var n;
+    const t = ((n = e.headers.find(
+      (r) => r.name.toLowerCase() === "content-disposition"
+    )) == null ? void 0 : n.value) ?? "";
+    return m(t);
+  }), d = o(() => i(e.data) ? URL.createObjectURL(e.data) : typeof e.data == "string" ? URL.createObjectURL(
+    new Blob([e.data], { type: a.value.toString() })
+  ) : e.data instanceof Object && Object.keys(e.data).length ? URL.createObjectURL(
+    new Blob([JSON.stringify(e.data)], {
+      type: a.value.toString()
+    })
+  ) : "");
+  return { mimeType: a, attachmentFilename: c, dataUrl: d };
+}
+export {
+  y as useResponseBody
+};

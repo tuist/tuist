@@ -1,0 +1,24 @@
+import type { EnvVariable } from '../../store/active-entities';
+import type { Environment } from '@scalar/oas-utils/entities/environment';
+import type { Collection, Operation, Server } from '@scalar/oas-utils/entities/spec';
+import type { Workspace } from '@scalar/oas-utils/entities/workspace';
+type __VLS_Props = {
+    collection: Collection;
+    operation: Operation;
+    server: Server | undefined;
+    environment: Environment;
+    envVariables: EnvVariable[];
+    workspace: Workspace;
+    modelValue: boolean;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    importCurl: (value: string) => any;
+    "update:modelValue": (v: boolean) => any;
+    hideModal: () => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onImportCurl?: (value: string) => any;
+    "onUpdate:modelValue"?: (v: boolean) => any;
+    onHideModal?: () => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLDivElement>;
+export default _default;
+//# sourceMappingURL=RequestSubpageHeader.vue.d.ts.map

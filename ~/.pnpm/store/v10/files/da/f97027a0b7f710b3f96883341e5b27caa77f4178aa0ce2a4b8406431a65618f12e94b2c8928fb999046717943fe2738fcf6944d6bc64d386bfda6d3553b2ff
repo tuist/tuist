@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * kotlin/okhttp
+ */
+export declare const kotlinOkhttp: Plugin;
+//# sourceMappingURL=okhttp.d.ts.map

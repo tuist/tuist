@@ -1,0 +1,28 @@
+import { unescapeJsonPointer as r } from "@scalar/openapi-parser";
+import { computed as i } from "vue";
+function h({ store: e, location: o }) {
+  const s = i(() => Object.values((e == null ? void 0 : e.collections) ?? {})[0]);
+  return {
+    operation: i(() => {
+      if (!(e != null && e.collections) || !e.requests)
+        return;
+      const c = Object.values(e.requests).filter(
+        (t) => {
+          var n;
+          return (n = s.value) == null ? void 0 : n.requests.includes(t.uid);
+        }
+      );
+      if (!o.startsWith("#/paths/"))
+        throw new Error(
+          "Invalid location, try using #/paths/$YOUR_ENDPOINT/$HTTP_METHOD. You can use the getPointer helper to generate a valid location: getPointer(['paths', '/planets/{planetId}', 'get'])"
+        );
+      return c.find((t) => {
+        const n = r(o.split("/")[2]), l = o.split("/")[3].toLocaleLowerCase();
+        return t.method === l && t.path === n;
+      });
+    })
+  };
+}
+export {
+  h as useBlockProps
+};

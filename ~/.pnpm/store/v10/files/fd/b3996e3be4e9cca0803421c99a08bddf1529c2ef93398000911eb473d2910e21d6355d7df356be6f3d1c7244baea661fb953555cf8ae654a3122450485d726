@@ -1,0 +1,62 @@
+import { defineComponent as k, ref as d, computed as f, openBlock as n, createBlock as r, unref as o, withCtx as C, createCommentVNode as h, createElementBlock as y, renderSlot as S, nextTick as v } from "vue";
+import T from "../../ShowMoreButton.vue.js";
+import b from "./Endpoints.vue.js";
+import w from "../../Section/SectionContainer.vue.js";
+import { useSidebar as B } from "../../../hooks/useSidebar.js";
+import { useNavState as R } from "../../../hooks/useNavState.js";
+const D = /* @__PURE__ */ k({
+  __name: "Tag",
+  props: {
+    id: {},
+    tag: {},
+    spec: {}
+  },
+  setup(u) {
+    const a = u, m = d(), s = d(), { collapsedSidebarItems: i } = B(), { getTagId: l } = R(), c = f(
+      () => {
+        var e, t;
+        return ((e = a.spec.tags) == null ? void 0 : e.length) && ((t = a.spec.tags) == null ? void 0 : t.length) > 1;
+      }
+    ), p = f(
+      () => {
+        var e, t;
+        return c.value || ((e = a.tag) == null ? void 0 : e.name) !== "default" || ((t = a.tag) == null ? void 0 : t.description) !== "";
+      }
+    );
+    async function g() {
+      var e, t;
+      await v(), (t = (e = s.value) == null ? void 0 : e.querySelector("button")) == null || t.focus();
+    }
+    return (e, t) => (n(), r(o(w), {
+      ref_key: "sectionContainerRef",
+      ref: m,
+      class: "tag-section-container"
+    }, {
+      default: C(() => [
+        p.value ? (n(), r(b, {
+          key: 0,
+          id: e.id,
+          isCollapsed: !o(i)[o(l)(e.tag)],
+          tag: e.tag
+        }, null, 8, ["id", "isCollapsed", "tag"])) : h("", !0),
+        !o(i)[o(l)(e.tag)] && c.value ? (n(), r(T, {
+          key: 1,
+          id: e.id ?? "",
+          "aria-label": `Show all ${e.tag["x-displayName"] ?? e.tag.name} endpoints`,
+          onClick: g
+        }, null, 8, ["id", "aria-label"])) : (n(), y("div", {
+          key: 2,
+          ref_key: "contentsRef",
+          ref: s,
+          class: "contents"
+        }, [
+          S(e.$slots, "default", {}, void 0, !0)
+        ], 512))
+      ]),
+      _: 3
+    }, 512));
+  }
+});
+export {
+  D as default
+};

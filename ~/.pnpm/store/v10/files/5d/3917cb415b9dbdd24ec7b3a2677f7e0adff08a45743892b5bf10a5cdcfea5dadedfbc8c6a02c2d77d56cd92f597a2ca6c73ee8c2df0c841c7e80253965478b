@@ -1,0 +1,107 @@
+import { defineComponent as g, computed as b, openBlock as n, createBlock as u, unref as e, withCtx as r, createVNode as a, mergeProps as v, createElementVNode as k, createElementBlock as x, Fragment as C, renderList as S, createTextVNode as w } from "vue";
+import { DropdownMenu as s } from "radix-vue/namespaced";
+import V from "./ScalarMenuTeamProfile.vue.js";
+import $ from "./ScalarMenuLink.vue.js";
+import B from "../ScalarDropdown/ScalarDropdownMenu.vue.js";
+import c from "../ScalarDropdown/ScalarDropdownButton.vue.js";
+import I from "../ScalarListbox/ScalarListboxCheckbox.vue.js";
+import p from "../ScalarIcon/ScalarIcon.vue.js";
+const M = /* @__PURE__ */ g({
+  inheritAttrs: !1,
+  __name: "ScalarMenuTeamPicker",
+  props: {
+    team: {},
+    teams: {}
+  },
+  emits: ["update:team", "add"],
+  setup(f, { emit: _ }) {
+    const i = f, d = _, m = b({
+      get: () => {
+        var o;
+        return (o = i.team) == null ? void 0 : o.id;
+      },
+      set: (o) => d(
+        "update:team",
+        i.teams.find((t) => t.id === o)
+      )
+    });
+    return (o, t) => (n(), u(e(s).Sub, null, {
+      default: r(() => [
+        a(e($), v({
+          is: e(s).SubTrigger,
+          icon: "UserSwitch"
+        }, o.$attrs), {
+          default: r(() => [
+            t[2] || (t[2] = k("div", null, "Change team", -1)),
+            a(e(p), {
+              class: "ml-auto text-c-2 -mr-0.25",
+              icon: "ChevronRight",
+              size: "sm"
+            })
+          ]),
+          _: 1
+        }, 16, ["is"]),
+        a(e(s).Portal, null, {
+          default: r(() => [
+            a(e(s).SubContent, {
+              as: e(B),
+              class: "max-h-radix-popper",
+              sideOffset: 3
+            }, {
+              default: r(() => [
+                a(e(s).RadioGroup, {
+                  modelValue: m.value,
+                  "onUpdate:modelValue": t[0] || (t[0] = (l) => m.value = l),
+                  class: "contents"
+                }, {
+                  default: r(() => [
+                    (n(!0), x(C, null, S(o.teams, (l) => (n(), u(e(s).RadioItem, {
+                      key: l.id,
+                      as: e(c),
+                      class: "group/item",
+                      value: l.id
+                    }, {
+                      default: r(() => [
+                        a(V, {
+                          class: "-ml-0.75 flex-1 min-w-0",
+                          label: l.label,
+                          src: l.src
+                        }, null, 8, ["label", "src"]),
+                        a(e(I), {
+                          class: "ml-auto",
+                          selected: l.id === m.value
+                        }, null, 8, ["selected"])
+                      ]),
+                      _: 2
+                    }, 1032, ["as", "value"]))), 128))
+                  ]),
+                  _: 1
+                }, 8, ["modelValue"]),
+                a(e(s).Item, {
+                  as: e(c),
+                  onClick: t[1] || (t[1] = (l) => d("add"))
+                }, {
+                  default: r(() => [
+                    a(e(p), {
+                      class: "bg-b-3 -ml-0.75 rounded p-0.75 size-5 text-c-3",
+                      icon: "Add",
+                      thickness: "1.75"
+                    }),
+                    t[3] || (t[3] = w(" Create new team "))
+                  ]),
+                  _: 1
+                }, 8, ["as"])
+              ]),
+              _: 1
+            }, 8, ["as"])
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  M as default
+};

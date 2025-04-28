@@ -1,0 +1,53 @@
+import { defineComponent as c, openBlock as n, createBlock as i, withCtx as d, createElementVNode as a, normalizeClass as t, unref as l, createVNode as u } from "vue";
+import { cva as p, ScalarIcon as m } from "@scalar/components";
+import b from "./DataTableCell.vue.js";
+const f = ["checked", "disabled"], y = /* @__PURE__ */ c({
+  __name: "DataTableCheckbox",
+  props: {
+    modelValue: { type: Boolean },
+    disabled: { type: Boolean },
+    align: { default: "center" }
+  },
+  emits: ["update:modelValue"],
+  setup(h) {
+    const s = p({
+      base: "w-8 h-8 flex items-center justify-center text-border peer-checked:text-c-1 pointer-events-none absolute",
+      variants: {
+        align: {
+          left: "left-0",
+          center: "centered"
+        }
+      }
+    });
+    return (e, o) => (n(), i(b, { class: "group/cell relative flex min-w-8" }, {
+      default: d(() => [
+        a("input", {
+          checked: e.modelValue,
+          class: "peer absolute inset-0 opacity-0 disabled:cursor-default cursor-pointer",
+          disabled: !!e.disabled,
+          type: "checkbox",
+          onChange: o[0] || (o[0] = (r) => e.$emit("update:modelValue", r.target.checked))
+        }, null, 40, f),
+        a("div", {
+          class: t(l(s)({ align: e.align }))
+        }, [
+          a("div", {
+            class: t([
+              "absolute opacity-0 border-[1px] rounded size-3/4 m-auto",
+              !e.disabled && "group-hover/cell:opacity-100 group-has-[:focus-visible]/cell:opacity-100 group-has-[:focus-visible]/cell:border-c-accent"
+            ])
+          }, null, 2),
+          u(l(m), {
+            icon: "Checkmark",
+            size: "xs",
+            thickness: "2.5"
+          })
+        ], 2)
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  y as default
+};

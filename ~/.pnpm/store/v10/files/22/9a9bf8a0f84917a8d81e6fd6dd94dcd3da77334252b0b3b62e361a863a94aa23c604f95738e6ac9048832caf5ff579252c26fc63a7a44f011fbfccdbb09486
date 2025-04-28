@@ -1,0 +1,7 @@
+import o from "./ResponseBodyPreview.vue2.js";
+/* empty css                         */
+import e from "../../../_virtual/_plugin-vue_export-helper.js";
+const s = /* @__PURE__ */ e(o, [["__scopeId", "data-v-5f138d26"]]);
+export {
+  s as default
+};

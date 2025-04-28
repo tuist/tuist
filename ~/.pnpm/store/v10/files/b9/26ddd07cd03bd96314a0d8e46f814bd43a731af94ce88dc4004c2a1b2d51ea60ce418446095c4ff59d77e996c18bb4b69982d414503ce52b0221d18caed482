@@ -1,0 +1,84 @@
+import { defineComponent as x, ref as h, onMounted as D, onBeforeUnmount as E, openBlock as g, createBlock as T, Transition as _, withCtx as L, createElementBlock as C, createElementVNode as d, createVNode as b, unref as k, createCommentVNode as A } from "vue";
+import { ScalarIcon as w } from "@scalar/components";
+const B = {
+  key: 0,
+  class: "fixed translate-x-1/2 translate-y-1/2 md:translate-x-0 md:translate-y-0 right-1/2 bottom-1/2 md:bottom-10 md:right-10 w-64 h-64 bg-b-2 z-50 rounded-xl border transition-opacity duration-200"
+}, F = { class: "flex flex-col items-center justify-center h-full" }, z = /* @__PURE__ */ x({
+  __name: "DropEventListener",
+  emits: ["input"],
+  setup(N, { emit: y }) {
+    const c = y, a = h(!1);
+    let i = 0;
+    D(() => {
+      document.addEventListener("dragenter", v), document.addEventListener("dragleave", m), document.addEventListener("dragover", p), document.addEventListener("drop", f);
+    }), E(() => {
+      document.removeEventListener("dragenter", v), document.removeEventListener("dragover", p), document.removeEventListener("dragleave", m), document.removeEventListener("drop", f);
+    });
+    function u(e) {
+      var n;
+      return ((n = e.dataTransfer) == null ? void 0 : n.types.includes("text/html")) ?? !1;
+    }
+    async function f(e) {
+      if (e.preventDefault(), a.value = !1, i = 0, !u(e) && e.dataTransfer) {
+        const n = e.dataTransfer.getData("text").replace(/^blob:/, "");
+        if (n)
+          c("input", n, null, "drop");
+        else if (e.dataTransfer.files.length > 0) {
+          const o = e.dataTransfer.files[0];
+          if (!o) return;
+          const s = new FileReader();
+          s.onload = async (r) => {
+            r.target && typeof r.target.result == "string" && c("input", r.target.result, null, "drop");
+          }, s.readAsText(o);
+        }
+      }
+    }
+    function p(e) {
+      e.preventDefault();
+    }
+    function m(e) {
+      e.preventDefault(), i--, i === 0 && (a.value = !1);
+    }
+    function v(e) {
+      var n, o, s;
+      if (e.preventDefault(), i++, !u(e)) {
+        if (e.dataTransfer) {
+          const r = e.dataTransfer.items;
+          for (let l = 0; l < r.length; l++) {
+            const t = r[l];
+            if ((t == null ? void 0 : t.kind) === "string" || (n = t == null ? void 0 : t.type) != null && n.includes("json") || (o = t == null ? void 0 : t.type) != null && o.includes("yml") || (s = t == null ? void 0 : t.type) != null && s.includes("yaml")) {
+              a.value = !0;
+              return;
+            }
+          }
+        }
+        a.value = !1;
+      }
+    }
+    return (e, n) => (g(), T(_, {
+      enterActiveClass: "transition-opacity duration-200",
+      enterFromClass: "opacity-0",
+      leaveActiveClass: "transition-opacity duration-200",
+      leaveToClass: "opacity-0"
+    }, {
+      default: L(() => [
+        a.value ? (g(), C("div", B, [
+          d("div", F, [
+            d("div", null, [
+              b(k(w), {
+                icon: "Download",
+                size: "xl",
+                thickness: "2"
+              })
+            ]),
+            n[0] || (n[0] = d("div", { class: "text-center text-c-1 m-4" }, " Drop your OpenAPI document here ", -1))
+          ])
+        ])) : A("", !0)
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  z as default
+};

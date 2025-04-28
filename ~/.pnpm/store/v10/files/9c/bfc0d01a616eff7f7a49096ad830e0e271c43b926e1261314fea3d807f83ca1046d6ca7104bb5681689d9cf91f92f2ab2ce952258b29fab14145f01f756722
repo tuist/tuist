@@ -1,0 +1,59 @@
+import { defineComponent as f, useSlots as g, computed as S, openBlock as s, createBlock as i, createSlots as k, withCtx as r, createVNode as C, unref as l, createCommentVNode as p, renderList as y, renderSlot as h, normalizeProps as v, guardReactiveProps as w } from "vue";
+import D from "../ApiReferenceLayout.vue.js";
+import B from "../ClassicHeader.vue.js";
+import { ScalarColorModeToggleIcon as H } from "@scalar/components";
+import M from "../../features/Search/SearchButton.vue.js";
+const P = /* @__PURE__ */ f({
+  __name: "ClassicLayout",
+  props: {
+    configuration: {},
+    parsedSpec: {},
+    rawSpec: {},
+    isDark: { type: Boolean }
+  },
+  emits: ["toggleDarkMode", "updateContent"],
+  setup(d) {
+    const a = d, u = g(), c = S(() => ({ ...a.configuration, showSidebar: !1 }));
+    return (e, o) => (s(), i(D, {
+      configuration: c.value,
+      parsedSpec: e.parsedSpec,
+      rawSpec: e.rawSpec,
+      onUpdateContent: o[1] || (o[1] = (t) => e.$emit("updateContent", t))
+    }, k({
+      "content-start": r(({ spec: t }) => [
+        C(B, null, {
+          "dark-mode-toggle": r(() => [
+            a.configuration.hideDarkModeToggle ? p("", !0) : (s(), i(l(H), {
+              key: 0,
+              class: "text-c-2 hover:text-c-1",
+              mode: e.isDark ? "dark" : "light",
+              style: { transform: "scale(1.4)" },
+              variant: "icon",
+              onClick: o[0] || (o[0] = (n) => e.$emit("toggleDarkMode"))
+            }, null, 8, ["mode"]))
+          ]),
+          default: r(() => [
+            a.configuration.hideSearch ? p("", !0) : (s(), i(l(M), {
+              key: 0,
+              class: "t-doc__sidebar",
+              searchHotKey: c.value.searchHotKey,
+              spec: t
+            }, null, 8, ["searchHotKey", "spec"]))
+          ]),
+          _: 2
+        }, 1024)
+      ]),
+      _: 2
+    }, [
+      y(u, (t, n) => ({
+        name: n,
+        fn: r((m) => [
+          h(e.$slots, n, v(w(m || {})))
+        ])
+      }))
+    ]), 1032, ["configuration", "parsedSpec", "rawSpec"]));
+  }
+});
+export {
+  P as default
+};

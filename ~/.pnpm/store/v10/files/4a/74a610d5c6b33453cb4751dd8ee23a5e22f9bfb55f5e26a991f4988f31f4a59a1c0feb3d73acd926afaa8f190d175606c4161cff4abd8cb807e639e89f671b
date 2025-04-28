@@ -1,0 +1,22 @@
+import { defineComponent as o, openBlock as r, createBlock as n, resolveDynamicComponent as s, normalizeProps as a, guardReactiveProps as l, unref as i, withCtx as p, renderSlot as c } from "vue";
+import { useBindCx as f } from "../../hooks/useBindCx.js";
+const u = {}, C = /* @__PURE__ */ o({
+  ...u,
+  inheritAttrs: !1,
+  __name: "ScalarSidebarItems",
+  props: {
+    is: { default: "ul" }
+  },
+  setup(m) {
+    const { cx: t } = f();
+    return (e, _) => (r(), n(s(e.is), a(l(i(t)("flex flex-col p-3"))), {
+      default: p(() => [
+        c(e.$slots, "default")
+      ]),
+      _: 3
+    }, 16));
+  }
+});
+export {
+  C as default
+};

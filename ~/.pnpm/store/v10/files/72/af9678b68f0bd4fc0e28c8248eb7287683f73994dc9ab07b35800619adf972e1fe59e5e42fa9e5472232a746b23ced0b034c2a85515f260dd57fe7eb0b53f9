@@ -1,0 +1,47 @@
+import { defineComponent as x, useId as f, computed as h, openBlock as r, createElementBlock as i, createElementVNode as e, Fragment as g, renderList as _, normalizeClass as b, createTextVNode as y, toDisplayString as l, withDirectives as S, unref as a, vModelRadio as w, createVNode as k } from "vue";
+import { ScalarIcon as V } from "@scalar/components";
+const q = { class: "hidden lg:flex ml-auto filter-hover context-bar-group lg:w-[120px]" }, B = { class: "request-section-content request-section-content-filter fade-request-section-content text-c-3 hidden xl:flex justify-end rounded text-xs gap-[1.5px] pointer-events-auto relative w-full py-2" }, C = ["name", "value"], F = { class: "flex items-center context-bar-group-hover:text-c-1 absolute -right-[30px] top-1/2 -translate-y-1/2" }, N = { class: "mr-1.5 context-bar-group-hover:hidden" }, D = /* @__PURE__ */ x({
+  __name: "ContextBar",
+  props: {
+    sections: {},
+    activeSection: {}
+  },
+  emits: ["setActiveSection"],
+  setup(c, { emit: d }) {
+    const u = c, p = d, m = f(), t = h({
+      get: () => u.activeSection,
+      set: (s) => p("setActiveSection", s)
+    });
+    return (s, o) => (r(), i("fieldset", q, [
+      o[1] || (o[1] = e("legend", { class: "sr-only" }, "Filter Sections", -1)),
+      e("div", B, [
+        (r(!0), i(g, null, _(s.sections, (n) => (r(), i("label", {
+          key: n,
+          class: b(["filter-hover-item flex items-center hover:bg-b-2 rounded p-1 px-2 cursor-pointer text-center font-medium w-fit whitespace-nowrap has-[:focus-visible]:outline", [t.value === n ? "text-c-1  pointer-events-none" : ""]])
+        }, [
+          y(l(n) + " ", 1),
+          S(e("input", {
+            "onUpdate:modelValue": o[0] || (o[0] = (v) => t.value = v),
+            class: "sr-only",
+            name: a(m),
+            type: "radio",
+            value: n
+          }, null, 8, C), [
+            [w, t.value]
+          ])
+        ], 2))), 128)),
+        e("div", F, [
+          e("span", N, l(t.value), 1),
+          k(a(V), {
+            icon: "FilterList",
+            size: "md",
+            thickness: "2"
+          })
+        ])
+      ])
+    ]));
+  }
+});
+export {
+  D as default
+};

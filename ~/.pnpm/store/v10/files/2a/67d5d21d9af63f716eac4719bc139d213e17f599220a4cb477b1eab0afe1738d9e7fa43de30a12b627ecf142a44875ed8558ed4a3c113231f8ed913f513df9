@@ -1,0 +1,63 @@
+import { defineComponent as d, openBlock as t, createBlock as r, resolveDynamicComponent as p, mergeProps as c, unref as o, withCtx as u, createElementVNode as f, createElementBlock as n, renderSlot as s, createVNode as m, createCommentVNode as l } from "vue";
+import { cva as b } from "../../cva.js";
+import { useBindCx as v } from "../../hooks/useBindCx.js";
+import h from "../ScalarIcon/ScalarIcon.vue.js";
+const y = { class: "flex items-center gap-1 flex-1" }, B = {
+  key: 0,
+  class: "size-3.5"
+}, _ = { key: 0 }, k = {}, N = /* @__PURE__ */ d({
+  ...k,
+  inheritAttrs: !1,
+  __name: "ScalarSidebarButton",
+  props: {
+    is: { default: "a" },
+    icon: {},
+    selected: { type: Boolean },
+    disabled: { type: Boolean },
+    indent: { default: 0 }
+  },
+  setup(C) {
+    const a = b({
+      base: ["rounded p-1.5 font-medium text-c-2 no-underline"],
+      variants: {
+        selected: { true: "cursor-auto bg-b-2 text-c-1" },
+        disabled: { true: "cursor-auto" },
+        indent: {
+          0: "pl-[6px]",
+          1: "pl-[24px]",
+          2: "pl-[42px]",
+          3: "pl-[60px]",
+          4: "pl-[78px]",
+          5: "pl-[96px]",
+          6: "pl-[114px]"
+        }
+      },
+      compoundVariants: [
+        { selected: !1, disabled: !1, class: "hover:bg-b-2" }
+      ],
+      defaultVariants: { selected: !1, disabled: !1, indent: 0 }
+    }), { cx: i } = v();
+    return (e, V) => (t(), r(p(e.is), c({
+      "aria-level": e.indent,
+      type: e.is === "button" ? "button" : void 0
+    }, o(i)(o(a)({ selected: e.selected, disabled: e.disabled, indent: e.indent }))), {
+      default: u(() => [
+        f("div", y, [
+          e.icon || e.$slots.icon ? (t(), n("div", B, [
+            s(e.$slots, "icon", {}, () => [
+              m(o(h), { icon: e.icon }, null, 8, ["icon"])
+            ])
+          ])) : l("", !0),
+          s(e.$slots, "default")
+        ]),
+        e.$slots.aside ? (t(), n("div", _, [
+          s(e.$slots, "aside")
+        ])) : l("", !0)
+      ]),
+      _: 3
+    }, 16, ["aria-level", "type"]));
+  }
+});
+export {
+  N as default
+};

@@ -1,0 +1,33 @@
+/** Hook for creating a reactive modal state */
+export declare function useModal(): {
+    open: boolean;
+    show: () => void;
+    hide: () => void;
+};
+declare const _default: __VLS_WithTemplateSlots<import("vue").DefineComponent<{
+    state: ReturnType<typeof useModal>;
+    title?: string;
+    bodyClass?: string;
+    maxWidth?: string;
+    size?: "sm" | "lg" | "xs" | "md" | "xl" | "full" | "xxs" | undefined;
+    variant?: "form" | "search" | "error" | "history" | undefined;
+}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {}, string, import("vue").PublicProps, Readonly<{
+    state: ReturnType<typeof useModal>;
+    title?: string;
+    bodyClass?: string;
+    maxWidth?: string;
+    size?: "sm" | "lg" | "xs" | "md" | "xl" | "full" | "xxs" | undefined;
+    variant?: "form" | "search" | "error" | "history" | undefined;
+}> & Readonly<{}>, {
+    size: "sm" | "lg" | "xs" | "md" | "xl" | "full" | "xxs";
+}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>, {
+    default?(_: {}): any;
+    default?(_: {}): any;
+}>;
+export default _default;
+type __VLS_WithTemplateSlots<T, S> = T & {
+    new (): {
+        $slots: S;
+    };
+};
+//# sourceMappingURL=ScalarModal.vue.d.ts.map

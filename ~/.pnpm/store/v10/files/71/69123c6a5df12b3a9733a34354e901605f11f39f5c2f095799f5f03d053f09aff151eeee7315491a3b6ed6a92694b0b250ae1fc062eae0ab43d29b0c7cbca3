@@ -1,0 +1,215 @@
+import { defineComponent as H, ref as W, computed as a, watch as _, onMounted as K, onUnmounted as G, openBlock as l, createBlock as J, unref as i, withCtx as Q, createElementBlock as d, createCommentVNode as f, createElementVNode as e, normalizeClass as X, Fragment as b, createVNode as m, toDisplayString as Y, createTextVNode as M } from "vue";
+import { useModal as Z, ScalarModal as ee, ScalarIcon as te } from "@scalar/components";
+import { isLocalUrl as oe } from "@scalar/oas-utils/helpers";
+import { normalize as se } from "@scalar/openapi-parser";
+import { getThemeStyles as ne, themeIds as re } from "@scalar/themes";
+import { useColorMode as ie } from "@scalar/use-hooks/useColorMode";
+import { useRouter as le } from "vue-router";
+import ce from "../CommandPalette/WatchModeToggle.vue.js";
+import { useUrlPrefetcher as ae } from "./hooks/useUrlPrefetcher.js";
+import de from "./ImportNowButton.vue.js";
+import me from "./IntegrationLogo.vue.js";
+import ue from "./PrefetchError.vue.js";
+import { getOpenApiDocumentVersion as T } from "./utils/getOpenApiDocumentVersion.js";
+import { isDocument as U } from "./utils/isDocument.js";
+import { isUrl as A } from "./utils/isUrl.js";
+import fe from "./WorkspaceSelector.vue.js";
+import { useActiveEntities as pe } from "../../store/active-entities.js";
+import { useWorkspace as ve } from "../../store/store.js";
+const he = ["innerHTML"], xe = { class: "relative flex h-screen flex-col justify-center overflow-hidden px-6 md:px-0" }, ye = {
+  key: 0,
+  class: "mb-2 flex items-center justify-center p-1"
+}, ge = { class: "size-10 rounded-xl" }, _e = ["src"], be = {
+  key: 2,
+  class: "text-md mb-2 line-clamp-1 text-center font-bold"
+}, we = { class: "z-10 inline-flex w-full flex-col items-center gap-2" }, ke = { class: "flex justify-center" }, Ie = { class: "text-c-3 inline-flex items-center px-4 py-1 text-xs font-medium" }, Le = {
+  key: 0,
+  class: "border-t-1/2 mt-5 overflow-hidden pt-4 text-sm"
+}, Me = { class: "flex items-center justify-center" }, Te = { class: "flex flex-col items-center justify-center pb-8" }, Ue = { class: "flex flex-col items-center text-center" }, Ae = { class: "mb-2 flex h-10 w-10 items-center justify-center rounded-[10px] border" }, Ce = {
+  href: "https://scalar.com/download",
+  target: "_blank"
+}, Je = /* @__PURE__ */ H({
+  __name: "ImportCollectionModal",
+  props: {
+    source: {},
+    integration: {},
+    eventType: {}
+  },
+  emits: ["importFinished"],
+  setup(C, { emit: P }) {
+    const s = C, D = P, { activeWorkspace: p } = pe(), { workspaceMutators: V, events: j } = ve(), { prefetchResult: n, prefetchUrl: w, resetPrefetchResult: S } = ae(), r = Z(), h = W(!0);
+    j.hotKeys.on(() => r.hide());
+    const z = a(() => {
+      try {
+        return se(
+          n.content || s.source || ""
+        );
+      } catch {
+        return;
+      }
+    }), N = a(() => {
+      var o, t;
+      return (t = (o = z.value) == null ? void 0 : o.info) == null ? void 0 : t.title;
+    }), k = a(
+      () => T(n.content || s.source || "")
+    ), { darkLightMode: O } = ie(), { currentRoute: $ } = le(), x = a(() => {
+      try {
+        const o = $.value.query, t = O.value === "dark" ? o.dark_logo : o.light_logo;
+        if (t) return decodeURIComponent(t);
+      } catch {
+      }
+      return null;
+    });
+    _(
+      () => s.source,
+      async (o) => {
+        var t, c;
+        if (S(), A(o)) {
+          if (s.eventType && ["paste", "drop"].includes(s.eventType)) {
+            const { error: v } = await w(
+              o,
+              (t = p.value) == null ? void 0 : t.proxyUrl
+            );
+            v ? r.hide() : r.show();
+            return;
+          }
+          w(o, (c = p.value) == null ? void 0 : c.proxyUrl), r.show();
+          return;
+        }
+        o && U(o) && T(o) ? r.show() : r.hide();
+      }
+    );
+    const E = a(() => !!s.source && A(s.source)), F = a(() => !!s.source && U(s.source)), y = a(() => n.url && oe(n.url)), g = (o) => {
+      document.body.classList.remove("has-no-import-url"), (E.value || F.value) && r.open ? document.body.classList.add("has-import-url") : document.body.classList.remove("has-import-url");
+    }, R = () => {
+      document.body.classList.remove("has-import-url"), document.body.classList.add("has-no-import-url");
+    };
+    _(
+      () => r.open,
+      (o) => {
+        o ? g() : R();
+      }
+    ), _(
+      () => s.source,
+      () => {
+        g();
+      }
+    ), K(() => {
+      g();
+    }), G(() => {
+      document.body.classList.remove("has-import-url"), document.body.classList.remove("has-no-import-url");
+    });
+    const I = a(
+      () => p.value && y.value && s.integration && `<style>${ne(s.integration)}</style>`
+    );
+    function q() {
+      var c;
+      const o = (u) => re.includes(u), t = s.integration && o(s.integration) ? s.integration : "default";
+      y.value && V.edit(
+        (c = p.value) == null ? void 0 : c.uid,
+        "themeId",
+        t
+      ), D("importFinished");
+    }
+    return (o, t) => (l(), J(i(ee), {
+      size: "full",
+      state: i(r)
+    }, {
+      default: Q(() => {
+        var c, u, v, L;
+        return [
+          I.value ? (l(), d("div", {
+            key: 0,
+            innerHTML: I.value
+          }, null, 8, he)) : f("", !0),
+          e("div", xe, [
+            t[6] || (t[6] = e("div", { class: "section-flare" }, [
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" }),
+              e("div", { class: "section-flare-item" })
+            ], -1)),
+            e("div", {
+              class: X(["border-1/2 m-auto flex w-full max-w-[380px] flex-col items-center rounded-xl px-8 py-8 transition-opacity", { "opacity-0": i(n).state === "loading" }])
+            }, [
+              i(n).error && i(n).state === "idle" && !k.value ? (l(), d(b, { key: 0 }, [
+                t[1] || (t[1] = e("div", { class: "text-md mb-2 line-clamp-1 text-center font-bold" }, " No OpenAPI document found ", -1)),
+                m(ue, {
+                  url: ((c = i(n)) == null ? void 0 : c.input) || s.source
+                }, null, 8, ["url"])
+              ], 64)) : (l(), d(b, { key: 1 }, [
+                y.value ? (l(), d("div", ye, [
+                  e("div", ge, [
+                    m(me, { integration: o.integration }, null, 8, ["integration"])
+                  ])
+                ])) : x.value ? (l(), d("img", {
+                  key: 1,
+                  alt: "Logo",
+                  class: "mb-2 w-full object-contain",
+                  src: x.value
+                }, null, 8, _e)) : f("", !0),
+                x.value ? f("", !0) : (l(), d("div", be, Y(N.value || "Untitled Collection"), 1)),
+                t[4] || (t[4] = e("div", { class: "text-c-1 text-balance text-center text-sm font-medium" }, " Import the OpenAPI document to instantly send API requests. No signup required. ", -1)),
+                k.value ? (l(), d(b, { key: 3 }, [
+                  e("div", we, [
+                    m(de, {
+                      source: ((u = i(n)) == null ? void 0 : u.url) ?? ((v = i(n)) == null ? void 0 : v.content) ?? o.source,
+                      variant: "button",
+                      watchMode: h.value,
+                      onImportFinished: q
+                    }, null, 8, ["source", "watchMode"])
+                  ]),
+                  e("div", ke, [
+                    e("div", Ie, [
+                      t[2] || (t[2] = M(" Import to: ")),
+                      m(fe)
+                    ])
+                  ]),
+                  (L = i(n)) != null && L.url ? (l(), d("div", Le, [
+                    e("div", Me, [
+                      m(ce, {
+                        modelValue: h.value,
+                        "onUpdate:modelValue": t[0] || (t[0] = (B) => h.value = B),
+                        disableToolTip: !0
+                      }, null, 8, ["modelValue"])
+                    ]),
+                    t[3] || (t[3] = e("div", { class: "text-c-3 text-balance pt-0 text-center text-xs font-medium" }, " Automatically update your API client when the OpenAPI document content changes. ", -1))
+                  ])) : f("", !0)
+                ], 64)) : f("", !0)
+              ], 64))
+            ], 2),
+            e("div", Te, [
+              e("div", Ue, [
+                e("div", Ae, [
+                  e("a", Ce, [
+                    m(i(te), {
+                      icon: "Logo",
+                      size: "xl"
+                    })
+                  ])
+                ]),
+                t[5] || (t[5] = e("span", { class: "text-c-2 text-sm font-medium leading-snug" }, [
+                  e("a", {
+                    class: "hover:text-c-1 mb-1 inline-block underline-offset-2",
+                    href: "https://scalar.com/download",
+                    target: "_blank"
+                  }, " Download Desktop App "),
+                  e("br"),
+                  M(" free · open-source · offline first ")
+                ], -1))
+              ])
+            ])
+          ])
+        ];
+      }),
+      _: 1
+    }, 8, ["state"]));
+  }
+});
+export {
+  Je as default
+};

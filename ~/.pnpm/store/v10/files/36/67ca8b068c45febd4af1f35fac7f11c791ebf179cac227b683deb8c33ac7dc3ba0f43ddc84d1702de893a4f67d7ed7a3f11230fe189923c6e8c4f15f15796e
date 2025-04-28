@@ -1,0 +1,52 @@
+import { defineComponent as u, useCssVars as p, computed as s, openBlock as m, createBlock as f, resolveDynamicComponent as z, normalizeProps as d, guardReactiveProps as g, unref as i } from "vue";
+import { cva as v } from "../../cva.js";
+import { useBindCx as x } from "../../hooks/useBindCx.js";
+import { getIcon as _, getLogo as b } from "./utils/index.js";
+const y = /* @__PURE__ */ u({
+  inheritAttrs: !1,
+  __name: "ScalarIcon",
+  props: {
+    icon: {},
+    logo: {},
+    size: {},
+    thickness: {},
+    label: {}
+  },
+  setup(r) {
+    p((o) => ({
+      ce5c5c8a: a.value
+    }));
+    const e = r, { cx: t } = x(), n = v({
+      variants: {
+        size: {
+          xs: "size-3",
+          sm: "size-3.5",
+          md: "size-4",
+          lg: "size-5",
+          xl: "size-6",
+          "2xl": "size-8",
+          "3xl": "size-10",
+          full: "size-full"
+        }
+      },
+      defaultVariants: {
+        size: "full"
+      }
+    }), a = s(() => e.thickness ?? "2"), l = s(
+      () => e.label ? { ariaLabel: e.label } : {
+        ariaHidden: !0,
+        role: "presentation"
+      }
+    ), c = s(() => {
+      if (e.icon) return _(e.icon);
+      if (e.logo) return b(e.logo);
+    });
+    return (o, k) => (m(), f(z(c.value), d(g({
+      ...i(t)("scalar-icon", i(n)({ size: o.size })),
+      ...l.value
+    })), null, 16));
+  }
+});
+export {
+  y as default
+};

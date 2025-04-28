@@ -1,0 +1,53 @@
+import { createHash as y, fetchSpecFromUrl as S } from "@scalar/oas-utils/helpers";
+import { importSpecToWorkspace as F } from "@scalar/oas-utils/transforms";
+import { toRaw as R } from "vue";
+import { normalizeError as g } from "../libs/errors.js";
+const w = {};
+function T({
+  requestMutators: s,
+  collectionMutators: l,
+  serverMutators: m,
+  tagMutators: p,
+  securitySchemeMutators: d,
+  requestExampleMutators: f,
+  workspaceMutators: u,
+  workspaces: h
+}) {
+  const n = async (t, a, e = {}) => {
+    var i;
+    const c = R(t), r = await F(c, e);
+    if (r.error) {
+      console.group("IMPORT ERRORS"), r.importWarnings.forEach((o) => console.warn(o)), console.groupEnd();
+      return;
+    }
+    return e.documentUrl && typeof c == "string" && (w[e.documentUrl] = {
+      hash: y(c),
+      schema: r.schema
+    }), r.examples.forEach((o) => f.add(o)), r.requests.forEach((o) => s.add(o)), r.tags.forEach((o) => p.add(o)), r.servers.forEach((o) => m.add(o)), r.securitySchemes.forEach((o) => d.add(o)), l.add(r.collection), u.edit(a, "collections", [
+      ...((i = h[a]) == null ? void 0 : i.collections) ?? [],
+      r.collection.uid
+    ]), r;
+  };
+  async function E(t, a, { proxyUrl: e, ...c } = {}) {
+    try {
+      const r = await S(t, e);
+      return [
+        null,
+        await n(r, a, {
+          documentUrl: t,
+          ...c
+        })
+      ];
+    } catch (r) {
+      return console.error("Failed to fetch spec from URL:", r), [g(r), null];
+    }
+  }
+  return {
+    importSpecFile: n,
+    importSpecFromUrl: E
+  };
+}
+export {
+  T as importSpecFileFactory,
+  w as specDictionary
+};

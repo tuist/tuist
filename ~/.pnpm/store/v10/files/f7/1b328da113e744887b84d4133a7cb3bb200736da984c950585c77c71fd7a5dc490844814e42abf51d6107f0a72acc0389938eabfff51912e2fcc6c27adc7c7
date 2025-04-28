@@ -1,0 +1,95 @@
+/**
+ * The Command Palette
+ *
+ * This component is a singleton so should only exist in our app once we will use the event bus to trigger it
+ */
+declare const _default: import("vue").DefineComponent<{}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {}, string, import("vue").PublicProps, Readonly<{}> & Readonly<{}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, any>;
+export default _default;
+export declare const PaletteComponents: {
+    readonly 'Import from OpenAPI/Swagger/Postman': import("vue").DefineComponent<{}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{}> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, HTMLFormElement>;
+    readonly 'Create Request': import("vue").DefineComponent<{
+        metaData?: {
+            itemUid: string;
+            parentUid: string;
+        };
+    }, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{
+        metaData?: {
+            itemUid: string;
+            parentUid: string;
+        };
+    }> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLFormElement>;
+    readonly 'Create Workspace': import("vue").DefineComponent<{}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{}> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, HTMLFormElement>;
+    readonly 'Add Tag': import("vue").DefineComponent<{}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{}> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, HTMLFormElement>;
+    readonly 'Add Server': import("vue").DefineComponent<{
+        metaData?: {
+            itemUid?: string;
+            parentUid?: string;
+        };
+    }, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{
+        metaData?: {
+            itemUid?: string;
+            parentUid?: string;
+        };
+    }> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLFormElement>;
+    readonly 'Create Collection': import("vue").DefineComponent<{}, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{}> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, HTMLFormElement>;
+    readonly 'Add Example': import("vue").DefineComponent<{
+        metaData?: {
+            itemUid: string;
+        };
+    }, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+        close: () => any;
+        back: (e: KeyboardEvent) => any;
+    }, string, import("vue").PublicProps, Readonly<{
+        metaData?: {
+            itemUid: string;
+        };
+    }> & Readonly<{
+        onClose?: () => any;
+        onBack?: (e: KeyboardEvent) => any;
+    }>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+};
+/** Infer the types from the commands  */
+export type CommandNames = keyof typeof PaletteComponents;
+export type CommandPaletteEvent = {
+    /** The command name which matches with the command palette */
+    commandName?: CommandNames;
+    /** Any extra metadata we want to pass to the command palettes */
+    metaData?: Record<string, any>;
+};
+//# sourceMappingURL=TheCommandPalette.vue.d.ts.map

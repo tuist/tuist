@@ -1,0 +1,43 @@
+import type { Target, TargetId } from '@scalar/snippetz/types';
+import type { HiddenClients } from '@scalar/types/legacy';
+import { type Ref } from 'vue';
+/**
+ * Gets the client title from the availableTargets
+ * { targetKey: 'shell', clientKey: 'curl' } -> 'Shell'
+ */
+declare function getTargetTitle(client: HttpClientState): string;
+/**
+ * Gets the client title from the availableTargets
+ * { targetKey: 'shell', clientKey: 'curl' } -> 'cURL'
+ */
+declare function getClientTitle(client: HttpClientState): string;
+/**
+ * Filters out hidden clients from the available targets (based on the given configuration).
+ */
+export declare function filterHiddenClients(targets: Target[], exclude: Ref<HiddenClients>): Target[];
+/** The selected HTTP client */
+export type HttpClientState = {
+    targetKey: TargetId;
+    clientKey: string;
+};
+declare function setDefaultHttpClient(httpClient?: HttpClientState): void;
+declare function resetState(): void;
+/** Keep track of the available and the selected HTTP client(s) */
+export declare const useHttpClientStore: () => {
+    httpClient: {
+        readonly targetKey: TargetId;
+        readonly clientKey: string;
+    };
+    resetState: typeof resetState;
+    setHttpClient: (newState: Partial<HttpClientState>) => void;
+    setDefaultHttpClient: typeof setDefaultHttpClient;
+    excludedClients: Ref<HiddenClients>;
+    setExcludedClients: (v: HiddenClients) => void;
+    availableTargets: import("vue").ComputedRef<Target[]>;
+    getClientTitle: typeof getClientTitle;
+    getTargetTitle: typeof getTargetTitle;
+    httpTargetTitle: import("vue").ComputedRef<string>;
+    httpClientTitle: import("vue").ComputedRef<string>;
+};
+export {};
+//# sourceMappingURL=useHttpClientStore.d.ts.map

@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * objc/nsurlsession
+ */
+export declare const objcNsurlsession: Plugin;
+//# sourceMappingURL=nsurlsession.d.ts.map

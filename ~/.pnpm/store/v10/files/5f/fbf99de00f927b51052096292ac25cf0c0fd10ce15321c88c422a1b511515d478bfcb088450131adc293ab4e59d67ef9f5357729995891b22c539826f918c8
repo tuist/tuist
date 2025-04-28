@@ -1,0 +1,60 @@
+import { defineComponent as d, ref as m, watch as p, nextTick as u, openBlock as a, createElementBlock as f, createElementVNode as v, normalizeClass as h, createVNode as i, unref as b, withCtx as n, renderSlot as r, createBlock as C, createCommentVNode as k } from "vue";
+import { ScalarIcon as g } from "@scalar/components";
+import S from "../Anchor/Anchor.vue.js";
+import _ from "./Section.vue.js";
+import { useNavState as w } from "../../hooks/useNavState.js";
+import { scrollToId as N } from "../../helpers/scrollToId.js";
+const B = ["aria-expanded"], V = ["id"], A = /* @__PURE__ */ d({
+  __name: "CompactSection",
+  props: {
+    id: {},
+    label: {}
+  },
+  setup(s) {
+    const t = s, { hash: c } = w(), e = m(!1);
+    return p(
+      c,
+      async (o) => {
+        o === t.id && !e.value && (e.value = !0, await u(), N(t.id));
+      },
+      { immediate: !0 }
+    ), (o, l) => (a(), f("div", {
+      "aria-expanded": e.value,
+      class: "collapsible-section"
+    }, [
+      v("div", {
+        id: o.id,
+        class: h(["collapsible-section-trigger", { "collapsible-section-trigger-open": e.value }]),
+        onClick: l[0] || (l[0] = ($) => e.value = !e.value)
+      }, [
+        i(b(g), {
+          icon: e.value ? "ChevronDown" : "ChevronRight",
+          size: "md",
+          thickness: "1.5"
+        }, null, 8, ["icon"]),
+        i(S, {
+          id: o.id,
+          class: "collapsible-section-header"
+        }, {
+          default: n(() => [
+            r(o.$slots, "heading", {}, void 0, !0)
+          ]),
+          _: 3
+        }, 8, ["id"])
+      ], 10, V),
+      e.value ? (a(), C(_, {
+        key: 0,
+        class: "collapsible-section-content",
+        label: o.label
+      }, {
+        default: n(() => [
+          r(o.$slots, "default", {}, void 0, !0)
+        ]),
+        _: 3
+      }, 8, ["label"])) : k("", !0)
+    ], 8, B));
+  }
+});
+export {
+  A as default
+};

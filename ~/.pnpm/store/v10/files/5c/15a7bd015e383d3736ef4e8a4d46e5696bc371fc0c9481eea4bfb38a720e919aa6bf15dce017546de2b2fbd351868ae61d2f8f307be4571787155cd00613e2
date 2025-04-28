@@ -1,0 +1,24 @@
+import { watch as t } from "vue";
+const o = "https://api.scalar.com/request-proxy", r = "https://proxy.scalar.com";
+function p(e) {
+  t(
+    () => e,
+    () => {
+      e.proxy && console.warn(
+        "[DEPRECATED] You’re using the deprecated 'proxy' attribute, rename it to 'proxyUrl' or update the package."
+      ), (e.proxyUrl || e.proxy) === o && (console.warn(
+        `[DEPRECATED] Warning: configuration.proxyUrl points to our old proxy (${o}).`
+      ), console.warn(
+        `[DEPRECATED] We are overwriting the value and use the new proxy URL (${r}) instead.`
+      ), delete e.proxy, e.proxyUrl = r, console.warn(
+        `[DEPRECATED] Action Required: You should manually update your configuration to use the new URL (${r}). Read more: https://github.com/scalar/scalar`
+      ));
+    },
+    {
+      immediate: !0
+    }
+  );
+}
+export {
+  p as useDeprecationWarnings
+};

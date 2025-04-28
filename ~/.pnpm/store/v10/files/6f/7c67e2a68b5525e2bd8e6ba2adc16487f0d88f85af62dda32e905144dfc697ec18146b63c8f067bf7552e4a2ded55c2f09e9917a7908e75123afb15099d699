@@ -1,0 +1,140 @@
+import { defineComponent as f, openBlock as p, createBlock as d, unref as s, withCtx as l, createVNode as t, createElementVNode as a, normalizeClass as k, toDisplayString as u, createCommentVNode as g, createTextVNode as r } from "vue";
+import c from "../ScalarHotkey.vue.js";
+import { ScalarContextMenu as b, ScalarTooltip as v, ScalarIcon as n, ScalarFloating as C, ScalarDropdownMenu as y, ScalarDropdownButton as m, ScalarDropdownDivider as T } from "@scalar/components";
+const $ = { class: "nav-item-icon-copy flex flex-1 items-center justify-center gap-1.5" }, w = { class: "custom-scroll nav-item-copy text-xs" }, B = /* @__PURE__ */ f({
+  __name: "TopNavItem",
+  props: {
+    hotkey: {},
+    active: { type: Boolean },
+    label: {},
+    icon: {}
+  },
+  emits: ["click", "close", "newTab", "copyUrl", "closeOtherTabs"],
+  setup(S) {
+    return (o, e) => (p(), d(s(b), { triggerClass: "overflow-hidden w-full" }, {
+      trigger: l(() => [
+        t(s(v), {
+          class: "scalar-client",
+          delay: 500,
+          disableClosingTrigger: !0,
+          resize: "",
+          sideOffset: 4
+        }, {
+          trigger: l(() => [
+            a("div", {
+              class: k(["nav-item app-no-drag-region", { "nav-item__active": o.active }]),
+              onClick: e[1] || (e[1] = (i) => o.$emit("click"))
+            }, [
+              a("div", $, [
+                t(s(n), {
+                  icon: o.icon,
+                  size: "xs",
+                  thickness: "2.5"
+                }, null, 8, ["icon"]),
+                a("span", w, u(o.label), 1)
+              ]),
+              a("button", {
+                class: "nav-item-close",
+                type: "button",
+                onClick: e[0] || (e[0] = (i) => o.$emit("close"))
+              }, [
+                t(s(n), {
+                  icon: "Close",
+                  thickness: "1.75"
+                })
+              ])
+            ], 2)
+          ]),
+          content: l(() => [
+            o.hotkey ? (p(), d(c, {
+              key: 0,
+              hotkey: o.hotkey
+            }, null, 8, ["hotkey"])) : g("", !0)
+          ]),
+          _: 1
+        })
+      ]),
+      content: l(() => [
+        t(s(C), { placement: "right-start" }, {
+          floating: l(() => [
+            t(s(y), { class: "scalar-app scalar-client" }, {
+              default: l(() => [
+                t(s(m), {
+                  class: "flex items-center gap-1.5",
+                  onClick: e[2] || (e[2] = (i) => o.$emit("newTab"))
+                }, {
+                  default: l(() => [
+                    t(s(n), {
+                      icon: "AddTab",
+                      size: "sm",
+                      thickness: "1.5"
+                    }),
+                    e[6] || (e[6] = r(" New Tab ")),
+                    t(c, {
+                      class: "bg-b-2 ml-auto",
+                      hotkey: "T"
+                    })
+                  ]),
+                  _: 1
+                }),
+                t(s(m), {
+                  class: "flex items-center gap-1.5",
+                  onClick: e[3] || (e[3] = (i) => o.$emit("copyUrl"))
+                }, {
+                  default: l(() => [
+                    t(s(n), {
+                      icon: "Link",
+                      size: "sm",
+                      thickness: "1.5"
+                    }),
+                    e[7] || (e[7] = r(" Copy URL "))
+                  ]),
+                  _: 1
+                }),
+                t(s(T)),
+                t(s(m), {
+                  class: "flex items-center gap-1.5",
+                  onClick: e[4] || (e[4] = (i) => o.$emit("close"))
+                }, {
+                  default: l(() => [
+                    t(s(n), {
+                      icon: "CloseTab",
+                      size: "sm",
+                      thickness: "1.5"
+                    }),
+                    e[8] || (e[8] = r(" Close Tab ")),
+                    t(c, {
+                      class: "bg-b-2 ml-auto",
+                      hotkey: "W"
+                    })
+                  ]),
+                  _: 1
+                }),
+                t(s(m), {
+                  class: "flex items-center gap-1.5",
+                  onClick: e[5] || (e[5] = (i) => o.$emit("closeOtherTabs"))
+                }, {
+                  default: l(() => [
+                    t(s(n), {
+                      icon: "CloseTabs",
+                      size: "sm",
+                      thickness: "1.5"
+                    }),
+                    e[9] || (e[9] = r(" Close Other Tabs "))
+                  ]),
+                  _: 1
+                })
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  B as default
+};

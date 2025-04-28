@@ -1,0 +1,1 @@
+import{ref as a}from"vue";import{useWindowEvent as t}from'./use-window-event.js';var d=(r=>(r[r.Forwards=0]="Forwards",r[r.Backwards=1]="Backwards",r))(d||{});function n(){let o=a(0);return t("keydown",e=>{e.key==="Tab"&&(o.value=e.shiftKey?1:0)}),o}export{d as Direction,n as useTabDirection};

@@ -1,0 +1,80 @@
+import { defineComponent as C, useId as O, computed as b, openBlock as n, createElementBlock as d, normalizeClass as V, createElementVNode as c, mergeProps as M, unref as a, createVNode as p, toDisplayString as E, withModifiers as I, createCommentVNode as f } from "vue";
+import { ScalarListboxCheckbox as N, ScalarMarkdown as q } from "@scalar/components";
+import B from "./ServerVariablesForm.vue.js";
+import { useWorkspace as D } from "../../store/store.js";
+const P = ["aria-expanded"], j = { class: "overflow-hidden text-ellipsis whitespace-nowrap" }, z = ["id"], L = { key: 0 }, U = { class: "description text-c-3 px-3 py-1.5" }, G = /* @__PURE__ */ C({
+  __name: "ServerDropdownItem",
+  props: {
+    collection: {},
+    operation: {},
+    server: {},
+    serverOption: {},
+    type: {},
+    layout: {}
+  },
+  emits: ["update:variable"],
+  setup(y, { emit: h }) {
+    const t = y, S = h, u = O(), { collectionMutators: g, requestMutators: v, servers: k } = D(), x = (e, r) => {
+      var o, i;
+      m(e) && t.layout !== "reference" && (r == null || r.stopPropagation()), t.type === "collection" && t.collection ? ((i = (o = t.operation) == null ? void 0 : o.servers) != null && i.length && v.edit(t.operation.uid, "selectedServerUid", null), g.edit(
+        t.collection.uid,
+        "selectedServerUid",
+        e
+      )) : t.type === "request" && t.operation && v.edit(t.operation.uid, "selectedServerUid", e);
+    }, s = b(
+      () => {
+        var e;
+        return ((e = t.server) == null ? void 0 : e.uid) === t.serverOption.id;
+      }
+    ), m = (e) => {
+      if (!e) return !1;
+      const r = k[e];
+      return Object.keys((r == null ? void 0 : r.variables) ?? {}).length > 0;
+    }, l = b(
+      () => {
+        var e;
+        return s.value && m(((e = t.server) == null ? void 0 : e.uid) ?? "");
+      }
+    ), _ = (e, r) => {
+      S("update:variable", e, r);
+    };
+    return (e, r) => {
+      var o, i;
+      return n(), d("div", {
+        class: V(["group/item flex min-h-fit flex-col rounded border", { "border-transparent": !s.value }])
+      }, [
+        c("button", M(l.value ? { "aria-controls": a(u) } : {}, {
+          "aria-expanded": l.value,
+          class: ["flex min-h-8 cursor-pointer items-center gap-1.5 rounded px-1.5", s.value ? "text-c-1 bg-b-2" : "hover:bg-b-2"],
+          type: "button",
+          onClick: r[0] || (r[0] = (w) => x(e.serverOption.id, w))
+        }), [
+          p(a(N), { selected: s.value }, null, 8, ["selected"]),
+          c("span", j, E(e.serverOption.label), 1)
+        ], 16, P),
+        l.value && t.layout !== "reference" ? (n(), d("div", {
+          key: 0,
+          id: a(u),
+          class: "bg-b-2 divide divide-y rounded-b border-t *:pl-4",
+          onClick: r[1] || (r[1] = I(() => {
+          }, ["stop"]))
+        }, [
+          p(B, {
+            variables: (o = e.server) == null ? void 0 : o.variables,
+            "onUpdate:variable": _
+          }, null, 8, ["variables"]),
+          (i = e.server) != null && i.description ? (n(), d("div", L, [
+            c("div", U, [
+              p(a(q), {
+                value: e.server.description
+              }, null, 8, ["value"])
+            ])
+          ])) : f("", !0)
+        ], 8, z)) : f("", !0)
+      ], 2);
+    };
+  }
+});
+export {
+  G as default
+};

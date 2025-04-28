@@ -1,0 +1,49 @@
+import { cookieSchema as E } from "@scalar/oas-utils/entities/cookie";
+import { environmentSchema as k } from "@scalar/oas-utils/entities/environment";
+import { collectionSchema as q, requestExampleSchema as v, requestSchema as g, serverSchema as x, securitySchemeSchema as y, tagSchema as R } from "@scalar/oas-utils/entities/spec";
+import { workspaceSchema as _ } from "@scalar/oas-utils/entities/workspace";
+import { schemaModel as I } from "@scalar/oas-utils/helpers";
+import { migrator as D, DATA_VERSION_LS_LEY as L, DATA_VERSION as N } from "@scalar/oas-utils/migrations";
+const e = (o, t, s) => o.forEach((a) => {
+  const r = I(a, t, !1);
+  r && s(r);
+}), z = (o) => {
+  const {
+    collectionMutators: t,
+    cookieMutators: s,
+    environmentMutators: a,
+    tagMutators: r,
+    requestExampleMutators: m,
+    requestMutators: d,
+    serverMutators: u,
+    securitySchemeMutators: i,
+    workspaceMutators: l
+  } = o;
+  try {
+    const {
+      collections: c,
+      cookies: n,
+      environments: S,
+      requestExamples: h,
+      requests: p,
+      servers: A,
+      securitySchemes: w,
+      tags: M,
+      workspaces: f
+    } = D();
+    e(c, q, t.rawAdd), e(n, E, s.add), e(S, k, a.add), e(
+      h,
+      v,
+      m.rawAdd
+    ), e(p, g, d.rawAdd), e(A, x, u.rawAdd), e(
+      w,
+      y,
+      i.rawAdd
+    ), e(M, R, r.rawAdd), e(f, _, l.rawAdd), localStorage.setItem(L, N);
+  } catch (c) {
+    console.error(c);
+  }
+};
+export {
+  z as loadAllResources
+};

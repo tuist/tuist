@@ -1,0 +1,42 @@
+{
+	"name": "microdiff",
+	"version": "1.5.0",
+	"description": "Small, fast, zero dependency deep object and array comparison",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"exports": {
+		"import": "./dist/index.js",
+		"require": "./dist/index.cjs"
+	},
+	"scripts": {
+		"build": "tsc --module CommonJS && mv \"dist/index.js\" \"dist/index.cjs\" && mv \"dist/index.d.ts\" \"dist/index.d.cts\" && tsc --module es2020 && prettier -w dist/*",
+		"test": "npm run build && node --test ./tests/*",
+		"bench": "npm run build && node --expose-gc bench.js",
+		"prepublish": "npm run build"
+	},
+	"keywords": [
+		"diff",
+		"comparison"
+	],
+	"author": "AsyncBanana",
+	"license": "MIT",
+	"files": [
+		"dist"
+	],
+	"devDependencies": {
+		"deep-diff": "^1.0.2",
+		"deep-object-diff": "^1.1.9",
+		"diff": "^7.0.0",
+		"mitata": "^1.0.19",
+		"picocolors": "^1.1.1",
+		"prettier": "^3.4.1",
+		"typescript": "^5.7.2"
+	},
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/AsyncBanana/microdiff"
+	},
+	"homepage": "https://github.com/AsyncBanana/microdiff#readme",
+	"bugs": "https://github.com/AsyncBanana/microdiff/issues"
+}

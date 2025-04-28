@@ -1,0 +1,153 @@
+import { defineComponent as S, useId as V, ref as i, watch as z, openBlock as b, createElementBlock as I, unref as a, createElementVNode as o, normalizeClass as L, normalizeStyle as U, createVNode as d, createBlock as M, createCommentVNode as A, withCtx as H } from "vue";
+import { ScalarButton as N, ScalarIcon as T } from "@scalar/components";
+import { REQUEST_METHODS as $ } from "@scalar/oas-utils/helpers";
+import O from "../CodeInput/CodeInput.vue.js";
+import P from "../HttpMethod/HttpMethod.vue.js";
+import D from "./AddressBarHistory.vue.js";
+import K from "../Server/ServerDropdown.vue.js";
+import { useWorkspace as Q } from "../../store/store.js";
+import { useLayout as W } from "../../hooks/useLayout.js";
+const j = ["id"], F = { class: "m-auto flex flex-row items-center" }, G = { class: "addressbar-bg-states text-xxs p-0.75 group relative order-last flex w-full max-w-[calc(100dvw-24px)] flex-1 flex-row items-stretch rounded-lg lg:order-none lg:min-w-[580px] lg:max-w-[580px] xl:min-w-[720px] xl:max-w-[720px]" }, J = { class: "pointer-events-none absolute left-0 top-0 block h-full w-full overflow-hidden rounded-lg border" }, X = { class: "z-context-plus flex gap-1" }, Y = { class: "codemirror-bg-switcher scroll-timeline-x scroll-timeline-x-hidden z-context-plus relative flex w-full" }, Z = {
+  "aria-hidden": "true",
+  class: "inline-flex items-center gap-1"
+}, ie = /* @__PURE__ */ S({
+  __name: "AddressBar",
+  props: {
+    collection: {},
+    operation: {},
+    server: {},
+    environment: {},
+    envVariables: {},
+    workspace: {}
+  },
+  emits: ["importCurl"],
+  setup(n) {
+    const u = V(), { requestMutators: c, events: f } = Q(), { layout: p } = W(), v = i(null), x = (e) => {
+      n.operation.path !== e && c.edit(n.operation.uid, "path", e);
+    };
+    z(
+      () => n.operation.path,
+      (e) => {
+        e && x(e);
+      }
+    );
+    const l = i(100), h = i(0), r = i(!1), s = i();
+    function w() {
+      r.value ? l.value -= (l.value - 15) / 60 : l.value -= h.value / 20, l.value <= 0 && (clearInterval(s.value), s.value = void 0, l.value = 100, r.value = !1);
+    }
+    function k() {
+      s.value || (r.value = !0, s.value = setInterval(w, 20));
+    }
+    function C() {
+      h.value = l.value, r.value = !1;
+    }
+    function y() {
+      clearInterval(s.value), s.value = void 0, l.value = 100, r.value = !1;
+    }
+    f.requestStatus.on((e) => {
+      e === "start" && k(), e === "stop" && C(), e === "abort" && y();
+    });
+    function B(e) {
+      c.edit(n.operation.uid, "method", e);
+    }
+    function q() {
+      const { method: e } = n.operation;
+      return $[e].backgroundColor;
+    }
+    function m() {
+      r.value || (r.value = !0, f.executeRequest.emit({ requestUid: n.operation.uid }));
+    }
+    f.hotKeys.on((e) => {
+      var t;
+      e != null && e.focusAddressBar && ((t = v.value) == null || t.focus()), e != null && e.executeRequest && m();
+    });
+    function R(e) {
+      c.edit(n.operation.uid, "path", e);
+    }
+    return (e, t) => {
+      var g;
+      return b(), I("div", {
+        id: a(u),
+        class: "scalar-address-bar order-last h-[--scalar-address-bar-height] w-full [--scalar-address-bar-height:32px] lg:order-none lg:w-auto"
+      }, [
+        o("div", F, [
+          o("div", G, [
+            o("div", J, [
+              o("div", {
+                class: L(["bg-mix-transparent bg-mix-amount-90 z-context absolute left-0 top-0 h-full w-full", q()]),
+                style: U({ transform: `translate3d(-${l.value}%,0,0)` })
+              }, null, 6)
+            ]),
+            o("div", X, [
+              d(P, {
+                isEditable: a(p) !== "modal",
+                isSquare: "",
+                method: e.operation.method,
+                teleport: "",
+                onChange: B
+              }, null, 8, ["isEditable", "method"])
+            ]),
+            o("div", Y, [
+              e.collection.servers.length ? (b(), M(a(K), {
+                key: 0,
+                collection: e.collection,
+                layout: "client",
+                operation: e.operation,
+                server: e.server,
+                target: a(u)
+              }, null, 8, ["collection", "operation", "server", "target"])) : A("", !0),
+              t[1] || (t[1] = o("div", { class: "fade-left" }, null, -1)),
+              d(O, {
+                ref_key: "addressBarRef",
+                ref: v,
+                "aria-label": "Path",
+                class: "min-w-fit outline-none",
+                disableCloseBrackets: "",
+                disabled: a(p) === "modal",
+                disableEnter: "",
+                disableTabIndent: "",
+                emitOnBlur: !1,
+                envVariables: e.envVariables,
+                environment: e.environment,
+                importCurl: "",
+                modelValue: e.operation.path,
+                placeholder: (g = e.server) != null && g.uid && e.collection.servers.includes(e.server.uid) ? "" : "Enter a URL or cURL command",
+                server: "",
+                workspace: e.workspace,
+                onCurl: t[0] || (t[0] = (E) => e.$emit("importCurl", E)),
+                onSubmit: m,
+                "onUpdate:modelValue": R
+              }, null, 8, ["disabled", "envVariables", "environment", "modelValue", "placeholder", "workspace"]),
+              t[2] || (t[2] = o("div", { class: "fade-right" }, null, -1))
+            ]),
+            d(D, {
+              operation: e.operation,
+              target: a(u)
+            }, null, 8, ["operation", "target"]),
+            d(a(N), {
+              class: "z-context-plus relative h-auto shrink-0 overflow-hidden py-1 pl-2 pr-2.5 font-bold",
+              disabled: r.value,
+              onClick: m
+            }, {
+              default: H(() => [
+                o("span", Z, [
+                  d(a(T), {
+                    class: "relative shrink-0 fill-current",
+                    icon: "Play",
+                    size: "xs"
+                  }),
+                  t[3] || (t[3] = o("span", { class: "text-xxs hidden lg:flex" }, "Send", -1))
+                ]),
+                t[4] || (t[4] = o("span", { class: "sr-only" }, " Send Request ", -1))
+              ]),
+              _: 1
+            }, 8, ["disabled"])
+          ])
+        ])
+      ], 8, j);
+    };
+  }
+});
+export {
+  ie as default
+};

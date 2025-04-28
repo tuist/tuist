@@ -1,0 +1,35 @@
+import { defineComponent as i, openBlock as o, createBlock as e, unref as r, withCtx as u, renderSlot as p, createCommentVNode as s } from "vue";
+import m from "../ScalarHotkey.vue.js";
+import { ScalarButton as d } from "@scalar/components";
+import { useLayout as k } from "../../hooks/useLayout.js";
+const g = /* @__PURE__ */ i({
+  __name: "SidebarButton",
+  props: {
+    click: { type: Function },
+    hotkey: {}
+  },
+  setup(n) {
+    const a = n, { layout: c } = k(), l = () => {
+      a.click();
+    };
+    return (t, h) => (o(), e(r(d), {
+      class: "bg-b-1 text-c-1 hover:bg-b-2 group relative w-auto md:w-full border-1/2 px-2 py-1 md:p-1.5 h-auto",
+      icon: "Plus",
+      variant: "outlined",
+      onClick: l
+    }, {
+      default: u(() => [
+        p(t.$slots, "title"),
+        t.hotkey && r(c) === "desktop" ? (o(), e(m, {
+          key: 0,
+          class: "hidden md:block absolute right-2 group-hover:opacity-80 text-c-2 add-item-hotkey",
+          hotkey: t.hotkey
+        }, null, 8, ["hotkey"])) : s("", !0)
+      ]),
+      _: 3
+    }));
+  }
+});
+export {
+  g as default
+};

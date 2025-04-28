@@ -1,0 +1,82 @@
+import { defineComponent as p, openBlock as e, createBlock as n, withCtx as r, createTextVNode as l, createElementBlock as s, createVNode as m, Fragment as c, renderList as _, toDisplayString as i } from "vue";
+import x from "../../../components/DataTable/DataTable.vue.js";
+import h from "../../../components/DataTable/DataTableRow.vue.js";
+import u from "../../../components/DataTable/DataTableText.vue.js";
+import b from "../../../components/HelpfulLink.vue.js";
+import y from "../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import { httpHeaders as k } from "../../../data/httpHeaders.js";
+const g = {
+  key: 0,
+  class: "border-t-1/2 border-b-1/2 max-h-[calc(100%-32px)] overflow-y-auto"
+}, w = {
+  key: 1,
+  class: "text-c-3 px-4 text-sm border rounded min-h-12 justify-center flex items-center bg-b-1"
+}, D = /* @__PURE__ */ p({
+  __name: "ResponseHeaders",
+  props: {
+    headers: {}
+  },
+  setup(C) {
+    const d = (o) => k.find(
+      (a) => a.name.toLowerCase() === o.toLowerCase()
+    );
+    return (o, a) => (e(), n(y, {
+      class: "overflow-auto",
+      defaultOpen: !1,
+      itemCount: o.headers.length
+    }, {
+      title: r(() => a[0] || (a[0] = [
+        l("Headers")
+      ])),
+      default: r(() => [
+        o.headers.length ? (e(), s("div", g, [
+          m(x, {
+            class: "!border-0 !mx-0",
+            columns: ["minmax(auto, min-content)", "minmax(50%, 1fr)"],
+            scroll: ""
+          }, {
+            default: r(() => [
+              (e(!0), s(c, null, _(o.headers, (t) => (e(), n(h, {
+                key: t.name,
+                class: "text-c-1"
+              }, {
+                default: r(() => [
+                  m(u, { class: "sticky left-0 z-1 bg-b-1 max-w-48" }, {
+                    default: r(() => {
+                      var f;
+                      return [
+                        typeof ((f = d(t.name)) == null ? void 0 : f.url) == "string" ? (e(), n(b, {
+                          key: 0,
+                          class: "decoration-c-3",
+                          href: d(t.name).url
+                        }, {
+                          default: r(() => [
+                            l(i(t.name), 1)
+                          ]),
+                          _: 2
+                        }, 1032, ["href"])) : (e(), s(c, { key: 1 }, [
+                          l(i(t.name), 1)
+                        ], 64))
+                      ];
+                    }),
+                    _: 2
+                  }, 1024),
+                  m(u, {
+                    class: "z-0",
+                    text: t.value
+                  }, null, 8, ["text"])
+                ]),
+                _: 2
+              }, 1024))), 128))
+            ]),
+            _: 1
+          })
+        ])) : (e(), s("div", w, " No Headers "))
+      ]),
+      _: 1
+    }, 8, ["itemCount"]));
+  }
+});
+export {
+  D as default
+};

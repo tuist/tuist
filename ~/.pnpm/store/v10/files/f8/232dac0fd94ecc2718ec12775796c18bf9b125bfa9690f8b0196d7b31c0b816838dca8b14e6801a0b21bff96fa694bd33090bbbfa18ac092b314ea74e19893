@@ -1,0 +1,227 @@
+import { defineComponent as Y, computed as f, openBlock as l, createElementBlock as a, normalizeClass as G, createVNode as i, createSlots as ee, withCtx as h, createTextVNode as b, toDisplayString as u, unref as s, createCommentVNode as n, createElementVNode as v, Fragment as p, renderList as m, createBlock as k } from "vue";
+import { Disclosure as te, DisclosurePanel as le, DisclosureButton as ae } from "@headlessui/vue";
+import { ScalarMarkdown as _, ScalarIcon as oe } from "@scalar/components";
+import { formatExample as re } from "./helpers/formatExample.js";
+import { optimizeValueForDisplay as se, discriminators as J } from "./helpers/optimizeValueForDisplay.js";
+import g from "./Schema.vue.js";
+import ne from "./SchemaPropertyHeading.vue.js";
+const ie = {
+  key: 0,
+  class: "property-description"
+}, ue = {
+  key: 1,
+  class: "property-description"
+}, pe = {
+  key: 2,
+  class: "property-example custom-scroll"
+}, ce = { class: "property-example-value" }, me = {
+  key: 3,
+  class: "property-example custom-scroll"
+}, de = { class: "property-example-label" }, ve = {
+  key: 4,
+  class: "property-enum"
+}, ye = {
+  key: 0,
+  class: "property-list"
+}, fe = { class: "property-heading" }, he = { class: "property-name" }, ge = { class: "property-description" }, be = {
+  key: 1,
+  class: "property-enum-values"
+}, ke = {
+  key: 5,
+  class: "children"
+}, _e = {
+  key: 0,
+  class: "children"
+}, xe = {
+  key: 0,
+  class: "property-rule"
+}, Ee = {
+  key: 1,
+  class: "property-rule"
+}, Pe = /* @__PURE__ */ Y({
+  __name: "SchemaProperty",
+  props: {
+    value: {},
+    level: { default: 0 },
+    name: {},
+    required: { type: Boolean, default: !1 },
+    compact: { type: Boolean, default: !1 },
+    description: {},
+    additional: { type: Boolean },
+    pattern: { type: Boolean },
+    withExamples: { type: Boolean, default: !0 }
+  },
+  setup(K) {
+    const Q = K, x = {
+      integer: {
+        _default: "Integer numbers.",
+        int32: "Signed 32-bit integers (commonly used integer type).",
+        int64: "Signed 64-bit integers (long type)."
+      },
+      string: {
+        date: "full-date notation as defined by RFC 3339, section 5.6, for example, 2017-07-21",
+        "date-time": "the date-time notation as defined by RFC 3339, section 5.6, for example, 2017-07-21T17:32:28Z",
+        password: "a hint to UIs to mask the input",
+        byte: "base64-encoded characters, for example, U3dhZ2dlciByb2Nrcw==",
+        binary: "binary data, used to describe files"
+      }
+    }, E = (t, r) => r != null && r.properties || r != null && r.additionalProperties || r != null && r.patternProperties ? null : t || (r == null ? void 0 : r.description) || null, j = (t) => !t || !x[t.type] ? null : x[t.type][t.format || "_default"], d = (t) => {
+      var r;
+      return (t == null ? void 0 : t.enum) || ((r = t == null ? void 0 : t.items) == null ? void 0 : r.enum) || [];
+    }, B = f(
+      () => d(e.value).length > 9
+    ), S = f(() => B.value ? 5 : 9), W = f(
+      () => d(e.value).slice(0, S.value)
+    ), X = f(
+      () => d(e.value).slice(S.value)
+    ), e = f(() => se(Q.value)), D = J.find((t) => !e.value || typeof e.value != "object" ? !1 : t in e.value || e.value.items && typeof e.value.items == "object" && t in e.value.items);
+    return (t, r) => {
+      var w, A, C, P, F, N, V, q, z, I, L, T, H, O, R, U;
+      return l(), a("div", {
+        class: G(["property", [
+          `property--level-${t.level}`,
+          {
+            "property--compact": t.compact,
+            "property--deprecated": (w = e.value) == null ? void 0 : w.deprecated
+          }
+        ]])
+      }, [
+        i(ne, {
+          additional: t.additional,
+          enum: d(e.value).length > 0,
+          pattern: t.pattern,
+          required: t.required,
+          value: e.value
+        }, ee({ _: 2 }, [
+          t.name ? {
+            name: "name",
+            fn: h(() => [
+              b(u(t.name), 1)
+            ]),
+            key: "0"
+          } : void 0,
+          (A = e.value) != null && A.example ? {
+            name: "example",
+            fn: h(() => [
+              b(" Example: " + u(e.value.example), 1)
+            ]),
+            key: "1"
+          } : void 0
+        ]), 1032, ["additional", "enum", "pattern", "required", "value"]),
+        E(t.description, e.value) ? (l(), a("div", ie, [
+          i(s(_), {
+            value: E(t.description, e.value)
+          }, null, 8, ["value"])
+        ])) : j(e.value) ? (l(), a("div", ue, [
+          i(s(_), {
+            value: j(e.value) || ""
+          }, null, 8, ["value"])
+        ])) : n("", !0),
+        t.withExamples && ((C = e.value) != null && C.example || (F = (P = e.value) == null ? void 0 : P.items) != null && F.example) ? (l(), a("div", pe, [
+          r[0] || (r[0] = v("span", { class: "property-example-label" }, "Example", -1)),
+          v("code", ce, u(s(re)(
+            ((N = e.value) == null ? void 0 : N.example) || s(D) && ((V = e.value) == null ? void 0 : V.items) && typeof e.value.items == "object" && e.value.items[s(D)]
+          )), 1)
+        ])) : n("", !0),
+        (q = e.value) != null && q.examples && typeof e.value.examples == "object" && Object.keys(e.value.examples).length > 0 ? (l(), a("div", me, [
+          v("span", de, u(Object.keys(e.value.examples).length === 1 ? "Example" : "Examples"), 1),
+          (l(!0), a(p, null, m(e.value.examples, (o, c) => (l(), a("code", {
+            key: c,
+            class: "property-example-value"
+          }, u(o), 1))), 128))
+        ])) : n("", !0),
+        ((z = d(e.value)) == null ? void 0 : z.length) > 0 ? (l(), a("div", ve, [
+          Array.isArray((I = e.value) == null ? void 0 : I["x-enumDescriptions"]) ? (l(), a("div", ye, [
+            (l(!0), a(p, null, m(d(e.value), (o) => (l(), a("div", {
+              key: o,
+              class: "property"
+            }, [
+              v("div", fe, [
+                v("div", he, u(o), 1)
+              ]),
+              v("div", ge, [
+                i(s(_), {
+                  value: e.value["x-enumDescriptions"][o]
+                }, null, 8, ["value"])
+              ])
+            ]))), 128))
+          ])) : (l(), a("ul", be, [
+            (l(!0), a(p, null, m(W.value, (o) => (l(), a("li", {
+              key: o,
+              class: "property-enum-value"
+            }, u(o), 1))), 128)),
+            B.value ? (l(), k(s(te), { key: 0 }, {
+              default: h(({ open: o }) => [
+                i(s(le), null, {
+                  default: h(() => [
+                    (l(!0), a(p, null, m(X.value, (c) => (l(), a("li", {
+                      key: c,
+                      class: "property-enum-value"
+                    }, u(c), 1))), 128))
+                  ]),
+                  _: 1
+                }),
+                i(s(ae), { class: "enum-toggle-button" }, {
+                  default: h(() => [
+                    i(s(oe), {
+                      class: G(["enum-toggle-button-icon", { "enum-toggle-button-icon--open": o }]),
+                      icon: "Add",
+                      size: "sm"
+                    }, null, 8, ["class"]),
+                    b(" " + u(o ? "Hide values" : "Show all values"), 1)
+                  ]),
+                  _: 2
+                }, 1024)
+              ]),
+              _: 1
+            })) : n("", !0)
+          ]))
+        ])) : n("", !0),
+        ((L = e.value) == null ? void 0 : L.type) === "object" && ((T = e.value) != null && T.properties || (H = e.value) != null && H.additionalProperties) ? (l(), a("div", ke, [
+          i(g, {
+            compact: t.compact,
+            level: t.level + 1,
+            value: e.value
+          }, null, 8, ["compact", "level", "value"])
+        ])) : n("", !0),
+        (O = e.value) != null && O.items && typeof e.value.items == "object" && "type" in e.value.items && typeof e.value.items.type == "string" ? (l(), a(p, { key: 6 }, [
+          ["object"].includes((U = (R = e.value) == null ? void 0 : R.items) == null ? void 0 : U.type) ? (l(), a("div", _e, [
+            i(g, {
+              compact: t.compact,
+              level: t.level + 1,
+              value: e.value.items
+            }, null, 8, ["compact", "level", "value"])
+          ])) : n("", !0)
+        ], 64)) : n("", !0),
+        (l(!0), a(p, null, m(s(J), (o) => {
+          var c, Z;
+          return l(), a(p, { key: o }, [
+            (c = e.value) != null && c[o] ? (l(), a("div", xe, [
+              (l(!0), a(p, null, m(e.value[o], (y) => {
+                var M, $;
+                return l(), k(g, {
+                  key: y.id,
+                  compact: t.compact,
+                  level: t.level + 1,
+                  noncollapsible: Array.isArray((M = e.value) == null ? void 0 : M[o]) && (($ = e.value) == null ? void 0 : $[o].length) === 1,
+                  value: y
+                }, null, 8, ["compact", "level", "noncollapsible", "value"]);
+              }), 128))
+            ])) : n("", !0),
+            (Z = e.value) != null && Z.items && typeof o == "string" && typeof e.value.items == "object" && o in e.value.items && Array.isArray(e.value.items[o]) && t.level < 3 ? (l(), a("div", Ee, [
+              (l(!0), a(p, null, m(e.value.items[o], (y) => (l(), k(g, {
+                key: y.id,
+                compact: t.compact,
+                level: t.level + 1,
+                value: y
+              }, null, 8, ["compact", "level", "value"]))), 128))
+            ])) : n("", !0)
+          ], 64);
+        }), 128))
+      ], 2);
+    };
+  }
+});
+export {
+  Pe as default
+};

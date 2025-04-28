@@ -1,0 +1,26 @@
+import { defineComponent as a, openBlock as p, createBlock as l, unref as n, withCtx as m, createTextVNode as i } from "vue";
+import { useResponses as c } from "../hooks/useResponses.js";
+import f from "./ParameterList.vue.js";
+const x = /* @__PURE__ */ a({
+  __name: "OperationResponses",
+  props: {
+    operation: {},
+    collapsableItems: { type: Boolean, default: !0 }
+  },
+  setup(s) {
+    const t = s, { responses: o } = c(t.operation);
+    return (r, e) => (p(), l(f, {
+      collapsableItems: r.collapsableItems,
+      parameters: n(o),
+      withExamples: !1
+    }, {
+      title: m(() => e[0] || (e[0] = [
+        i("Responses")
+      ])),
+      _: 1
+    }, 8, ["collapsableItems", "parameters"]));
+  }
+});
+export {
+  x as default
+};

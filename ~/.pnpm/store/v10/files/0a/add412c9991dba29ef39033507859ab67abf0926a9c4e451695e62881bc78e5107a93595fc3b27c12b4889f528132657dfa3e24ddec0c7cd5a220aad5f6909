@@ -1,0 +1,47 @@
+import { defineComponent as n, openBlock as i, createBlock as c, unref as e, withCtx as o, createVNode as a, createTextVNode as l, toDisplayString as s, renderSlot as d } from "vue";
+import { ScalarMarkdown as m } from "@scalar/components";
+import p from "../../Section/SectionContainerAccordion.vue.js";
+import f from "../../Section/SectionHeader.vue.js";
+import u from "../../Anchor/Anchor.vue.js";
+import { useNavState as g } from "../../../hooks/useNavState.js";
+const N = /* @__PURE__ */ n({
+  __name: "TagAccordion",
+  props: {
+    tag: {}
+  },
+  setup(_) {
+    const { getTagId: r } = g();
+    return (t, S) => (i(), c(e(p), { class: "tag-section" }, {
+      title: o(() => [
+        a(e(f), {
+          class: "tag-name",
+          level: 2
+        }, {
+          default: o(() => [
+            a(e(u), {
+              id: e(r)(t.tag)
+            }, {
+              default: o(() => [
+                l(s(t.tag.name), 1)
+              ]),
+              _: 1
+            }, 8, ["id"])
+          ]),
+          _: 1
+        }),
+        a(e(m), {
+          class: "tag-description",
+          value: t.tag.description,
+          withImages: ""
+        }, null, 8, ["value"])
+      ]),
+      default: o(() => [
+        d(t.$slots, "default", {}, void 0, !0)
+      ]),
+      _: 3
+    }));
+  }
+});
+export {
+  N as default
+};

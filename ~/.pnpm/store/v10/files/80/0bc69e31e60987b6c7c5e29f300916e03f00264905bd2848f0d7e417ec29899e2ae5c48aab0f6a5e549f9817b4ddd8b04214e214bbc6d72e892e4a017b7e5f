@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * powershell/restmethod
+ */
+export declare const powershellRestmethod: Plugin;
+//# sourceMappingURL=restmethod.d.ts.map

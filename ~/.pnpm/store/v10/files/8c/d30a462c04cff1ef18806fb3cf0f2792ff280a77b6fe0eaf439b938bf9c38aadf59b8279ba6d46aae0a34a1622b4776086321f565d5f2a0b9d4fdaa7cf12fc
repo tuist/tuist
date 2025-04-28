@@ -1,0 +1,27 @@
+import { traverse } from './traverse.js';
+
+/**
+ * Walks through the specification and returns all references as an array.
+ *
+ * Warning: Doesn’t return internal references.
+ */
+function getListOfReferences(specification) {
+    const references = [];
+    // Make sure we’re dealing with an object
+    if (!specification || typeof specification !== 'object') {
+        return references;
+    }
+    // Traverse the specification and collect all references
+    traverse(specification, (value) => {
+        if (value.$ref &&
+            typeof value.$ref === 'string' &&
+            !value.$ref.startsWith('#')) {
+            references.push(value.$ref.split('#')[0]);
+        }
+        return value;
+    });
+    // Remove duplicates
+    return [...new Set(references)];
+}
+
+export { getListOfReferences };

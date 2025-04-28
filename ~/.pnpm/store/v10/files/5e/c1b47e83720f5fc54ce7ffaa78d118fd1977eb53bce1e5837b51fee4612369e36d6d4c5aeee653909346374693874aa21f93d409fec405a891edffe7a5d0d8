@@ -1,0 +1,58 @@
+{
+  "name": "packrup",
+  "type": "module",
+  "version": "0.1.2",
+  "packageManager": "pnpm@8.15.4",
+  "description": "Node Schema.org for Simple and Automated Google Rich Results",
+  "author": "Harlan Wilton <harlan@harlanzw.com>",
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/harlan-zw",
+  "homepage": "https://github.com/harlan-zw/packrup#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harlan-zw/packrup.git"
+  },
+  "bugs": {
+    "url": "https://github.com/harlan-zw/packrup/issues"
+  },
+  "keywords": [
+    "pack object",
+    "pack string",
+    "pack array"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@antfu/eslint-config": "^2.8.0",
+    "@types/fs-extra": "^11.0.4",
+    "@vitest/ui": "^1.3.1",
+    "bumpp": "^9.4.0",
+    "eslint": "^8.57.0",
+    "fs-extra": "^11.2.0",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.4.2",
+    "unbuild": "^2.0.0",
+    "utility-types": "^3.11.0",
+    "vitest": "^1.3.1"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "stub": "unbuild --stub",
+    "test": "vitest",
+    "export:sizes": "npx export-size . -r",
+    "release": "pnpm build && bumpp && pnpm -r publish --no-git-checks",
+    "lint": "eslint . --fix"
+  }
+}

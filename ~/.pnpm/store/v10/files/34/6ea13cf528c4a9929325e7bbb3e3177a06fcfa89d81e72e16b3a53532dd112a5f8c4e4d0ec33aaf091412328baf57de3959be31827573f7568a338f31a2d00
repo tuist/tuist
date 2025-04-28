@@ -1,0 +1,89 @@
+import { defineComponent as g, computed as x, ref as m, openBlock as C, createBlock as V, withCtx as n, createVNode as i, unref as s, createElementVNode as S, normalizeClass as _, toDisplayString as k, createTextVNode as T } from "vue";
+import { ScalarListbox as N, ScalarButton as w, ScalarIcon as B } from "@scalar/components";
+import { useToasts as D } from "@scalar/use-toasts";
+import { useActiveEntities as y } from "../../store/active-entities.js";
+import z from "./CommandActionForm.vue.js";
+import E from "./CommandActionInput.vue.js";
+import { useWorkspace as P } from "../../store/store.js";
+const O = /* @__PURE__ */ g({
+  __name: "CommandPaletteTag",
+  emits: ["close", "back"],
+  setup(U, { emit: d }) {
+    const r = d, { activeWorkspaceCollections: c, activeCollection: p } = y(), { tagMutators: f } = P(), { toast: v } = D(), u = x(
+      () => c.value.map((o) => {
+        var e;
+        return {
+          id: o.uid,
+          label: ((e = o.info) == null ? void 0 : e.title) ?? ""
+        };
+      })
+    ), a = m(""), t = m(
+      u.value.find(
+        (o) => {
+          var e;
+          return o.id === ((e = p.value) == null ? void 0 : e.uid);
+        }
+      )
+    ), b = () => {
+      if (!a.value) {
+        v("Please enter a name before creating a tag.", "error");
+        return;
+      }
+      if (!a.value || !t.value) return;
+      f.add(
+        {
+          name: a.value
+        },
+        t.value.id
+      ) && r("close");
+    };
+    return (o, e) => (C(), V(z, {
+      disabled: !a.value.trim(),
+      onSubmit: b
+    }, {
+      options: n(() => [
+        i(s(N), {
+          modelValue: t.value,
+          "onUpdate:modelValue": e[2] || (e[2] = (l) => t.value = l),
+          options: u.value
+        }, {
+          default: n(() => [
+            i(s(w), {
+              class: "hover:bg-b-2 max-h-8 w-fit justify-between gap-1 p-2 text-xs",
+              variant: "outlined"
+            }, {
+              default: n(() => [
+                S("span", {
+                  class: _(t.value ? "text-c-1" : "text-c-3")
+                }, k(t.value ? t.value.label : "Select Collection"), 3),
+                i(s(B), {
+                  class: "text-c-3",
+                  icon: "ChevronDown",
+                  size: "md"
+                })
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        }, 8, ["modelValue", "options"])
+      ]),
+      submit: n(() => e[3] || (e[3] = [
+        T(" Create Tag ")
+      ])),
+      default: n(() => [
+        i(E, {
+          modelValue: a.value,
+          "onUpdate:modelValue": e[0] || (e[0] = (l) => a.value = l),
+          label: "Tag Name",
+          placeholder: "Tag Name",
+          onOnDelete: e[1] || (e[1] = (l) => r("back", l))
+        }, null, 8, ["modelValue"])
+      ]),
+      _: 1
+    }, 8, ["disabled"]));
+  }
+});
+export {
+  O as default
+};

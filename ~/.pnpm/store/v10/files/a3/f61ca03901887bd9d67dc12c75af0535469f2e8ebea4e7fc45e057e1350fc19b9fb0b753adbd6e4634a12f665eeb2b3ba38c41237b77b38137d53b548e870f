@@ -1,0 +1,27 @@
+import { defineComponent as l, openBlock as n, createElementBlock as o, createTextVNode as r, unref as d } from "vue";
+import { isUrl as s } from "../../libs/isUrl.js";
+const a = { class: "text-sm break-words text-center w-full font-medium" }, u = ["href"], m = {
+  key: 1,
+  textContent: "OpenAPI document manually"
+}, c = /* @__PURE__ */ l({
+  __name: "PrefetchError",
+  props: {
+    url: {}
+  },
+  setup(p) {
+    return (t, e) => (n(), o("div", a, [
+      e[0] || (e[0] = r(" We couldn’t find an OpenAPI document at the provided URL. Please download and import the ")),
+      t.url && d(s)(t.url) ? (n(), o("a", {
+        key: 0,
+        href: t.url,
+        rel: "noopener nofollow",
+        target: "_blank",
+        textContent: "OpenAPI document manually"
+      }, null, 8, u)) : (n(), o("span", m)),
+      e[1] || (e[1] = r(". "))
+    ]));
+  }
+});
+export {
+  c as default
+};

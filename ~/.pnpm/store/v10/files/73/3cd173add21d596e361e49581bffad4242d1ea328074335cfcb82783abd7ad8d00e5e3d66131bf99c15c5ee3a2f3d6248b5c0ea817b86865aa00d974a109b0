@@ -1,0 +1,34 @@
+import { defineComponent as r, useSlots as s, openBlock as i, createElementBlock as l, createVNode as a, mergeProps as d, unref as p, createSlots as c, renderList as _, withCtx as f, renderSlot as m } from "vue";
+import u from "./ScalarSidebarButton.vue.js";
+import { useSidebarGroups as S } from "./useSidebarGroups.js";
+const h = { class: "contents" }, B = {}, g = /* @__PURE__ */ r({
+  ...B,
+  inheritAttrs: !1,
+  __name: "ScalarSidebarItem",
+  props: {
+    is: {},
+    icon: {},
+    selected: { type: Boolean },
+    disabled: { type: Boolean },
+    indent: { default: () => {
+    } }
+  },
+  setup($) {
+    const o = s(), { level: n } = S();
+    return (e, b) => (i(), l("li", h, [
+      a(u, d({ ...e.$attrs, ...e.$props }, {
+        indent: e.indent ?? p(n)
+      }), c({ _: 2 }, [
+        _(o, (k, t) => ({
+          name: t,
+          fn: f(() => [
+            m(e.$slots, t)
+          ])
+        }))
+      ]), 1040, ["indent"])
+    ]));
+  }
+});
+export {
+  g as default
+};

@@ -1,0 +1,11 @@
+import { REGEX } from './regexHelpers.js';
+
+/** Ensure URL has a protocol prefix */
+function ensureProtocol(url) {
+    if (REGEX.PROTOCOL.test(url))
+        return url;
+    // Default to http if no protocol is specified
+    return `http://${url.replace(/^\//, '')}`;
+}
+
+export { ensureProtocol };

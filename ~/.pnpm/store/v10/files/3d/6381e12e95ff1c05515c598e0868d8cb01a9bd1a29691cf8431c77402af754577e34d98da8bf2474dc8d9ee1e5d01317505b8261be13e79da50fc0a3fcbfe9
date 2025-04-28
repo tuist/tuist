@@ -1,0 +1,62 @@
+import { defineComponent as f, openBlock as e, createBlock as m, unref as a, withCtx as c, createElementVNode as p, normalizeClass as o, createVNode as d, createElementBlock as l, Fragment as i, createTextVNode as u, renderList as _ } from "vue";
+import v from "../../../components/Content/Schema/SchemaProperty.vue.js";
+import { Disclosure as k, DisclosureButton as B, DisclosurePanel as H } from "@headlessui/vue";
+import { ScalarIcon as S } from "@scalar/components";
+const V = /* @__PURE__ */ f({
+  __name: "ParameterHeaders",
+  props: {
+    headers: {}
+  },
+  setup(x) {
+    function h(t) {
+      return t.schema !== void 0;
+    }
+    return (t, y) => (e(), m(a(k), null, {
+      default: c(({ open: r }) => [
+        p("div", {
+          class: o(["headers-card headers-card--compact", [{ "headers-card--open": r }]])
+        }, [
+          p("div", {
+            class: o(["headers-properties", { "headers-properties-open": r }])
+          }, [
+            d(a(B), {
+              class: "headers-card-title headers-card-title--compact",
+              style: {
+                top: "calc(var(--refs-header-height)))"
+              }
+            }, {
+              default: c(() => [
+                d(a(S), {
+                  class: o(["headers-card-title-icon", { "headers-card-title-icon--open": r }]),
+                  icon: "Add",
+                  size: "sm"
+                }, null, 8, ["class"]),
+                r ? (e(), l(i, { key: 0 }, [
+                  u(" Hide Headers ")
+                ], 64)) : (e(), l(i, { key: 1 }, [
+                  u(" Show Headers ")
+                ], 64))
+              ]),
+              _: 2
+            }, 1024),
+            d(a(H), null, {
+              default: c(() => [
+                (e(!0), l(i, null, _(t.headers, (s, n) => (e(), m(v, {
+                  key: n,
+                  description: s.description,
+                  name: `${n}`,
+                  value: h(s) ? s.schema : void 0
+                }, null, 8, ["description", "name", "value"]))), 128))
+              ]),
+              _: 1
+            })
+          ], 2)
+        ], 2)
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  V as default
+};

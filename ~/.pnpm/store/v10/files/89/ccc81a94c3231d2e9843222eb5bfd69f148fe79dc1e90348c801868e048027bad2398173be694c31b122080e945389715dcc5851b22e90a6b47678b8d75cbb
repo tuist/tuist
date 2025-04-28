@@ -1,0 +1,64 @@
+import { mergeUrls as T } from "@scalar/oas-utils/helpers";
+const w = ({
+  baseUrl: u = "",
+  method: g,
+  body: r,
+  path: h,
+  cookies: s,
+  headers: o,
+  query: m
+}) => {
+  var p, c, l;
+  const D = T(u, h, void 0, !0), i = {
+    method: g.toUpperCase(),
+    url: D.toString(),
+    httpVersion: "HTTP/1.1",
+    headers: [],
+    queryString: [],
+    cookies: [],
+    headersSize: -1,
+    bodySize: -1
+  };
+  if (s.length && (i.cookies = s.filter((e) => e.enabled).map(({ key: e, value: t }) => ({
+    name: e,
+    value: t
+  }))), o.length && (i.headers = o.filter(
+    (e) => e.enabled && !(e.key.toLowerCase() === "accept" && e.value === "*/*")
+  ).map(({ key: e, value: t }) => ({
+    name: e.replace(/\b\w/g, (a) => a.toUpperCase()),
+    value: t
+  }))), m.length && (i.queryString = m.filter((e) => e.enabled).map(({ key: e, value: t }) => ({
+    name: e,
+    value: t
+  }))), r)
+    try {
+      const e = ((p = o.find((t) => t.key.toLowerCase() === "content-type")) == null ? void 0 : p.value) || "application/json";
+      if (r.activeBody === "formData" && r.formData) {
+        const t = {};
+        r.formData.value.forEach(({ key: a, value: f, file: n, enabled: S }) => {
+          S && (n ? t[a] = {
+            type: "file",
+            text: "BINARY",
+            name: a || "blob",
+            size: n.size,
+            fileName: n.name,
+            mimeType: n.type || "application/octet-stream"
+          } : t[a] ? (Array.isArray(t[a]) || (t[a] = [t[a]]), t[a].push(f)) : t[a] = f);
+        }), ((c = r.formData) == null ? void 0 : c.encoding) === "urlencoded" ? i.postData = {
+          mimeType: e,
+          text: new URLSearchParams(t).toString()
+        } : i.postData = {
+          mimeType: e,
+          text: JSON.stringify(t)
+        };
+      } else r.activeBody === "raw" && r.raw && (i.postData = {
+        mimeType: e,
+        text: ((l = r.raw) == null ? void 0 : l.value) ?? ""
+      });
+    } catch {
+    }
+  return i;
+};
+export {
+  w as convertToHarRequest
+};

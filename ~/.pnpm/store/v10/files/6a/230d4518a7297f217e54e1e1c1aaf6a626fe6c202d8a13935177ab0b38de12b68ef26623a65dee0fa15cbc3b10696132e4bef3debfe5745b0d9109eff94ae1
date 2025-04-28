@@ -1,0 +1,26 @@
+/**
+ * This component allows dynamic selection of various layout configurations
+ */
+import type { ReferenceLayoutProps, ReferenceLayoutSlots } from '../../types';
+declare function __VLS_template(): {
+    attrs: Partial<{}>;
+    slots: Readonly<ReferenceLayoutSlots> & ReferenceLayoutSlots;
+    refs: {};
+    rootEl: any;
+};
+type __VLS_TemplateResult = ReturnType<typeof __VLS_template>;
+declare const __VLS_component: import("vue").DefineComponent<ReferenceLayoutProps, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    updateContent: (v: string) => any;
+    toggleDarkMode: () => any;
+}, string, import("vue").PublicProps, Readonly<ReferenceLayoutProps> & Readonly<{
+    onUpdateContent?: ((v: string) => any) | undefined;
+    onToggleDarkMode?: (() => any) | undefined;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+declare const _default: __VLS_WithTemplateSlots<typeof __VLS_component, __VLS_TemplateResult["slots"]>;
+export default _default;
+type __VLS_WithTemplateSlots<T, S> = T & {
+    new (): {
+        $slots: S;
+    };
+};
+//# sourceMappingURL=Layouts.vue.d.ts.map

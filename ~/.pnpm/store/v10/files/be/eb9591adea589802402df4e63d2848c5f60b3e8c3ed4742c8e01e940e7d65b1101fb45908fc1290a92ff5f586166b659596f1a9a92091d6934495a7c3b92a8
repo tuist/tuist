@@ -1,0 +1,22 @@
+import { createWebHistoryRouter as i } from "../../router.js";
+import n from "./ApiClientWeb.vue.js";
+/* empty css                  */
+import { saveActiveWorkspace as f } from "../../routes.js";
+import { createApiClient as y } from "../../libs/create-client.js";
+const C = async (s, e = {}, m = !0) => {
+  var p, o, c;
+  const t = i(), r = y({
+    el: s,
+    appComponent: n,
+    configuration: e,
+    mountOnInitialize: m,
+    router: t,
+    layout: "web"
+  }), { importSpecFile: l, importSpecFromUrl: a } = r.store;
+  return t.afterEach(f), (p = e.spec) != null && p.url ? await a(e.spec.url, "default", {
+    proxyUrl: e.proxyUrl
+  }) : (o = e.spec) != null && o.content && await l((c = e.spec) == null ? void 0 : c.content, "default"), r;
+};
+export {
+  C as createApiClientWeb
+};

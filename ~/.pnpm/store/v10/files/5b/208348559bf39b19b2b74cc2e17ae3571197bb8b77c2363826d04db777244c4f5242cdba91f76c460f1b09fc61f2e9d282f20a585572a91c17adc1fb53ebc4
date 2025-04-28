@@ -1,0 +1,18 @@
+import { computed as s } from "vue";
+function u(r) {
+  return { responses: s(() => {
+    if (!r.information) return [];
+    const { responses: t } = r.information, e = [];
+    return t && Object.entries(t).forEach(([o, n]) => {
+      e.push({
+        name: o,
+        description: n.description,
+        content: n.content,
+        headers: n.headers
+      });
+    }), e;
+  }) };
+}
+export {
+  u as useResponses
+};

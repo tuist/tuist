@@ -1,0 +1,191 @@
+import { defineComponent as _, resolveComponent as $, openBlock as r, createBlock as p, withCtx as t, createElementBlock as b, Fragment as f, renderList as I, normalizeClass as w, unref as i, createElementVNode as s, createVNode as u, toDisplayString as y, createCommentVNode as V } from "vue";
+import { ScalarTooltip as T, ScalarIcon as x, ScalarButton as z } from "@scalar/components";
+import g from "../../../components/CodeInput/CodeInput.vue.js";
+import D from "../../../components/DataTable/DataTable.vue.js";
+import v from "../../../components/DataTable/DataTableCell.vue.js";
+import q from "../../../components/DataTable/DataTableCheckbox.vue.js";
+import E from "../../../components/DataTable/DataTableRow.vue.js";
+import { parameterIsInvalid as G, hasItemProperties as B } from "../libs/request.js";
+import L from "./RequestTableTooltip.vue.js";
+const N = { class: "contents" }, O = { class: "sr-only" }, j = { class: "text-c-2 filemask flex max-w-[100%] items-end justify-end overflow-hidden" }, A = ["onClick"], Z = /* @__PURE__ */ _({
+  __name: "RequestTable",
+  props: {
+    items: {},
+    hasCheckboxDisabled: { type: Boolean, default: !1 },
+    showUploadButton: { type: Boolean, default: !1 },
+    isGlobal: { type: Boolean, default: !1 },
+    isReadOnly: { type: Boolean, default: !1 },
+    environment: {},
+    envVariables: {},
+    workspace: {}
+  },
+  emits: ["updateRow", "toggleRow", "addRow", "deleteRow", "inputFocus", "inputBlur", "uploadFile", "removeFile"],
+  setup(R, { emit: h }) {
+    const m = R, n = h, C = ["", "", "36px"], k = (l, a, c) => {
+      n("updateRow", l, a, c);
+    }, F = (l) => {
+      n("uploadFile", l);
+    }, S = (l) => Array.isArray(l.default) && l.default.length === 1 ? l.default[0] : l.default;
+    return (l, a) => {
+      const c = $("RouterLink");
+      return r(), p(D, {
+        class: "group/table flex-1",
+        columns: C
+      }, {
+        default: t(() => [
+          (r(!0), b(f, null, I(l.items, (e, d) => (r(), p(E, {
+            key: d,
+            class: w({
+              alert: i(G)(e).value
+            })
+          }, {
+            default: t(() => [
+              s("label", N, [
+                l.isGlobal ? (r(), p(c, {
+                  key: 0,
+                  class: "!border-r-1/2 border-t-1/2 text-c-2 flex items-center justify-center",
+                  to: e.route ?? {}
+                }, {
+                  default: t(() => [
+                    a[5] || (a[5] = s("span", { class: "sr-only" }, "Global", -1)),
+                    u(i(T), {
+                      as: "div",
+                      side: "top"
+                    }, {
+                      trigger: t(() => [
+                        u(i(x), {
+                          class: "text-c-1",
+                          icon: "Globe",
+                          size: "xs"
+                        })
+                      ]),
+                      content: t(() => a[4] || (a[4] = [
+                        s("div", { class: "w-content bg-b-1 z-100 text-xxs text-c-1 pointer-events-none z-10 grid max-w-[320px] gap-1.5 rounded p-2 leading-5 shadow-lg" }, [
+                          s("div", { class: "text-c-1 flex items-center" }, [
+                            s("span", { class: "text-pretty" }, " Global cookies are shared across the whole workspace. ")
+                          ])
+                        ], -1)
+                      ])),
+                      _: 1
+                    })
+                  ]),
+                  _: 2
+                }, 1032, ["to"])) : (r(), b(f, { key: 1 }, [
+                  s("span", O, " Row " + y(e.enabled ? "Enabled" : "Disabled"), 1),
+                  u(q, {
+                    class: "!border-r-1/2",
+                    disabled: m.hasCheckboxDisabled,
+                    modelValue: e.enabled,
+                    "onUpdate:modelValue": (o) => n("toggleRow", d, o)
+                  }, null, 8, ["disabled", "modelValue", "onUpdate:modelValue"])
+                ], 64))
+              ]),
+              u(v, null, {
+                default: t(() => [
+                  u(g, {
+                    disableCloseBrackets: "",
+                    disabled: m.isReadOnly,
+                    disableEnter: "",
+                    disableTabIndent: "",
+                    envVariables: l.envVariables,
+                    environment: l.environment,
+                    modelValue: e.key,
+                    placeholder: "Key",
+                    required: !!e.required,
+                    workspace: l.workspace,
+                    onBlur: a[0] || (a[0] = (o) => n("inputBlur")),
+                    onFocus: a[1] || (a[1] = (o) => n("inputFocus")),
+                    onSelectVariable: (o) => k(d, "key", o),
+                    "onUpdate:modelValue": (o) => n("updateRow", d, "key", o)
+                  }, null, 8, ["disabled", "envVariables", "environment", "modelValue", "required", "workspace", "onSelectVariable", "onUpdate:modelValue"])
+                ]),
+                _: 2
+              }, 1024),
+              u(v, null, {
+                default: t(() => [
+                  u(g, {
+                    class: w({
+                      "pr-6": i(B)(e)
+                    }),
+                    default: e.default,
+                    disableCloseBrackets: "",
+                    disabled: m.isReadOnly,
+                    disableEnter: "",
+                    disableTabIndent: "",
+                    enum: e.enum ?? [],
+                    envVariables: l.envVariables,
+                    environment: l.environment,
+                    examples: e.examples ?? [],
+                    max: e.maximum,
+                    min: e.minimum,
+                    modelValue: e.value,
+                    nullable: !!e.nullable,
+                    placeholder: "Value",
+                    type: e.type,
+                    workspace: l.workspace,
+                    onBlur: a[2] || (a[2] = (o) => n("inputBlur")),
+                    onFocus: a[3] || (a[3] = (o) => n("inputFocus")),
+                    onSelectVariable: (o) => k(d, "value", o),
+                    "onUpdate:modelValue": (o) => n("updateRow", d, "value", o)
+                  }, {
+                    icon: t(() => [
+                      i(B)(e) ? (r(), p(L, {
+                        key: 0,
+                        item: { ...e, default: S(e) }
+                      }, null, 8, ["item"])) : V("", !0)
+                    ]),
+                    _: 2
+                  }, 1032, ["class", "default", "disabled", "enum", "envVariables", "environment", "examples", "max", "min", "modelValue", "nullable", "type", "workspace", "onSelectVariable", "onUpdate:modelValue"])
+                ]),
+                _: 2
+              }, 1024),
+              l.showUploadButton ? (r(), p(v, {
+                key: 0,
+                class: "group/upload relative overflow-hidden text-ellipsis whitespace-nowrap p-1"
+              }, {
+                default: t(() => {
+                  var o;
+                  return [
+                    e.file ? (r(), b(f, { key: 0 }, [
+                      s("div", j, [
+                        s("span", null, y((o = e.file) == null ? void 0 : o.name), 1)
+                      ]),
+                      s("button", {
+                        class: "bg-b-2 centered-x centered-y absolute hidden w-[calc(100%_-_8px)] rounded p-0.5 text-center text-xs font-medium group-hover/upload:block",
+                        type: "button",
+                        onClick: (U) => n("removeFile", d)
+                      }, " Delete ", 8, A)
+                    ], 64)) : (r(), p(i(z), {
+                      key: 1,
+                      class: "bg-b-2 hover:bg-b-3 text-c-2 border-0 py-px shadow-none",
+                      size: "sm",
+                      variant: "outlined",
+                      onClick: (U) => F(d)
+                    }, {
+                      default: t(() => [
+                        a[6] || (a[6] = s("span", null, "File", -1)),
+                        u(i(x), {
+                          class: "ml-1",
+                          icon: "UploadSimple",
+                          size: "xs",
+                          thickness: "2.5"
+                        })
+                      ]),
+                      _: 2
+                    }, 1032, ["onClick"]))
+                  ];
+                }),
+                _: 2
+              }, 1024)) : V("", !0)
+            ]),
+            _: 2
+          }, 1032, ["class"]))), 128))
+        ]),
+        _: 1
+      });
+    };
+  }
+});
+export {
+  Z as default
+};

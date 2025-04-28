@@ -1,0 +1,34 @@
+{
+  "name": "@hyperjump/json-pointer",
+  "version": "1.1.0",
+  "description": "An RFC-6901 JSON Pointer implementation",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": "./lib/index.js",
+  "scripts": {
+    "clean": "xargs -a .gitignore rm -rf",
+    "lint": "eslint lib",
+    "test": "vitest --watch=false"
+  },
+  "repository": "github:hyperjump-io/json-pointer",
+  "keywords": [
+    "JSON Pointer",
+    "RFC-6901"
+  ],
+  "author": "Jason Desrosiers <jdesrosi@gmail.com>",
+  "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jdesrosiers"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "*",
+    "@typescript-eslint/parser": "*",
+    "eslint": "*",
+    "eslint-import-resolver-node": "*",
+    "eslint-import-resolver-typescript": "*",
+    "eslint-plugin-import": "*",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}

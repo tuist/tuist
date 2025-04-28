@@ -1,0 +1,27 @@
+import { type Icon } from '@scalar/components';
+type __VLS_Props = {
+    variable: {
+        uid: string;
+        name: string;
+        color?: string;
+        icon?: Icon;
+        isDefault?: boolean;
+    };
+    collectionId?: string;
+    warningMessage?: string;
+    isDeletable?: boolean;
+    isCopyable?: boolean;
+    isRenameable?: boolean;
+    type: 'environment' | 'cookies' | 'servers';
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    delete: (id: string) => any;
+    rename: (id: string) => any;
+    colorModal: (id: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onDelete?: (id: string) => any;
+    onRename?: (id: string) => any;
+    onColorModal?: (id: string) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLLIElement>;
+export default _default;
+//# sourceMappingURL=SidebarListElement.vue.d.ts.map

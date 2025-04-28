@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * js/ofetch
+ */
+export declare const jsOfetch: Plugin;
+//# sourceMappingURL=ofetch.d.ts.map

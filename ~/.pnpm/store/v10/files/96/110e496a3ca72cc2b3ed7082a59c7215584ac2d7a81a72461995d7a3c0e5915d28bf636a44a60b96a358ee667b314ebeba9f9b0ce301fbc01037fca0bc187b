@@ -1,0 +1,42 @@
+import { isMacOS as a } from "@scalar/use-tooltip";
+const f = [
+  "Escape",
+  "ArrowDown",
+  "ArrowUp",
+  "Enter",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F5",
+  "F6",
+  "F7",
+  "F8",
+  "F9",
+  "F10",
+  "F11",
+  "F12"
+], c = {
+  Escape: { event: "closeModal" },
+  Enter: { event: "executeRequest", modifiers: ["default"] },
+  b: { event: "toggleSidebar", modifiers: ["default"] },
+  k: { event: "openCommandPalette", modifiers: ["default"] }
+}, d = (e) => {
+  if (!(e.target instanceof HTMLElement)) return !1;
+  const t = e.target;
+  return t.tagName === "INPUT" ? !f.includes(e.key) : !!(t.tagName === "TEXTAREA" || t.getAttribute("contenteditable") || t.contentEditable === "true");
+}, l = {
+  Alt: "altKey",
+  Control: "ctrlKey",
+  Shift: "shiftKey",
+  Meta: "metaKey"
+}, u = (e) => e.map((t) => t === "default" ? a() ? "metaKey" : "ctrlKey" : l[t]), E = (e, t, { hotKeys: n = c, modifiers: o = ["default"] } = {}) => {
+  const i = e.key === " " ? "Space" : e.key, r = n[i];
+  r && (i === "Escape" ? t.emit({ [r.event]: e }) : u(r.modifiers || o).every((s) => e[s] === !0) ? t.emit({ [r.event]: e }) : !d(e) && r.modifiers === void 0 && t.emit({ [r.event]: e }));
+};
+export {
+  c as DEFAULT_HOTKEYS,
+  u as getModifiers,
+  E as handleHotKeyDown,
+  d as isInput
+};

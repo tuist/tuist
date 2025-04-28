@@ -1,0 +1,32 @@
+import { defineComponent as t, openBlock as l, createBlock as a, resolveDynamicComponent as r, mergeProps as c, unref as i, withCtx as u, createElementVNode as e } from "vue";
+import { useBindCx as p } from "../../hooks/useBindCx.js";
+const g = {}, y = /* @__PURE__ */ t({
+  ...g,
+  inheritAttrs: !1,
+  __name: "ScalarColorModeToggleIcon",
+  props: {
+    is: { default: "button" },
+    mode: { default: "light" }
+  },
+  setup(m) {
+    const { cx: n } = p();
+    return (o, s) => (l(), a(r(o.is), c({
+      class: `toggle-icon-${o.mode}`,
+      type: o.is === "button" ? "button" : void 0
+    }, i(n)("size-3 flex items-center justify-center text-c-1")), {
+      default: u(() => s[0] || (s[0] = [
+        e("span", { class: "toggle-icon-sun-ray" }, null, -1),
+        e("span", { class: "toggle-icon-sun-ray" }, null, -1),
+        e("span", { class: "toggle-icon-sun-ray" }, null, -1),
+        e("span", { class: "toggle-icon-sun-ray" }, null, -1),
+        e("span", { class: "toggle-icon-ellipse" }, [
+          e("span", { class: "toggle-icon-moon-mask" })
+        ], -1)
+      ])),
+      _: 1
+    }, 16, ["class", "type"]));
+  }
+});
+export {
+  y as default
+};

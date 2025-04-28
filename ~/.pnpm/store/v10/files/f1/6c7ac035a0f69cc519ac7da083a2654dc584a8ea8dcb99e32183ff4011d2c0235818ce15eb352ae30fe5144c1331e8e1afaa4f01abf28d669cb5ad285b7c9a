@@ -1,0 +1,66 @@
+import { defineComponent as C, computed as p, openBlock as s, createElementBlock as f, Fragment as y, renderList as v, createBlock as l, unref as e, withCtx as i, resolveDynamicComponent as T, createVNode as _ } from "vue";
+import { useActiveEntities as $ } from "@scalar/api-client/store";
+import { ScalarErrorBoundary as b } from "@scalar/components";
+import E from "./TagAccordion.vue.js";
+import O from "./Tag.vue.js";
+import L from "../Lazy/Lazy.vue2.js";
+import A from "../../../features/Operation/Operation.vue.js";
+import { useNavState as N } from "../../../hooks/useNavState.js";
+import { useSidebar as V } from "../../../hooks/useSidebar.js";
+const K = /* @__PURE__ */ C({
+  __name: "TagList",
+  props: {
+    tags: {},
+    spec: {},
+    layout: {}
+  },
+  setup(h) {
+    const n = h, { getOperationId: c, getTagId: r, hash: z } = N(), { collapsedSidebarItems: m } = V(), { activeCollection: I, activeServer: g } = $(), k = p(
+      () => n.layout === "classic" ? E : O
+    ), S = p(
+      () => n.tags.findIndex((o) => !m[r(o)]) + 1
+    ), u = (o) => n.layout !== "classic" && !z.value.startsWith("model") && o > S.value;
+    return (o, w) => (s(!0), f(y, null, v(o.tags, (t, d) => (s(), l(e(L), {
+      id: e(r)(t),
+      key: e(r)(t),
+      isLazy: u(d)
+    }, {
+      default: i(() => [
+        (s(), l(T(k.value), {
+          id: e(r)(t),
+          spec: o.spec,
+          tag: t
+        }, {
+          default: i(() => [
+            (s(!0), f(y, null, v(t.operations, (a, B) => (s(), l(e(L), {
+              id: e(c)(a, t),
+              key: `${a.httpVerb}-${a.operationId}`,
+              isLazy: u(d) || e(m)[e(r)(t)] && B > 0
+            }, {
+              default: i(() => [
+                _(e(b), null, {
+                  default: i(() => [
+                    _(e(A), {
+                      id: e(c)(a, t),
+                      collection: e(I),
+                      layout: o.layout,
+                      server: e(g),
+                      transformedOperation: a
+                    }, null, 8, ["id", "collection", "layout", "server", "transformedOperation"])
+                  ]),
+                  _: 2
+                }, 1024)
+              ]),
+              _: 2
+            }, 1032, ["id", "isLazy"]))), 128))
+          ]),
+          _: 2
+        }, 1032, ["id", "spec", "tag"]))
+      ]),
+      _: 2
+    }, 1032, ["id", "isLazy"]))), 128));
+  }
+});
+export {
+  K as default
+};

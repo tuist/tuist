@@ -1,0 +1,6 @@
+import type { HarRequest } from '../types/index.js';
+/**
+ * Takes a httpsnippet-lite client and converts the given request to a code example with it.
+ */
+export declare function convertWithHttpSnippetLite(client: Record<string, unknown>, request?: Partial<HarRequest>): string;
+//# sourceMappingURL=convertWithHttpSnippetLite.d.ts.map

@@ -1,0 +1,10 @@
+import { REGEX } from './regexHelpers.js';
+
+/**
+ * Find all strings wrapped in {} or {{}} in value.
+ */
+const findVariables = (value) => {
+    return ([...value.matchAll(REGEX.PATH), ...value.matchAll(REGEX.VARIABLES)].map((match) => match[1]?.trim()) || []);
+};
+
+export { findVariables };

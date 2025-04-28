@@ -1,0 +1,47 @@
+import { defineComponent as h, openBlock as o, createElementBlock as m, Fragment as k, renderList as y, createElementVNode as C, toDisplayString as V, createBlock as v, createCommentVNode as _ } from "vue";
+import B from "./ServerVariablesSelect.vue.js";
+import S from "./ServerVariablesTextbox.vue.js";
+const $ = { class: "flex items-center pl-3 py-1.5 after:content-[':'] mr-1.5 group-has-[input]/label:mr-0" }, N = /* @__PURE__ */ h({
+  __name: "ServerVariablesForm",
+  props: {
+    variables: {},
+    values: {},
+    controls: {}
+  },
+  emits: ["update:variable"],
+  setup(f, { emit: g }) {
+    const n = f, d = g;
+    function s(e, r) {
+      d("update:variable", e, r);
+    }
+    const i = (e) => {
+      var r, l, a;
+      return (((r = n.values) == null ? void 0 : r[e]) ?? ((a = (l = n.variables) == null ? void 0 : l[e]) == null ? void 0 : a.default) ?? "").toString();
+    };
+    return (e, r) => e.variables && Object.keys(e.variables ?? {}).length ? (o(!0), m(k, { key: 0 }, y(Object.keys(e.variables), (l) => {
+      var a, u, c, p, b;
+      return o(), m("label", {
+        key: l,
+        class: "group/label flex w-full"
+      }, [
+        C("span", $, V(l), 1),
+        (c = (u = (a = e.variables) == null ? void 0 : a[l]) == null ? void 0 : u.enum) != null && c.length ? (o(), v(B, {
+          key: 0,
+          controls: e.controls,
+          enum: ((b = (p = e.variables[l]) == null ? void 0 : p.enum) == null ? void 0 : b.map((t) => `${t}`)) ?? [],
+          label: l,
+          value: i(l),
+          onChange: (t) => s(l, t)
+        }, null, 8, ["controls", "enum", "label", "value", "onChange"])) : (o(), v(S, {
+          key: 1,
+          controls: e.controls,
+          value: i(l),
+          onChange: (t) => s(l, t)
+        }, null, 8, ["controls", "value", "onChange"]))
+      ]);
+    }), 128)) : _("", !0);
+  }
+});
+export {
+  N as default
+};

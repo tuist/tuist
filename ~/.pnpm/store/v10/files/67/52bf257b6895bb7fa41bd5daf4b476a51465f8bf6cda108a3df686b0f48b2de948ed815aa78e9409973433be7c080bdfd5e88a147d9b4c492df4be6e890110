@@ -1,0 +1,54 @@
+import { defineComponent as v, computed as s, openBlock as r, createBlock as f, unref as a, withCtx as c, createVNode as i, createElementVNode as S, normalizeClass as V, createElementBlock as h, createCommentVNode as g, createTextVNode as C, toDisplayString as k } from "vue";
+import { ScalarListbox as y, ScalarButton as B, ScalarIcon as N } from "@scalar/components";
+const _ = {
+  key: 0,
+  class: "sr-only"
+}, x = /* @__PURE__ */ v({
+  __name: "ServerVariablesSelect",
+  props: {
+    enum: {},
+    value: {},
+    controls: {}
+  },
+  emits: ["change"],
+  setup(u, { emit: m }) {
+    const o = u, d = m, t = s(
+      () => o.enum.map((e) => ({ id: e, label: e }))
+    ), l = s({
+      get: () => t.value.find((e) => e.id === o.value),
+      set: (e) => d("change", (e == null ? void 0 : e.id) ?? "")
+    });
+    return (e, n) => (r(), f(a(y), {
+      modelValue: l.value,
+      "onUpdate:modelValue": n[0] || (n[0] = (p) => l.value = p),
+      options: t.value
+    }, {
+      default: c(() => [
+        i(a(B), {
+          "aria-controls": e.controls,
+          class: "h-8 p-0 py-1.5 w-full font-normal",
+          variant: "ghost"
+        }, {
+          default: c(() => [
+            S("span", {
+              class: V({ "text-c-1": e.value })
+            }, [
+              e.value ? (r(), h("span", _, " Selected: ")) : g("", !0),
+              C(" " + k(e.value || "Select value"), 1)
+            ], 2),
+            i(a(N), {
+              class: "ml-1",
+              icon: "ChevronDown",
+              size: "sm"
+            })
+          ]),
+          _: 1
+        }, 8, ["aria-controls"])
+      ]),
+      _: 1
+    }, 8, ["modelValue", "options"]));
+  }
+});
+export {
+  x as default
+};

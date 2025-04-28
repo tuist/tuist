@@ -1,0 +1,148 @@
+import { createStoreCollections as L, extendedCollectionDataFactory as C } from "./collections.js";
+import { createStoreCookies as ee } from "./cookies.js";
+import { createStoreEnvironments as te, extendedEnvironmentDataFactory as re } from "./environment.js";
+import { createStoreEvents as oe } from "./events.js";
+import { importSpecFileFactory as se } from "./import-spec.js";
+import { createStoreRequestExamples as de, extendedExampleDataFactory as ae } from "./request-example.js";
+import { createStoreRequests as ne, extendedRequestDataFactory as ce } from "./requests.js";
+import { createStoreSecuritySchemes as ie, extendedSecurityDataFactory as me } from "./security-schemes.js";
+import { createStoreServers as le, extendedServerDataFactory as pe } from "./servers.js";
+import { createStoreTags as ue, extendedTagDataFactory as ve } from "./tags.js";
+import { createStoreWorkspaces as Se, extendedWorkspaceDataFactory as fe } from "./workspace.js";
+import { useModal as ye } from "@scalar/components";
+import { reactive as Ee, ref as Me, toRaw as r, inject as xe } from "vue";
+const Ie = ({
+  useLocalStorage: e = !0,
+  showSidebar: D = !0,
+  proxyUrl: a,
+  themeId: q,
+  hideClientButton: A = !1,
+  integration: b
+}) => {
+  const { collections: n, collectionMutators: c } = L(e), { tags: i, tagMutators: m } = ue(e), { requests: l, requestMutators: p } = ne(e), { requestExamples: u, requestExampleMutators: v } = de(e), { cookies: S, cookieMutators: w } = ee(e), { environments: f, environmentMutators: k } = te(e), { servers: y, serverMutators: E } = le(e), { securitySchemes: M, securitySchemeMutators: x } = ie(e), { workspaces: d, workspaceMutators: o } = Se(e), t = {
+    collections: n,
+    collectionMutators: c,
+    tags: i,
+    tagMutators: m,
+    requests: l,
+    requestMutators: p,
+    requestExamples: u,
+    requestExampleMutators: v,
+    cookies: S,
+    cookieMutators: w,
+    environments: f,
+    environmentMutators: k,
+    servers: y,
+    serverMutators: E,
+    securitySchemes: M,
+    securitySchemeMutators: x,
+    workspaces: d,
+    workspaceMutators: o
+  }, { addTag: h, deleteTag: T } = ve(t), { addRequest: O, deleteRequest: j, findRequestParents: I } = ce(t, h), { deleteEnvironment: P } = re(t), { addServer: g, deleteServer: B } = pe(t), { addCollection: H, deleteCollection: K } = C(t), { addRequestExample: Y, deleteRequestExample: _ } = ae(t), { addWorkspace: z, deleteWorkspace: G } = fe(t), { addSecurityScheme: J, deleteSecurityScheme: N } = me(t), { addCollectionEnvironment: F, removeCollectionEnvironment: W } = C(t), Q = Ee([]), { importSpecFile: U, importSpecFromUrl: V } = se(t), R = Me((e ? localStorage == null ? void 0 : localStorage.getItem("sidebarWidth") : void 0) || "280px"), X = (s) => {
+    R.value = s, e && (localStorage == null || localStorage.setItem("sidebarWidth", s));
+  }, Z = ye();
+  Object.values(d).forEach(({ uid: s }) => {
+    a && o.edit(s, "proxyUrl", a), q && o.edit(s, "themeId", q);
+  }), typeof window < "u" && (window.dataDump = () => ({
+    collections: r(n),
+    cookies: r(S),
+    environments: r(f),
+    requestExamples: r(u),
+    requests: r(l),
+    securitySchemes: r(M),
+    servers: r(y),
+    tags: r(i),
+    workspaces: r(d)
+  }));
+  const $ = oe();
+  return {
+    // ---------------------------------------------------------------------------
+    // STATE
+    workspaces: d,
+    collections: n,
+    tags: i,
+    cookies: S,
+    environments: f,
+    requestExamples: u,
+    requests: l,
+    servers: y,
+    securitySchemes: M,
+    modalState: Z,
+    events: $,
+    sidebarWidth: R,
+    setSidebarWidth: X,
+    proxyUrl: a,
+    // ---------------------------------------------------------------------------
+    // CONFIGURATION "PROPS"
+    // TODO: move these to their own store
+    hideClientButton: A,
+    showSidebar: D,
+    integration: b,
+    // ---------------------------------------------------------------------------
+    // METHODS
+    importSpecFile: U,
+    importSpecFromUrl: V,
+    cookieMutators: w,
+    collectionMutators: {
+      ...c,
+      rawAdd: c.add,
+      add: H,
+      delete: K,
+      addEnvironment: F,
+      removeEnvironment: W
+    },
+    environmentMutators: {
+      ...k,
+      delete: P
+    },
+    requestMutators: {
+      ...p,
+      rawAdd: p.add,
+      add: O,
+      delete: j
+    },
+    findRequestParents: I,
+    requestExampleMutators: {
+      ...v,
+      rawAdd: v.add,
+      add: Y,
+      delete: _
+    },
+    requestHistory: Q,
+    securitySchemeMutators: {
+      ...x,
+      rawAdd: x.add,
+      add: J,
+      delete: N
+    },
+    serverMutators: {
+      ...E,
+      rawAdd: E.add,
+      add: g,
+      delete: B
+    },
+    tagMutators: {
+      ...m,
+      rawAdd: m.add,
+      add: h,
+      delete: T
+    },
+    workspaceMutators: {
+      ...o,
+      rawAdd: o.add,
+      add: z,
+      delete: G
+    },
+    addCollectionEnvironment: F,
+    removeCollectionEnvironment: W
+  };
+}, qe = Symbol(), Pe = () => {
+  const e = xe(qe);
+  if (!e) throw new Error("Workspace store not provided");
+  return e;
+};
+export {
+  qe as WORKSPACE_SYMBOL,
+  Ie as createWorkspaceStore,
+  Pe as useWorkspace
+};

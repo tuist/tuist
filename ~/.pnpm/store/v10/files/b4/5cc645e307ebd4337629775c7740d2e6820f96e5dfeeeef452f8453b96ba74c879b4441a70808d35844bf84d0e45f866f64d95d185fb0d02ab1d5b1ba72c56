@@ -1,0 +1,50 @@
+{
+  "name": "@scalar/openapi-types",
+  "description": "Modern OpenAPI types",
+  "license": "MIT",
+  "author": "Scalar (https://github.com/scalar)",
+  "homepage": "https://github.com/scalar/scalar",
+  "bugs": "https://github.com/scalar/scalar/issues/new/choose",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scalar/scalar.git",
+    "directory": "packages/openapi-types"
+  },
+  "keywords": [
+    "openapi",
+    "scalar",
+    "swagger",
+    "typescript"
+  ],
+  "version": "0.1.8",
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/webpack-stats.json",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "devDependencies": {
+    "@scalar/build-tooling": "0.1.14"
+  },
+  "scripts": {
+    "build": "pnpm types:check && rollup -c --configPlugin typescript && pnpm types:build",
+    "format": "prettier --write .",
+    "lint:check": "eslint .",
+    "lint:fix": "eslint .  --fix",
+    "test:prepare": "vite-node scripts/load-files.ts",
+    "test:unit": "vite-node scripts/load-files.ts && vitest",
+    "types:build": "scalar-types-build",
+    "types:check": "scalar-types-check"
+  }
+}

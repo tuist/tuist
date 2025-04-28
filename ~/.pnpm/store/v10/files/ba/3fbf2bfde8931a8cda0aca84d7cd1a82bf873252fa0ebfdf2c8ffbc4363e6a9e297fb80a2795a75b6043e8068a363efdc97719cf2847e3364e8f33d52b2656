@@ -1,0 +1,18 @@
+import { XScalarStability as i } from "@scalar/types/legacy";
+function f(t) {
+  var e, r, a;
+  return ((e = t.information) == null ? void 0 : e.deprecated) !== void 0 ? (r = t.information) == null ? void 0 : r.deprecated : !!((a = t.information) != null && a["x-scalar-stability"] && t.information["x-scalar-stability"] === i.Deprecated);
+}
+function n(t) {
+  var e, r;
+  return (e = t.information) != null && e.deprecated ? i.Deprecated : (r = t.information) == null ? void 0 : r["x-scalar-stability"];
+}
+function c(t) {
+  const e = n(t);
+  return e === i.Deprecated ? "text-red" : e === i.Experimental ? "text-orange" : e === i.Stable ? "text-green" : "";
+}
+export {
+  n as getOperationStability,
+  c as getOperationStabilityColor,
+  f as isOperationDeprecated
+};

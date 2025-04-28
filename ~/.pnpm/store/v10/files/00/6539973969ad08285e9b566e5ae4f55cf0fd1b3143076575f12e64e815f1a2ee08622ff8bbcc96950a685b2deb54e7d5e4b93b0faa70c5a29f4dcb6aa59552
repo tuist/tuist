@@ -1,0 +1,32 @@
+import type { createWorkspaceStore } from '@scalar/api-client/store';
+import type { Request as RequestEntity } from '@scalar/oas-utils/entities/spec';
+import { type ComputedRef } from 'vue';
+export type StoreContext = ReturnType<typeof createWorkspaceStore>;
+export type BlockProps = {
+    /**
+     * The store created by `createStore`
+     */
+    store: StoreContext | undefined;
+    /**
+     * The JSON pointer to the operation to use
+     *
+     * @example
+     * ```
+     * #/paths/test/get
+     * ```
+     */
+    location: `#/${string}`;
+    /**
+     * The name of the collection to use
+     *
+     * @default 'default'
+     */
+    collection?: string;
+};
+/**
+ * Provides computed properties for the block, based on the standardized interface of the `createStore` function.
+ */
+export declare function useBlockProps({ store, location }: BlockProps): {
+    operation: ComputedRef<RequestEntity | undefined>;
+};
+//# sourceMappingURL=useBlockProps.d.ts.map

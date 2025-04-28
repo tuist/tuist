@@ -1,0 +1,4 @@
+import { default as o } from "./ServerForm.vue.js";
+export {
+  o as ServerForm
+};

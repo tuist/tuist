@@ -1,0 +1,48 @@
+{
+	"name": "stringify-object",
+	"version": "5.0.0",
+	"description": "Stringify an object/array like JSON.stringify just without all the double-quotes",
+	"license": "BSD-2-Clause",
+	"repository": "yeoman/stringify-object",
+	"funding": "https://github.com/yeoman/stringify-object?sponsor=1",
+	"author": {
+		"name": "Sindre Sorhus",
+		"email": "sindresorhus@gmail.com",
+		"url": "https://sindresorhus.com"
+	},
+	"type": "module",
+	"exports": "./index.js",
+	"engines": {
+		"node": ">=14.16"
+	},
+	"scripts": {
+		"test": "xo && ava"
+	},
+	"files": [
+		"index.js"
+	],
+	"keywords": [
+		"object",
+		"stringify",
+		"pretty",
+		"print",
+		"dump",
+		"format",
+		"type",
+		"json"
+	],
+	"dependencies": {
+		"get-own-enumerable-keys": "^1.0.0",
+		"is-obj": "^3.0.0",
+		"is-regexp": "^3.1.0"
+	},
+	"devDependencies": {
+		"ava": "^5.1.1",
+		"xo": "^0.53.1"
+	},
+	"xo": {
+		"ignores": [
+			"test/fixtures/*.js"
+		]
+	}
+}

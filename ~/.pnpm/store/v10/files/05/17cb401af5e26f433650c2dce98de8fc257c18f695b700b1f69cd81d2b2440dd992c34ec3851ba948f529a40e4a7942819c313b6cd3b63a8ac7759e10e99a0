@@ -1,0 +1,31 @@
+import { defineComponent as o, openBlock as c, createElementBlock as n, createElementVNode as e, createVNode as t, unref as a } from "vue";
+import l from "../assets/keycap.ascii.js";
+import s from "./ScalarAsciiArt.vue.js";
+import i from "./ScalarHotkey.vue.js";
+const p = { class: "scale-75 flex flex-center w-full" }, m = { class: "relative" }, d = { class: "relative -ml-12" }, h = /* @__PURE__ */ o({
+  __name: "EmptyState",
+  setup(_) {
+    return (f, r) => (c(), n("div", p, [
+      e("div", m, [
+        t(i, {
+          class: "keycap-hotkey border-transparent right-14 text-xl",
+          hotkey: ""
+        }),
+        t(s, {
+          art: a(l),
+          class: "!leading-[6px] text-c-3"
+        }, null, 8, ["art"])
+      ]),
+      e("div", d, [
+        r[0] || (r[0] = e("div", { class: "keycap-hotkey right-16 text-xl" }, "K", -1)),
+        t(s, {
+          art: a(l),
+          class: "!leading-[6px] keycap-n"
+        }, null, 8, ["art"])
+      ])
+    ]));
+  }
+});
+export {
+  h as default
+};

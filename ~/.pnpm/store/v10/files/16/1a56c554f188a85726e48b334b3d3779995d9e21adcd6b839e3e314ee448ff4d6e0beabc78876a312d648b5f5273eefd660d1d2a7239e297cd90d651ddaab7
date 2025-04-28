@@ -1,0 +1,29 @@
+import { defineComponent as a, ref as c, openBlock as o, createBlock as n, withCtx as r, createVNode as m, resolveDynamicComponent as i, createCommentVNode as l } from "vue";
+import s from "../../components/ViewLayout/ViewLayout.vue.js";
+import p from "../../components/ViewLayout/ViewLayoutContent.vue.js";
+import f from "./SettingsGeneral.vue.js";
+const y = /* @__PURE__ */ a({
+  __name: "Settings",
+  setup(u) {
+    const e = {
+      general: {
+        component: f,
+        title: "general"
+      }
+    }, t = c("general");
+    return (_, d) => (o(), n(s, null, {
+      default: r(() => [
+        m(p, { class: "flex-1" }, {
+          default: r(() => [
+            e[t.value] ? (o(), n(i(e[t.value].component), { key: 0 })) : l("", !0)
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  y as default
+};

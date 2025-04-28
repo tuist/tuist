@@ -1,0 +1,103 @@
+import { defineComponent as $, computed as u, onMounted as w, openBlock as l, createBlock as s, unref as t, withCtx as i, createVNode as n, createElementVNode as S, createTextVNode as f, toDisplayString as d, createCommentVNode as p, renderSlot as _ } from "vue";
+import { useConfig as N } from "../../../hooks/useConfig.js";
+import T from "github-slugger";
+import b from "../../../features/DownloadLink/DownloadLink.vue.js";
+import B from "./Description.vue.js";
+import D from "../../Section/SectionContainer.vue.js";
+import H from "../../Section/Section.vue.js";
+import A from "../../Section/SectionContent.vue.js";
+import C from "../../Badge/Badge.vue.js";
+import E from "../../Section/SectionHeader.vue.js";
+import F from "../../Section/SectionColumns.vue.js";
+import k from "../../Section/SectionColumn.vue.js";
+const G = { class: "badges" }, I = { class: "sticky-cards" }, W = /* @__PURE__ */ $({
+  __name: "Introduction",
+  props: {
+    info: {},
+    parsedSpec: {}
+  },
+  setup(y) {
+    const o = y, m = u(
+      () => {
+        var e, r;
+        return ((e = o.parsedSpec) == null ? void 0 : e.openapi) ?? ((r = o.parsedSpec) == null ? void 0 : r.swagger) ?? "";
+      }
+    ), h = new T(), V = u(() => {
+      var e;
+      return h.slug(((e = o.info) == null ? void 0 : e.title) ?? "");
+    }), c = u(() => {
+      var e, r;
+      return typeof ((e = o.info) == null ? void 0 : e.version) == "string" ? o.info.version.toString().match(/^\d/) ? `v${o.info.version}` : o.info.version : typeof ((r = o.info) == null ? void 0 : r.version) == "number" ? `v${o.info.version}` : void 0;
+    }), { onLoaded: a } = N();
+    return w(() => a == null ? void 0 : a()), (e, r) => (l(), s(t(D), null, {
+      default: i(() => [
+        n(t(H), { class: "introduction-section gap-12" }, {
+          default: i(() => {
+            var v, g;
+            return [
+              n(t(A), {
+                loading: !((v = e.info) != null && v.description) && !((g = e.info) != null && g.title)
+              }, {
+                default: i(() => [
+                  S("div", G, [
+                    c.value ? (l(), s(t(C), { key: 0 }, {
+                      default: i(() => [
+                        f(d(c.value), 1)
+                      ]),
+                      _: 1
+                    })) : p("", !0),
+                    m.value ? (l(), s(t(C), { key: 1 }, {
+                      default: i(() => [
+                        f("OAS " + d(m.value), 1)
+                      ]),
+                      _: 1
+                    })) : p("", !0)
+                  ]),
+                  n(t(E), {
+                    level: 1,
+                    loading: !e.info.title,
+                    tight: ""
+                  }, {
+                    default: i(() => [
+                      f(d(e.info.title), 1)
+                    ]),
+                    _: 1
+                  }, 8, ["loading"]),
+                  n(b, { specTitle: V.value }, null, 8, ["specTitle"]),
+                  n(t(F), null, {
+                    default: i(() => [
+                      n(t(k), null, {
+                        default: i(() => [
+                          n(B, {
+                            value: e.info.description
+                          }, null, 8, ["value"])
+                        ]),
+                        _: 1
+                      }),
+                      e.$slots.aside ? (l(), s(t(k), { key: 0 }, {
+                        default: i(() => [
+                          S("div", I, [
+                            _(e.$slots, "aside", {}, void 0, !0)
+                          ])
+                        ]),
+                        _: 3
+                      })) : p("", !0)
+                    ]),
+                    _: 3
+                  })
+                ]),
+                _: 3
+              }, 8, ["loading"]),
+              _(e.$slots, "after", {}, void 0, !0)
+            ];
+          }),
+          _: 3
+        })
+      ]),
+      _: 3
+    }));
+  }
+});
+export {
+  W as default
+};

@@ -1,0 +1,22 @@
+import { type Icon } from '@scalar/components';
+type __VLS_Props = {
+    hotkey?: string;
+    active: boolean;
+    label: string;
+    icon: Icon;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    close: () => any;
+    click: () => any;
+    newTab: () => any;
+    copyUrl: () => any;
+    closeOtherTabs: () => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onClose?: () => any;
+    onClick?: () => any;
+    onNewTab?: () => any;
+    onCopyUrl?: () => any;
+    onCloseOtherTabs?: () => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=TopNavItem.vue.d.ts.map

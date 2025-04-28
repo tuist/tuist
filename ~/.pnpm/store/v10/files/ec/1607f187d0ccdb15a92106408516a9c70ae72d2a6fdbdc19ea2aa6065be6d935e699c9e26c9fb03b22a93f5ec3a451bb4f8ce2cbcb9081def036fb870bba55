@@ -1,0 +1,21 @@
+import { type EnvVariables } from '../../libs/env-helpers';
+import type { Environment } from '@scalar/oas-utils/entities/environment';
+type __VLS_Props = {
+    query: string;
+    environment: Environment;
+    envVariables: EnvVariables;
+    dropdownPosition?: {
+        left: number;
+        top: number;
+    };
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {
+    handleArrowKey: (direction: "up" | "down") => void;
+    handleSelect: () => void;
+}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    select: (variable: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onSelect?: (variable: string) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=EnvironmentVariableDropdown.vue.d.ts.map

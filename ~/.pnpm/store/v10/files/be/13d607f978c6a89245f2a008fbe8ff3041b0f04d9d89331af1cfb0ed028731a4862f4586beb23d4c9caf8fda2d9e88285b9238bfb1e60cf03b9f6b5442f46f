@@ -1,0 +1,110 @@
+/** Migrate security scheme from v-2.1.0 to v-2.2.0 */
+const migrateSecurityScheme = (scheme, auth) => {
+    // API Key
+    if (scheme.type === 'apiKey' && auth.type === 'apiKey') {
+        return {
+            ...scheme,
+            value: auth.value,
+        };
+    }
+    // HTTP
+    if (scheme.type === 'http' && auth.type === 'http') {
+        return {
+            ...scheme,
+            username: auth.username,
+            password: auth.password,
+            token: auth.token,
+        };
+    }
+    // OAuth2
+    if (scheme.type === 'oauth2') {
+        const { flow, ..._scheme } = scheme;
+        // Implicit
+        if (flow.type === 'implicit' && auth.type === 'oauth-implicit') {
+            return {
+                ..._scheme,
+                flows: {
+                    implicit: {
+                        ...flow,
+                        'scopes': flow.scopes,
+                        'token': auth.token,
+                        'x-scalar-client-id': _scheme['x-scalar-client-id'],
+                    },
+                },
+            };
+        }
+        // Password
+        if (flow.type === 'password' && auth.type === 'oauth-password') {
+            return {
+                ..._scheme,
+                flows: {
+                    password: {
+                        ...flow,
+                        'username': auth.username,
+                        'password': auth.password,
+                        'token': auth.token,
+                        'clientSecret': auth.clientSecret,
+                        'scopes': flow.scopes,
+                        'x-scalar-client-id': _scheme['x-scalar-client-id'],
+                    },
+                },
+            };
+        }
+        // Client Credentials
+        if (flow.type === 'clientCredentials' &&
+            auth.type === 'oauth-clientCredentials') {
+            return {
+                ..._scheme,
+                flows: {
+                    clientCredentials: {
+                        ...flow,
+                        'token': auth.token,
+                        'clientSecret': auth.clientSecret,
+                        'scopes': flow.scopes,
+                        'x-scalar-client-id': _scheme['x-scalar-client-id'],
+                    },
+                },
+            };
+        }
+        // Authorization Code
+        if (flow.type === 'authorizationCode' &&
+            auth.type === 'oauth-authorizationCode') {
+            return {
+                ..._scheme,
+                flows: {
+                    authorizationCode: {
+                        ...flow,
+                        'token': auth.token,
+                        'clientSecret': auth.clientSecret,
+                        'scopes': flow.scopes,
+                        'x-scalar-client-id': _scheme['x-scalar-client-id'],
+                    },
+                },
+            };
+        }
+    }
+    return null;
+};
+/** V-2.1.0 to V-2.2.0 migration */
+const migrate_v_2_2_0 = (data) => {
+    console.info('Performing data migration v-2.1.0 to v-2.2.0');
+    const securitySchemes = Object.values(data.securitySchemes).reduce((prev, s) => {
+        const collection = Object.values(data.collections).find((c) => c.securitySchemes.includes(s.uid));
+        const auth = collection?.auth?.[s.uid];
+        if (!auth)
+            return prev;
+        const newScheme = migrateSecurityScheme(s, auth);
+        if (newScheme)
+            prev[s.uid] = newScheme;
+        return prev;
+    }, {});
+    // No changes to servers
+    const servers = data.servers;
+    return {
+        ...data,
+        securitySchemes,
+        servers,
+    };
+};
+
+export { migrate_v_2_2_0 };

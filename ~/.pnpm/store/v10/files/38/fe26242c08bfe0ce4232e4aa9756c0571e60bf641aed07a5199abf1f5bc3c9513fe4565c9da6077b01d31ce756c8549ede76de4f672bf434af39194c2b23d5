@@ -1,0 +1,63 @@
+{
+    "name": "vanilla-cookieconsent",
+    "version": "3.1.0",
+    "description": "🍪 Simple cross-browser cookie-consent plugin written in vanilla js.",
+    "main": "dist/cookieconsent.umd.js",
+    "module": "dist/cookieconsent.esm.js",
+    "files": [
+        "dist",
+        "types"
+    ],
+    "types": "types/index.d.ts",
+    "scripts": {
+        "dev": "rollup --config ./rollup-full.config.mjs --watch",
+        "build": "pnpm rollup:full & pnpm rollup:core",
+        "rollup:full": "rollup --config ./rollup-full.config.mjs",
+        "rollup:core": "rollup --config ./rollup-core.config.mjs",
+        "docs:dev": "vitepress dev docs",
+        "docs:build": "vitepress build docs",
+        "docs:serve": "vitepress serve docs",
+        "test": "jest --env=jsdom --runInBand --coverage --silent ./tests"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/orestbida/cookieconsent"
+    },
+    "keywords": [
+        "cookie",
+        "consent",
+        "gdpr",
+        "banner",
+        "vanilla"
+    ],
+    "bugs": {
+        "url": "https://github.com/orestbida/cookieconsent/issues"
+    },
+    "homepage": "https://cookieconsent.orestbida.com",
+    "author": "Orest Bida",
+    "license": "MIT",
+    "devDependencies": {
+        "@babel/core": "^7.26.7",
+        "@babel/preset-env": "^7.26.7",
+        "@rollup/plugin-eslint": "^9.0.5",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@types/jest": "^29.5.14",
+        "babel-jest": "^29.7.0",
+        "cssnano": "^7.0.6",
+        "eslint": "^9.19.0",
+        "fast-glob": "^3.3.3",
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^29.7.0",
+        "postcss-combine-duplicated-selectors": "^10.0.3",
+        "rollup": "^4.34.2",
+        "rollup-plugin-postcss": "^4.0.2",
+        "sass": "^1.83.4",
+        "sitemap": "^8.0.0",
+        "vitepress": "1.6.3"
+    },
+    "jest": {
+        "transform": {
+            "\\.[jt]sx?$": "babel-jest"
+        }
+    }
+}

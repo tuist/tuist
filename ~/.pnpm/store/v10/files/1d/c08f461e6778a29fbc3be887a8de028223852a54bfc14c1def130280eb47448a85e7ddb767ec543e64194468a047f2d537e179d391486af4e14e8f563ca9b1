@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * js/xhr
+ */
+export declare const jsXhr: Plugin;
+//# sourceMappingURL=xhr.d.ts.map

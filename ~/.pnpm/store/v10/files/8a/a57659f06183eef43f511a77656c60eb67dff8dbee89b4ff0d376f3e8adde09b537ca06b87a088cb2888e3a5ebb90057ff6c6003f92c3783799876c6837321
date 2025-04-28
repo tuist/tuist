@@ -1,0 +1,12 @@
+/** Retrieve example values for server variables */
+const getServerVariableExamples = (server) => {
+    const examples = {};
+    if (server.variables) {
+        for (const [key, variable] of Object.entries(server.variables)) {
+            examples[key] = variable.enum?.filter((v) => typeof v === 'string') ?? [variable.default];
+        }
+    }
+    return examples;
+};
+
+export { getServerVariableExamples };

@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * csharp/restsharp
+ */
+export declare const csharpRestsharp: Plugin;
+//# sourceMappingURL=restsharp.d.ts.map

@@ -1,0 +1,39 @@
+import { computed as r } from "vue";
+const m = (e) => !!(e.description || e.type || e.default || e.format || e.minimum || e.maximum), n = (e) => r(() => {
+  if (e.value === void 0 || e.value === "") return !1;
+  if (e.type) {
+    if (e.type === "integer") {
+      const a = Number(e.value);
+      if (isNaN(a) || !Number.isInteger(a))
+        return "Value must be a whole number (e.g., 42)";
+      if (e.minimum !== void 0 && a < e.minimum)
+        return `Value must be ${e.minimum} or greater`;
+      if (e.maximum !== void 0 && a > e.maximum)
+        return `Value must be ${e.maximum} or less`;
+    }
+    if (e.type === "number") {
+      const a = Number(e.value);
+      if (isNaN(a))
+        return "Value must be a number (e.g., 42.5)";
+      if (e.minimum !== void 0 && a < e.minimum)
+        return `Value must be ${e.minimum} or greater`;
+      if (e.maximum !== void 0 && a > e.maximum)
+        return `Value must be ${e.maximum} or less`;
+    }
+    if (e.type === "string" && e.format) {
+      if (e.format === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(e.value))
+        return "Please enter a valid date in YYYY-MM-DD format (e.g., 2024-03-20)";
+      if (e.format === "date-time" && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(e.value))
+        return "Please enter a valid date and time in RFC 3339 format (e.g., 2024-03-20T13:45:30Z)";
+      if (e.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.value))
+        return "Please enter a valid email address (e.g., user@example.com)";
+      if (e.format === "uri" && !/^[a-zA-Z][a-zA-Z0-9+.-]*:.+$/.test(e.value))
+        return "Please enter a valid URI (e.g., https://example.com)";
+    }
+  }
+  return !1;
+});
+export {
+  m as hasItemProperties,
+  n as parameterIsInvalid
+};

@@ -1,0 +1,123 @@
+import { defineComponent as W, computed as L, openBlock as s, createElementBlock as r, Fragment as p, createStaticVNode as j, createElementVNode as h, renderSlot as m, createVNode as d, unref as a, createBlock as o, withCtx as g, normalizeClass as q, createCommentVNode as l, renderList as z } from "vue";
+import { useWorkspace as F, useActiveEntities as G } from "@scalar/api-client/store";
+import { RequestAuth as I } from "@scalar/api-client/views/Request/RequestSection/RequestAuth";
+import { ScalarErrorBoundary as O } from "@scalar/components";
+import R from "./Lazy/Loading.vue.js";
+/* empty css                  */
+import D from "./Introduction/Introduction.vue.js";
+import H from "../../features/BaseUrl/BaseUrl.vue.js";
+import J from "./ClientLibraries/ClientLibraries.vue.js";
+import b from "./Tag/TagList.vue.js";
+import K from "../../features/Operation/Webhooks.vue.js";
+import P from "./Models/ModelsAccordion.vue.js";
+import Q from "./Models/Models.vue.js";
+import { useSidebar as T } from "../../hooks/useSidebar.js";
+import { hasModels as X } from "../../helpers/hasModels.js";
+import { getModels as w } from "../../helpers/getModels.js";
+const Y = { class: "narrow-references-container" }, Z = {
+  key: 0,
+  class: "scalar-client introduction-card-item [--scalar-address-bar-height:0px] divide-y text-sm"
+}, _ = {
+  key: 1,
+  class: "scalar-client introduction-card-item"
+}, ve = /* @__PURE__ */ W({
+  __name: "Content",
+  props: {
+    parsedSpec: {},
+    layout: { default: "modern" }
+  },
+  setup(C) {
+    const V = C, { hideModels: E } = T(), { securitySchemes: $ } = F(), {
+      activeCollection: n,
+      activeEnvVariables: M,
+      activeEnvironment: A,
+      activeServer: B,
+      activeWorkspace: f
+    } = G(), N = L(
+      () => V.layout === "classic" ? "after" : "aside"
+    );
+    return (e, u) => {
+      var v, S, y, k;
+      return s(), r(p, null, [
+        u[0] || (u[0] = j('<div class="section-flare" data-v-42cfaf8d><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div><div class="section-flare-item" data-v-42cfaf8d></div></div>', 1)),
+        h("div", Y, [
+          m(e.$slots, "start", {}, void 0, !0),
+          d(a(R), {
+            layout: e.layout,
+            parsedSpec: e.parsedSpec
+          }, null, 8, ["layout", "parsedSpec"]),
+          (S = (v = e.parsedSpec) == null ? void 0 : v.info) != null && S.title || (k = (y = e.parsedSpec) == null ? void 0 : y.info) != null && k.description ? (s(), o(a(D), {
+            key: 0,
+            info: e.parsedSpec.info,
+            parsedSpec: e.parsedSpec
+          }, {
+            [N.value]: g(() => [
+              d(a(O), null, {
+                default: g(() => {
+                  var i, t, c;
+                  return [
+                    h("div", {
+                      class: q(["introduction-card", { "introduction-card-row": e.layout === "classic" }])
+                    }, [
+                      (t = (i = a(n)) == null ? void 0 : i.servers) != null && t.length ? (s(), r("div", Z, [
+                        d(a(H))
+                      ])) : l("", !0),
+                      a(n) && a(f) && Object.keys(a($) ?? {}).length ? (s(), r("div", _, [
+                        d(a(I), {
+                          collection: a(n),
+                          envVariables: a(M),
+                          environment: a(A),
+                          layout: "reference",
+                          selectedSecuritySchemeUids: ((c = a(n)) == null ? void 0 : c.selectedSecuritySchemeUids) ?? [],
+                          server: a(B),
+                          title: "Authentication",
+                          workspace: a(f)
+                        }, null, 8, ["collection", "envVariables", "environment", "selectedSecuritySchemeUids", "server", "workspace"])
+                      ])) : l("", !0),
+                      d(a(J), { class: "introduction-card-item" })
+                    ], 2)
+                  ];
+                }),
+                _: 1
+              })
+            ]),
+            _: 2
+          }, 1032, ["info", "parsedSpec"])) : m(e.$slots, "empty-state", { key: 1 }, void 0, !0),
+          e.parsedSpec.tags ? (s(), r(p, { key: 2 }, [
+            e.parsedSpec["x-tagGroups"] ? (s(!0), r(p, { key: 0 }, z(e.parsedSpec["x-tagGroups"], (i) => (s(), o(a(b), {
+              key: i.name,
+              layout: e.layout,
+              spec: e.parsedSpec,
+              tags: i.tags.map((t) => {
+                var c;
+                return (c = e.parsedSpec.tags) == null ? void 0 : c.find((U) => U.name === t);
+              }).filter((t) => !!t)
+            }, null, 8, ["layout", "spec", "tags"]))), 128)) : (s(), o(a(b), {
+              key: 1,
+              layout: e.layout,
+              spec: e.parsedSpec,
+              tags: e.parsedSpec.tags
+            }, null, 8, ["layout", "spec", "tags"]))
+          ], 64)) : l("", !0),
+          e.parsedSpec.webhooks ? (s(), o(a(K), {
+            key: 3,
+            webhooks: e.parsedSpec.webhooks
+          }, null, 8, ["webhooks"])) : l("", !0),
+          a(X)(e.parsedSpec) && !a(E) ? (s(), r(p, { key: 4 }, [
+            e.layout === "classic" ? (s(), o(a(P), {
+              key: 0,
+              schemas: a(w)(e.parsedSpec)
+            }, null, 8, ["schemas"])) : (s(), o(a(Q), {
+              key: 1,
+              schemas: a(w)(e.parsedSpec)
+            }, null, 8, ["schemas"]))
+          ], 64)) : l("", !0),
+          m(e.$slots, "end", {}, void 0, !0)
+        ])
+      ], 64);
+    };
+  }
+});
+export {
+  ve as default
+};

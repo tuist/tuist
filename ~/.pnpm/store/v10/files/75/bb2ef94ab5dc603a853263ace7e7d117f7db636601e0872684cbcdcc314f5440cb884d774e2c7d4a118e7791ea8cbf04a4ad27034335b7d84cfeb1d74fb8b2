@@ -1,0 +1,1 @@
+import{dom as o}from'./dom.js';import{env as t}from'./env.js';function i(r){if(t.isServer)return null;if(r instanceof Node)return r.ownerDocument;if(r!=null&&r.hasOwnProperty("value")){let n=o(r);if(n)return n.ownerDocument}return document}export{i as getOwnerDocument};

@@ -1,0 +1,232 @@
+import type { StoreContext } from '../store/store-context';
+import { type Workspace } from '@scalar/oas-utils/entities/workspace';
+/** Create storage for workspace entities */
+export declare function createStoreWorkspaces(useLocalStorage: boolean): {
+    workspaces: Record<string, {
+        uid: string & import("zod").BRAND<"workspace">;
+        name: string;
+        description: string;
+        collections: (string & import("zod").BRAND<"collection">)[];
+        environments: Record<string, string>;
+        activeEnvironmentId: string;
+        cookies: (string & import("zod").BRAND<"cookie">)[];
+        themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+        selectedHttpClient: {
+            targetKey: string;
+            clientKey: string;
+        };
+        hotKeyConfig?: {
+            modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+            hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+            }>> | undefined;
+        } | undefined;
+        proxyUrl?: string | undefined;
+    }>;
+    workspaceMutators: {
+        add: (item: {
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }) => void;
+        delete: (uid: (string & import("zod").BRAND<"workspace">) | null | undefined) => void;
+        set: (item: {
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }) => void;
+        edit: <P extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" | `cookies.${number}` | `collections.${number}` | `environments.${string}` | "selectedHttpClient.targetKey" | "selectedHttpClient.clientKey" | "hotKeyConfig.modifiers" | "hotKeyConfig.hotKeys" | `hotKeyConfig.modifiers.${number}` | "hotKeyConfig.hotKeys." | "hotKeyConfig.hotKeys./" | "hotKeyConfig.hotKeys.Space" | "hotKeyConfig.hotKeys.Backspace" | "hotKeyConfig.hotKeys.Tab" | "hotKeyConfig.hotKeys.Enter" | "hotKeyConfig.hotKeys.Escape" | "hotKeyConfig.hotKeys.ArrowDown" | "hotKeyConfig.hotKeys.ArrowLeft" | "hotKeyConfig.hotKeys.ArrowRight" | "hotKeyConfig.hotKeys.ArrowUp" | "hotKeyConfig.hotKeys.End" | "hotKeyConfig.hotKeys.Home" | "hotKeyConfig.hotKeys.PageDown" | "hotKeyConfig.hotKeys.PageUp" | "hotKeyConfig.hotKeys.Delete" | "hotKeyConfig.hotKeys.0" | "hotKeyConfig.hotKeys.1" | "hotKeyConfig.hotKeys.2" | "hotKeyConfig.hotKeys.3" | "hotKeyConfig.hotKeys.4" | "hotKeyConfig.hotKeys.5" | "hotKeyConfig.hotKeys.6" | "hotKeyConfig.hotKeys.7" | "hotKeyConfig.hotKeys.8" | "hotKeyConfig.hotKeys.9" | "hotKeyConfig.hotKeys.a" | "hotKeyConfig.hotKeys.b" | "hotKeyConfig.hotKeys.c" | "hotKeyConfig.hotKeys.d" | "hotKeyConfig.hotKeys.e" | "hotKeyConfig.hotKeys.f" | "hotKeyConfig.hotKeys.g" | "hotKeyConfig.hotKeys.h" | "hotKeyConfig.hotKeys.i" | "hotKeyConfig.hotKeys.j" | "hotKeyConfig.hotKeys.k" | "hotKeyConfig.hotKeys.l" | "hotKeyConfig.hotKeys.m" | "hotKeyConfig.hotKeys.n" | "hotKeyConfig.hotKeys.o" | "hotKeyConfig.hotKeys.p" | "hotKeyConfig.hotKeys.q" | "hotKeyConfig.hotKeys.r" | "hotKeyConfig.hotKeys.s" | "hotKeyConfig.hotKeys.t" | "hotKeyConfig.hotKeys.u" | "hotKeyConfig.hotKeys.v" | "hotKeyConfig.hotKeys.w" | "hotKeyConfig.hotKeys.x" | "hotKeyConfig.hotKeys.y" | "hotKeyConfig.hotKeys.z" | "hotKeyConfig.hotKeys.*" | "hotKeyConfig.hotKeys.+" | "hotKeyConfig.hotKeys.-" | "hotKeyConfig.hotKeys.." | "hotKeyConfig.hotKeys.F1" | "hotKeyConfig.hotKeys.F2" | "hotKeyConfig.hotKeys.F3" | "hotKeyConfig.hotKeys.F4" | "hotKeyConfig.hotKeys.F5" | "hotKeyConfig.hotKeys.F6" | "hotKeyConfig.hotKeys.F7" | "hotKeyConfig.hotKeys.F8" | "hotKeyConfig.hotKeys.F9" | "hotKeyConfig.hotKeys.F10" | "hotKeyConfig.hotKeys.F11" | "hotKeyConfig.hotKeys.F12" | "hotKeyConfig.hotKeys.;" | "hotKeyConfig.hotKeys.=" | "hotKeyConfig.hotKeys.," | "hotKeyConfig.hotKeys.`" | "hotKeyConfig.hotKeys.[" | "hotKeyConfig.hotKeys.\\" | "hotKeyConfig.hotKeys.]" | "hotKeyConfig.hotKeys..modifiers" | `hotKeyConfig.hotKeys..modifiers.${number}` | "hotKeyConfig.hotKeys..event" | "hotKeyConfig.hotKeys./.modifiers" | `hotKeyConfig.hotKeys./.modifiers.${number}` | "hotKeyConfig.hotKeys./.event" | "hotKeyConfig.hotKeys.Space.modifiers" | `hotKeyConfig.hotKeys.Space.modifiers.${number}` | "hotKeyConfig.hotKeys.Space.event" | "hotKeyConfig.hotKeys.Backspace.modifiers" | `hotKeyConfig.hotKeys.Backspace.modifiers.${number}` | "hotKeyConfig.hotKeys.Backspace.event" | "hotKeyConfig.hotKeys.Tab.modifiers" | `hotKeyConfig.hotKeys.Tab.modifiers.${number}` | "hotKeyConfig.hotKeys.Tab.event" | "hotKeyConfig.hotKeys.Enter.modifiers" | `hotKeyConfig.hotKeys.Enter.modifiers.${number}` | "hotKeyConfig.hotKeys.Enter.event" | "hotKeyConfig.hotKeys.Escape.modifiers" | `hotKeyConfig.hotKeys.Escape.modifiers.${number}` | "hotKeyConfig.hotKeys.Escape.event" | "hotKeyConfig.hotKeys.ArrowDown.modifiers" | `hotKeyConfig.hotKeys.ArrowDown.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowDown.event" | "hotKeyConfig.hotKeys.ArrowLeft.modifiers" | `hotKeyConfig.hotKeys.ArrowLeft.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowLeft.event" | "hotKeyConfig.hotKeys.ArrowRight.modifiers" | `hotKeyConfig.hotKeys.ArrowRight.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowRight.event" | "hotKeyConfig.hotKeys.ArrowUp.modifiers" | `hotKeyConfig.hotKeys.ArrowUp.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowUp.event" | "hotKeyConfig.hotKeys.End.modifiers" | `hotKeyConfig.hotKeys.End.modifiers.${number}` | "hotKeyConfig.hotKeys.End.event" | "hotKeyConfig.hotKeys.Home.modifiers" | `hotKeyConfig.hotKeys.Home.modifiers.${number}` | "hotKeyConfig.hotKeys.Home.event" | "hotKeyConfig.hotKeys.PageDown.modifiers" | `hotKeyConfig.hotKeys.PageDown.modifiers.${number}` | "hotKeyConfig.hotKeys.PageDown.event" | "hotKeyConfig.hotKeys.PageUp.modifiers" | `hotKeyConfig.hotKeys.PageUp.modifiers.${number}` | "hotKeyConfig.hotKeys.PageUp.event" | "hotKeyConfig.hotKeys.Delete.modifiers" | `hotKeyConfig.hotKeys.Delete.modifiers.${number}` | "hotKeyConfig.hotKeys.Delete.event" | "hotKeyConfig.hotKeys.0.modifiers" | `hotKeyConfig.hotKeys.0.modifiers.${number}` | "hotKeyConfig.hotKeys.0.event" | "hotKeyConfig.hotKeys.1.modifiers" | `hotKeyConfig.hotKeys.1.modifiers.${number}` | "hotKeyConfig.hotKeys.1.event" | "hotKeyConfig.hotKeys.2.modifiers" | `hotKeyConfig.hotKeys.2.modifiers.${number}` | "hotKeyConfig.hotKeys.2.event" | "hotKeyConfig.hotKeys.3.modifiers" | `hotKeyConfig.hotKeys.3.modifiers.${number}` | "hotKeyConfig.hotKeys.3.event" | "hotKeyConfig.hotKeys.4.modifiers" | `hotKeyConfig.hotKeys.4.modifiers.${number}` | "hotKeyConfig.hotKeys.4.event" | "hotKeyConfig.hotKeys.5.modifiers" | `hotKeyConfig.hotKeys.5.modifiers.${number}` | "hotKeyConfig.hotKeys.5.event" | "hotKeyConfig.hotKeys.6.modifiers" | `hotKeyConfig.hotKeys.6.modifiers.${number}` | "hotKeyConfig.hotKeys.6.event" | "hotKeyConfig.hotKeys.7.modifiers" | `hotKeyConfig.hotKeys.7.modifiers.${number}` | "hotKeyConfig.hotKeys.7.event" | "hotKeyConfig.hotKeys.8.modifiers" | `hotKeyConfig.hotKeys.8.modifiers.${number}` | "hotKeyConfig.hotKeys.8.event" | "hotKeyConfig.hotKeys.9.modifiers" | `hotKeyConfig.hotKeys.9.modifiers.${number}` | "hotKeyConfig.hotKeys.9.event" | "hotKeyConfig.hotKeys.a.modifiers" | `hotKeyConfig.hotKeys.a.modifiers.${number}` | "hotKeyConfig.hotKeys.a.event" | "hotKeyConfig.hotKeys.b.modifiers" | `hotKeyConfig.hotKeys.b.modifiers.${number}` | "hotKeyConfig.hotKeys.b.event" | "hotKeyConfig.hotKeys.c.modifiers" | `hotKeyConfig.hotKeys.c.modifiers.${number}` | "hotKeyConfig.hotKeys.c.event" | "hotKeyConfig.hotKeys.d.modifiers" | `hotKeyConfig.hotKeys.d.modifiers.${number}` | "hotKeyConfig.hotKeys.d.event" | "hotKeyConfig.hotKeys.e.modifiers" | `hotKeyConfig.hotKeys.e.modifiers.${number}` | "hotKeyConfig.hotKeys.e.event" | "hotKeyConfig.hotKeys.f.modifiers" | `hotKeyConfig.hotKeys.f.modifiers.${number}` | "hotKeyConfig.hotKeys.f.event" | "hotKeyConfig.hotKeys.g.modifiers" | `hotKeyConfig.hotKeys.g.modifiers.${number}` | "hotKeyConfig.hotKeys.g.event" | "hotKeyConfig.hotKeys.h.modifiers" | `hotKeyConfig.hotKeys.h.modifiers.${number}` | "hotKeyConfig.hotKeys.h.event" | "hotKeyConfig.hotKeys.i.modifiers" | `hotKeyConfig.hotKeys.i.modifiers.${number}` | "hotKeyConfig.hotKeys.i.event" | "hotKeyConfig.hotKeys.j.modifiers" | `hotKeyConfig.hotKeys.j.modifiers.${number}` | "hotKeyConfig.hotKeys.j.event" | "hotKeyConfig.hotKeys.k.modifiers" | `hotKeyConfig.hotKeys.k.modifiers.${number}` | "hotKeyConfig.hotKeys.k.event" | "hotKeyConfig.hotKeys.l.modifiers" | `hotKeyConfig.hotKeys.l.modifiers.${number}` | "hotKeyConfig.hotKeys.l.event" | "hotKeyConfig.hotKeys.m.modifiers" | `hotKeyConfig.hotKeys.m.modifiers.${number}` | "hotKeyConfig.hotKeys.m.event" | "hotKeyConfig.hotKeys.n.modifiers" | `hotKeyConfig.hotKeys.n.modifiers.${number}` | "hotKeyConfig.hotKeys.n.event" | "hotKeyConfig.hotKeys.o.modifiers" | `hotKeyConfig.hotKeys.o.modifiers.${number}` | "hotKeyConfig.hotKeys.o.event" | "hotKeyConfig.hotKeys.p.modifiers" | `hotKeyConfig.hotKeys.p.modifiers.${number}` | "hotKeyConfig.hotKeys.p.event" | "hotKeyConfig.hotKeys.q.modifiers" | `hotKeyConfig.hotKeys.q.modifiers.${number}` | "hotKeyConfig.hotKeys.q.event" | "hotKeyConfig.hotKeys.r.modifiers" | `hotKeyConfig.hotKeys.r.modifiers.${number}` | "hotKeyConfig.hotKeys.r.event" | "hotKeyConfig.hotKeys.s.modifiers" | `hotKeyConfig.hotKeys.s.modifiers.${number}` | "hotKeyConfig.hotKeys.s.event" | "hotKeyConfig.hotKeys.t.modifiers" | `hotKeyConfig.hotKeys.t.modifiers.${number}` | "hotKeyConfig.hotKeys.t.event" | "hotKeyConfig.hotKeys.u.modifiers" | `hotKeyConfig.hotKeys.u.modifiers.${number}` | "hotKeyConfig.hotKeys.u.event" | "hotKeyConfig.hotKeys.v.modifiers" | `hotKeyConfig.hotKeys.v.modifiers.${number}` | "hotKeyConfig.hotKeys.v.event" | "hotKeyConfig.hotKeys.w.modifiers" | `hotKeyConfig.hotKeys.w.modifiers.${number}` | "hotKeyConfig.hotKeys.w.event" | "hotKeyConfig.hotKeys.x.modifiers" | `hotKeyConfig.hotKeys.x.modifiers.${number}` | "hotKeyConfig.hotKeys.x.event" | "hotKeyConfig.hotKeys.y.modifiers" | `hotKeyConfig.hotKeys.y.modifiers.${number}` | "hotKeyConfig.hotKeys.y.event" | "hotKeyConfig.hotKeys.z.modifiers" | `hotKeyConfig.hotKeys.z.modifiers.${number}` | "hotKeyConfig.hotKeys.z.event" | "hotKeyConfig.hotKeys.*.modifiers" | `hotKeyConfig.hotKeys.*.modifiers.${number}` | "hotKeyConfig.hotKeys.*.event" | "hotKeyConfig.hotKeys.+.modifiers" | `hotKeyConfig.hotKeys.+.modifiers.${number}` | "hotKeyConfig.hotKeys.+.event" | "hotKeyConfig.hotKeys.-.modifiers" | `hotKeyConfig.hotKeys.-.modifiers.${number}` | "hotKeyConfig.hotKeys.-.event" | "hotKeyConfig.hotKeys...modifiers" | `hotKeyConfig.hotKeys...modifiers.${number}` | "hotKeyConfig.hotKeys...event" | "hotKeyConfig.hotKeys.F1.modifiers" | `hotKeyConfig.hotKeys.F1.modifiers.${number}` | "hotKeyConfig.hotKeys.F1.event" | "hotKeyConfig.hotKeys.F2.modifiers" | `hotKeyConfig.hotKeys.F2.modifiers.${number}` | "hotKeyConfig.hotKeys.F2.event" | "hotKeyConfig.hotKeys.F3.modifiers" | `hotKeyConfig.hotKeys.F3.modifiers.${number}` | "hotKeyConfig.hotKeys.F3.event" | "hotKeyConfig.hotKeys.F4.modifiers" | `hotKeyConfig.hotKeys.F4.modifiers.${number}` | "hotKeyConfig.hotKeys.F4.event" | "hotKeyConfig.hotKeys.F5.modifiers" | `hotKeyConfig.hotKeys.F5.modifiers.${number}` | "hotKeyConfig.hotKeys.F5.event" | "hotKeyConfig.hotKeys.F6.modifiers" | `hotKeyConfig.hotKeys.F6.modifiers.${number}` | "hotKeyConfig.hotKeys.F6.event" | "hotKeyConfig.hotKeys.F7.modifiers" | `hotKeyConfig.hotKeys.F7.modifiers.${number}` | "hotKeyConfig.hotKeys.F7.event" | "hotKeyConfig.hotKeys.F8.modifiers" | `hotKeyConfig.hotKeys.F8.modifiers.${number}` | "hotKeyConfig.hotKeys.F8.event" | "hotKeyConfig.hotKeys.F9.modifiers" | `hotKeyConfig.hotKeys.F9.modifiers.${number}` | "hotKeyConfig.hotKeys.F9.event" | "hotKeyConfig.hotKeys.F10.modifiers" | `hotKeyConfig.hotKeys.F10.modifiers.${number}` | "hotKeyConfig.hotKeys.F10.event" | "hotKeyConfig.hotKeys.F11.modifiers" | `hotKeyConfig.hotKeys.F11.modifiers.${number}` | "hotKeyConfig.hotKeys.F11.event" | "hotKeyConfig.hotKeys.F12.modifiers" | `hotKeyConfig.hotKeys.F12.modifiers.${number}` | "hotKeyConfig.hotKeys.F12.event" | "hotKeyConfig.hotKeys.;.modifiers" | `hotKeyConfig.hotKeys.;.modifiers.${number}` | "hotKeyConfig.hotKeys.;.event" | "hotKeyConfig.hotKeys.=.modifiers" | `hotKeyConfig.hotKeys.=.modifiers.${number}` | "hotKeyConfig.hotKeys.=.event" | "hotKeyConfig.hotKeys.,.modifiers" | `hotKeyConfig.hotKeys.,.modifiers.${number}` | "hotKeyConfig.hotKeys.,.event" | "hotKeyConfig.hotKeys.`.modifiers" | `hotKeyConfig.hotKeys.\`.modifiers.${number}` | "hotKeyConfig.hotKeys.`.event" | "hotKeyConfig.hotKeys.[.modifiers" | `hotKeyConfig.hotKeys.[.modifiers.${number}` | "hotKeyConfig.hotKeys.[.event" | "hotKeyConfig.hotKeys.\\.modifiers" | `hotKeyConfig.hotKeys.\\.modifiers.${number}` | "hotKeyConfig.hotKeys.\\.event" | "hotKeyConfig.hotKeys.].modifiers" | `hotKeyConfig.hotKeys.].modifiers.${number}` | "hotKeyConfig.hotKeys.].event">(uid: (string & import("zod").BRAND<"workspace">) | null | undefined, path: P, value: P extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" ? {
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[P] : P extends `${infer K}.${infer R}` ? K extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" ? R extends import("@scalar/object-utils/nested").Path<{
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[K]> ? import("@scalar/object-utils/nested").PathValue<{
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[K], R> : never : K extends `${number}` ? never : never : P extends `${number}` ? never : never) => void;
+        untrackedEdit: <P extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" | `cookies.${number}` | `collections.${number}` | `environments.${string}` | "selectedHttpClient.targetKey" | "selectedHttpClient.clientKey" | "hotKeyConfig.modifiers" | "hotKeyConfig.hotKeys" | `hotKeyConfig.modifiers.${number}` | "hotKeyConfig.hotKeys." | "hotKeyConfig.hotKeys./" | "hotKeyConfig.hotKeys.Space" | "hotKeyConfig.hotKeys.Backspace" | "hotKeyConfig.hotKeys.Tab" | "hotKeyConfig.hotKeys.Enter" | "hotKeyConfig.hotKeys.Escape" | "hotKeyConfig.hotKeys.ArrowDown" | "hotKeyConfig.hotKeys.ArrowLeft" | "hotKeyConfig.hotKeys.ArrowRight" | "hotKeyConfig.hotKeys.ArrowUp" | "hotKeyConfig.hotKeys.End" | "hotKeyConfig.hotKeys.Home" | "hotKeyConfig.hotKeys.PageDown" | "hotKeyConfig.hotKeys.PageUp" | "hotKeyConfig.hotKeys.Delete" | "hotKeyConfig.hotKeys.0" | "hotKeyConfig.hotKeys.1" | "hotKeyConfig.hotKeys.2" | "hotKeyConfig.hotKeys.3" | "hotKeyConfig.hotKeys.4" | "hotKeyConfig.hotKeys.5" | "hotKeyConfig.hotKeys.6" | "hotKeyConfig.hotKeys.7" | "hotKeyConfig.hotKeys.8" | "hotKeyConfig.hotKeys.9" | "hotKeyConfig.hotKeys.a" | "hotKeyConfig.hotKeys.b" | "hotKeyConfig.hotKeys.c" | "hotKeyConfig.hotKeys.d" | "hotKeyConfig.hotKeys.e" | "hotKeyConfig.hotKeys.f" | "hotKeyConfig.hotKeys.g" | "hotKeyConfig.hotKeys.h" | "hotKeyConfig.hotKeys.i" | "hotKeyConfig.hotKeys.j" | "hotKeyConfig.hotKeys.k" | "hotKeyConfig.hotKeys.l" | "hotKeyConfig.hotKeys.m" | "hotKeyConfig.hotKeys.n" | "hotKeyConfig.hotKeys.o" | "hotKeyConfig.hotKeys.p" | "hotKeyConfig.hotKeys.q" | "hotKeyConfig.hotKeys.r" | "hotKeyConfig.hotKeys.s" | "hotKeyConfig.hotKeys.t" | "hotKeyConfig.hotKeys.u" | "hotKeyConfig.hotKeys.v" | "hotKeyConfig.hotKeys.w" | "hotKeyConfig.hotKeys.x" | "hotKeyConfig.hotKeys.y" | "hotKeyConfig.hotKeys.z" | "hotKeyConfig.hotKeys.*" | "hotKeyConfig.hotKeys.+" | "hotKeyConfig.hotKeys.-" | "hotKeyConfig.hotKeys.." | "hotKeyConfig.hotKeys.F1" | "hotKeyConfig.hotKeys.F2" | "hotKeyConfig.hotKeys.F3" | "hotKeyConfig.hotKeys.F4" | "hotKeyConfig.hotKeys.F5" | "hotKeyConfig.hotKeys.F6" | "hotKeyConfig.hotKeys.F7" | "hotKeyConfig.hotKeys.F8" | "hotKeyConfig.hotKeys.F9" | "hotKeyConfig.hotKeys.F10" | "hotKeyConfig.hotKeys.F11" | "hotKeyConfig.hotKeys.F12" | "hotKeyConfig.hotKeys.;" | "hotKeyConfig.hotKeys.=" | "hotKeyConfig.hotKeys.," | "hotKeyConfig.hotKeys.`" | "hotKeyConfig.hotKeys.[" | "hotKeyConfig.hotKeys.\\" | "hotKeyConfig.hotKeys.]" | "hotKeyConfig.hotKeys..modifiers" | `hotKeyConfig.hotKeys..modifiers.${number}` | "hotKeyConfig.hotKeys..event" | "hotKeyConfig.hotKeys./.modifiers" | `hotKeyConfig.hotKeys./.modifiers.${number}` | "hotKeyConfig.hotKeys./.event" | "hotKeyConfig.hotKeys.Space.modifiers" | `hotKeyConfig.hotKeys.Space.modifiers.${number}` | "hotKeyConfig.hotKeys.Space.event" | "hotKeyConfig.hotKeys.Backspace.modifiers" | `hotKeyConfig.hotKeys.Backspace.modifiers.${number}` | "hotKeyConfig.hotKeys.Backspace.event" | "hotKeyConfig.hotKeys.Tab.modifiers" | `hotKeyConfig.hotKeys.Tab.modifiers.${number}` | "hotKeyConfig.hotKeys.Tab.event" | "hotKeyConfig.hotKeys.Enter.modifiers" | `hotKeyConfig.hotKeys.Enter.modifiers.${number}` | "hotKeyConfig.hotKeys.Enter.event" | "hotKeyConfig.hotKeys.Escape.modifiers" | `hotKeyConfig.hotKeys.Escape.modifiers.${number}` | "hotKeyConfig.hotKeys.Escape.event" | "hotKeyConfig.hotKeys.ArrowDown.modifiers" | `hotKeyConfig.hotKeys.ArrowDown.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowDown.event" | "hotKeyConfig.hotKeys.ArrowLeft.modifiers" | `hotKeyConfig.hotKeys.ArrowLeft.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowLeft.event" | "hotKeyConfig.hotKeys.ArrowRight.modifiers" | `hotKeyConfig.hotKeys.ArrowRight.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowRight.event" | "hotKeyConfig.hotKeys.ArrowUp.modifiers" | `hotKeyConfig.hotKeys.ArrowUp.modifiers.${number}` | "hotKeyConfig.hotKeys.ArrowUp.event" | "hotKeyConfig.hotKeys.End.modifiers" | `hotKeyConfig.hotKeys.End.modifiers.${number}` | "hotKeyConfig.hotKeys.End.event" | "hotKeyConfig.hotKeys.Home.modifiers" | `hotKeyConfig.hotKeys.Home.modifiers.${number}` | "hotKeyConfig.hotKeys.Home.event" | "hotKeyConfig.hotKeys.PageDown.modifiers" | `hotKeyConfig.hotKeys.PageDown.modifiers.${number}` | "hotKeyConfig.hotKeys.PageDown.event" | "hotKeyConfig.hotKeys.PageUp.modifiers" | `hotKeyConfig.hotKeys.PageUp.modifiers.${number}` | "hotKeyConfig.hotKeys.PageUp.event" | "hotKeyConfig.hotKeys.Delete.modifiers" | `hotKeyConfig.hotKeys.Delete.modifiers.${number}` | "hotKeyConfig.hotKeys.Delete.event" | "hotKeyConfig.hotKeys.0.modifiers" | `hotKeyConfig.hotKeys.0.modifiers.${number}` | "hotKeyConfig.hotKeys.0.event" | "hotKeyConfig.hotKeys.1.modifiers" | `hotKeyConfig.hotKeys.1.modifiers.${number}` | "hotKeyConfig.hotKeys.1.event" | "hotKeyConfig.hotKeys.2.modifiers" | `hotKeyConfig.hotKeys.2.modifiers.${number}` | "hotKeyConfig.hotKeys.2.event" | "hotKeyConfig.hotKeys.3.modifiers" | `hotKeyConfig.hotKeys.3.modifiers.${number}` | "hotKeyConfig.hotKeys.3.event" | "hotKeyConfig.hotKeys.4.modifiers" | `hotKeyConfig.hotKeys.4.modifiers.${number}` | "hotKeyConfig.hotKeys.4.event" | "hotKeyConfig.hotKeys.5.modifiers" | `hotKeyConfig.hotKeys.5.modifiers.${number}` | "hotKeyConfig.hotKeys.5.event" | "hotKeyConfig.hotKeys.6.modifiers" | `hotKeyConfig.hotKeys.6.modifiers.${number}` | "hotKeyConfig.hotKeys.6.event" | "hotKeyConfig.hotKeys.7.modifiers" | `hotKeyConfig.hotKeys.7.modifiers.${number}` | "hotKeyConfig.hotKeys.7.event" | "hotKeyConfig.hotKeys.8.modifiers" | `hotKeyConfig.hotKeys.8.modifiers.${number}` | "hotKeyConfig.hotKeys.8.event" | "hotKeyConfig.hotKeys.9.modifiers" | `hotKeyConfig.hotKeys.9.modifiers.${number}` | "hotKeyConfig.hotKeys.9.event" | "hotKeyConfig.hotKeys.a.modifiers" | `hotKeyConfig.hotKeys.a.modifiers.${number}` | "hotKeyConfig.hotKeys.a.event" | "hotKeyConfig.hotKeys.b.modifiers" | `hotKeyConfig.hotKeys.b.modifiers.${number}` | "hotKeyConfig.hotKeys.b.event" | "hotKeyConfig.hotKeys.c.modifiers" | `hotKeyConfig.hotKeys.c.modifiers.${number}` | "hotKeyConfig.hotKeys.c.event" | "hotKeyConfig.hotKeys.d.modifiers" | `hotKeyConfig.hotKeys.d.modifiers.${number}` | "hotKeyConfig.hotKeys.d.event" | "hotKeyConfig.hotKeys.e.modifiers" | `hotKeyConfig.hotKeys.e.modifiers.${number}` | "hotKeyConfig.hotKeys.e.event" | "hotKeyConfig.hotKeys.f.modifiers" | `hotKeyConfig.hotKeys.f.modifiers.${number}` | "hotKeyConfig.hotKeys.f.event" | "hotKeyConfig.hotKeys.g.modifiers" | `hotKeyConfig.hotKeys.g.modifiers.${number}` | "hotKeyConfig.hotKeys.g.event" | "hotKeyConfig.hotKeys.h.modifiers" | `hotKeyConfig.hotKeys.h.modifiers.${number}` | "hotKeyConfig.hotKeys.h.event" | "hotKeyConfig.hotKeys.i.modifiers" | `hotKeyConfig.hotKeys.i.modifiers.${number}` | "hotKeyConfig.hotKeys.i.event" | "hotKeyConfig.hotKeys.j.modifiers" | `hotKeyConfig.hotKeys.j.modifiers.${number}` | "hotKeyConfig.hotKeys.j.event" | "hotKeyConfig.hotKeys.k.modifiers" | `hotKeyConfig.hotKeys.k.modifiers.${number}` | "hotKeyConfig.hotKeys.k.event" | "hotKeyConfig.hotKeys.l.modifiers" | `hotKeyConfig.hotKeys.l.modifiers.${number}` | "hotKeyConfig.hotKeys.l.event" | "hotKeyConfig.hotKeys.m.modifiers" | `hotKeyConfig.hotKeys.m.modifiers.${number}` | "hotKeyConfig.hotKeys.m.event" | "hotKeyConfig.hotKeys.n.modifiers" | `hotKeyConfig.hotKeys.n.modifiers.${number}` | "hotKeyConfig.hotKeys.n.event" | "hotKeyConfig.hotKeys.o.modifiers" | `hotKeyConfig.hotKeys.o.modifiers.${number}` | "hotKeyConfig.hotKeys.o.event" | "hotKeyConfig.hotKeys.p.modifiers" | `hotKeyConfig.hotKeys.p.modifiers.${number}` | "hotKeyConfig.hotKeys.p.event" | "hotKeyConfig.hotKeys.q.modifiers" | `hotKeyConfig.hotKeys.q.modifiers.${number}` | "hotKeyConfig.hotKeys.q.event" | "hotKeyConfig.hotKeys.r.modifiers" | `hotKeyConfig.hotKeys.r.modifiers.${number}` | "hotKeyConfig.hotKeys.r.event" | "hotKeyConfig.hotKeys.s.modifiers" | `hotKeyConfig.hotKeys.s.modifiers.${number}` | "hotKeyConfig.hotKeys.s.event" | "hotKeyConfig.hotKeys.t.modifiers" | `hotKeyConfig.hotKeys.t.modifiers.${number}` | "hotKeyConfig.hotKeys.t.event" | "hotKeyConfig.hotKeys.u.modifiers" | `hotKeyConfig.hotKeys.u.modifiers.${number}` | "hotKeyConfig.hotKeys.u.event" | "hotKeyConfig.hotKeys.v.modifiers" | `hotKeyConfig.hotKeys.v.modifiers.${number}` | "hotKeyConfig.hotKeys.v.event" | "hotKeyConfig.hotKeys.w.modifiers" | `hotKeyConfig.hotKeys.w.modifiers.${number}` | "hotKeyConfig.hotKeys.w.event" | "hotKeyConfig.hotKeys.x.modifiers" | `hotKeyConfig.hotKeys.x.modifiers.${number}` | "hotKeyConfig.hotKeys.x.event" | "hotKeyConfig.hotKeys.y.modifiers" | `hotKeyConfig.hotKeys.y.modifiers.${number}` | "hotKeyConfig.hotKeys.y.event" | "hotKeyConfig.hotKeys.z.modifiers" | `hotKeyConfig.hotKeys.z.modifiers.${number}` | "hotKeyConfig.hotKeys.z.event" | "hotKeyConfig.hotKeys.*.modifiers" | `hotKeyConfig.hotKeys.*.modifiers.${number}` | "hotKeyConfig.hotKeys.*.event" | "hotKeyConfig.hotKeys.+.modifiers" | `hotKeyConfig.hotKeys.+.modifiers.${number}` | "hotKeyConfig.hotKeys.+.event" | "hotKeyConfig.hotKeys.-.modifiers" | `hotKeyConfig.hotKeys.-.modifiers.${number}` | "hotKeyConfig.hotKeys.-.event" | "hotKeyConfig.hotKeys...modifiers" | `hotKeyConfig.hotKeys...modifiers.${number}` | "hotKeyConfig.hotKeys...event" | "hotKeyConfig.hotKeys.F1.modifiers" | `hotKeyConfig.hotKeys.F1.modifiers.${number}` | "hotKeyConfig.hotKeys.F1.event" | "hotKeyConfig.hotKeys.F2.modifiers" | `hotKeyConfig.hotKeys.F2.modifiers.${number}` | "hotKeyConfig.hotKeys.F2.event" | "hotKeyConfig.hotKeys.F3.modifiers" | `hotKeyConfig.hotKeys.F3.modifiers.${number}` | "hotKeyConfig.hotKeys.F3.event" | "hotKeyConfig.hotKeys.F4.modifiers" | `hotKeyConfig.hotKeys.F4.modifiers.${number}` | "hotKeyConfig.hotKeys.F4.event" | "hotKeyConfig.hotKeys.F5.modifiers" | `hotKeyConfig.hotKeys.F5.modifiers.${number}` | "hotKeyConfig.hotKeys.F5.event" | "hotKeyConfig.hotKeys.F6.modifiers" | `hotKeyConfig.hotKeys.F6.modifiers.${number}` | "hotKeyConfig.hotKeys.F6.event" | "hotKeyConfig.hotKeys.F7.modifiers" | `hotKeyConfig.hotKeys.F7.modifiers.${number}` | "hotKeyConfig.hotKeys.F7.event" | "hotKeyConfig.hotKeys.F8.modifiers" | `hotKeyConfig.hotKeys.F8.modifiers.${number}` | "hotKeyConfig.hotKeys.F8.event" | "hotKeyConfig.hotKeys.F9.modifiers" | `hotKeyConfig.hotKeys.F9.modifiers.${number}` | "hotKeyConfig.hotKeys.F9.event" | "hotKeyConfig.hotKeys.F10.modifiers" | `hotKeyConfig.hotKeys.F10.modifiers.${number}` | "hotKeyConfig.hotKeys.F10.event" | "hotKeyConfig.hotKeys.F11.modifiers" | `hotKeyConfig.hotKeys.F11.modifiers.${number}` | "hotKeyConfig.hotKeys.F11.event" | "hotKeyConfig.hotKeys.F12.modifiers" | `hotKeyConfig.hotKeys.F12.modifiers.${number}` | "hotKeyConfig.hotKeys.F12.event" | "hotKeyConfig.hotKeys.;.modifiers" | `hotKeyConfig.hotKeys.;.modifiers.${number}` | "hotKeyConfig.hotKeys.;.event" | "hotKeyConfig.hotKeys.=.modifiers" | `hotKeyConfig.hotKeys.=.modifiers.${number}` | "hotKeyConfig.hotKeys.=.event" | "hotKeyConfig.hotKeys.,.modifiers" | `hotKeyConfig.hotKeys.,.modifiers.${number}` | "hotKeyConfig.hotKeys.,.event" | "hotKeyConfig.hotKeys.`.modifiers" | `hotKeyConfig.hotKeys.\`.modifiers.${number}` | "hotKeyConfig.hotKeys.`.event" | "hotKeyConfig.hotKeys.[.modifiers" | `hotKeyConfig.hotKeys.[.modifiers.${number}` | "hotKeyConfig.hotKeys.[.event" | "hotKeyConfig.hotKeys.\\.modifiers" | `hotKeyConfig.hotKeys.\\.modifiers.${number}` | "hotKeyConfig.hotKeys.\\.event" | "hotKeyConfig.hotKeys.].modifiers" | `hotKeyConfig.hotKeys.].modifiers.${number}` | "hotKeyConfig.hotKeys.].event">(uid: string & import("zod").BRAND<"workspace">, path: P, value: P extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" ? {
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[P] : P extends `${infer K}.${infer R}` ? K extends "cookies" | "description" | "name" | "uid" | "collections" | "environments" | "activeEnvironmentId" | "themeId" | "selectedHttpClient" | "hotKeyConfig" | "proxyUrl" ? R extends import("@scalar/object-utils/nested").Path<{
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[K]> ? import("@scalar/object-utils/nested").PathValue<{
+            uid: string & import("zod").BRAND<"workspace">;
+            name: string;
+            description: string;
+            collections: (string & import("zod").BRAND<"collection">)[];
+            environments: Record<string, string>;
+            activeEnvironmentId: string;
+            cookies: (string & import("zod").BRAND<"cookie">)[];
+            themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+            selectedHttpClient: {
+                targetKey: string;
+                clientKey: string;
+            };
+            hotKeyConfig?: {
+                modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+                hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                    event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                    modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+                }>> | undefined;
+            } | undefined;
+            proxyUrl?: string | undefined;
+        }[K], R> : never : K extends `${number}` ? never : never : P extends `${number}` ? never : never) => void;
+        undo: (uid: string & import("zod").BRAND<"workspace">) => void;
+        redo: (uid: string & import("zod").BRAND<"workspace">) => void;
+        reset: () => void;
+    };
+};
+/** Workspace entities that require store context */
+export declare function extendedWorkspaceDataFactory({ workspaces, workspaceMutators, collectionMutators, requestMutators, requestExampleMutators, }: StoreContext): {
+    addWorkspace: (payload?: Partial<Workspace>) => {
+        uid: string & import("zod").BRAND<"workspace">;
+        name: string;
+        description: string;
+        collections: (string & import("zod").BRAND<"collection">)[];
+        environments: Record<string, string>;
+        activeEnvironmentId: string;
+        cookies: (string & import("zod").BRAND<"cookie">)[];
+        themeId: "default" | "alternate" | "moon" | "purple" | "solarized" | "bluePlanet" | "deepSpace" | "saturn" | "kepler" | "elysiajs" | "fastify" | "mars" | "none";
+        selectedHttpClient: {
+            targetKey: string;
+            clientKey: string;
+        };
+        hotKeyConfig?: {
+            modifiers: ("Meta" | "Control" | "Shift" | "Alt" | "default")[];
+            hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+                event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+                modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+            }>> | undefined;
+        } | undefined;
+        proxyUrl?: string | undefined;
+    };
+    deleteWorkspace: (uid: Workspace["uid"]) => void;
+};
+//# sourceMappingURL=workspace.d.ts.map

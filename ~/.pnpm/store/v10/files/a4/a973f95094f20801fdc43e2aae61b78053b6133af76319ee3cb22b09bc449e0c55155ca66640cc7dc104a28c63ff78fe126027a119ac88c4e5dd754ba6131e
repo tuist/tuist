@@ -1,0 +1,88 @@
+import { defineComponent as b, ref as d, computed as y, watch as k, openBlock as o, createElementBlock as s, withModifiers as w, Fragment as x, renderList as S, normalizeClass as v, createElementVNode as a, toDisplayString as g, createCommentVNode as p, createBlock as C, unref as i, withCtx as V, createVNode as h } from "vue";
+import { useModal as z } from "@scalar/components";
+import O from "./DeleteRequestAuthModal.vue.js";
+import M from "./RequestAuthTab.vue.js";
+import N from "../../../../components/DataTable/DataTable.vue.js";
+const _ = {
+  key: 0,
+  class: "flex flex-wrap gap-x-2.5 overflow-hidden border-t px-3"
+}, $ = ["onClick"], A = { class: "relative z-10 whitespace-nowrap font-medium" }, B = {
+  key: 0,
+  class: "z-1 absolute inset-x-1 bottom-[var(--scalar-border-width)] left-1/2 h-px w-full -translate-x-1/2 bg-current"
+}, q = {
+  key: 2,
+  class: "text-c-3 bg-b-1 flex min-h-16 items-center justify-center border-t px-4 text-sm"
+}, F = /* @__PURE__ */ b({
+  __name: "RequestAuthDataTable",
+  props: {
+    collection: {},
+    environment: {},
+    envVariables: {},
+    layout: { default: "client" },
+    selectedSchemeOptions: { default: () => [] },
+    server: {},
+    workspace: {}
+  },
+  setup(c) {
+    const u = z(), f = d(
+      null
+    ), r = d(0), m = y(() => {
+      const e = c.selectedSchemeOptions[r.value];
+      if (!e) return [];
+      const t = e == null ? void 0 : e.id.split(",");
+      return t.length > 1 ? t : [e.id];
+    });
+    return k(
+      () => c.selectedSchemeOptions,
+      (e) => {
+        e[r.value] || (r.value = Math.max(0, r.value - 1));
+      }
+    ), (e, t) => (o(), s("form", {
+      onSubmit: t[1] || (t[1] = w(() => {
+      }, ["prevent"]))
+    }, [
+      e.selectedSchemeOptions.length > 1 ? (o(), s("div", _, [
+        (o(!0), s(x, null, S(e.selectedSchemeOptions, (l, n) => (o(), s("div", {
+          key: l.id,
+          class: v(["z-1 relative -mb-[var(--scalar-border-width)] flex h-8 cursor-pointer", [r.value === n ? "text-c-1" : "text-c-3"]])
+        }, [
+          a("button", {
+            class: "floating-bg relative cursor-pointer border-b-[1px] border-transparent py-1 text-sm font-medium",
+            type: "button",
+            onClick: (D) => r.value = n
+          }, [
+            a("span", A, g(l.label), 1)
+          ], 8, $),
+          t[2] || (t[2] = a("div", { class: "bg-border absolute -inset-x-96 bottom-0 z-0 h-[var(--scalar-border-width)]" }, null, -1)),
+          r.value === n ? (o(), s("div", B)) : p("", !0)
+        ], 2))), 128))
+      ])) : p("", !0),
+      m.value.length ? (o(), C(i(N), {
+        key: 1,
+        class: v(["flex-1", e.layout === "reference" && "border-0"]),
+        columns: [""]
+      }, {
+        default: V(() => [
+          h(M, {
+            collection: e.collection,
+            envVariables: e.envVariables,
+            environment: e.environment,
+            layout: e.layout,
+            securitySchemeUids: m.value,
+            server: e.server,
+            workspace: e.workspace
+          }, null, 8, ["collection", "envVariables", "environment", "layout", "securitySchemeUids", "server", "workspace"])
+        ]),
+        _: 1
+      }, 8, ["class"])) : (o(), s("div", q, " No authentication selected ")),
+      h(O, {
+        scheme: f.value,
+        state: i(u),
+        onClose: t[0] || (t[0] = (l) => i(u).hide())
+      }, null, 8, ["scheme", "state"])
+    ], 32));
+  }
+});
+export {
+  F as default
+};

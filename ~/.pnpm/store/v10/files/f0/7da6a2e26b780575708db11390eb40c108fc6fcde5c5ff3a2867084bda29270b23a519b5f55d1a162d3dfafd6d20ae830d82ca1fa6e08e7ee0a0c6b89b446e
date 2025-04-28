@@ -1,0 +1,12 @@
+function l() {
+  if (typeof window > "u") return !1;
+  const t = document.createElement("div");
+  t.setAttribute("style", "width:30px;height:30px;overflow-y:scroll;"), t.classList.add("scrollbar-test");
+  const e = document.createElement("div");
+  e.setAttribute("style", "width:100%;height:40px"), t.appendChild(e), document.body.appendChild(t);
+  const i = 30 - t.firstChild.clientWidth;
+  return document.body.removeChild(t), !!i;
+}
+export {
+  l as hasObtrusiveScrollbars
+};

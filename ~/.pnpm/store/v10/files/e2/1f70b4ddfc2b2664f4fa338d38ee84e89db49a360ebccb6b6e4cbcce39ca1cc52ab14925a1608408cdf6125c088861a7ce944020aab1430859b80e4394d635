@@ -1,0 +1,44 @@
+import { tagSchema as o } from "@scalar/oas-utils/entities/spec";
+import { LS_KEYS as T, schemaModel as A } from "@scalar/oas-utils/helpers";
+import { mutationFactory as p } from "@scalar/object-utils/mutator-record";
+import { reactive as g } from "vue";
+function I(d) {
+  const a = g({}), s = p(a, g({}), d && T.TAG);
+  return {
+    tags: a,
+    tagMutators: s
+  };
+}
+function L({
+  collectionMutators: d,
+  collections: a,
+  requests: s,
+  requestMutators: c,
+  tagMutators: u
+}) {
+  return { addTag: (t, n) => {
+    const r = a[n], e = A(t, o, !1);
+    return !e || !r ? console.error("INVALID TAG DATA", t) : (d.edit(n, "tags", [...r.tags, e.uid]), d.edit(n, "children", [...r.children, e.uid]), u.add(e), e);
+  }, deleteTag: (t, n) => {
+    const r = a[n];
+    r && (d.edit(
+      n,
+      "tags",
+      r.tags.filter((e) => e !== t.uid)
+    ), d.edit(
+      n,
+      "children",
+      r.children.filter((e) => e !== t.uid)
+    ), t.children.forEach((e) => {
+      var m;
+      const f = s[e];
+      if (!f) return;
+      const i = (m = f.tags) == null ? void 0 : m.filter((h) => h !== t.name);
+      c.edit(f.uid, "tags", i), !(i != null && i.length) && !r.children.includes(e) && d.edit(n, "children", [...r.children, e]);
+    }), u.delete(t.uid));
+  } };
+}
+export {
+  I as createStoreTags,
+  L as extendedTagDataFactory
+};

@@ -1,0 +1,257 @@
+import { defineComponent as z, useId as A, computed as m, ref as G, watch as L, unref as r, openBlock as p, createBlock as x, withCtx as a, createVNode as l, createElementBlock as k, Fragment as $, createTextVNode as v, toDisplayString as h, createElementVNode as C, renderSlot as g, createCommentVNode as S } from "vue";
+import { useWorkspace as Q } from "@scalar/api-client/store";
+import { getSnippet as X } from "@scalar/api-client/views/Components/CodeSnippet";
+import { filterSecurityRequirements as Y } from "@scalar/api-client/views/Request/RequestSection";
+import { ScalarCodeBlock as Z } from "@scalar/components";
+import N from "../../components/ScreenReader.vue.js";
+import { useConfig as _ } from "../../hooks/useConfig.js";
+import ee from "./ExamplePicker.vue.js";
+import te from "./TextSelect.vue.js";
+/* empty css                */
+import B from "../../components/Card/Card.vue.js";
+import oe from "../../components/Card/CardHeader.vue.js";
+import T from "../../components/HttpMethod/HttpMethod.vue.js";
+import V from "../../components/Card/CardContent.vue.js";
+import re from "../../components/Card/CardFooter.vue.js";
+import { useHttpClientStore as ae } from "../../stores/useHttpClientStore.js";
+import { useExampleStore as le } from "../../legacy/stores/useExampleStore.js";
+const ne = ["id"], se = ["id"], ie = {
+  key: 0,
+  class: "request-card-footer-addon"
+}, ue = { class: "request-header" }, Oe = /* @__PURE__ */ z({
+  __name: "ExampleRequest",
+  props: {
+    operation: {},
+    server: {},
+    collection: {},
+    fallback: { type: Boolean },
+    transformedOperation: {}
+  },
+  setup(n) {
+    const { selectedExampleKey: j, operationId: H } = le(), { requestExamples: w, securitySchemes: E } = Q(), R = _(), {
+      httpClient: i,
+      setHttpClient: J,
+      availableTargets: b,
+      httpTargetTitle: I,
+      httpClientTitle: U
+    } = ae(), K = A(), c = m(() => {
+      var t;
+      const e = ["x-custom-examples", "x-codeSamples", "x-code-samples"];
+      for (const o of e)
+        if ((t = n.transformedOperation.information) != null && t[o])
+          return [...n.transformedOperation.information[o]];
+      return [];
+    }), s = G(
+      // Default to first custom example
+      c.value.length ? {
+        targetKey: "customExamples",
+        clientKey: 0
+      } : (
+        // Otherwise use the globally selected HTTP client
+        {
+          targetKey: i.targetKey,
+          clientKey: i.clientKey
+        }
+      )
+    );
+    L(i, () => {
+      s.value = {
+        targetKey: i.targetKey,
+        clientKey: i.clientKey
+      };
+    });
+    const q = m(
+      () => {
+        var e, t, o, u;
+        return Object.keys(
+          ((u = (o = (t = (e = n.transformedOperation.information) == null ? void 0 : e.requestBody) == null ? void 0 : t.content) == null ? void 0 : o["application/json"]) == null ? void 0 : u.examples) ?? {}
+        ).length > 1;
+      }
+    ), F = () => {
+      var y;
+      if (s.value.targetKey === "customExamples")
+        return ((y = c.value[s.value.clientKey]) == null ? void 0 : y.source) ?? "";
+      const e = i.clientKey, t = i.targetKey, o = w[n.operation.examples[0]];
+      if (!o) return "";
+      const u = Y(
+        n.operation.security || n.collection.security,
+        n.collection.selectedSecuritySchemeUids,
+        E
+      ), [d, f] = X(t, e, {
+        operation: n.operation,
+        example: o,
+        server: n.server,
+        securitySchemes: u
+      });
+      return d ? d.message ?? "" : f;
+    }, O = m(() => {
+      try {
+        return F();
+      } catch (e) {
+        return console.error("[generateSnippet]", e), "";
+      }
+    }), M = m(() => {
+      var t, o;
+      const e = (
+        // Specified language
+        ((t = s.value) == null ? void 0 : t.targetKey) === "customExamples" ? ((o = c.value[s.value.clientKey]) == null ? void 0 : o.lang) ?? "plaintext" : (
+          // Or language for the globally selected HTTP client
+          i.targetKey
+        )
+      );
+      return e === "shell" && O.value.includes("curl") ? "curl" : e === "Objective-C" ? "objc" : e;
+    }), P = m(
+      () => Object.values(E).flatMap((e) => e.type === "apiKey" ? e.value : (e == null ? void 0 : e.type) === "http" ? [
+        e.token,
+        e.password,
+        btoa(`${e.username}:${e.password}`)
+      ] : e.type === "oauth2" ? Object.values(e.flows).map((t) => t.token) : [])
+    ), D = m(() => {
+      const e = b.value.map((t) => ({
+        value: t.key,
+        label: t.title,
+        options: t.clients.map((o) => ({
+          value: JSON.stringify({
+            targetKey: t.key,
+            clientKey: o.client
+          }),
+          label: o.title
+        }))
+      }));
+      return c.value.length && e.unshift({
+        value: "customExamples",
+        label: "Examples",
+        options: c.value.map((t, o) => ({
+          value: JSON.stringify({
+            targetKey: "customExamples",
+            clientKey: o
+          }),
+          label: t.label ?? t.lang ?? `Example #${o + 1}`
+        }))
+      }), e;
+    });
+    function W(e) {
+      const t = JSON.parse(e);
+      t.targetKey === "customExamples" ? s.value = t : J(t);
+    }
+    return (e, t) => r(b).length || c.value.length ? (p(), x(r(B), {
+      key: 0,
+      class: "dark-mode"
+    }, {
+      default: a(() => [
+        l(r(oe), { muted: "" }, {
+          actions: a(() => [
+            l(te, {
+              class: "request-client-picker",
+              controls: `${r(K)}-example`,
+              modelValue: JSON.stringify(s.value),
+              options: D.value,
+              "onUpdate:modelValue": W
+            }, {
+              default: a(() => [
+                s.value.targetKey === "customExamples" ? (p(), k($, { key: 0 }, [
+                  l(N, null, {
+                    default: a(() => t[1] || (t[1] = [
+                      v("Selected Example:")
+                    ])),
+                    _: 1
+                  }),
+                  v(" " + h(c.value[s.value.clientKey].label ?? "Example"), 1)
+                ], 64)) : (p(), k($, { key: 1 }, [
+                  l(N, null, {
+                    default: a(() => t[2] || (t[2] = [
+                      v("Selected HTTP client:")
+                    ])),
+                    _: 1
+                  }),
+                  v(" " + h(r(I)) + " " + h(r(U)), 1)
+                ], 64))
+              ]),
+              _: 1
+            }, 8, ["controls", "modelValue", "options"])
+          ]),
+          default: a(() => [
+            C("div", {
+              id: `${r(K)}-header`,
+              class: "request-header"
+            }, [
+              l(r(T), {
+                as: "span",
+                class: "request-method",
+                method: e.operation.method
+              }, null, 8, ["method"]),
+              g(e.$slots, "header", {}, void 0, !0)
+            ], 8, ne)
+          ]),
+          _: 3
+        }),
+        l(r(V), {
+          borderless: "",
+          class: "request-editor-section custom-scroll",
+          frameless: ""
+        }, {
+          default: a(() => [
+            C("div", {
+              id: `${r(K)}-example`,
+              class: "code-snippet"
+            }, [
+              l(r(Z), {
+                class: "bg-b-2",
+                content: O.value,
+                hideCredentials: P.value,
+                lang: M.value,
+                lineNumbers: ""
+              }, null, 8, ["content", "hideCredentials", "lang"])
+            ], 8, se)
+          ]),
+          _: 1
+        }),
+        (q.value || !r(R).hideTestRequestButton) && e.$slots.footer ? (p(), x(r(re), {
+          key: 0,
+          class: "request-card-footer",
+          contrast: ""
+        }, {
+          default: a(() => {
+            var o, u, d, f;
+            return [
+              q.value ? (p(), k("div", ie, [
+                l(ee, {
+                  class: "request-example-selector",
+                  examples: ((f = (d = (u = (o = e.transformedOperation.information) == null ? void 0 : o.requestBody) == null ? void 0 : u.content) == null ? void 0 : d["application/json"]) == null ? void 0 : f.examples) ?? [],
+                  "onUpdate:modelValue": t[0] || (t[0] = (y) => (j.value = y, H.value = e.operation.operationId))
+                }, null, 8, ["examples"])
+              ])) : S("", !0),
+              g(e.$slots, "footer", {}, void 0, !0)
+            ];
+          }),
+          _: 3
+        })) : S("", !0)
+      ]),
+      _: 3
+    })) : e.fallback ? (p(), x(r(B), {
+      key: 1,
+      class: "dark-mode"
+    }, {
+      default: a(() => [
+        l(r(V), { class: "request-card-simple" }, {
+          default: a(() => [
+            C("div", ue, [
+              l(r(T), {
+                as: "span",
+                class: "request-method",
+                method: e.operation.method
+              }, null, 8, ["method"]),
+              g(e.$slots, "header", {}, void 0, !0)
+            ]),
+            g(e.$slots, "footer", {}, void 0, !0)
+          ]),
+          _: 3
+        })
+      ]),
+      _: 3
+    })) : S("", !0);
+  }
+});
+export {
+  Oe as default
+};
