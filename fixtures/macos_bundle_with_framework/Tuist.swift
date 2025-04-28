@@ -7,4 +7,3 @@ let config = Config(
         optionalAuthentication: true
     )
 )
-
