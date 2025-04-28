@@ -8,9 +8,17 @@ description: Learn how to install Tuist in your environment.
 
 The easiest way to get started with Tuist in any directory or in the directory of your Xcode project or workspace:
 
-```bash
+::: code-group
+
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+
+```bash [Global Tuist (Homebrew)]
 tuist init
 ```
+
+:::
 
 The command will walk you through the steps to <LocalizedLink href="/guides/develop/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/develop/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/share/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/develop/registry">registry</LocalizedLink>.
 

@@ -6,18 +6,18 @@ description: Узнайте, как внести вклад в Tuist, прово
 
 # Логирование {#logging}
 
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using [swift-service-context](https://github.com/apple/swift-service-context) and can be accessed anywhere using:
+CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) интерфейс для логирования. Пакет абстрагирует детали реализации логирования, позволяя CLI быть независимым от её исполнения. Логер внедряется с помощью зависимости [swift-service-context](https://github.com/apple/swift-service-context) и может быть доступен из любого места с помощью:
 
 ```bash
 ServiceContext.current?.logger
 ```
 
-> [!NOTE]
-> `swift-service-context` passes the instance using [task locals](https://developer.apple.com/documentation/swift/tasklocal) which don't propagate the value when using `Dispatch`, so if you run asynchronous code using `Dispatch`, you'll to get the instance from the context and pass it to the asynchronous operation.
+> [!ПРИМЕЧАНИЕ]
+> `swift-service-context` передает экземпляр с помощью [локальных переменных задачи](https://developer.apple.com/documentation/swift/tasklocal), которые не распространяют значение при использовании `Dispatch`, поэтому если вы запускаете асинхронный код с помощью `Dispatch`, вам нужно будет получить экземпляр из контекста и передать его в асинхронную операцию.
 
-## What to log {#what-to-log}
+## Что логировать {#what-to-log}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better.
-When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
-Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
+Логи не являются интерфейсом CLI. Они являются инструментом для диагностики проблем по мере их возникновения.
+Поэтому чем больше информации вы предоставите, тем лучше.
+При создании новых функций поставьте себя на место разработчика, столкнувшегося с неожиданным поведением, и подумайте, какая информация будет ему полезна.
+Убедитесь, что вы используете правильный [уровень лога](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). В противном случае разработчики не смогут отфильтровать шум.

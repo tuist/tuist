@@ -58,7 +58,7 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
 
 In the following sections you'll learn about the capabilities of the Tuist MCP server.
 
-### Resources
+### Ресурсы
 
 #### Recent projects and workspaces
 
