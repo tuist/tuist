@@ -2091,6 +2091,14 @@ defmodule Tuist.AccountsTest do
       assert {:error, :invalid_token} == got
     end
 
+    test "returns invalid if the token root schema is valid, but the UUIDv7 component is invalid" do
+      # When
+      got = Accounts.account_token("audience_token-id-as-invalid-uuidv7_hash")
+
+      # Then
+      assert {:error, :invalid_token} == got
+    end
+
     test "returns not found if the token does not exist" do
       # When
       got = Accounts.account_token("tuist_0fcc7a05-4f0d-490d-8545-1fe3171a2880_some-hash")

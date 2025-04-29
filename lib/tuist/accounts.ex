@@ -1237,22 +1237,13 @@ defmodule Tuist.Accounts do
     if length(full_token_components) == 3 do
       [_audience, token_id, token_hash] = full_token_components
 
-      token =
-        from(t in AccountToken,
-          where: t.id == ^token_id
-        )
-        |> Repo.one()
-        |> Repo.preload(preload)
-
-      cond do
-        is_nil(token) ->
-          {:error, :not_found}
-
-        verify_pass(token, token_hash) ->
+      with {:ok, _} <- UUIDv7.cast(token_id),
+        token when not is_nil(token) <- from(t in AccountToken, where: t.id == ^token_id) |> Repo.one() |> Repo.preload(preload),
+        true <- verify_pass(token, token_hash) do
           {:ok, token}
-
-        true ->
-          {:error, :invalid_token}
+      else
+        nil -> {:error, :not_found}
+        _ -> {:error, :invalid_token}
       end
     else
       {:error, :invalid_token}
