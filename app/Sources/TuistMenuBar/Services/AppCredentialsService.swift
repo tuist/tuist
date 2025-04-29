@@ -14,7 +14,7 @@ protocol AppCredentialsServicing: ObservableObject {
     func updateAuthenticationState() async throws
 }
 
-final class AppCredentialsService: AppCredentialsServicing {
+public final class AppCredentialsService: AppCredentialsServicing {
     @Published
     private(set) var authenticationState: AuthenticationState = .loggedOut
 
@@ -31,10 +31,18 @@ final class AppCredentialsService: AppCredentialsServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverURLService: ServerURLServicing
 
+    public convenience init() {
+        self.init(
+            appStorage: AppStorage(),
+            serverSessionController: ServerSessionController(),
+            serverURLService: ServerURLService()
+        )
+    }
+
     init(
-        appStorage: AppStoring = AppStorage(),
-        serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverURLService: ServerURLServicing = ServerURLService()
+        appStorage: AppStoring,
+        serverSessionController: ServerSessionControlling,
+        serverURLService: ServerURLServicing
     ) {
         self.appStorage = appStorage
         self.serverSessionController = serverSessionController
