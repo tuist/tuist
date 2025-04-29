@@ -30,7 +30,7 @@ Workspace.swift
   - **Package.swift:** Этот файл содержит зависимости Swift Package для Tuist, для интеграции их в Xcode проекты и для Xcode targets (как [CocoaPods](https://cococapods)) которые настраиваемы и оптимизируемы. Узнайте больше <LocalizedLink href="/guides/develop/projects/dependencies">здесь</LocalizedLink>.
 
 - **Корневой каталог**: Корневой каталог проекта, который также содержит папку `Tuist`.
-  - <LocalizedLink href="/guides/develop/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink> This file contains configuration for Tuist that's shared across all the projects, workspaces, and environments. For example, it can be used to disable automatic generation of schemes, or to define the deployment target of the projects.
+  - <LocalizedLink href="/guides/develop/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink> Этот файл содержит конфигурацию Tuist, разделяемую всеми проектами, рабочими пространствами и окружениями. Например, он может использоваться для отключения автоматической генерации схем или для определения `deployment target` проектов.
   - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> This manifest represents an Xcode workspace. It's used to group other projects and can also add additional files and schemes.
   - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> This manifest represents an Xcode project. It's used to define the targets that are part of the project, and their dependencies.
 
