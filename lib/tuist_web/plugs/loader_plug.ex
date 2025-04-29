@@ -30,11 +30,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
   end
 
-  def call(
-        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} =
-          conn,
-        _opts
-      ) do
+  def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
     project_slug = "#{account_handle}/#{project_name}"
 
     project =

@@ -50,7 +50,6 @@ defmodule Tuist.Application do
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
         {Cachex, [:tuist, cachex_opts()]},
         {Oban, Application.fetch_env!(:tuist, Oban)},
-        {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
@@ -66,6 +65,11 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
+    |> Kernel.++(
+      if Environment.on_premise?(),
+        do: [],
+        else: [{DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore}]
+    )
     |> Kernel.++(
       if Environment.redis_url(),
         do: [
