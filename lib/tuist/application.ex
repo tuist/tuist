@@ -48,19 +48,7 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        {Cachex,
-         [
-           :tuist,
-           [
-             router:
-               router(
-                 module: Cachex.Router.Ring,
-                 options: [
-                   monitor: true
-                 ]
-               )
-           ]
-         ]},
+        {Cachex, [:tuist, cachex_opts()]},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},
@@ -86,6 +74,24 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+  end
+
+  def cachex_opts do
+    if Environment.on_premise?() do
+      # In on-premise environments we assume a single Node.
+      []
+    else
+      # Tuist-managed instances are configured to support a multi-node cluster.
+      [
+        router:
+          router(
+            module: Cachex.Router.Ring,
+            options: [
+              monitor: true
+            ]
+          )
+      ]
+    end
   end
 
   defp finch_pools do

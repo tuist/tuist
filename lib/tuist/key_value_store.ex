@@ -83,9 +83,7 @@ defmodule Tuist.KeyValueStore do
         nil ->
           value = func.()
 
-          Cachex.put(cachex_cache(opts), cache_key(cache_key), value,
-            expire: cachex_cache_ttl(opts)
-          )
+          Cachex.put(cachex_cache(opts), cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
 
           value
 
