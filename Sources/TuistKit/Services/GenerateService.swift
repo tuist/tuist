@@ -46,6 +46,7 @@ final class GenerateService {
         let timer = clock.startTimer()
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
+        try validateIsGeneratedProject(config: config, command: "generate")
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
             config: config,
@@ -54,7 +55,7 @@ final class GenerateService {
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
+        let (workspacePath, _, _) = try await generator.generateWithGraph(path: path)
         if !noOpen {
             try await opener.open(path: workspacePath)
         }

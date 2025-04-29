@@ -201,6 +201,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
         // Load config
         let config = try await configLoader.loadConfig(path: path)
+        try validateIsGeneratedProject(config: config, command: "test")
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let destination = try await destination(

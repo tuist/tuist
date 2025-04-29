@@ -76,6 +76,7 @@ public final class BuildService {
     ) async throws {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
+        try validateIsGeneratedProject(config: config, command: "build")
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.building(
             config: config,
