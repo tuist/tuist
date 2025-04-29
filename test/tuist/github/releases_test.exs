@@ -1,17 +1,18 @@
 defmodule Tuist.GitHub.ReleasesTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.GitHub.Releases
 
-  setup :set_mimic_from_context
+  setup do
+    stub(Tuist.KeyValueStore, :get_or_update, fn _, _, func -> func.() end)
+    :ok
+  end
 
   describe "get_latest_cli_release/0" do
     test "returns a release if the response is successful" do
       # Given
       published_at = DateTime.utc_now()
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
@@ -31,7 +32,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      release = Releases.get_latest_cli_release(cache: cache)
+      release = Releases.get_latest_cli_release()
 
       # Then
       assert release.name == "v2.0.0"
@@ -41,8 +42,6 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns the latest CLI release if the latest release is an App release" do
       # Given
       published_at = DateTime.utc_now()
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
@@ -51,7 +50,8 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "tuist.zip",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
           }
         ]
       }
@@ -79,7 +79,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      release = Releases.get_latest_cli_release(cache: cache)
+      release = Releases.get_latest_cli_release()
 
       # Then
       assert release.name == "v2.0.0"
@@ -90,8 +90,6 @@ defmodule Tuist.GitHub.ReleasesTest do
   test "returns nil when the status is in the range 500..599" do
     # Given
     releases_url = Releases.releases_url()
-    cache = String.to_atom(UUIDv7.generate())
-    {:ok, _} = Cachex.start_link(name: cache)
 
     stub(
       Req,
@@ -102,7 +100,7 @@ defmodule Tuist.GitHub.ReleasesTest do
     )
 
     # When
-    release = Releases.get_latest_cli_release(cache: cache)
+    release = Releases.get_latest_cli_release()
 
     # Then
     assert release == nil
@@ -112,8 +110,6 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns latest release if the response is successful" do
       # Given
       published_at = DateTime.utc_now()
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
@@ -122,11 +118,13 @@ defmodule Tuist.GitHub.ReleasesTest do
         "assets" => [
           %{
             "name" => "SHASUMS512.txt",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
           },
           %{
             "name" => "Tuist.dmg",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+            "browser_download_url" =>
+              "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
           }
         ]
       }
@@ -142,7 +140,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      release = Releases.get_latest_app_release(cache: cache)
+      release = Releases.get_latest_app_release()
 
       # Then
       assert release.name == "app@0.1.0"
@@ -152,9 +150,6 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns the latest App release if the latest release is a CLI release" do
       # Given
       published_at = DateTime.utc_now()
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
-
       releases_url = Releases.releases_url()
 
       stub(
@@ -178,11 +173,13 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -192,7 +189,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      release = Releases.get_latest_app_release(cache: cache)
+      release = Releases.get_latest_app_release()
 
       # Then
       assert release.name == "app@0.1.0"
@@ -201,9 +198,6 @@ defmodule Tuist.GitHub.ReleasesTest do
     test "returns the latest App release with a DMG asset" do
       # Given
       published_at = DateTime.utc_now()
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
-
       releases_url = Releases.releases_url()
 
       stub(
@@ -221,7 +215,8 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.2.0/SHASUMS512.txt"
                    }
                  ]
                },
@@ -232,11 +227,13 @@ defmodule Tuist.GitHub.ReleasesTest do
                  "assets" => [
                    %{
                      "name" => "SHASUMS512.txt",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/SHASUMS512.txt"
                    },
                    %{
                      "name" => "Tuist.dmg",
-                     "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
+                     "browser_download_url" =>
+                       "https://github.com/tuist/tuist/releases/download/app@0.1.0/Tuist.dmg"
                    }
                  ]
                }
@@ -246,7 +243,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       )
 
       # When
-      release = Releases.get_latest_app_release(cache: cache)
+      release = Releases.get_latest_app_release()
 
       # Then
       assert release.name == "app@0.1.0"

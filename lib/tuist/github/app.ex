@@ -19,9 +19,6 @@ defmodule Tuist.GitHub.App do
              refresh_token(repository_full_handle, expires_in: ttl)
            end
          ) do
-      {:commit, token} ->
-        {:ok, token}
-
       {:ok, token} ->
         {:ok, token}
 
@@ -64,7 +61,8 @@ defmodule Tuist.GitHub.App do
         {"Authorization", "Bearer #{jwt}"}
       ]
 
-    with {:access_tokens_url, {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
+    with {:access_tokens_url,
+          {:ok, %Req.Response{status: 200, body: %{"access_tokens_url" => access_tokens_url}}}} <-
            {:access_tokens_url,
             Req.get("https://api.github.com/repos/#{repository_full_handle}/installation",
               headers: headers,
@@ -85,13 +83,15 @@ defmodule Tuist.GitHub.App do
         {:error, "The Tuist GitHub app is not installed for #{repository_full_handle}."}
 
       {:access_tokens_url, {:ok, %Req.Response{status: status, body: body}}} ->
-        {:error, "Unexpected status code when getting the access token url: #{status}. Body: #{Jason.encode!(body)}"}
+        {:error,
+         "Unexpected status code when getting the access token url: #{status}. Body: #{Jason.encode!(body)}"}
 
       {:access_tokens_url, {:error, reason}} ->
         {:error, "Request failed when getting the access token url: #{inspect(reason)}"}
 
       {:token, {:ok, %Req.Response{status: status, body: body}}} ->
-        {:error, "Unexpected status code when getting the token: #{status}. Body: #{Jason.encode!(body)}"}
+        {:error,
+         "Unexpected status code when getting the token: #{status}. Body: #{Jason.encode!(body)}"}
 
       {:token, {:error, reason}} ->
         {:error, "Request failed when getting the token: #{inspect(reason)}"}

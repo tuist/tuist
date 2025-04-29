@@ -12,7 +12,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
   def init(opts), do: opts
 
-  def call(%{path_params: %{"run_id" => run_id}} = conn, opts) do
+  def call(%{path_params: %{"run_id" => run_id}} = conn, _opts) do
     run =
       cached(conn, ["run", run_id], fn ->
         CommandEvents.get_command_event_by_id(run_id,
@@ -30,7 +30,11 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     end
   end
 
-  def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
+  def call(
+        %{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} =
+          conn,
+        _opts
+      ) do
     project_slug = "#{account_handle}/#{project_name}"
 
     project =

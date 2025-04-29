@@ -3,9 +3,10 @@ defmodule Tuist.License do
   Interface to check the environment licenses.
   """
 
+  alias Tuist.KeyValueStore
+
   require Logger
 
-  @cache_key "license"
   @validation_url "https://api.keygen.sh/v1/accounts/cce51171-9339-4430-8441-73bb5abd9a5c/licenses/actions/validate-key"
 
   @enforce_keys [:id, :features, :expiration_date, :valid]
@@ -16,19 +17,15 @@ defmodule Tuist.License do
   end
 
   def get_license(opts \\ []) do
-    cache = Keyword.get(opts, :cache, :tuist)
-    ttl = Keyword.get(opts, :ttl, to_timeout(day: 1))
-
-    result =
-      Cachex.fetch(cache, @cache_key, fn ->
-        case resolve_license(Tuist.Environment.get_license_key()) do
-          {:ok, license} -> {:commit, license, expire: ttl}
-          {:error, error} -> {:error, error}
-        end
-      end)
-
-    case result do
-      {:commit, license} -> {:ok, license}
+    case KeyValueStore.get_or_update(
+           [__MODULE__, "license"],
+           [
+             ttl: Keyword.get(opts, :ttl, to_timeout(day: 1))
+           ],
+           fn ->
+             resolve_license(Tuist.Environment.get_license_key())
+           end
+         ) do
       {:ok, license} -> {:ok, license}
       {:error, error} -> {:error, error}
     end

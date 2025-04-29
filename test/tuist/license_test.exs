@@ -1,8 +1,9 @@
 defmodule Tuist.LicenseTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.License
 
   setup :set_mimic_from_context
@@ -10,13 +11,16 @@ defmodule Tuist.LicenseTest do
   describe "assert_valid!/0" do
     setup do
       stub(Environment, :on_premise?, fn -> true end)
+
+      stub(KeyValueStore, :get_or_update, fn _, _, func ->
+        func.()
+      end)
+
       :ok
     end
 
     test "returns :ok when the license is valid" do
       # Given
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: 1) |> Timex.format!("{RFC3339}")
       license_key = String.to_atom(UUIDv7.generate())
@@ -41,29 +45,23 @@ defmodule Tuist.LicenseTest do
       end)
 
       # When
-      got = License.assert_valid!(cache: cache)
+      got = License.assert_valid!()
 
       # Then
       assert got == :ok
     end
 
     test "raises an error when the license is absent" do
-      # Given
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
-
       # When/Then
       assert_raise RuntimeError,
                    "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing.",
                    fn ->
-                     License.assert_valid!(cache: cache)
+                     License.assert_valid!()
                    end
     end
 
     test "raises an error when the server reports that the license is invalid" do
       # Given
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       expiry = DateTime.utc_now() |> DateTime.shift(day: -1) |> Timex.format!("{RFC3339}")
       license_key = String.to_atom(UUIDv7.generate())
@@ -91,14 +89,12 @@ defmodule Tuist.LicenseTest do
       assert_raise RuntimeError,
                    "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one.",
                    fn ->
-                     License.assert_valid!(cache: cache)
+                     License.assert_valid!()
                    end
     end
 
     test "raises an error when the request to validate the license fails" do
       # Given
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       license_key = String.to_atom(UUIDv7.generate())
       stub(Environment, :get_license_key, fn -> license_key end)
@@ -114,14 +110,12 @@ defmodule Tuist.LicenseTest do
       assert_raise RuntimeError,
                    "The license validation failed with the following error: The server to validate the license responded with a 500 status code.",
                    fn ->
-                     License.assert_valid!(cache: cache)
+                     License.assert_valid!()
                    end
     end
 
     test "raises an error when the Req errors" do
       # Given
-      cache = String.to_atom(UUIDv7.generate())
-      {:ok, _} = Cachex.start_link(name: cache)
       validation_url = License.get_validation_url()
       license_key = String.to_atom(UUIDv7.generate())
       stub(Environment, :get_license_key, fn -> license_key end)
@@ -134,7 +128,7 @@ defmodule Tuist.LicenseTest do
       assert_raise RuntimeError,
                    "The license validation failed with the following error: \"req error.\"",
                    fn ->
-                     License.assert_valid!(cache: cache)
+                     License.assert_valid!()
                    end
     end
   end

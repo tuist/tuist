@@ -13,8 +13,9 @@ defmodule Tuist.GitHub.Releases do
   and avoiding excessive API requests to GitHub.
   """
 
+  alias Tuist.KeyValueStore
+
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
-  @cache_key "tuist_releases"
   @ttl to_timeout(hour: 1)
 
   def releases_url do
@@ -43,15 +44,13 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp fetch_releases(opts) do
-    cache = Keyword.get(opts, :cache, :tuist)
-    ttl = Keyword.get(opts, :ttl, @ttl)
-
-    case Cachex.fetch(cache, @cache_key, fn ->
-           {:commit, req_releases(), expire: ttl}
-         end) do
-      {:commit, releases} -> releases
-      {:ok, releases} -> releases
-    end
+    KeyValueStore.get_or_update(
+      [__MODULE__, "github_releases"],
+      [ttl: Keyword.get(opts, :ttl, @ttl)],
+      fn ->
+        req_releases()
+      end
+    )
   end
 
   defp req_releases do

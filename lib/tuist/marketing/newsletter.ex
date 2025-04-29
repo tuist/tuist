@@ -9,9 +9,6 @@ defmodule Tuist.Marketing.Newsletter do
     parser: Tuist.Marketing.Newsletter.IssueParser,
     highlighters: []
 
-  alias Tuist.Marketing.Newsletter.Issue
-  alias Tuist.Marketing.Newsletter.IssueParser
-
   def issues, do: @issues
 
   def description do

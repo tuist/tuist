@@ -38,7 +38,7 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
-  defp get_or_update_from_redis(cache_key, opts \\ [], func) do
+  defp get_or_update_from_redis(cache_key, opts, func) do
     cache_key = cache_key(cache_key)
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
 
@@ -75,15 +75,15 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
-  defp get_or_update_from_cachex(cache_key, opts \\ [], func) do
+  defp get_or_update_from_cachex(cache_key, opts, func) do
     read_or_update = fn cache ->
-      {:ok, cached_value} = Cachex.get(cachex_cache(opts), cache_key(cache_key))
+      {:ok, cached_value} = Cachex.get(cache, cache_key(cache_key))
 
       case cached_value do
         nil ->
           value = func.()
 
-          Cachex.put(cachex_cache(opts), cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
+          Cachex.put(cache, cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
 
           value
 

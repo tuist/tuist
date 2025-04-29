@@ -54,7 +54,7 @@ organization =
   end
 
 _public_project =
-  case "tuist/public" |> Projects.get_project_by_slug() |> dbg() do
+  case "tuist/public" |> Projects.get_project_by_slug() do
     {:ok, %Project{} = project} ->
       project
 
