@@ -107,11 +107,13 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
-                LogStoreManifest(
+                XCLogStoreManifestPlist(
                     logs: [
-                        "id": ActivityLog(
+                        "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
                             timeStoppedRecording: 20
@@ -121,7 +123,7 @@ struct InspectBuildCommandServiceTests {
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
             given(xcactivityParser)
-                .parse(.any)
+                .parse(.value(activityLogPath))
                 .willReturn(
                     .test(
                         buildStep: .test(
@@ -129,6 +131,7 @@ struct InspectBuildCommandServiceTests {
                         )
                     )
                 )
+            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
 
             // When
             try await subject.run(path: nil)
@@ -193,11 +196,13 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
-                LogStoreManifest(
+                XCLogStoreManifestPlist(
                     logs: [
-                        "id": ActivityLog(
+                        "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
                             timeStoppedRecording: 20
@@ -206,8 +211,9 @@ struct InspectBuildCommandServiceTests {
                 ),
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
+            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
             given(xcactivityParser)
-                .parse(.any)
+                .parse(.value(activityLogPath))
                 .willReturn(.test())
 
             // When / Then
@@ -231,11 +237,13 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcacvitiylog")
+
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
-                LogStoreManifest(
+                XCLogStoreManifestPlist(
                     logs: [
-                        "id": ActivityLog(
+                        "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
                             timeStoppedRecording: 20
@@ -245,8 +253,9 @@ struct InspectBuildCommandServiceTests {
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
             given(xcactivityParser)
-                .parse(.any)
+                .parse(.value(activityLogPath))
                 .willReturn(.test())
+            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
 
             // When
             try await subject.run(path: temporaryDirectory.pathString)
@@ -289,13 +298,11 @@ struct InspectBuildCommandServiceTests {
             given(derivedDataLocator)
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
+            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(nil)
 
             // When / Then
             await #expect(
-                throws: InspectBuildCommandServiceError.noBuildLogFound(
-                    buildLogsPath: derivedDataPath.appending(components: "Logs", "Build"),
-                    projectPath: projectPath
-                )
+                throws: InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
             ) {
                 try await subject.run(path: nil)
             }
@@ -316,11 +323,12 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
-                LogStoreManifest(
+                XCLogStoreManifestPlist(
                     logs: [
-                        "id": ActivityLog(
+                        "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
                             timeStoppedRecording: 20
@@ -330,8 +338,9 @@ struct InspectBuildCommandServiceTests {
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
             given(xcactivityParser)
-                .parse(.any)
+                .parse(.value(activityLogPath))
                 .willReturn(.test())
+            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
             configLoader.reset()
             given(configLoader)
                 .loadConfig(path: .any)

@@ -10,20 +10,20 @@ import TuistSupport
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {
     case projectNotFound(AbsolutePath)
-    case noBuildLogFound(buildLogsPath: AbsolutePath, projectPath: AbsolutePath)
     case missingFullHandle
     case executablePathMissing
+    case mostRecentActivityLogNotFound(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
         case let .projectNotFound(path):
             return "No Xcode project found at \(path.pathString). Make sure it exists."
-        case let .noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath):
-            return "No build logs for project \(projectPath.basename) found at \(buildLogsPath.pathString)."
         case .missingFullHandle:
             return "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
         case .executablePathMissing:
             return "We couldn't find tuist's executable path to run inspect build in a background."
+        case .mostRecentActivityLogNotFound(let projectPath):
+            return "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
         }
     }
 }
@@ -94,20 +94,11 @@ struct InspectBuildCommandService {
             return
         }
         let projectPath = try await projectPath(path)
-        let buildLogsPath = try derivedDataLocator.locate(for: projectPath)
-            .appending(components: "Logs", "Build")
-        let logManifestPlistPath = buildLogsPath.appending(component: "LogStoreManifest.plist")
-
-        guard try await fileSystem.exists(logManifestPlistPath)
-        else {
-            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
+        let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
+        guard let mostRecentActivityLogPath = try await self.xcactivityParser.mostRecentActivityLogPath(projectDerivedDataDirectory: projectDerivedDataDirectory, after: referenceDate) else {
+            throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try await latestXCActivityLog(
-            logManifestPlistPath: logManifestPlistPath,
-            buildLogsPath: buildLogsPath,
-            projectPath: projectPath,
-            referenceDate: referenceDate
-        )
+        let xcactivityLog = try xcactivityParser.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
@@ -142,26 +133,26 @@ struct InspectBuildCommandService {
         )
     }
 
-    private func latestXCActivityLog(
-        logManifestPlistPath: AbsolutePath,
-        buildLogsPath: AbsolutePath,
-        projectPath: AbsolutePath,
-        referenceDate: Date
-    ) async throws -> XCActivityLog {
-        let plist: LogStoreManifest = try await fileSystem
-            .readPlistFile(at: logManifestPlistPath)
-
-        guard let latestLog = plist.logs.values.sorted(by: { $0.timeStoppedRecording > $1.timeStoppedRecording }).first,
-              environment
-              .workspacePath == nil ||
-              (referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate + 10) ~=
-              latestLog.timeStoppedRecording
-        else {
-            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
-        }
-        let logPath = buildLogsPath.appending(component: latestLog.fileName)
-        return try xcactivityParser.parse(logPath)
-    }
+//    private func latestXCActivityLog(
+//        logManifestPlistPath: AbsolutePath,
+//        buildLogsPath: AbsolutePath,
+//        projectPath: AbsolutePath,
+//        referenceDate: Date
+//    ) async throws -> XCActivityLog {
+//        let plist: LogStoreManifest = try await fileSystem
+//            .readPlistFile(at: logManifestPlistPath)
+//
+//        guard let latestLog = plist.logs.values.sorted(by: { $0.timeStoppedRecording > $1.timeStoppedRecording }).first,
+//              environment
+//              .workspacePath == nil ||
+//              (referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate + 10) ~=
+//              latestLog.timeStoppedRecording
+//        else {
+//            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
+//        }
+//        let logPath = buildLogsPath.appending(component: latestLog.fileName)
+//        return
+//    }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
         if let workspacePath = environment.workspacePath {
