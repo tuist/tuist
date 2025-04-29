@@ -1,6 +1,6 @@
 ---
 title: Манифесты
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Проекты · Разработка · Руководства · Tuist
 description: Узнайте про манифест файлы, которые Tuist использует, чтобы описать проекты и рабочие пространства и настроить процесс генерации.
 ---
 
