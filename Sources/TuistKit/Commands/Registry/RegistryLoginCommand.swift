@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct RegistryLoginCommand: AsyncParsableCommand {
+struct RegistryLoginCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "login",

@@ -12,9 +12,13 @@ public struct LogsController {
 
     public func setup(
         stateDirectory: AbsolutePath,
-        action: (@escaping @Sendable (String) -> any LogHandler, AbsolutePath) async throws -> Void
-    ) async throws {
-        let logFilePath = try await touchLogFile(stateDirectory: stateDirectory)
+        logFilePath: AbsolutePath! = nil,
+        forceVerbose: Bool = false,
+    ) async throws -> (@Sendable (String) -> any LogHandler, AbsolutePath) {
+        var logFilePath = logFilePath
+        if logFilePath == nil {
+            logFilePath = try await touchLogFile(stateDirectory: stateDirectory)
+        }
         let machineReadableCommands = [DumpCommand.self]
         // swiftformat:disable all
         let isCommandMachineReadable =
@@ -31,13 +35,13 @@ public struct LogsController {
                 LoggingConfig.default
             }
 
-        try await clean(logsDirectory: logFilePath.parentDirectory)
+        try await clean(logsDirectory: logFilePath!.parentDirectory)
 
         let loggerHandler = try Logger.defaultLoggerHandler(
-            config: loggingConfig, logFilePath: logFilePath
+            config: loggingConfig, logFilePath: logFilePath!
         )
 
-        try await action(loggerHandler, logFilePath)
+        return (loggerHandler, logFilePath!)
     }
 
     private func clean(logsDirectory: AbsolutePath) async throws {

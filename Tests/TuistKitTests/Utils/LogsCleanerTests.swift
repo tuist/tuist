@@ -26,10 +26,7 @@ struct LogsControllerTests {
             )
 
             // When
-            var newLogFilePath: AbsolutePath?
-            try await subject.setup(stateDirectory: temporaryDirectory) { _, logsFilePath in
-                newLogFilePath = logsFilePath
-            }
+            let (_, newLogFilePath) = try await subject.setup(stateDirectory: temporaryDirectory)
 
             // Then
             let got = try await fileSystem.glob(directory: temporaryDirectory, include: ["logs/*"]).collect()
