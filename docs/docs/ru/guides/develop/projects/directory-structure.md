@@ -1,10 +1,10 @@
 ---
-title: Directory structure
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn about the structure of Tuist projects and how to organize them.
+title: Структура директорий
+titleTemplate: :title · Проекты · Разработка · Руководства · Tuist
+description: Узнайте о структуре Tuist проектов и как их организовать.
 ---
 
-# Directory structure {#directory-structure}
+# Структура директорий {#directory-structure}
 
 Although Tuist projects are commonly used to supersede Xcode projects, they are not limited to this use case. Tuist projects are also used to generate other types of projects, such as SPM packages, templates, plugins, and tasks. This document describes the structure of Tuist projects and how to organize them. In later sections, we'll cover how to define templates, plugins, and tasks.
 
