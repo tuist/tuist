@@ -6,9 +6,9 @@ description: Научитесь создавать новый проект с п
 
 # Создание нового проекта {#create-a-new-project}
 
-Самый простой способ начала знакомства с Tuist – использовать команду `tuist init`. This command launches an interactive CLI that guides you through setting up your project. When prompted, make sure to select the option to create a "generated project".
+Самый простой способ начала знакомства с Tuist – использовать команду `tuist init`. Эта команда запускает интерактивный интерфейс командной строки, который поможет вам настроить ваш проект. При появлении соответствующего запроса обязательно выберите опцию создания «сгенерированного проекта».
 
-Вы можете редактировать проект запустив `tuist edit` и Xcode откроет проект для редактирования. Одним из созданых файлов будет `Project. swift`, который содержит описание вашего проекта. Если вы знакомы с Swift Package Manager, то это похоже с `Package.swift`, но для настройки проектов Xcode.
+Вы можете <LocalizedLink href="/guides/develop/projects/editing">редактировать</LocalizedLink> проект запустив `tuist edit` и Xcode откроет проект для редактирования. Одним из созданых файлов будет `Project.swift`, который содержит описание вашего проекта. Если вы знакомы с Swift Package Manager, то это похоже с `Package.swift`, но для настройки проектов Xcode.
 
 ::: code-group
 

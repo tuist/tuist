@@ -39,7 +39,10 @@ struct PhysicalDeviceRow: View {
                     .fill(selected ? .blue : .gray.opacity(0.4))
 
                 deviceImage()
-                    .foregroundColor(selected ? TuistAppAsset.Assets.light.swiftUIColor : TuistAppAsset.Assets.dark.swiftUIColor)
+                    .foregroundColor(
+                        selected ? TuistMenuBarAsset.Assets.light.swiftUIColor : TuistMenuBarAsset.Assets.dark
+                            .swiftUIColor
+                    )
             }
             .frame(width: 24, height: 24)
             VStack(alignment: .leading) {

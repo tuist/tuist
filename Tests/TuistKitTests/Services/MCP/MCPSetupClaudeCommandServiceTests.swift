@@ -35,12 +35,12 @@ struct MCPSetupClaudeCommandServiceTests {
 
             // Then
             #expect(ServiceContext.current?.recordedUI() == """
-            ▌ ✔ Success
-            ▌ Claude configured to point to the Tuist's MCP server.
-            ▌
-            ▌ Recommended next steps:
-            ▌  ▸ Restart the Claude app if it was opened
-            ▌  ▸ Check out Claude's <documentation: https://modelcontextprotocol.io/quickstart/user>
+            ✔ Success
+              Claude configured to point to the Tuist's MCP server.
+
+              Recommended next steps:
+               ▸ Restart the Claude app if it was opened
+               ▸ Check out Claude's <documentation: https://modelcontextprotocol.io/quickstart/user>
             """)
         }
     }

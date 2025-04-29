@@ -1,5 +1,5 @@
 ---
-title: Generated project
+title: Сгенерированный проект
 titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: Learn how to leverage selective testing with a generated project.
 ---
