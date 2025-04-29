@@ -4,22 +4,21 @@ defmodule Tuist.GitHub.App do
   """
 
   alias Tuist.Environment
-
-  @cache_key "github_app_token"
+  alias Tuist.KeyValueStore
 
   def get_app_installation_token_for_repository(repository_full_handle, opts \\ []) do
-    cache = get_cache(opts)
-    ttl = Keyword.get(opts, :ttl, to_timeout(minute: 10))
+    ttl = to_timeout(minute: 10)
 
-    result =
-      Cachex.fetch(cache, @cache_key <> "_#{repository_full_handle}", fn ->
-        case refresh_token(repository_full_handle, expires_in: ttl) do
-          {:ok, token} -> {:commit, token, expire: ttl}
-          {:error, message} -> {:error, message}
-        end
-      end)
-
-    case result do
+    case KeyValueStore.get_or_update(
+           [__MODULE__, "github_app_token", repository_full_handle],
+           [
+             cache: get_cache(opts),
+             ttl: Keyword.get(opts, :ttl, ttl)
+           ],
+           fn ->
+             refresh_token(repository_full_handle, expires_in: ttl)
+           end
+         ) do
       {:commit, token} ->
         {:ok, token}
 

@@ -5,8 +5,6 @@ defmodule TuistWeb.AppAuthComponents do
 
   use Phoenix.Component
 
-  import TuistWeb.AppComponents
-
   def dots_light(assigns) do
     ~H"""
     <svg
