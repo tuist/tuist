@@ -114,8 +114,7 @@ struct InspectBuildCommandServiceTests {
                         "id": ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20,
-                            schemeIdentifierSchemeName: "Scheme"
+                            timeStoppedRecording: 20
                         ),
                     ]
                 ),
@@ -201,8 +200,7 @@ struct InspectBuildCommandServiceTests {
                         "id": ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20,
-                            schemeIdentifierSchemeName: "Scheme"
+                            timeStoppedRecording: 20
                         ),
                     ]
                 ),
@@ -240,8 +238,7 @@ struct InspectBuildCommandServiceTests {
                         "id": ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20,
-                            schemeIdentifierSchemeName: "Scheme"
+                            timeStoppedRecording: 20
                         ),
                     ]
                 ),
@@ -326,8 +323,7 @@ struct InspectBuildCommandServiceTests {
                         "id": ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20,
-                            schemeIdentifierSchemeName: "Scheme"
+                            timeStoppedRecording: 20
                         ),
                     ]
                 ),

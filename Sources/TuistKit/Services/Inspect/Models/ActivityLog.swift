@@ -9,6 +9,5 @@ public struct ActivityLog: Codable {
         case fileName
         case timeStartedRecording
         case timeStoppedRecording
-        case schemeIdentifierSchemeName = "schemeIdentifier-schemeName"
     }
 }
