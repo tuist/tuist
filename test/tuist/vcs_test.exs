@@ -88,6 +88,23 @@ defmodule Tuist.VCSTest do
       assert got == true
     end
 
+    test "returns true when connected but casing differs" do
+      # Given
+      stub(Environment, :github_app_configured?, fn -> true end)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      # When
+      got = VCS.connected?(%{project: project, repository_full_handle: "tuist/Tuist"})
+
+      # Then
+      assert got == true
+    end
+
     test "returns false when the GitHub app is not configured" do
       # Given
       stub(Environment, :github_app_configured?, fn -> false end)

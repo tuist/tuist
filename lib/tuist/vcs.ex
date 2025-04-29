@@ -140,7 +140,7 @@ defmodule Tuist.VCS do
   def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
     Environment.github_app_configured?() and
       not is_nil(project.vcs_repository_full_handle) and
-      project.vcs_repository_full_handle == repository_full_handle
+      String.downcase(project.vcs_repository_full_handle) == String.downcase(repository_full_handle)
   end
 
   def post_vcs_pull_request_comment(%{
