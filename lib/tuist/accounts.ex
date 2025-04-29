@@ -1238,9 +1238,10 @@ defmodule Tuist.Accounts do
       [_audience, token_id, token_hash] = full_token_components
 
       with {:ok, _} <- UUIDv7.cast(token_id),
-        token when not is_nil(token) <- from(t in AccountToken, where: t.id == ^token_id) |> Repo.one() |> Repo.preload(preload),
-        true <- verify_pass(token, token_hash) do
-          {:ok, token}
+           token when not is_nil(token) <-
+             from(t in AccountToken, where: t.id == ^token_id) |> Repo.one() |> Repo.preload(preload),
+           true <- verify_pass(token, token_hash) do
+        {:ok, token}
       else
         nil -> {:error, :not_found}
         _ -> {:error, :invalid_token}

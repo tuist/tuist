@@ -170,7 +170,7 @@ defmodule TuistWeb.PreviewControllerTest do
   end
 
   describe "download_archive/2" do
-    test "returns archive object", %{conn: conn} do
+    test "returns archive object when it exists", %{conn: conn} do
       # Given
       preview =
         PreviewsFixtures.preview_fixture(
@@ -181,6 +181,7 @@ defmodule TuistWeb.PreviewControllerTest do
           bundle_identifier: "com.tuist.app"
         )
 
+      stub(Storage, :object_exists?, fn _ -> true end)
       stub(Storage, :get_object_as_string, fn _ -> "ipa-contents" end)
 
       # When
@@ -188,6 +189,25 @@ defmodule TuistWeb.PreviewControllerTest do
 
       # Then
       assert response(conn, 200) =~ "ipa-contents"
+    end
+
+    test "throws an error when it doesn't exist", %{conn: conn} do
+      # Given
+      preview =
+        PreviewsFixtures.preview_fixture(
+          project: ProjectsFixtures.project_fixture(),
+          type: :ipa,
+          display_name: "App",
+          version: "1.0.0",
+          bundle_identifier: "com.tuist.app"
+        )
+
+      stub(Storage, :object_exists?, fn _ -> false end)
+
+      # When
+      assert_error_sent :not_found, fn ->
+        get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/app.ipa")
+      end
     end
   end
 

@@ -104,16 +104,18 @@ defmodule TuistWeb.PreviewController do
         conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
-    object =
-      Storage.get_object_as_string(
-        Previews.get_storage_key(%{
-          account_handle: account_handle,
-          project_handle: project_handle,
-          preview_id: preview_id
-        })
-      )
+    storage_key =
+      Previews.get_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        preview_id: preview_id
+      })
 
-    send_resp(conn, 200, object)
+    if Storage.object_exists?(storage_key) do
+      send_resp(conn, 200, Storage.get_object_as_string(storage_key))
+    else
+      raise TuistWeb.Errors.NotFoundError, gettext("The preview archive doesn't exist or has expired.")
+    end
   end
 
   def manifest(

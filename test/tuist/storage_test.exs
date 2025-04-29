@@ -284,10 +284,38 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation -> %{body: content} end)
+      expect(ExAws, :request, fn ^operation -> {:ok, %{body: content}} end)
 
       # When
       assert Storage.get_object_as_string(object_key) == content
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+
+      assert is_number(duration)
+    end
+
+    test "returns nil if the object doesn't exist" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_get_object_as_string()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation -> {:error, {:http_error, 404, %{}}} end)
+
+      # When
+      assert Storage.get_object_as_string(object_key) == nil
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}

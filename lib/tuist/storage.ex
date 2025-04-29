@@ -5,8 +5,6 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
 
-  require Logger
-
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     content_length = Keyword.get(opts, :content_length)
 
@@ -48,8 +46,6 @@ defmodule Tuist.Storage do
 
         :ok
       end)
-
-    Logger.debug("Multi-part upload completed in #{time} ms.")
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_complete_upload(),
@@ -143,8 +139,6 @@ defmodule Tuist.Storage do
         end
       end)
 
-    Logger.debug("Object's existence checked in #{time} ms.")
-
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_check_object_existence(),
       %{duration: time},
@@ -155,17 +149,12 @@ defmodule Tuist.Storage do
   end
 
   def get_object_as_string(object_key) do
-    {time, content} =
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        %{body: content} =
-          Environment.s3_bucket_name()
-          |> ExAws.S3.get_object(object_key)
-          |> ExAws.request!()
-
-        content
+        Environment.s3_bucket_name()
+        |> ExAws.S3.get_object(object_key)
+        |> ExAws.request()
       end)
-
-    Logger.debug("Object retrieved in #{time} ms.")
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_get_object_as_string(),
@@ -173,7 +162,10 @@ defmodule Tuist.Storage do
       %{object_key: object_key}
     )
 
-    content
+    case result do
+      {:ok, %{body: content}} -> content
+      {:error, {:http_error, 404, _}} -> nil
+    end
   end
 
   def multipart_start(object_key) do
@@ -186,8 +178,6 @@ defmodule Tuist.Storage do
 
         upload_id
       end)
-
-    Logger.debug("Multi-part upload started in #{time} ms.")
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_start_upload(),
@@ -212,8 +202,6 @@ defmodule Tuist.Storage do
         |> ExAws.request!()
       end)
 
-    Logger.debug("All objects deleted in #{time} ms.")
-
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_delete_all_objects(),
       %{duration: time},
@@ -235,8 +223,6 @@ defmodule Tuist.Storage do
         |> List.first()
         |> String.to_integer()
       end)
-
-    Logger.debug("Object size checked in #{time} ms.")
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_get_object_as_string_size(),
