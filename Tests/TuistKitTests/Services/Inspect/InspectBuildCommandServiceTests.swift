@@ -15,7 +15,7 @@ struct InspectBuildCommandServiceTests {
     private let environment = MockEnvironmenting()
     private let ciChecker = MockCIChecking()
     private let configLoader = MockConfigLoading()
-    private let xcactivityParser = MockXCActivityParsing()
+    private let xcActivityLogController = MockXCActivityLogControlling()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let fileSystem = FileSystem()
     private let createBuildService = MockCreateBuildServicing()
@@ -35,7 +35,7 @@ struct InspectBuildCommandServiceTests {
             xcodeBuildController: xcodeBuildController,
             createBuildService: createBuildService,
             configLoader: configLoader,
-            xcactivityParser: xcactivityParser,
+            xcActivityLogController: xcActivityLogController,
             backgroundProcessRunner: backgroundProcessRunner,
             dateService: dateService,
             serverURLService: serverURLService
@@ -122,7 +122,7 @@ struct InspectBuildCommandServiceTests {
                 ),
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
-            given(xcactivityParser)
+            given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(
                     .test(
@@ -131,7 +131,7 @@ struct InspectBuildCommandServiceTests {
                         )
                     )
                 )
-            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
+            given(xcActivityLogController).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
 
             // When
             try await subject.run(path: nil)
@@ -211,8 +211,8 @@ struct InspectBuildCommandServiceTests {
                 ),
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
-            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
-            given(xcactivityParser)
+            given(xcActivityLogController).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
+            given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
 
@@ -252,10 +252,10 @@ struct InspectBuildCommandServiceTests {
                 ),
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
-            given(xcactivityParser)
+            given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
-            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
+            given(xcActivityLogController).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
 
             // When
             try await subject.run(path: temporaryDirectory.pathString)
@@ -298,7 +298,7 @@ struct InspectBuildCommandServiceTests {
             given(derivedDataLocator)
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
-            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(nil)
+            given(xcActivityLogController).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(nil)
 
             // When / Then
             await #expect(
@@ -337,10 +337,10 @@ struct InspectBuildCommandServiceTests {
                 ),
                 at: buildLogsPath.appending(component: "LogStoreManifest.plist")
             )
-            given(xcactivityParser)
+            given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
-            given(xcactivityParser).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
+            given(xcActivityLogController).mostRecentActivityLogPath(projectDerivedDataDirectory: .value(derivedDataPath), after: .any).willReturn(activityLogPath)
             configLoader.reset()
             given(configLoader)
                 .loadConfig(path: .any)

@@ -37,7 +37,7 @@ struct InspectBuildCommandService {
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
     private let configLoader: ConfigLoading
-    private let xcactivityParser: XCActivityParsing
+    private let xcActivityLogController: XCActivityLogControlling
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let dateService: DateServicing
     private let serverURLService: ServerURLServicing
@@ -51,7 +51,7 @@ struct InspectBuildCommandService {
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        xcactivityParser: XCActivityParsing = XCActivityParser(),
+        xcActivityLogController: XCActivityLogControlling = XCAcvitiyLogController(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
         serverURLService: ServerURLServicing = ServerURLService()
@@ -64,7 +64,7 @@ struct InspectBuildCommandService {
         self.xcodeBuildController = xcodeBuildController
         self.createBuildService = createBuildService
         self.configLoader = configLoader
-        self.xcactivityParser = xcactivityParser
+        self.xcActivityLogController = xcActivityLogController
         self.backgroundProcessRunner = backgroundProcessRunner
         self.dateService = dateService
         self.serverURLService = serverURLService
@@ -95,10 +95,10 @@ struct InspectBuildCommandService {
         }
         let projectPath = try await projectPath(path)
         let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
-        guard let mostRecentActivityLogPath = try await self.xcactivityParser.mostRecentActivityLogPath(projectDerivedDataDirectory: projectDerivedDataDirectory, after: referenceDate) else {
+        guard let mostRecentActivityLogPath = try await self.xcActivityLogController.mostRecentActivityLogPath(projectDerivedDataDirectory: projectDerivedDataDirectory, after: referenceDate) else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try xcactivityParser.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath

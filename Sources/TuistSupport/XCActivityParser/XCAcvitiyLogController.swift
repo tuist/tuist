@@ -6,12 +6,12 @@ import Path
 import FileSystem
 
 @Mockable
-public protocol XCActivityParsing {
+public protocol XCActivityLogControlling {
     func mostRecentActivityLogPath(projectDerivedDataDirectory: AbsolutePath, after: Date) async throws -> AbsolutePath?
     func parse(_ path: AbsolutePath) throws -> XCActivityLog
 }
 
-public struct XCActivityParser: XCActivityParsing {
+public struct XCAcvitiyLogController: XCActivityLogControlling {
     let fileSystem: FileSystem
     let environment: Environmenting
     
