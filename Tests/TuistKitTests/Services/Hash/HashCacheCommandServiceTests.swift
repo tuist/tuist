@@ -2,27 +2,29 @@ import Foundation
 import Mockable
 import Path
 import ServiceContextModule
+import Testing
 import TuistCache
 import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistKit
 
-final class CachePrintHashesServiceTests: TuistUnitTestCase {
-    var subject: CachePrintHashesService!
-    var generator: MockGenerating!
-    var generatorFactory: MockGeneratorFactorying!
-    var cacheGraphContentHasher: MockCacheGraphContentHashing!
-    var clock: Clock!
-    var path: String!
-    var configLoader: MockConfigLoading!
+struct HashCacheCommandServiceTests {
+    private var subject: HashCacheCommandService!
+    private var generator: MockGenerating!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var cacheGraphContentHasher: MockCacheGraphContentHashing!
+    private var clock: Clock!
+    private var path: String!
+    private var configLoader: MockConfigLoading!
+    private var manifestLoader: MockManifestLoading!
+    private var manifestGraphLoader: MockManifestGraphLoading!
+    private var xcodeGraphMapper: MockXcodeGraphMapping!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         path = "/Test"
         generatorFactory = MockGeneratorFactorying()
         generator = .init()
@@ -37,30 +39,63 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
+        manifestLoader = MockManifestLoading()
+        manifestGraphLoader = MockManifestGraphLoading()
+        xcodeGraphMapper = MockXcodeGraphMapping()
 
-        subject = CachePrintHashesService(
+        subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
-    override func tearDown() {
-        generator = nil
-        cacheGraphContentHasher = nil
-        clock = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run_withFullPath_loads_the_graph() async throws {
+    @Test func errors_when_notGeneratedProject() async throws {
         // Given
-        subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
+        )
+        let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
+        let graph = Graph.test()
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
+            .willReturn([:])
+        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(graph)
+
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(false)
+
+        // When
+        await #expect(
+            throws: HashCacheCommandServiceError.generatedProjectNotFound(try AbsolutePath(validating: fullPath)),
+            performing: {
+                try await subject.run(path: fullPath, configuration: nil)
+            }
+        )
+    }
+
+    @Test func test_run_withFullPath_loads_the_graph() async throws {
+        // Given
+        let subject = HashCacheCommandService(
+            generatorFactory: generatorFactory,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         given(cacheGraphContentHasher)
@@ -75,6 +110,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(true)
 
         // When
         _ = try await subject.run(path: fullPath, configuration: nil)
@@ -85,13 +121,15 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_withoutPath_loads_the_graph() async throws {
+    @Test func test_run_withoutPath_loads_the_graph() async throws {
         // Given
-        subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -105,6 +143,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
+        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         // When
         _ = try await subject.run(path: nil, configuration: nil)
@@ -115,13 +154,15 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_withRelativePath__loads_the_graph() async throws {
+    @Test func test_run_withRelativePath__loads_the_graph() async throws {
         // Given
-        subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -135,6 +176,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
+        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         // When
         _ = try await subject.run(path: "RelativePath", configuration: nil)
@@ -145,13 +187,15 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_loads_the_graph() async throws {
+    @Test func test_run_loads_the_graph() async throws {
         // Given
-        subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -165,6 +209,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
+        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         // When
         _ = try await subject.run(path: path, configuration: nil)
@@ -175,13 +220,15 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_content_hasher_gets_correct_graph() async throws {
+    @Test func test_run_content_hasher_gets_correct_graph() async throws {
         // Given
-        subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
-            configLoader: configLoader
+            configLoader: configLoader,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader
         )
         let graph = Graph.test()
         given(generator)
@@ -197,12 +244,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
                 destination: .any
             )
             .willReturn([:])
+        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         // When / Then
         _ = try await subject.run(path: path, configuration: nil)
     }
 
-    func test_run_outputs_correct_hashes() async throws {
+    @Test func test_run_outputs_correct_hashes() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
@@ -220,20 +268,23 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             given(generator)
                 .load(path: .any)
                 .willReturn(.test())
+            given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
-            subject = CachePrintHashesService(
+            let subject = HashCacheCommandService(
                 generatorFactory: generatorFactory,
                 cacheGraphContentHasher: cacheGraphContentHasher,
                 clock: clock,
-                configLoader: configLoader
+                configLoader: configLoader,
+                manifestLoader: manifestLoader,
+                manifestGraphLoader: manifestGraphLoader
             )
 
             // When
             _ = try await subject.run(path: path, configuration: nil)
 
             // Then
-            XCTAssertPrinterOutputContains("ShakiOne - hash1")
-            XCTAssertPrinterOutputContains("ShakiTwo - hash2")
+            try ServiceContext.expectLogs("ShakiOne - hash1")
+            try ServiceContext.expectLogs("ShakiTwo - hash2")
         }
     }
 
@@ -248,6 +299,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
                 destination: .any
             )
             .willReturn([:])
+        given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         given(generator)
             .load(path: .any)

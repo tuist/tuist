@@ -81,7 +81,7 @@ struct XcodeBuildTestCommandService {
         config: Tuist
     ) async throws {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
-        guard let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
+        guard let schemeName = Self.passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
         else {
             throw XcodeBuildTestCommandServiceError.schemeNotPassed
         }
@@ -93,24 +93,10 @@ struct XcodeBuildTestCommandService {
         }) else {
             throw XcodeBuildTestCommandServiceError.schemeNotFound(schemeName)
         }
-        let additionalStrings = [
-            "-configuration",
-            "-xcconfig",
-            "-sdk",
-            "-skip-test-configuration",
-            "-only-test-configuration",
-            "-toolchain",
-            "-testPlan",
-            // We can be smarter about these and match those with targets to be tested.
-            // For now, this is a safe way to ensure we accidentally don't store selective test results for tests that were _not_
-            // tested.
-            "-skip-testing",
-            "-only-testing",
-        ]
-        .compactMap { passedValue(for: $0, arguments: passthroughXcodebuildArguments) }
+
         let selectiveTestingHashes = try await selectiveTestingGraphHasher.hash(
             graph: graph,
-            additionalStrings: additionalStrings
+            additionalStrings: Self.additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
         )
         let selectiveTestingCacheItems = try await cacheStorage.fetch(
             Set(selectiveTestingHashes.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value) }),
@@ -120,7 +106,7 @@ struct XcodeBuildTestCommandService {
         .map { $0 }
 
         let testableTargets: [TestableTarget]
-        if let testPlanName = passedValue(for: "-testPlan", arguments: passthroughXcodebuildArguments) {
+        if let testPlanName = Self.passedValue(for: "-testPlan", arguments: passthroughXcodebuildArguments) {
             guard let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }) else {
                 throw XcodeBuildTestCommandServiceError.testPlanNotFound(testPlan: testPlanName, scheme: scheme.name)
             }
@@ -201,10 +187,28 @@ struct XcodeBuildTestCommandService {
         )
     }
 
+    static func additionalHashableStringsFromXcodebuildPassthroughArguments(_ arguments: [String]) -> [String] {
+        return [
+            "-configuration",
+            "-xcconfig",
+            "-sdk",
+            "-skip-test-configuration",
+            "-only-test-configuration",
+            "-toolchain",
+            "-testPlan",
+            // We can be smarter about these and match those with targets to be tested.
+            // For now, this is a safe way to ensure we accidentally don't store selective test results for tests that were _not_
+            // tested.
+            "-skip-testing",
+            "-only-testing",
+        ]
+        .compactMap { passedValue(for: $0, arguments: arguments) }
+    }
+
     private func resultBundlePathArguments(
         passthroughXcodebuildArguments: [String]
     ) async throws -> [String] {
-        if let resultBundlePathString = passedValue(
+        if let resultBundlePathString = Self.passedValue(
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
@@ -282,8 +286,8 @@ struct XcodeBuildTestCommandService {
         passthroughXcodebuildArguments: [String]
     ) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
-        if let workspaceOrProjectPath = passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
-            passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
+        if let workspaceOrProjectPath = Self.passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
+            Self.passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
         {
             return try AbsolutePath(validating: workspaceOrProjectPath, relativeTo: currentWorkingDirectory)
         } else {
@@ -291,7 +295,7 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func passedValue(
+    private static func passedValue(
         for option: String,
         arguments: [String]
     ) -> String? {
