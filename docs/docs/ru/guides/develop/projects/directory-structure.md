@@ -34,7 +34,7 @@ Workspace.swift
   - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> Этот манифест представляет `Xcode workspace`. Он используется для группировки проектов, а также для добавления дополнительных файлов и схем.
   - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> Этот манифест представляет проект Xcode. Он используется для определения `targets` Xcode, являющихся частью проекта, и их зависимостей.
 
-When interacting with the above project, commands expect to find either a `Workspace.swift` or a `Project.swift` file in the working directory or the directory indicated via the `--path` flag. The manifest should be in a directory or subdirectory of a directory containing a `Tuist` directory, which represents the root of the project.
+При взаимодействии с вышеуказанным проектом, команды ожидают найти либо `Workspace.swift` или `Project.swift` файл в рабочей папке или каталоге, указанном с помощью флага `--path`. The manifest should be in a directory or subdirectory of a directory containing a `Tuist` directory, which represents the root of the project.
 
 > [!TIP]
 > Xcode workspaces allowed splitting projects into multiple Xcode projects to reduce the likelihood of merge conflicts. If that's what you were using workspaces for, you don't need them in Tuist. Tuist auto-generates a workspace containing a project and its dependencies' projects.
