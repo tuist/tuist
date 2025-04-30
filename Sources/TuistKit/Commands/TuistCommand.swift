@@ -213,9 +213,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if !warningAlerts.isEmpty {
             print("\n")
-            for warningAlert in warningAlerts {
-                ServiceContext.current?.ui?.warning(warningAlert)
-            }
+            ServiceContext.current?.ui?.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
@@ -231,6 +229,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
+            print("\n")
             ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
         }
     }
