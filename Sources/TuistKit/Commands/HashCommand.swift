@@ -9,7 +9,8 @@ struct HashCommand: AsyncParsableCommand {
             commandName: "hash",
             abstract: "Utilities to debug the hashing logic used by features like binary caching or selective testing.",
             subcommands: [
-                HashCacheCommand.self
+                HashCacheCommand.self,
+                HashTestCommand.self,
             ]
         )
     }

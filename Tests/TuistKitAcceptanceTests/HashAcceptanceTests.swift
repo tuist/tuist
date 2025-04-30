@@ -7,26 +7,14 @@ import XCTest
 final class HashAcceptanceTestXcodeProjectiOSFramework: TuistAcceptanceTestCase {
     func test_xcode_project_ios_framework() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await setUpFixture("xcode_project_ios_framework")
-            try await run(HashCommand.self)
-            XCTAssertStandardOutput(
-                pattern: """
-                Framework -
-                """
-            )
-        }
-    }
-}
-
-final class HashAcceptanceTestXcodeProjectiOSApp: TuistAcceptanceTestCase {
-    func test_xcode_project_ios_app() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await setUpFixture(.custom("xcode_project_ios_app"))
-            try await run(HashCommand.self)
-            XCTAssertEqual(
-                ServiceContext.current?.recordedUI()
-                    .contains("The project contains no hasheable targets."), true
-            )
+            try await setUpFixture("ios_app_with_frameworks")
+            try await run(HashCacheCommand.self)
+            XCTAssertStandardOutput(pattern: "Framework1 -")
+            XCTAssertStandardOutput(pattern: "Framework2-iOS -")
+            XCTAssertStandardOutput(pattern: "Framework2-macOS -")
+            XCTAssertStandardOutput(pattern: "Framework3 -")
+            XCTAssertStandardOutput(pattern: "Framework4 -")
+            XCTAssertStandardOutput(pattern: "Framework5 -")
         }
     }
 }

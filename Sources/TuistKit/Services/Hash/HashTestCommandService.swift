@@ -9,29 +9,17 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-enum HashCacheCommandServiceError: LocalizedError, Equatable {
-    case generatedProjectNotFound(AbsolutePath)
-
-    var errorDescription: String? {
-        switch self {
-        case let .generatedProjectNotFound(path):
-            return "We couldn't find a generated project at \(path.pathString). Binary caching only works with generated projects."
-        }
-    }
-}
-
-final class HashCacheCommandService {
+final class HashTestCommandService {
     private let generatorFactory: GeneratorFactorying
-    private let cacheGraphContentHasher: CacheGraphContentHashing
-    private let clock: Clock
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let manifestGraphLoader: ManifestGraphLoading
+    private let xcodeGraphMapper: XcodeGraphMapping
+    private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
 
-    convenience init(
-        contentHasher: ContentHashing = CachedContentHasher(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory()
-    ) {
+    convenience init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
+        let contentHasher = CachedContentHasher()
+        let generatorFactory = GeneratorFactory()
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
         let manifestGraphLoader = ManifestGraphLoader(
@@ -42,27 +30,29 @@ final class HashCacheCommandService {
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            clock: WallClock(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader
+            manifestGraphLoader: manifestGraphLoader,
+            xcodeGraphMapper: XcodeGraphMapper(),
+            selectiveTestingGraphHasher: selectiveTestingGraphHasher
         )
     }
 
     init(
         generatorFactory: GeneratorFactorying,
-        cacheGraphContentHasher: CacheGraphContentHashing,
-        clock: Clock,
+        cacheGraphContentHasher _: CacheGraphContentHashing,
         configLoader: ConfigLoading,
         manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading,
+        xcodeGraphMapper: XcodeGraphMapping,
+        selectiveTestingGraphHasher: SelectiveTestingGraphHashing
     ) {
         self.generatorFactory = generatorFactory
-        self.cacheGraphContentHasher = cacheGraphContentHasher
-        self.clock = clock
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.manifestGraphLoader = manifestGraphLoader
+        self.xcodeGraphMapper = xcodeGraphMapper
+        self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
     }
 
     private func absolutePath(_ path: String?) throws -> AbsolutePath {
@@ -75,35 +65,30 @@ final class HashCacheCommandService {
 
     func run(
         path: String?,
-        configuration: String?
+        passthroughXcodebuildArguments: [String]
     ) async throws {
         let absolutePath = try absolutePath(path)
 
         let graph: XcodeGraph.Graph
-        let defaultConfiguration: String?
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
             graph = try await generator.load(path: absolutePath)
-            defaultConfiguration = config.project.generatedProject?.generationOptions.defaultConfiguration
         } else {
-            defaultConfiguration = nil
-            throw HashCacheCommandServiceError.generatedProjectNotFound(absolutePath)
+            graph = try await xcodeGraphMapper.map(at: absolutePath)
         }
 
-        let hashes = try await cacheGraphContentHasher.contentHashes(
-            for: graph,
-            configuration: configuration,
-            defaultConfiguration: defaultConfiguration,
-            excludedTargets: [],
-            destination: nil
+        let hashes = try await HashTestCommand.selectiveTestingGraphHasher.hash(
+            graph: graph,
+            additionalStrings: XcodeBuildTestCommandService
+                .additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
 
         if sortedHashes.isEmpty {
-            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets."))
+            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets for selective testing."))
         } else {
             for (target, hash) in sortedHashes {
                 ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")

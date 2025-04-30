@@ -2,13 +2,13 @@ import Foundation
 import Mockable
 import Path
 import ServiceContextModule
+import Testing
 import TuistCache
 import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistKit
 
@@ -42,19 +42,18 @@ struct HashCacheCommandServiceTests {
         manifestLoader = MockManifestLoading()
         manifestGraphLoader = MockManifestGraphLoading()
         xcodeGraphMapper = MockXcodeGraphMapping()
-        
+
         subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
     }
-    
-    @Test func test_run_with_an_xcode_project() async throws {
+
+    @Test func errors_when_notGeneratedProject() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -62,8 +61,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         let graph = Graph.test()
@@ -81,16 +79,12 @@ struct HashCacheCommandServiceTests {
         given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(false)
 
         // When
-        _ = try await subject.run(path: fullPath, configuration: nil)
-
-        // Then
-        verify(cacheGraphContentHasher)
-            .contentHashes(for: .any,
-                           configuration: .any,
-                           defaultConfiguration: .any,
-                           excludedTargets: .any,
-                           destination: .any)
-            .called(1)
+        await #expect(
+            throws: HashCacheCommandServiceError.generatedProjectNotFound(try AbsolutePath(validating: fullPath)),
+            performing: {
+                try await subject.run(path: fullPath, configuration: nil)
+            }
+        )
     }
 
     @Test func test_run_withFullPath_loads_the_graph() async throws {
@@ -101,8 +95,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         given(cacheGraphContentHasher)
@@ -136,8 +129,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -170,8 +162,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -204,8 +195,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -238,8 +228,7 @@ struct HashCacheCommandServiceTests {
             clock: clock,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            manifestGraphLoader: manifestGraphLoader
         )
         let graph = Graph.test()
         given(generator)
@@ -287,8 +276,7 @@ struct HashCacheCommandServiceTests {
                 clock: clock,
                 configLoader: configLoader,
                 manifestLoader: manifestLoader,
-                manifestGraphLoader: manifestGraphLoader,
-                xcodeGraphMapper: xcodeGraphMapper
+                manifestGraphLoader: manifestGraphLoader
             )
 
             // When

@@ -61,9 +61,9 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func setUpFixture(_ fixture: String) async throws {
-        try await self.setUpFixture(.custom(fixture))
+        try await setUpFixture(.custom(fixture))
     }
-    
+
     public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
         let fixturesPath = sourceRootPath
             .appending(component: "fixtures")

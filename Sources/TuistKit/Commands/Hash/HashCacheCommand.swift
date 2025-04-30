@@ -4,7 +4,6 @@ import TuistSupport
 
 /// A command to hash an Xcode or generated project.
 struct HashCacheCommand: AsyncParsableCommand {
-    
     public init() {}
 
     public static var configuration: CommandConfiguration {
