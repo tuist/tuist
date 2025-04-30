@@ -66,9 +66,9 @@ public struct CacheCommand: AsyncParsableCommand {
         if printHashes {
             ServiceContext.current?.alerts?.warning(.alert(
                 "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
-                nextStep: "Use \(.command("tuist hash")) instead."
+                nextStep: "Use \(.command("tuist hash cache")) instead."
             ))
-            try await CachePrintHashesService(
+            try await HashCacheCommandService(
                 generatorFactory: Self.generatorFactory
             ).run(
                 path: path,

@@ -9,7 +9,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class CachePrintHashesService {
+final class HashCacheCommandService {
     private let generatorFactory: GeneratorFactorying
     private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock

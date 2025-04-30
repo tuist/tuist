@@ -86,7 +86,6 @@ final class TestServiceTests: TuistUnitTestCase {
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
-            contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService

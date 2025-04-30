@@ -12,8 +12,8 @@ import Testing
 
 @testable import TuistKit
 
-struct CachePrintHashesServiceTests {
-    private var subject: CachePrintHashesService!
+struct HashCacheCommandServiceTests {
+    private var subject: HashCacheCommandService!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheGraphContentHasher: MockCacheGraphContentHashing!
@@ -43,7 +43,7 @@ struct CachePrintHashesServiceTests {
         manifestGraphLoader = MockManifestGraphLoading()
         xcodeGraphMapper = MockXcodeGraphMapping()
         
-        subject = CachePrintHashesService(
+        subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -56,7 +56,7 @@ struct CachePrintHashesServiceTests {
     
     @Test func test_run_with_an_xcode_project() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -95,7 +95,7 @@ struct CachePrintHashesServiceTests {
 
     @Test func test_run_withFullPath_loads_the_graph() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -130,7 +130,7 @@ struct CachePrintHashesServiceTests {
 
     @Test func test_run_withoutPath_loads_the_graph() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -164,7 +164,7 @@ struct CachePrintHashesServiceTests {
 
     @Test func test_run_withRelativePath__loads_the_graph() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -198,7 +198,7 @@ struct CachePrintHashesServiceTests {
 
     @Test func test_run_loads_the_graph() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -232,7 +232,7 @@ struct CachePrintHashesServiceTests {
 
     @Test func test_run_content_hasher_gets_correct_graph() async throws {
         // Given
-        let subject = CachePrintHashesService(
+        let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
@@ -281,7 +281,7 @@ struct CachePrintHashesServiceTests {
                 .willReturn(.test())
             given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
-            let subject = CachePrintHashesService(
+            let subject = HashCacheCommandService(
                 generatorFactory: generatorFactory,
                 cacheGraphContentHasher: cacheGraphContentHasher,
                 clock: clock,
