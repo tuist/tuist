@@ -86,13 +86,11 @@ final class InstallService {
         } else {
             ServiceContext.current?.logger?.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            if let generatedProjectOptions = config.project.generatedProject {
-                try swiftPackageManagerController.resolve(
-                    at: packageManifestPath.parentDirectory,
-                    arguments: generatedProjectOptions.installOptions.passthroughSwiftPackageManagerArguments,
-                    printOutput: true
-                )
-            }
+            try swiftPackageManagerController.resolve(
+                at: packageManifestPath.parentDirectory,
+                arguments: config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? [],
+                printOutput: true
+            )
         }
 
         try await savePackageResolved(at: packageManifestPath.parentDirectory)
