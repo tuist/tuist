@@ -34,13 +34,13 @@ Workspace.swift
   - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> Этот манифест представляет `Xcode workspace`. Он используется для группировки проектов, а также для добавления дополнительных файлов и схем.
   - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> Этот манифест представляет проект Xcode. Он используется для определения `targets` Xcode, являющихся частью проекта, и их зависимостей.
 
-При взаимодействии с вышеуказанным проектом, команды ожидают найти либо `Workspace.swift` или `Project.swift` файл в рабочей папке или каталоге, указанном с помощью флага `--path`. The manifest should be in a directory or subdirectory of a directory containing a `Tuist` directory, which represents the root of the project.
+При взаимодействии с вышеуказанным проектом, команды ожидают найти либо `Workspace.swift` или `Project.swift` файл в рабочей папке или каталоге, указанном с помощью флага `--path`. Манифест должен быть в каталоге или подкаталоге корня проекта, который содержит директорию `Tuist`.
 
 > [!TIP]
-> Xcode workspaces allowed splitting projects into multiple Xcode projects to reduce the likelihood of merge conflicts. If that's what you were using workspaces for, you don't need them in Tuist. Tuist auto-generates a workspace containing a project and its dependencies' projects.
+> `workspaces` Xcode позволяют разбить проекты на несколько для уменьшения вероятности конфликтов слияний. Если это то, для чего вы используете `workspace`, то он не нужен вам в Tuist. Tuist автоматически генерирует `workspace`, содержащий проекты проекта и их зависимости.
 
-## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
+## Swift Пакеты <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
-Tuist also supports SPM package projects. If you are working on an SPM package, you shouldn't need to update anything. Tuist automatically picks up on your root `Package.swift` and all the features of Tuist work as if it was a `Project.swift` manifest.
+Tuist также поддерживает проекты SPM-пакетов. Если вы работаете над пакетом SPM, вам не нужно ничего обновлять. Tuist автоматически найдет ваш коренной `Package.swift` и все возможности Tuist будут работать так, как будто это был манифест файл `Project.swift`.
 
-To get started, run `tuist install` and `tuist generate` in your SPM package. Your project should now have all the same schemes and files that you would see in the vanilla Xcode SPM integration. However, now you can also run <LocalizedLink href="/guides/develop/build/cache">`tuist cache`</LocalizedLink> and have majority of your SPM dependencies and modules precompiled, making subsequent builds extremely fast.
+Для начала запустите `tuist install` и `tuist generate` в вашем SPM-пакете. Теперь у вашего проекта должны быть те же схемы и файлы, которые вы бы увидели при обычной интеграции с Xcode SPM. В дополнение теперь вы можете запускать <LocalizedLink href="/guides/develop/build/cache">`tuist cache`</LocalizedLink> и иметь большинство ваших SPM зависимостей и модулей предварительно скомпилированными, что делает последующие сборки чрезвычайно быстрыми.
