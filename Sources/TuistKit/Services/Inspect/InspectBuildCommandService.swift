@@ -22,7 +22,7 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
             return "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
         case .executablePathMissing:
             return "We couldn't find tuist's executable path to run inspect build in a background."
-        case .mostRecentActivityLogNotFound(let projectPath):
+        case let .mostRecentActivityLogNotFound(projectPath):
             return "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
         }
     }
@@ -95,7 +95,10 @@ struct InspectBuildCommandService {
         }
         let projectPath = try await projectPath(path)
         let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
-        guard let mostRecentActivityLogPath = try await self.xcActivityLogController.mostRecentActivityLogPath(projectDerivedDataDirectory: projectDerivedDataDirectory, after: referenceDate) else {
+        guard let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogPath(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            after: referenceDate
+        ) else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
         let xcactivityLog = try xcActivityLogController.parse(mostRecentActivityLogPath)

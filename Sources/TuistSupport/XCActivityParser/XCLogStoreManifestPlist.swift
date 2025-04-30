@@ -1,7 +1,6 @@
 import Foundation
 
 public struct XCLogStoreManifestPlist: Codable {
-
     public struct ActivityLog: Codable {
         let fileName: String
         let timeStartedRecording: Double
@@ -12,7 +11,7 @@ public struct XCLogStoreManifestPlist: Codable {
             case timeStartedRecording
             case timeStoppedRecording
         }
-        
+
         public init(fileName: String, timeStartedRecording: Double, timeStoppedRecording: Double) {
             self.fileName = fileName
             self.timeStartedRecording = timeStartedRecording
@@ -20,9 +19,8 @@ public struct XCLogStoreManifestPlist: Codable {
         }
     }
 
-    
     public let logs: [String: Self.ActivityLog]
-    
+
     public init(logs: [String: Self.ActivityLog]) {
         self.logs = logs
     }
