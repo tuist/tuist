@@ -66,10 +66,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
         configLoader = .init()
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.default)
-
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willReturn("hash")
@@ -257,6 +253,29 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testXcodeProject()))
+        given(generator)
+            .generateWithGraph(path: .value(path))
+            .willReturn((path, .test(), MapperEnvironment()))
+
+        // When
+        await XCTAssertThrowsSpecific(
+            { try await testRun(
+                path: path
+            ) },
+            TuistConfigError
+                .notAGeneratedProject(
+                    errorMessageOverride: "The 'tuist test' command is for generated projects. Please use 'tuist xcodebuild test' instead."
+                )
+        )
+    }
+
     func test_run_generates_project() async throws {
         // Given
         givenGenerator()
@@ -264,6 +283,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .value(path))
             .willReturn((path, .test(), MapperEnvironment()))
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -1659,6 +1681,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .any
             )
             .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -2077,6 +2102,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -2154,6 +2182,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .any
             )
             .willReturn(())
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         let notDefinedTestPlan = "NotDefined"
         do {
