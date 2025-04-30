@@ -5,7 +5,7 @@ workflows:
     environment:
       xcode: 16.3
       groups:
-        - github_credentials
+        - tuist
     scripts:
       - name: Set environment variables
         script: |
@@ -34,7 +34,7 @@ workflows:
     environment:
       xcode: 16.3
       groups:
-        - github_credentials
+        - tuist
     scripts:
       - name: Set environment variables
         script: |
@@ -54,7 +54,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -78,7 +77,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -103,7 +101,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -133,7 +130,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -168,7 +164,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -198,7 +193,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -237,7 +231,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -267,7 +260,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -296,7 +288,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -329,7 +320,6 @@ workflows:
       xcode: 16.3
       groups:
         - tuist
-        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build

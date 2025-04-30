@@ -196,7 +196,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .map {
                             switch $0 {
                             case let .xcframework(path, condition):
-                                return .xcframework(path: path, condition: condition)
+                                return .xcframework(path: path, expectedSignature: nil, condition: condition)
                             case let .target(name, condition):
                                 let name = moduleAliases?[name] ?? name
                                 return .project(
@@ -226,7 +226,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
-            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: nil)]
         }
         return externalDependencies
     }
@@ -617,7 +617,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard let artifactPath = artifactPaths[target.name] else {
                     throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                 }
-                return .xcframework(path: .path(artifactPath.pathString), status: .required, condition: nil)
+                return .xcframework(
+                    path: .path(artifactPath.pathString),
+                    expectedSignature: nil,
+                    status: .required,
+                    condition: nil
+                )
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
@@ -965,7 +970,7 @@ extension ProjectDescription.TargetDependency {
             case let .target(name, condition):
                 return .target(name: name, condition: condition)
             case let .xcframework(path, condition):
-                return .xcframework(path: path, condition: condition)
+                return .xcframework(path: path, expectedSignature: nil, condition: condition)
             case let .externalTarget(project, target, condition):
                 return .project(
                     target: target,

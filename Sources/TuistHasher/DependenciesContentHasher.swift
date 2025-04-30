@@ -123,7 +123,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                 hashedPaths: hashedPaths,
                 hash: dependencyHash
             )
-        case let .framework(path, _, _), let .xcframework(path, _, _):
+        case let .framework(path, _, _), let .xcframework(path, _, _, _):
             if let pathHash = hashedPaths[path] {
                 return DependenciesContentHash(
                     hashedPaths: hashedPaths,
