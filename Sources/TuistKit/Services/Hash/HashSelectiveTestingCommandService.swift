@@ -18,7 +18,6 @@ final class HashSelectiveTestingCommandService {
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
 
     convenience init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
-        let contentHasher = CachedContentHasher()
         let generatorFactory = GeneratorFactory()
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
@@ -29,7 +28,6 @@ final class HashSelectiveTestingCommandService {
         )
         self.init(
             generatorFactory: generatorFactory,
-            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
@@ -40,7 +38,6 @@ final class HashSelectiveTestingCommandService {
 
     init(
         generatorFactory: GeneratorFactorying,
-        cacheGraphContentHasher _: CacheGraphContentHashing,
         configLoader: ConfigLoading,
         manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading,
@@ -79,7 +76,7 @@ final class HashSelectiveTestingCommandService {
             graph = try await xcodeGraphMapper.map(at: absolutePath)
         }
 
-        let hashes = try await HashSelectiveTestingCommand.selectiveTestingGraphHasher.hash(
+        let hashes = try await selectiveTestingGraphHasher.hash(
             graph: graph,
             additionalStrings: XcodeBuildTestCommandService
                 .additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
