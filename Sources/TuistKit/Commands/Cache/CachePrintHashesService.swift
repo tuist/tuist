@@ -20,7 +20,7 @@ final class CachePrintHashesService {
 
     convenience init(
         contentHasher: ContentHashing = CachedContentHasher(),
-        generatorFactory: GeneratorFactorying
+        generatorFactory: GeneratorFactorying = GeneratorFactory()
     ) {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()

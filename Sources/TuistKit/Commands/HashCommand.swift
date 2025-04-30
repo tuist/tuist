@@ -3,10 +3,8 @@ import Foundation
 import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-public struct HashCommand: AsyncParsableCommand {
+struct HashCommand: AsyncParsableCommand {
     public init() {}
-
-    public static var cacheService: CacheServicing = EmptyCacheService()
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -31,6 +29,6 @@ public struct HashCommand: AsyncParsableCommand {
     var configuration: String?
 
     public func run() async throws {
-        try await CachePrintHashesService(generatorFactory: GeneratorFactory()).run(path: path, configuration: configuration)
+        try await CachePrintHashesService().run(path: path, configuration: configuration)
     }
 }

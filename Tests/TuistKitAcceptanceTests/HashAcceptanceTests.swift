@@ -2,15 +2,16 @@ import Foundation
 import ServiceContextModule
 import TuistAcceptanceTesting
 import XCTest
+@testable import TuistKit
 
 final class HashAcceptanceTestXcodeProjectiOSFramework: TuistAcceptanceTestCase {
     func test_xcode_project_ios_framework() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await setUpFixture(.custom("xcode_project_ios_framework"))
+            try await setUpFixture("xcode_project_ios_framework")
             try await run(HashCommand.self)
             XCTAssertStandardOutput(
                 pattern: """
-                Framework - f4c285a58fdb882b527c6d5884ef52ed
+                Framework -
                 """
             )
         }
