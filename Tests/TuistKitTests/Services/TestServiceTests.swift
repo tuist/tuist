@@ -271,7 +271,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ) },
             TuistConfigError
                 .notAGeneratedProjectNorSwiftPackage(
-                    errorMessageOverride: "The 'tuist test' command is for generated projects. Please use 'tuist xcodebuild test' instead."
+                    errorMessageOverride: "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
                 )
         )
     }

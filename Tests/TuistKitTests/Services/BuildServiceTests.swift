@@ -93,7 +93,7 @@ struct BuildServiceTests {
             await #expect(
                 throws: TuistConfigError
                     .notAGeneratedProjectNorSwiftPackage(
-                        errorMessageOverride: "The 'tuist build' command is for generated projects. Please use 'tuist xcodebuild build' instead."
+                        errorMessageOverride: "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
                     ),
                 performing: {
                     try await subject.testRun(

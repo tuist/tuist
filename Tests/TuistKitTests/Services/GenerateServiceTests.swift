@@ -57,7 +57,7 @@ struct GenerateServiceTests {
         await #expect(
             throws: TuistConfigError
                 .notAGeneratedProjectNorSwiftPackage(
-                    errorMessageOverride: "The 'tuist generate' command is only available for generated projects."
+                    errorMessageOverride: "The 'tuist generate' command is only available for generated projects and Swift packages."
                 ),
             performing: {
                 try await subject
