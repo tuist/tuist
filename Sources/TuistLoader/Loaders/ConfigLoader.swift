@@ -92,7 +92,14 @@ public final class ConfigLoader: ConfigLoading {
             include: ["Project.swift", "Workspace.swift"]
         ).collect().isEmpty)
 
-        if anyXcodeProjectOrWorkspace, !anyWorkspaceOrProjectManifest {
+        let anyPackageSwift = !(
+            try await fileSystem.glob(directory: path, include: ["Package.swift"])
+                .collect().isEmpty
+        )
+
+        if anyPackageSwift, !anyWorkspaceOrProjectManifest {
+            return Tuist(project: .swiftPackage(TuistSwiftPackageOptions()), fullHandle: nil, url: Constants.URLs.production)
+        } else if anyXcodeProjectOrWorkspace, !anyWorkspaceOrProjectManifest {
             return Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: nil,
