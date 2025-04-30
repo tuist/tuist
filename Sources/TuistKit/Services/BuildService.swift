@@ -76,7 +76,9 @@ public final class BuildService {
     ) async throws {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
-        try validateIsGeneratedProject(config: config, command: "build")
+            .assertingIsGenerated(
+                errorMessageOverride: "The 'tuist build' command is for generated projects. Please use 'tuist xcodebuild build' instead."
+            )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.building(
             config: config,

@@ -86,6 +86,53 @@ final class BuildServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func test_throws_an_error_if_the_project_is_not_generated() async throws {
+        // Given
+        let path = try temporaryPath()
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let graph = Graph.test()
+        let scheme = Scheme.test()
+        let project = Project.test()
+        let target = Target.test()
+        let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
+        let skipSigning = false
+
+        given(generator)
+            .load(path: .value(path))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
+            .willReturn(GraphTarget.test(path: project.path, target: target, project: project))
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(path))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .value(project),
+                target: .value(target),
+                configuration: .any,
+                skipSigning: .value(skipSigning)
+            )
+            .willReturn(buildArguments)
+        targetBuilder
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
+                XCTAssertEqual(_workspacePath, workspacePath)
+                XCTAssertEqual(_scheme, scheme)
+                XCTAssertTrue(_clean)
+                XCTAssertNil(_device)
+                XCTAssertNil(_osVersion)
+            }
+
+        // Then
+        try await subject.testRun(
+            schemeName: scheme.name,
+            path: path
+        )
+    }
+
     func test_run_when_the_project_should_be_generated() async throws {
         // Given
         let path = try temporaryPath()
