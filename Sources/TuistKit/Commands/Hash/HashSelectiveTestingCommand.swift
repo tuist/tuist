@@ -4,14 +4,14 @@ import TuistHasher
 import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-struct HashTestCommand: AsyncParsableCommand {
+struct HashSelectiveTestingCommand: AsyncParsableCommand {
     public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = EmptySelectiveTestingGraphHasher()
 
     public init() {}
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "test",
+            commandName: "selective-testing",
             _superCommandName: "hash",
             abstract: "Returns the hashes that will be used to persist targets' test results to select tests in future test runs."
         )
@@ -32,7 +32,7 @@ struct HashTestCommand: AsyncParsableCommand {
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        try await HashTestCommandService(selectiveTestingGraphHasher: Self.selectiveTestingGraphHasher).run(
+        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Self.selectiveTestingGraphHasher).run(
             path: path,
             passthroughXcodebuildArguments: passthroughXcodebuildArguments
         )

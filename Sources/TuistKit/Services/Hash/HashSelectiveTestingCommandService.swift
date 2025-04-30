@@ -9,7 +9,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class HashTestCommandService {
+final class HashSelectiveTestingCommandService {
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
@@ -79,7 +79,7 @@ final class HashTestCommandService {
             graph = try await xcodeGraphMapper.map(at: absolutePath)
         }
 
-        let hashes = try await HashTestCommand.selectiveTestingGraphHasher.hash(
+        let hashes = try await HashSelectiveTestingCommand.selectiveTestingGraphHasher.hash(
             graph: graph,
             additionalStrings: XcodeBuildTestCommandService
                 .additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
