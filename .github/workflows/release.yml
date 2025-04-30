@@ -17,7 +17,7 @@ permissions:
   packages: write
 
 env:
-  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
 jobs:
   release:
