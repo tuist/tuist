@@ -4,7 +4,7 @@ import TuistHasher
 import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-struct HashSelectiveTestingCommand: AsyncParsableCommand {
+public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = EmptySelectiveTestingGraphHasher()
 
     public init() {}
