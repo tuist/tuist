@@ -1,5 +1,5 @@
 {
-  "originHash" : "b3a80196c6def268997b7b307355b6fab1c35ec921ad1e67e869d0565c9a5fdc",
+  "originHash" : "1bd8ca05828419a464a795dc8a4e1df9626aec4ed460bc7705e70c2a4ee22164",
   "pins" : [
     {
       "identity" : "aexml",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "a74971566c517dd4e7ff6895b11d4d44aee2c7e9",
-        "version" : "0.7.13"
+        "revision" : "eb33ba606c2d988a6f7247e3fc23faa681d75028",
+        "version" : "0.7.16"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "62d22e1ecef3dda702c039f03dd83f674ad59bfc",
-        "version" : "0.30.0"
+        "revision" : "5458fc568b2d8542c3cac60bba519bf7db9c254b",
+        "version" : "0.31.0"
       }
     },
     {
@@ -321,8 +321,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "c51907a839e63ebf0ba2076bba73dd96436bd1b9",
-        "version" : "2.81.0"
+        "revision" : "0f54d58bb5db9e064f332e8524150de379d1e51c",
+        "version" : "2.82.1"
       }
     },
     {
@@ -436,19 +436,19 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TamarMilchtaich/XcodeGraph",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "branch" : "xcframeworks-expected-signature",
-        "revision" : "b1094a9724fee90919ac16a37fbc823fd1834f03"
+        "revision" : "822d6c49bf4c54cf816ae9babcc40277b69c5470",
+        "version" : "1.10.0"
       }
     },
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/TamarMilchtaich/XcodeProj",
+      "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "branch" : "xcframeworks-expected-signature",
-        "revision" : "5d34fab1b02c6c20586fdcb64003e1d7e049dee8"
+        "revision" : "d24584154c90a5144fd1a74439371342dd42162f",
+        "version" : "9.3.0"
       }
     },
     {
