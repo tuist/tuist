@@ -3,10 +3,10 @@ import Path
 import TuistSupport
 import XcodeGraph
 
-enum TuistConfigError: LocalizedError, Equatable {
+public enum TuistConfigError: LocalizedError, Equatable {
     case notAGeneratedProject(errorMessageOverride: String?)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .notAGeneratedProject(errorMessageOverride):
             return errorMessageOverride ?? "A generated Xcode project is necessary for this feature."

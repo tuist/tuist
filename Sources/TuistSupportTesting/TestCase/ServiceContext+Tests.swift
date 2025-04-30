@@ -1,6 +1,7 @@
 import Logging
 import Noora
 import ServiceContextModule
+import Testing
 import TuistSupport
 
 private enum TestingLogHandlerServiceContextKey: ServiceContextKey {
@@ -38,5 +39,28 @@ extension ServiceContext {
         try await ServiceContext.withValue(context) {
             try await closure()
         }
+    }
+
+    public static func expectLogs(
+        _ expected: String,
+        at level: Logger.Level,
+        _ comparison: (Logger.Level, Logger.Level) -> Bool,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let testingLogHandler = try #require(
+            ServiceContext.current?.testingLogHandler,
+            "The testing log handler hasn't been set with ServiceContext.withTestingDependencies."
+        )
+        let output = testingLogHandler.collected[level, comparison]
+        let message = """
+        The output:
+        ===========
+        \(output)
+
+        Doesn't contain the expected:
+        ===========
+        \(expected)
+        """
+        #expect(output.contains(expected) == true, "\(message)", sourceLocation: sourceLocation)
     }
 }
