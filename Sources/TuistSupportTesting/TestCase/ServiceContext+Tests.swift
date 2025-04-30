@@ -43,8 +43,8 @@ extension ServiceContext {
 
     public static func expectLogs(
         _ expected: String,
-        at level: Logger.Level,
-        _ comparison: (Logger.Level, Logger.Level) -> Bool,
+        at level: Logger.Level = .warning,
+        _ comparison: (Logger.Level, Logger.Level) -> Bool = { $0 >= $1 },
         sourceLocation: SourceLocation = #_sourceLocation
     ) throws {
         let testingLogHandler = try #require(
