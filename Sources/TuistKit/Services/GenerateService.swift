@@ -46,7 +46,9 @@ final class GenerateService {
         let timer = clock.startTimer()
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
-            .assertingIsGenerated(errorMessageOverride: "The 'tuist generate' command is only available for generated projects.")
+            .assertingIsGeneratedProjectOrSwiftPackage(
+                errorMessageOverride: "The 'tuist generate' command is only available for generated projects and Swift packages."
+            )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
             config: config,

@@ -3,11 +3,13 @@ import XcodeGraph
 public enum TuistProject: Equatable, Hashable {
     case generated(TuistGeneratedProjectOptions)
     case xcode(TuistXcodeProjectOptions)
+    case swiftPackage(TuistSwiftPackageOptions)
 
     public var generatedProject: TuistGeneratedProjectOptions? {
         switch self {
         case let .generated(options): return options
         case .xcode: return nil
+        case .swiftPackage: return nil
         }
     }
 
@@ -15,6 +17,7 @@ public enum TuistProject: Equatable, Hashable {
         switch self {
         case .generated: return true
         case .xcode: return false
+        case .swiftPackage: return false
         }
     }
 

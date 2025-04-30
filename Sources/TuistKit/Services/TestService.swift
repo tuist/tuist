@@ -201,8 +201,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
         // Load config
         let config = try await configLoader.loadConfig(path: path)
-            .assertingIsGenerated(
-                errorMessageOverride: "The 'tuist test' command is for generated projects. Please use 'tuist xcodebuild test' instead."
+            .assertingIsGeneratedProjectOrSwiftPackage(
+                errorMessageOverride: "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 

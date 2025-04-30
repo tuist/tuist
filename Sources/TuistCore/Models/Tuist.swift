@@ -4,12 +4,12 @@ import TuistSupport
 import XcodeGraph
 
 public enum TuistConfigError: LocalizedError, Equatable {
-    case notAGeneratedProject(errorMessageOverride: String?)
+    case notAGeneratedProjectNorSwiftPackage(errorMessageOverride: String?)
 
     public var errorDescription: String? {
         switch self {
-        case let .notAGeneratedProject(errorMessageOverride):
-            return errorMessageOverride ?? "A generated Xcode project is necessary for this feature."
+        case let .notAGeneratedProjectNorSwiftPackage(errorMessageOverride):
+            return errorMessageOverride ?? "A generated Xcode project or Swift Package is necessary for this feature."
         }
     }
 }
@@ -57,11 +57,11 @@ public struct Tuist: Equatable, Hashable {
         hasher.combine(url)
     }
 
-    public func assertingIsGenerated(errorMessageOverride: String?) throws -> Self {
-        if !project.isGenerated {
-            throw TuistConfigError.notAGeneratedProject(errorMessageOverride: errorMessageOverride)
+    public func assertingIsGeneratedProjectOrSwiftPackage(errorMessageOverride: String?) throws -> Self {
+        switch project {
+        case .generated, .swiftPackage: return self
+        case .xcode: throw TuistConfigError.notAGeneratedProjectNorSwiftPackage(errorMessageOverride: errorMessageOverride)
         }
-        return self
     }
 }
 
