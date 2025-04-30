@@ -323,82 +323,82 @@ remote storage로 업로드가 완료된 총 횟수.
 
 데이터베이스에서 해제된 연결 수입니다.
 
-## HTTP metrics {#http-metrics}
+## HTTP 메트릭 {#http-metrics}
 
-A set of metrics related to Tuist's interactions with other services via HTTP.
+Tuist가 다른 서비스와 HTTP를 통해 상호작용할 때 관련된 메트릭의 집합
 
 ### `tuist_http_request_count` (counter) {#tuist_http_request_count-last_value}
 
-The number of outgoing HTTP requests.
+HTTP 요청 수
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-The sum of the duration of the outgoing requests (including the time that they spent waiting to be assigned to a connection).
+요청에 대한 전체 시간 합계(연결에 할당되기까지 대기한 시간 포함)
 
 ### `tuist_http_request_duration_nanosecond_bucket` (distribution) {#tuist_http_request_duration_nanosecond_bucket-distribution}
 
-The distribution of the duration of outgoing requests (including the time that they spent waiting to be assigned to a connection).
+요청에 대한 지속 시간 분포(연결에 할당되기까지 대기한 시간 포함)
 
 ### `tuist_http_queue_count` (counter) {#tuist_http_queue_count-counter}
 
-The number of requests that have been retrieved from the pool.
+풀에서 가져온 요청 수
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-The time it takes to retrieve a connection from the pool.
+풀에서 연결을 가져오는데 걸리는 시간
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-The time a connection has been idle waiting to be retrieved.
+풀에서 연결을 가져올 때 유휴 상태로 있던 시간
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-The time it takes to retrieve a connection from the pool.
+풀에서 연결을 가져오는데 걸리는 시간
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-The time a connection has been idle waiting to be retrieved.
+풀에서 연결을 가져올 때 유휴 상태로 있던 시간
 
 ### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
 
-The number of connections that have been established.
+설정된 연결 수
 
 ### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-The time it takes to establish a connection against a host.
+호스트와의 연결을 설정하는데 걸리는 시간
 
 ### `tuist_http_connection_duration_nanoseconds_bucket` (distribution) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time it takes to establish a connection against a host.
+호스트와의 연결을 설정하는데 걸리는 시간 분포
 
 ### `tuist_http_send_count` (counter) {#tuist_http_send_count-counter}
 
-The number of requests that have been sent once assigned to a connection from the pool.
+풀에서 연결이 할당된 후에 전송된 요청 수
 
 ### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-The time that it takes for requests to complete once assigned to a connection from the pool.
+풀에서 연결이 할당된 후에 요청이 완료되기까지의 시간
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (distribution) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time that it takes for requests to complete once assigned to a connection from the pool.
+풀에서 연결이 할당된 후에 요청이 완료되기까지의 시간 분포
 
 ### `tuist_http_receive_count` (counter) {#tuist_http_receive_count-counter}
 
-The number of responses that have been received from sent requests.
+전송된 요청으로부터 수신된 응답 수
 
 ### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-The time spent receiving responses.
+응답을 수신하는데 걸리는 시간
 
 ### `tuist_http_receive_duration_nanoseconds_bucket` (distribution) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-The distribution of the time spent receiving responses.
+응답을 수신하는데 걸리는 시간 분포
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
-The number of connections available in the queue.
+큐에서 사용 가능한 연결 수
 
 ### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
 
-The number of queue connections that are in use.
+큐에서 사용 중인 연결 수
