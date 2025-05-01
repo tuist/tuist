@@ -24,7 +24,12 @@ struct GraphContentHasherTests {
         let graph = Graph.test()
 
         // When
-        let hashes = try await subject.contentHashes(for: graph, include: { _ in true }, additionalStrings: [])
+        let hashes = try await subject.contentHashes(
+            for: graph,
+            include: { _ in true },
+            destination: nil,
+            additionalStrings: []
+        )
 
         // Then
         #expect(hashes == Dictionary())
@@ -92,6 +97,7 @@ struct GraphContentHasherTests {
             include: {
                 $0.target.product == .framework
             },
+            destination: nil,
             additionalStrings: []
         )
         let hashedTargets: [GraphTarget] = hashes.keys.sorted { left, right -> Bool in
@@ -122,9 +128,10 @@ struct GraphContentHasherTests {
                     for: .any,
                     hashedTargets: .any,
                     hashedPaths: .any,
+                    destination: .any,
                     additionalStrings: .any
                 )
-                .willProduce { graphTarget, _, _, additionalStrings in
+                .willProduce { graphTarget, _, _, _, additionalStrings in
                     TargetContentHash(
                         hash: graphTarget.target.name + "-" + additionalStrings.joined(separator: "-"),
                         hashedPaths: [:]
@@ -151,6 +158,7 @@ struct GraphContentHasherTests {
                     ]
                 ),
                 include: { _ in true },
+                destination: nil,
                 additionalStrings: []
             )
 
@@ -173,9 +181,10 @@ struct GraphContentHasherTests {
                     for: .any,
                     hashedTargets: .any,
                     hashedPaths: .any,
+                    destination: .any,
                     additionalStrings: .any
                 )
-                .willProduce { graphTarget, _, _, additionalStrings in
+                .willProduce { graphTarget, _, _, _, additionalStrings in
                     TargetContentHash(
                         hash: graphTarget.target.name + "-" + additionalStrings.joined(separator: "-"),
                         hashedPaths: [:]
@@ -214,6 +223,7 @@ struct GraphContentHasherTests {
                     ]
                 ),
                 include: { _ in true },
+                destination: nil,
                 additionalStrings: []
             )
 
@@ -236,9 +246,10 @@ struct GraphContentHasherTests {
                     for: .any,
                     hashedTargets: .any,
                     hashedPaths: .any,
+                    destination: .any,
                     additionalStrings: .any
                 )
-                .willProduce { graphTarget, _, _, additionalStrings in
+                .willProduce { graphTarget, _, _, _, additionalStrings in
                     TargetContentHash(
                         hash: graphTarget.target.name + "-" + additionalStrings.joined(separator: "-"),
                         hashedPaths: [:]
@@ -276,6 +287,7 @@ struct GraphContentHasherTests {
                     ]
                 ),
                 include: { _ in true },
+                destination: nil,
                 additionalStrings: []
             )
 

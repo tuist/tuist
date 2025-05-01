@@ -84,7 +84,7 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Given
             given(userInputReader)
                 .readString(asking: .value("Email:"))
-                .willReturn("email@tuist.io")
+                .willReturn("email@tuist.dev")
 
             given(serverCredentialsStore)
                 .store(
@@ -101,7 +101,7 @@ final class LoginServiceTests: TuistUnitTestCase {
 
             given(authenticateService)
                 .authenticate(
-                    email: .value("email@tuist.io"),
+                    email: .value("email@tuist.dev"),
                     password: .value("password"),
                     serverURL: .value(serverURL)
                 )
@@ -122,8 +122,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
+            ✔ Success
+              Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
         }
@@ -151,7 +151,7 @@ final class LoginServiceTests: TuistUnitTestCase {
 
             given(authenticateService)
                 .authenticate(
-                    email: .value("email@tuist.io"),
+                    email: .value("email@tuist.dev"),
                     password: .value("password"),
                     serverURL: .value(serverURL)
                 )
@@ -164,7 +164,7 @@ final class LoginServiceTests: TuistUnitTestCase {
 
             // When
             try await subject.run(
-                email: "email@tuist.io",
+                email: "email@tuist.dev",
                 password: nil,
                 directory: nil
             )
@@ -172,8 +172,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
+            ✔ Success
+              Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
         }
@@ -197,7 +197,7 @@ final class LoginServiceTests: TuistUnitTestCase {
 
             given(authenticateService)
                 .authenticate(
-                    email: .value("email@tuist.io"),
+                    email: .value("email@tuist.dev"),
                     password: .value("password"),
                     serverURL: .value(serverURL)
                 )
@@ -210,7 +210,7 @@ final class LoginServiceTests: TuistUnitTestCase {
 
             // When
             try await subject.run(
-                email: "email@tuist.io",
+                email: "email@tuist.dev",
                 password: "password",
                 directory: nil
             )
@@ -218,8 +218,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
+            ✔ Success
+              Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
             verify(userInputReader)

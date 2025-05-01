@@ -91,8 +91,8 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-> [!WARNING] DEPRECATED
-> Task plugins are deprecated and we are working on a more flexible and powerful solution, <LocalizedLink href="/en/guides/develop/automate/workflows">workflows</LocalizedLink>. We recommend not developing new plugins until the new solution is available.
+> [!WARNING] DEPRECATED\
+> Task 플러그인은 더 이상 사용되지 않습니다. 프로젝트 자동화 솔루션을 찾고 있다면 [블로그 포스트](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)를 참고하세요.
 
 Tasks는 `tuist--<task-name>` 명명 규칙을 따를 경우 `tuist` 명령을 통해 호출할 수 있는 `$PATH` 실행 파일입니다. 이전 버전에서 Tuist는 Swift 패키지에서 실행 파일로 구성된 `build`, `run`, `test` 및 `archive` 작업에 `tuist plugin`에 따라 몇 가지 약한 규칙과 도구를 제공했지만, 유지 관리 부담과 도구의 복잡성을 증가시키기 때문에 이 기능은 더 이상 지원되지 않습니다.
 

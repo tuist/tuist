@@ -28,6 +28,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Develop",
                     subcommands: [
+                        HashCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CleanCommand.self,
@@ -50,6 +51,12 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Share",
                     subcommands: [
                         ShareCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "AI",
+                    subcommands: [
+                        MCPCommand.self,
                     ]
                 ),
                 CommandGroup(
@@ -117,9 +124,17 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                try await trackableCommand.run(
-                    backend: backend
-                )
+                if command is NooraReadyCommand {
+                    try await ServiceContext.current?.withLoggerForNoora(logFilePath: logFilePath) {
+                        try await trackableCommand.run(
+                            backend: backend
+                        )
+                    }
+                } else {
+                    try await trackableCommand.run(
+                        backend: backend
+                    )
+                }
             }
         } catch {
             parsingError = error
@@ -199,9 +214,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if !warningAlerts.isEmpty {
             print("\n")
-            for warningAlert in warningAlerts {
-                ServiceContext.current?.ui?.warning(warningAlert)
-            }
+            ServiceContext.current?.ui?.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
@@ -217,6 +230,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
+            print("\n")
             ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
         }
     }

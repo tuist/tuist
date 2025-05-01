@@ -18,12 +18,22 @@ public struct XCActivityParser: XCActivityParsing {
             withoutBuildSpecificInformation: false
         )
 
+        let buildStep = try XCLogParser.ParserBuildSteps(
+            omitWarningsDetails: true,
+            omitNotesDetails: true,
+            truncLargeIssues: true
+        )
+        .parse(activityLog: activityLog)
+
         return XCActivityLog(
             version: activityLog.version,
             mainSection: XCActivityLogSection(
                 uniqueIdentifier: activityLog.mainSection.uniqueIdentifier,
                 timeStartedRecording: activityLog.mainSection.timeStartedRecording,
                 timeStoppedRecording: activityLog.mainSection.timeStoppedRecording
+            ),
+            buildStep: XCActivityBuildStep(
+                errorCount: buildStep.errorCount
             )
         )
     }

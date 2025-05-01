@@ -60,6 +60,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await super.tearDown()
     }
 
+    public func setUpFixture(_ fixture: String) async throws {
+        try await setUpFixture(.custom(fixture))
+    }
+
     public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
         let fixturesPath = sourceRootPath
             .appending(component: "fixtures")
@@ -186,11 +190,20 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.extension == "xcworkspace" })
     }
 
-    public func run(_ command: XcodeBuildCommand.Type, _ arguments: String...) async throws {
+    public func run(_ command: XcodeBuildBuildCommand.Type, _ arguments: String...) async throws {
         try await run(command, arguments)
     }
 
-    public func run(_ command: XcodeBuildCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: XcodeBuildBuildCommand.Type, _ arguments: [String] = []) async throws {
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
+    public func run(_ command: XcodeBuildTestCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: XcodeBuildTestCommand.Type, _ arguments: [String] = []) async throws {
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }

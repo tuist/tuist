@@ -26,19 +26,20 @@ public protocol GeneratorFactorying {
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        destination: SimulatorDeviceAndRuntime?
     ) -> Generating
 
     /// Returns the generator for focused projects.
     /// - Parameter config: The project configuration.
-    /// - Parameter sources: The list of targets whose sources should be included.
+    /// - Parameter includedTargets: The list of targets whose sources should be included.
     /// - Parameter configuration: The configuration to generate for.
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: The generator for focused projects.
     func generation(
         config: Tuist,
-        sources: Set<String>,
+        includedTargets: Set<TargetQuery>,
         configuration: String?,
         ignoreBinaryCache: Bool,
         cacheStorage: CacheStoring
@@ -57,11 +58,11 @@ public protocol GeneratorFactorying {
 
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
-    /// - Parameter sources: The list of targets whose sources should be included.
+    /// - Parameter includedTargets: The list of targets whose sources should be included.
     /// - Returns: A Generator instance.
     func defaultGenerator(
         config: Tuist,
-        sources: Set<String>
+        includedTargets: Set<TargetQuery>
     ) -> Generating
 }
 
@@ -81,7 +82,8 @@ public class GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        destination _: SimulatorDeviceAndRuntime?
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -95,8 +97,8 @@ public class GeneratorFactory: GeneratorFactorying {
         let graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: testPlan,
-            includedTargets: includedTargets,
-            excludedTargets: excludedTargets
+            includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
+            excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:)))
         )
         let workspaceMappers = workspaceMapperFactory.automation(
             tuist: config
@@ -114,12 +116,12 @@ public class GeneratorFactory: GeneratorFactorying {
 
     public func generation(
         config: Tuist,
-        sources: Set<String>,
+        includedTargets: Set<TargetQuery>,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
-        defaultGenerator(config: config, sources: sources)
+        defaultGenerator(config: config, includedTargets: includedTargets)
     }
 
     public func building(
@@ -128,12 +130,12 @@ public class GeneratorFactory: GeneratorFactorying {
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
-        defaultGenerator(config: config, sources: [])
+        defaultGenerator(config: config, includedTargets: [])
     }
 
     public func defaultGenerator(
         config: Tuist,
-        sources: Set<String>
+        includedTargets: Set<TargetQuery>
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -145,7 +147,7 @@ public class GeneratorFactory: GeneratorFactorying {
         let graphMappers = graphMapperFactory.automation(
             config: config,
             testPlan: nil,
-            includedTargets: sources,
+            includedTargets: includedTargets,
             excludedTargets: []
         )
         let workspaceMappers = workspaceMapperFactory.default(

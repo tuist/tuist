@@ -553,7 +553,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 10)
+        XCTAssertEqual(got.count, 11)
     }
 
     func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() async throws {
@@ -773,7 +773,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 9)
+        XCTAssertEqual(got.count, 10)
     }
 
     func testTargetSettings_whenRecommendedDebug_Framework() async throws {

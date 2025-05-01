@@ -24,6 +24,7 @@ public struct InitCommandService {
     private let loginService: LoginServicing
     private let createProjectService: CreateProjectServicing
     private let createOrganizationService: CreateOrganizationServicing
+    private let listOrganizationsService: ListOrganizationsServicing
     private let serverSessionController: ServerSessionControlling
     private let initGeneratedProjectService: InitGeneratedProjectServicing
     private let keystrokeListener: KeyStrokeListening
@@ -66,6 +67,7 @@ public struct InitCommandService {
         initGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
         keystrokeListener: KeyStrokeListening = KeyStrokeListener(),
         createOrganizationService: CreateOrganizationServicing = CreateOrganizationService(),
+        listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         commandRunner: CommandRunning = CommandRunner(),
         serverURLService: ServerURLServicing = ServerURLService()
@@ -78,6 +80,7 @@ public struct InitCommandService {
         self.initGeneratedProjectService = initGeneratedProjectService
         self.keystrokeListener = keystrokeListener
         self.createOrganizationService = createOrganizationService
+        self.listOrganizationsService = listOrganizationsService
         self.getProjectService = getProjectService
         self.commandRunner = commandRunner
         self.serverURLService = serverURLService
@@ -264,7 +267,11 @@ public struct InitCommandService {
         serverURL: URL
     ) async throws -> String {
         let accountHandle = try await serverSessionController.whoami(serverURL: serverURL)!
-        switch answers?.accountType ?? prompter.promptAccountType(authenticatedUserHandle: accountHandle) {
+        let organizations = (try? await listOrganizationsService.listOrganizations(serverURL: serverURL)) ?? []
+        switch answers?.accountType ?? prompter.promptAccountType(
+            authenticatedUserHandle: accountHandle,
+            organizations: organizations
+        ) {
         case .createOrganizationAccount:
             let organizationHandle = answers?.newOrganizationAccountHandle ?? prompter.promptNewOrganizationAccountHandle()
             _ = try await createOrganizationService.createOrganization(
@@ -272,7 +279,8 @@ public struct InitCommandService {
                 serverURL: serverURL
             )
             return organizationHandle
-        case let .userAccount(handle):
+        case let .userAccount(handle),
+             let .organization(handle):
             return handle
         }
     }

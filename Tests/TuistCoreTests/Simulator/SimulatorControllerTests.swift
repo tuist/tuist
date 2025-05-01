@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TSCUtility
 import XCTest
 
 @testable import TuistCore
@@ -68,6 +69,18 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
     }
 
+    func test_findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
+        // Given
+        _ = createSystemStubs(devices: true, runtimes: true)
+
+        // Then
+        await XCTAssertThrowsSpecific(
+            // When
+            _ = try await subject.findAvailableDevice(udid: "some-id"),
+            SimulatorControllerError.simulatorNotFound(udid: "some-id")
+        )
+    }
+
     func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
@@ -102,6 +115,31 @@ final class SimulatorControllerTests: TuistUnitTestCase {
             _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100"),
             SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime])
         )
+    }
+
+    func test_findAvailableDevice_should_findDeviceWithUdid() async throws {
+        // Given
+        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+
+        // When
+        let device = try await subject.findAvailableDevice(udid: "81F0475F-0A03-4742-92D7-D59ACE3A5895")
+
+        // Then
+        XCTAssertEqual(device, expectedDeviceAndRuntime)
+    }
+
+    func test_findAvailableDevice_should_findDeviceWithDeviceNameAndOSVersion() async throws {
+        // Given
+        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+
+        // When
+        let device = try await subject.findAvailableDevice(
+            deviceName: "iPhone 11",
+            version: Version(14, 4, 0)
+        )
+
+        // Then
+        XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
 
     func test_findAvailableDevice_should_findDeviceWithDefaults() async throws {

@@ -600,6 +600,14 @@ components:
               type: string
               x-struct:
               x-validate:
+            status:
+              description: The status of the build run.
+              enum:
+                - success
+                - failure
+              type: string
+              x-struct:
+              x-validate:
             type:
               description: The type of the run, which is 'build' in this case.
               enum:
@@ -1060,6 +1068,14 @@ components:
           x-validate:
         scheme:
           description: The scheme used for the build.
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the build run.
+          enum:
+            - success
+            - failure
           type: string
           x-struct:
           x-validate:
@@ -3957,6 +3973,14 @@ paths:
                       type: string
                       x-struct:
                       x-validate:
+                    status:
+                      description: The status of the build run.
+                      enum:
+                        - success
+                        - failure
+                      type: string
+                      x-struct:
+                      x-validate:
                     type:
                       description: The type of the run, which is 'build' in this case.
                       enum:
@@ -4043,8 +4067,6 @@ paths:
             x-validate:
       responses:
         204:
-          content:
-            application/json: {}
           description: The member was removed
         400:
           content:

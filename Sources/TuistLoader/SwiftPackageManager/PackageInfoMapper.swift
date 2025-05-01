@@ -196,7 +196,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .map {
                             switch $0 {
                             case let .xcframework(path, condition):
-                                return .xcframework(path: path, condition: condition)
+                                return .xcframework(path: path, expectedSignature: nil, condition: condition)
                             case let .target(name, condition):
                                 let name = moduleAliases?[name] ?? name
                                 return .project(
@@ -226,7 +226,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
-            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: nil)]
         }
         return externalDependencies
     }
@@ -617,7 +617,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard let artifactPath = artifactPaths[target.name] else {
                     throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                 }
-                return .xcframework(path: .path(artifactPath.pathString), status: .required, condition: nil)
+                return .xcframework(
+                    path: .path(artifactPath.pathString),
+                    expectedSignature: nil,
+                    status: .required,
+                    condition: nil
+                )
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
@@ -833,11 +838,17 @@ extension ProjectDescription.ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription
+        @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) async throws -> ProjectDescription
             .ResourceFileElement?
         {
-            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
-                .appending(component: "**")
+            let absolutePathGlob = if try await fileSystem.exists(resourceAbsolutePath, isDirectory: true),
+                                      !resourceAbsolutePath.isOpaqueDirectory
+            {
+                resourceAbsolutePath
+                    .appending(component: "**")
+            } else {
+                resourceAbsolutePath
+            }
             if excludedPaths
                 .contains(where: { absolutePathGlob.isDescendantOfOrEqual(to: $0) })
             {
@@ -860,12 +871,12 @@ extension ProjectDescription.ResourceFileElements {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
                 if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
-                    return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                    return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
                 }
             case .process:
-                return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
         .concurrentFilter {
@@ -878,6 +889,8 @@ extension ProjectDescription.ResourceFileElements {
                 return true
             case .folderReference:
                 return true
+            @unknown default:
+                return true
             }
         }
 
@@ -886,12 +899,14 @@ extension ProjectDescription.ResourceFileElements {
         if sources == nil {
             // Already included resources should not be added as default resource
             let excludedPaths: Set<AbsolutePath> = Set(
-                resourceFileElements.map {
+                resourceFileElements.compactMap {
                     switch $0 {
                     case let .folderReference(path: path, _, _):
                         AbsolutePath(stringLiteral: path.pathString)
                     case let .glob(pattern: path, _, _, _):
                         AbsolutePath(stringLiteral: path.pathString).upToLastNonGlob
+                    @unknown default:
+                        nil
                     }
                 }
             )
@@ -902,6 +917,7 @@ extension ProjectDescription.ResourceFileElements {
                 ]
             )
             .collect()
+            .filter { !$0.components.contains(where: { $0.hasSuffix(".xcframework") }) }
             .filter { candidatePath in
                 try excludedPaths.allSatisfy {
                     try !AbsolutePath(validating: $0.pathString.lowercased())
@@ -909,7 +925,7 @@ extension ProjectDescription.ResourceFileElements {
                 }
             }
             .sorted()
-            .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
+            .concurrentCompactMap { try await handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
@@ -954,7 +970,7 @@ extension ProjectDescription.TargetDependency {
             case let .target(name, condition):
                 return .target(name: name, condition: condition)
             case let .xcframework(path, condition):
-                return .xcframework(path: path, condition: condition)
+                return .xcframework(path: path, expectedSignature: nil, condition: condition)
             case let .externalTarget(project, target, condition):
                 return .project(
                     target: target,
@@ -1052,6 +1068,7 @@ extension ProjectDescription.Settings {
             "RxTest", // https://github.com/ReactiveX/RxSwift
             "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
             "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
+            "IssueReportingTestSupport", // https://github.com/pointfreeco/swift-issue-reporting
             "SwiftyMocky", // https://github.com/MakeAWishFoundation/SwiftyMocky
             "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
             "TSCTestSupport", // https://github.com/apple/swift-tools-support-core

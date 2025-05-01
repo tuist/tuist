@@ -23,6 +23,7 @@ struct InspectBuildCommandServiceTests {
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
     private let dateService = MockDateServicing()
+    private let serverURLService = MockServerURLServicing()
 
     init() {
         subject = InspectBuildCommandService(
@@ -36,11 +37,16 @@ struct InspectBuildCommandServiceTests {
             configLoader: configLoader,
             xcactivityParser: xcactivityParser,
             backgroundProcessRunner: backgroundProcessRunner,
-            dateService: dateService
+            dateService: dateService,
+            serverURLService: serverURLService
         )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(serverURLService)
+            .url(configServerURL: .any)
+            .willReturn(Constants.URLs.production)
 
         given(createBuildService)
             .createBuild(
@@ -52,7 +58,8 @@ struct InspectBuildCommandServiceTests {
                 modelIdentifier: .any,
                 macOSVersion: .any,
                 scheme: .any,
-                xcodeVersion: .any
+                xcodeVersion: .any,
+                status: .any
             )
             .willReturn()
 
@@ -115,7 +122,13 @@ struct InspectBuildCommandServiceTests {
             )
             given(xcactivityParser)
                 .parse(.any)
-                .willReturn(.test())
+                .willReturn(
+                    .test(
+                        buildStep: .test(
+                            errorCount: 1
+                        )
+                    )
+                )
 
             // When
             try await subject.run(path: nil)
@@ -131,7 +144,8 @@ struct InspectBuildCommandServiceTests {
                     modelIdentifier: .value("Mac15,3"),
                     macOSVersion: .value("13.2.0"),
                     scheme: .value("App"),
-                    xcodeVersion: .value("16.0.0")
+                    xcodeVersion: .value("16.0.0"),
+                    status: .value(.failure)
                 )
                 .called(1)
         }

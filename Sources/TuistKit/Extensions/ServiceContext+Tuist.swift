@@ -16,8 +16,25 @@ private enum TuistServiceContextError: LocalizedError {
     }
 }
 
+struct IgnoreOutputPipeline: StandardPipelining {
+    func write(content _: String) {}
+}
+
 extension ServiceContext {
     public static func tuist(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
+        var context = ServiceContext.topLevel
+
+        let (logger, logFilePath) = try await setupLogger()
+        context.ui = setupNoora()
+        context.alerts = AlertController()
+        context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
+
+        try await ServiceContext.withValue(context) {
+            try await action(logFilePath)
+        }
+    }
+
+    private static func setupEnv() async throws {
         if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
             throw TuistServiceContextError.exclusiveOptionError("quiet", "verbose")
         }
@@ -33,20 +50,35 @@ extension ServiceContext {
         if CommandLine.arguments.contains("--quiet") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.quiet, value: "true")
         }
+    }
 
-        try await LogsController().setup(stateDirectory: Environment.shared.stateDirectory) { loggerHandler, logFilePath in
-            /// This is the old initialization method and will eventually go away.
-            LoggingSystem.bootstrap(loggerHandler)
+    func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
+        var context = self
+        let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+        context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
+        try await ServiceContext.withValue(context) {
+            try await action()
+        }
+    }
 
-            var context = ServiceContext.topLevel
-            context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-            context.ui = Noora()
-            context.alerts = AlertController()
-            context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
+    static func setupLogger() async throws -> (Logger, Path.AbsolutePath) {
+        let (loggerHandler, logFilePath) = try await LogsController().setup(
+            stateDirectory: Environment.shared.stateDirectory
+        )
+        /// This is the old initialization method and will eventually go away.
+        LoggingSystem.bootstrap(loggerHandler)
+        return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
+    }
 
-            try await ServiceContext.withValue(context) {
-                try await action(logFilePath)
-            }
+    private static func setupNoora() -> Noora {
+        if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+            Noora(
+                standardPipelines: StandardPipelines(
+                    output: IgnoreOutputPipeline()
+                )
+            )
+        } else {
+            Noora()
         }
     }
 }

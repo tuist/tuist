@@ -1,5 +1,5 @@
 ---
-title: Generated project
+title: Сгенерированный проект
 titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: Learn how to leverage selective testing with a generated project.
 ---
@@ -32,3 +32,15 @@ For example, assuming the following dependency graph:
 | `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
 
 `tuist test` integrates directly with binary caching to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with binary caching can dramatically reduce the time it takes to run tests on your CI.
+
+## UI Tests {#ui-tests}
+
+Tuist supports selective testing of UI tests. However, Tuist needs to know the destination in advance. Only if you specify the `destination` parameter, Tuist will run the UI tests selectively, such as:
+
+```sh
+tuist test --device 'iPhone 14 Pro'
+# or
+tuist test -- -destination 'name=iPhone 14 Pro'
+# or
+tuist test -- -destination 'id=SIMULATOR_ID'
+```

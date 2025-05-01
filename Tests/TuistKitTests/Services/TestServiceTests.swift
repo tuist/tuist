@@ -32,6 +32,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
+    private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -45,6 +46,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
+        xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -64,10 +66,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
         configLoader = .init()
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.default)
-
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willReturn("hash")
@@ -76,13 +74,18 @@ final class TestServiceTests: TuistUnitTestCase {
             .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
             .willReturn([])
 
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                XcodeBuildArguments(destination: nil)
+            )
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
-            contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService
@@ -249,6 +252,29 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testXcodeProject()))
+        given(generator)
+            .generateWithGraph(path: .value(path))
+            .willReturn((path, .test(), MapperEnvironment()))
+
+        // When
+        await XCTAssertThrowsSpecific(
+            { try await testRun(
+                path: path
+            ) },
+            TuistConfigError
+                .notAGeneratedProjectNorSwiftPackage(
+                    errorMessageOverride: "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
+                )
+        )
+    }
+
     func test_run_generates_project() async throws {
         // Given
         givenGenerator()
@@ -256,6 +282,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(generator)
             .generateWithGraph(path: .value(path))
             .willReturn((path, .test(), MapperEnvironment()))
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -288,6 +317,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path in
                 (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         given(xcodebuildController)
             .test(
                 .any,
@@ -318,11 +350,17 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_run_tests_with_passthrough_destination() async throws {
         // Given
         givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
                 (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
+        given(simulatorController)
+            .findAvailableDevice(udid: .any)
+            .willReturn(.test(device: .test(name: "Test iPhone")))
 
         // When
         try await testRun(
@@ -340,6 +378,20 @@ final class TestServiceTests: TuistUnitTestCase {
                 deviceName: .any
             )
             .called(0)
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .value(.test(device: .test(name: "Test iPhone")))
+            )
+            .called(1)
         verify(xcodebuildController)
             .test(
                 .any,
@@ -385,6 +437,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path in
                 (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
             }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -425,6 +480,9 @@ final class TestServiceTests: TuistUnitTestCase {
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "B")
         )
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -511,6 +569,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(localCacheStorage)
             .store(.any, cacheCategory: .any)
             .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -555,6 +616,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     MapperEnvironment()
                 )
             }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
@@ -588,6 +652,9 @@ final class TestServiceTests: TuistUnitTestCase {
                         MapperEnvironment()
                     )
                 }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
             try fileHandler.touch(
                 testsCacheTemporaryDirectory.path.appending(component: "A")
             )
@@ -623,6 +690,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     MapperEnvironment()
                 )
             }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -655,6 +725,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
             ]
         )
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
@@ -688,6 +761,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
                 .generateWithGraph(path: .any)
                 .willProduce { path in
@@ -720,6 +796,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
                 .generateWithGraph(path: .any)
                 .willProduce { path in
@@ -751,6 +830,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
                 .generateWithGraph(path: .any)
                 .willProduce { path in
@@ -1020,6 +1102,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .successfulTestTargets(invocationRecord: .any)
             .willReturn(["FrameworkBTests"])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When / Then
         do {
@@ -1082,6 +1167,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             )
 
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
             given(buildGraphInspector)
                 .workspaceSchemes(graphTraverser: .any)
                 .willReturn([schemeOne, schemeTwo])
@@ -1185,6 +1273,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_with_skipped_targets() async throws {
         // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         given(generatorFactory)
             .testing(
                 config: .any,
@@ -1195,7 +1286,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                destination: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -1268,6 +1360,9 @@ final class TestServiceTests: TuistUnitTestCase {
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When / Then
         do {
@@ -1300,6 +1395,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 .willProduce { path in
                     (path, .test(), environment)
                 }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
 
             // When
             try await testRun(
@@ -1338,6 +1436,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
             .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -1372,6 +1473,9 @@ final class TestServiceTests: TuistUnitTestCase {
         let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
 
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
@@ -1485,6 +1589,10 @@ final class TestServiceTests: TuistUnitTestCase {
             from: expectedResourceBundlePath,
             to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
         )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         given(generator)
             .generateWithGraph(path: .any)
@@ -1633,6 +1741,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .any
             )
             .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -1772,6 +1883,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -1910,6 +2024,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -2051,6 +2168,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         // When
         try await testRun(
@@ -2128,6 +2248,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: .any
             )
             .willReturn(())
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
 
         let notDefinedTestPlan = "NotDefined"
         do {
@@ -2157,7 +2280,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                destination: .any
             )
             .willReturn(generator)
     }

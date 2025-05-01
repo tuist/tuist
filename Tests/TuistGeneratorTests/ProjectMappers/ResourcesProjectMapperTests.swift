@@ -77,7 +77,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
-        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
         XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
@@ -85,6 +85,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
             "GENERATE_MASTER_OBJECT_FILE": "NO",
+            "VERSIONING_SYSTEM": "",
         ])
     }
 
@@ -151,7 +152,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
-        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
         XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
@@ -203,7 +204,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
-        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).generated.resources")
         XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.coreDataModels, coreDataModels)

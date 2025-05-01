@@ -10,6 +10,19 @@ public enum LinkingStatus: String, Codable, Hashable, Sendable {
     case none
 }
 
+/// Expected signature for XCFramework. Can be used to verify the authenticity of the XCFramework against the actual signature
+/// calculated from it.
+public enum XCFrameworkSignature: Equatable, Hashable, Codable, Sendable {
+    /// The XCFramework is not signed.
+    case unsigned
+
+    /// The XCFramework is signed with an Apple Development certificate.
+    case signedWithAppleCertificate(teamIdentifier: String, teamName: String)
+
+    /// The XCFramework is signed by a self issued code signing identity.
+    case selfSigned(fingerprint: String)
+}
+
 @available(*, deprecated, renamed: "LinkingStatus")
 typealias FrameworkStatus = LinkingStatus
 
@@ -115,9 +128,16 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
+    ///   - expectedSignature: The expected signature if the xcframework is signed.
+    ///     Used for verifying the xcframework's integrity against the actual fingerprint derived from the given xcframeowrk
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case xcframework(path: Path, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
+    case xcframework(
+        path: Path,
+        expectedSignature: XCFrameworkSignature? = nil,
+        status: LinkingStatus = .required,
+        condition: PlatformCondition? = nil
+    )
 
     /// Dependency on XCTest.
     case xctest

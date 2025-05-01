@@ -1152,6 +1152,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(resource1)
         try fileHandler.createFolder(resource2)
         try fileHandler.createFolder(resource3)
+        try await fileSystem.makeDirectory(at: sourcesPath.appending(components: "Resource", "Base.lproj"))
+        try await fileSystem.touch(sourcesPath.appending(components: "Resource", "Base.lproj", "Localizable.strings"))
 
         // Project declaration
         let project = try await subject.map(
@@ -1170,6 +1172,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                                .init(rule: .process, path: "Resource/Base.lproj"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder/NonExisting"),
                             ],
                             exclude: [
@@ -1220,6 +1223,25 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     basePath
                                         .appending(
                                             try RelativePath(validating: "Package/Sources/Target1/Another/Resource/Folder/**")
+                                        )
+                                        .pathString
+                                ),
+                                excluding: [
+                                    .path(
+                                        basePath
+                                            .appending(
+                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                            )
+                                            .pathString
+                                    ),
+                                ],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: .path(
+                                    basePath
+                                        .appending(
+                                            try RelativePath(validating: "Package/Sources/Target1/Resource/Base.lproj/**")
                                         )
                                         .pathString
                                 ),
@@ -1309,6 +1331,62 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 excluding: [],
                                 tags: []
                             ),
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    // For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
+    func testMap_whenResourcesInsideXCFramework() async throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
+        let xcframeworkPath = sourcesPath.appending(component: "BinaryFramework.xcframework")
+        let resourcePath = xcframeworkPath.appending(component: "file.xib")
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
+        try await fileSystem.touch(resourcePath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .target(name: "BinaryFramework", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "BinaryFramework",
+                            type: .binary,
+                            path: "Package/Sources/Target1/BinaryFramework.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        resources: [],
+                        dependencies: [
+                            .xcframework(path: Path(stringLiteral: xcframeworkPath.pathString)),
                         ]
                     ),
                 ]
@@ -3616,6 +3694,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             "RxTest",
             "RxTest-Dynamic",
             "SnapshotTesting",
+            "IssueReportingTestSupport",
             "TempuraTesting",
             "TSCTestSupport",
             "ViewInspector",

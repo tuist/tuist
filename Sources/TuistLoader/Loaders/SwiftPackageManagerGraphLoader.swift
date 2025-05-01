@@ -54,22 +54,25 @@ public protocol SwiftPackageManagerGraphLoading {
     ) async throws -> TuistLoader.DependenciesGraph
 }
 
-public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
+public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
+    private let contentHasher: ContentHashing
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        contentHasher: ContentHashing = ContentHasher()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
+        self.contentHasher = contentHasher
     }
 
     // swiftlint:disable:next function_body_length
@@ -92,7 +95,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
 
-        let packageInfos: [
+        var packageInfos: [
             // swiftlint:disable:next large_tuple
             (
                 id: String,
@@ -100,15 +103,17 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
                 info: PackageInfo,
-                hash: String?
+                hash: String?,
+                kind: String
             )
-        ]
-        packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
+        ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
+            let hash: String?
             switch dependency.packageRef.kind {
             case "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                hash = dependency.state?.checkoutState?.revision
             case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
@@ -120,14 +125,16 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageFolder = try AbsolutePath(
                     validating: path.replacingOccurrences(of: "/private/var", with: "/var")
                 )
+                hash = nil
             case "registry":
                 let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
                 packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await self.manifestLoader.loadPackage(at: packageFolder)
+            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
@@ -140,8 +147,20 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo,
-                hash: dependency.state?.checkoutState?.revision
+                hash: hash,
+                kind: dependency.packageRef.kind
             )
+        }
+
+        packageInfos = packageInfos.filter { packageInfo in
+            if packageInfo.kind == "registry" {
+                return true
+            } else {
+                return !packageInfos
+                    .contains(where: {
+                        $0.kind == "registry" && String($0.name.split(separator: ".").last ?? "") == packageInfo.name
+                    })
+            }
         }
 
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
@@ -187,7 +206,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             (
                 packageInfo: packageInfo,
                 hash: packageInfo.hash,
-                projectManifest: try await self.packageInfoMapper.map(
+                projectManifest: try await packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
                     packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
@@ -235,8 +254,13 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         }
 
         if currentData != savedData {
-            ServiceContext.current?.logger?
-                .warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            ServiceContext.current?.ui?
+                .warning(
+                    .alert(
+                        "We detected outdated dependencies.",
+                        nextStep: "Run \(.command("tuist install")) to update them."
+                    )
+                )
         }
     }
 }

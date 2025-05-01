@@ -4054,6 +4054,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [
             .xcframework(
                 path: "/xcframeworks/direct.xcframework",
+                expectedSignature: nil,
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
                     path: try RelativePath(validating: "path"),
@@ -4063,6 +4064,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ),
             .xcframework(
                 path: "/xcframeworks/transitive.xcframework",
+                expectedSignature: nil,
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
                     path: try RelativePath(validating: "path"),
@@ -4072,6 +4074,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ),
             .xcframework(
                 path: "/xcframeworks/framework-transitive.xcframework",
+                expectedSignature: nil,
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
                     path: try RelativePath(validating: "path"),

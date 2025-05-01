@@ -265,7 +265,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     }
 
     private func generateSwiftPackageReferences(project: Project, pbxproj: PBXProj, pbxProject: PBXProject) throws {
-        var packageReferences: [String: XCRemoteSwiftPackageReference] = [:]
+        var remotePackageReferences: [String: XCRemoteSwiftPackageReference] = [:]
+        var localPackageReferences: [String: XCLocalSwiftPackageReference] = [:]
 
         for package in project.packages {
             switch package {
@@ -277,6 +278,12 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                     lastKnownFileType: "folder",
                     path: path.relative(to: project.sourceRootPath).pathString
                 )
+
+                let packageReference = XCLocalSwiftPackageReference(
+                    relativePath: path.pathString
+                )
+                pbxproj.add(object: packageReference)
+                localPackageReferences[path.pathString] = packageReference
 
                 pbxproj.add(object: reference)
 
@@ -292,12 +299,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                     repositoryURL: url,
                     versionRequirement: requirement.xcodeprojValue
                 )
-                packageReferences[url] = packageReference
+                remotePackageReferences[url] = packageReference
                 pbxproj.add(object: packageReference)
             }
         }
 
-        pbxProject.remotePackages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+        pbxProject.remotePackages = remotePackageReferences.sorted { $0.key < $1.key }.map { $1 }
+        pbxProject.localPackages = localPackageReferences.sorted { $0.key < $1.key }.map { $1 }
     }
 
     private func generateAttributes(project: Project) -> [String: ProjectAttribute] {

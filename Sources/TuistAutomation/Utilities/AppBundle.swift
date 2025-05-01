@@ -36,20 +36,37 @@ public struct AppBundle: Equatable {
             }
 
             public let name: String
-            public let iconFiles: [String]
+            public let iconFiles: [String]?
 
             public init(
                 name: String,
-                iconFiles: [String]
+                iconFiles: [String]?
             ) {
                 self.name = name
                 self.iconFiles = iconFiles
             }
 
             public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                name = try container.decode(String.self, forKey: .name)
-                iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                    let name = try container.decode(String.self, forKey: .name)
+                    let iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                    self.init(name: name, iconFiles: iconFiles)
+                } else {
+                    let container = try decoder.singleValueContainer()
+                    let name = try container.decode(String.self)
+                    self.init(name: name, iconFiles: nil)
+                }
+            }
+
+            public func encode(to encoder: any Encoder) throws {
+                if let iconFiles {
+                    var container = encoder.container(keyedBy: CodingKeys.self)
+                    try container.encode(name, forKey: .name)
+                    try container.encode(iconFiles, forKey: .iconFiles)
+                } else {
+                    var container = encoder.singleValueContainer()
+                    try container.encode(name)
+                }
             }
         }
 
@@ -75,7 +92,7 @@ public struct AppBundle: Equatable {
         }
 
         /// App version number (e.g. 10.3)
-        public let version: Version
+        public let version: String
 
         /// Name of the app
         public let name: String
@@ -93,7 +110,7 @@ public struct AppBundle: Equatable {
         public let bundleIcons: BundleIcons?
 
         init(
-            version: Version,
+            version: String,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
@@ -120,9 +137,7 @@ public struct AppBundle: Equatable {
         public init(from decoder: any Decoder) throws {
             let container: KeyedDecodingContainer<AppBundle.InfoPlist.CodingKeys> = try decoder
                 .container(keyedBy: AppBundle.InfoPlist.CodingKeys.self)
-            version = Version(
-                stringLiteral: try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.version)
-            )
+            version = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.version)
             let name = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.name)
             self.name = name
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
@@ -166,7 +181,7 @@ public struct AppBundle: Equatable {
 
     extension AppBundle.InfoPlist {
         public static func test(
-            version: Version = Version("1.0"),
+            version: String = "1.0",
             name: String = "App",
             bundleId: String = "io.tuist.App",
             minimumOSVersion: Version = Version("17.4"),

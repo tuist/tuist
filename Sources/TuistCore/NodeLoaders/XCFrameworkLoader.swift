@@ -27,8 +27,9 @@ enum XCFrameworkLoaderError: FatalError, Equatable {
 public protocol XCFrameworkLoading {
     /// Reads an existing xcframework and returns its in-memory representation, `GraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
+    /// - Parameter expectedSignature: expected signature if the xcframework is signed, `nil` otherwise.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, status: LinkingStatus) async throws -> GraphDependency
+    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus) async throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -50,12 +51,17 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         self.fileSystem = fileSystem
     }
 
-    public func load(path: AbsolutePath, status: LinkingStatus) async throws -> GraphDependency {
+    public func load(
+        path: AbsolutePath,
+        expectedSignature: XCFrameworkSignature?,
+        status: LinkingStatus
+    ) async throws -> GraphDependency {
         guard try await fileSystem.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }
         let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
+            expectedSignature: expectedSignature,
             status: status
         )
         let xcframework = GraphDependency.XCFramework(
@@ -66,7 +72,8 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             status: metadata.status,
             macroPath: metadata.macroPath,
             swiftModules: metadata.swiftModules,
-            moduleMaps: metadata.moduleMaps
+            moduleMaps: metadata.moduleMaps,
+            expectedSignature: metadata.expectedSignature?.signatureString()
         )
         return .xcframework(xcframework)
     }

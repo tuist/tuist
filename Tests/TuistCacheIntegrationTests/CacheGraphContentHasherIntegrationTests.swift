@@ -114,7 +114,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -150,7 +151,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -186,7 +188,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -225,7 +228,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -261,7 +265,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -298,7 +303,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -336,7 +342,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -372,7 +379,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         // Then
@@ -412,7 +420,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -449,7 +458,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
-            excludedTargets: []
+            excludedTargets: [],
+            destination: nil
         )
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
