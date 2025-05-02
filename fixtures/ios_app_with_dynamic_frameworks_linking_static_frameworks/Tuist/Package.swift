@@ -16,6 +16,6 @@ let package = Package(
     name: "App",
     dependencies: [
         .package(url: "https://github.com/googleads/swift-package-manager-google-mobile-ads.git", exact: "11.2.0"),
-        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.4.2"),
+        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.7.0"),
     ]
 )
