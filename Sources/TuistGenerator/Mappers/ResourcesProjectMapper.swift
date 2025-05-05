@@ -197,7 +197,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
+        #if hasFeature(InternalImportsByDefault)
+        public import Foundation
+        #else
         import Foundation
+        #endif
         \(bundleAccessor)
         \(publicBundleAccessor)
         // swiftformat:enable all
