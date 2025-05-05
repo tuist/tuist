@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.49.0 - 2025-05-05
+
+### CLI
+
+#### Changed
+
+- Include available organizations in tuist init [#7530](https://github.com/tuist/tuist/pull/7530) by [@vkondrashkov](https://github.com/vkondrashkov)
+
+#### Added
+
+- Embed and sign dynamic frameworks for bundle targets [#7465](https://github.com/tuist/tuist/pull/7465) by [@ianhlavats](https://github.com/ianhlavats)
+
+#### Fixed
+
+- Enable testing search paths for IssueReportingTestSupport [#7524](https://github.com/tuist/tuist/pull/7524) by [@fdzsergio](https://github.com/fdzsergio)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.48.2 - 2025-04-23
 
 ### CLI
