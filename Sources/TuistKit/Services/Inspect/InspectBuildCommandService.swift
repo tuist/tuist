@@ -51,7 +51,7 @@ struct InspectBuildCommandService {
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        xcActivityLogController: XCActivityLogControlling = XCAcvitiyLogController(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
         serverURLService: ServerURLServicing = ServerURLService()
@@ -135,27 +135,6 @@ struct InspectBuildCommandService {
             )
         )
     }
-
-//    private func latestXCActivityLog(
-//        logManifestPlistPath: AbsolutePath,
-//        buildLogsPath: AbsolutePath,
-//        projectPath: AbsolutePath,
-//        referenceDate: Date
-//    ) async throws -> XCActivityLog {
-//        let plist: LogStoreManifest = try await fileSystem
-//            .readPlistFile(at: logManifestPlistPath)
-//
-//        guard let latestLog = plist.logs.values.sorted(by: { $0.timeStoppedRecording > $1.timeStoppedRecording }).first,
-//              environment
-//              .workspacePath == nil ||
-//              (referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate + 10) ~=
-//              latestLog.timeStoppedRecording
-//        else {
-//            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
-//        }
-//        let logPath = buildLogsPath.appending(component: latestLog.fileName)
-//        return
-//    }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
         if let workspacePath = environment.workspacePath {

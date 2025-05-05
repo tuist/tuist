@@ -10,7 +10,7 @@ public protocol XCActivityLogControlling {
     func parse(_ path: AbsolutePath) throws -> XCActivityLog
 }
 
-public struct XCAcvitiyLogController: XCActivityLogControlling {
+public struct XCActivityLogController: XCActivityLogControlling {
     let fileSystem: FileSystem
     let environment: Environmenting
 
