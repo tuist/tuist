@@ -39,14 +39,14 @@ defmodule Tuist.API.Pipeline do
   end
 
   @impl true
-  def handle_message(_, %{data: {batch_key, _}} = message, _) do
+  def handle_message(_, %{data: {event_name, %{project_id: project_id}}} = message, _) do
     message
-    |> Message.put_batch_key(batch_key)
+    |> Message.put_batch_key({event_name, project_id})
     |> Message.put_batcher(:db)
   end
 
   @impl true
-  def handle_batch(:db, cache_events, %{batch_key: :create_cache_event}, _) do
+  def handle_batch(:db, cache_events, %{batch_key: {:create_cache_event, _}}, _) do
     events_count = length(cache_events)
 
     cache_events
@@ -61,7 +61,7 @@ defmodule Tuist.API.Pipeline do
   end
 
   @impl true
-  def handle_batch(:db, cache_action_items, %{batch_key: :create_cache_action_item}, _) do
+  def handle_batch(:db, cache_action_items, %{batch_key: {:create_cache_action_item, _}}, _) do
     # If we don't match against the inserted cache action items because in cases
     # where there's conflict, the cache action item is not inserted and therefore
     # not counted.
