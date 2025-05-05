@@ -21,7 +21,7 @@ Swift Package Manager는 원래 Swift 코드의 의존성을 관리하기 위해
 
 Swift Package Manager와 Tuist는 유사한 점이 많기 때문에, 마이그레이션 과정은 간단합니다. 주요 차이점은 `Package.swift` 대신 Tuist의 DSL을 사용하여 프로젝트를 정의한다는 점입니다.
 
-먼저, `Package.swift` 파일과 같은 위치에 `Project.swift` 파일을 생성하세요. 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다.
+먼저, `Package.swift` 파일과 같은 위치에 `Project.swift` 파일을 생성하세요. 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다, 다음은 단일 타겟을 가진 프로젝트를 정의한 `Project.swift` 파일의 예시입니다.
 
 ```swift
 import ProjectDescription

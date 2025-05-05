@@ -33,7 +33,7 @@ mise use -g tuist@system # 시스템의 tuist를 전역 기본값으로 사용�
 
 ### <a href="https://brew.sh">Homebrew</a>{#recommended-homebrew}
 
-Tuist는 [Homebrew](https://brew.sh) 및 [우리의 포뮬러](https://github.com/tuist/homebrew-tuist)를 사용하여 설치할 수 있습니다:
+Tuist는 [Homebrew](https://brew.sh) 와 [우리의 전용 설치 스크립트](https://github.com/tuist/homebrew-tuist)를 통해 설치할 수 있습니다:
 
 ```bash
 brew tap tuist/tuist
@@ -41,7 +41,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-:::tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+:::tip 바이너리 파일의 신뢰성 검증
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
