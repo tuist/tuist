@@ -188,24 +188,23 @@ defmodule Tuist.Storage do
     upload_id
   end
 
-  def delete_all_objects(project_slug) do
+  def delete_all_objects(prefix) do
     {time, _} =
       Performance.measure_time_in_milliseconds(fn ->
         stream =
           Environment.s3_bucket_name()
-          |> ExAws.S3.list_objects_v2(prefix: project_slug, max_keys: 1000)
+          |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
           |> ExAws.stream!()
           |> Stream.map(& &1.key)
 
-        Environment.s3_bucket_name()
-        |> ExAws.S3.delete_all_objects(stream)
-        |> ExAws.request!()
+        {:ok, _} =
+          Environment.s3_bucket_name() |> ExAws.S3.delete_all_objects(stream) |> ExAws.request()
       end)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_delete_all_objects(),
       %{duration: time},
-      %{project_slug: project_slug}
+      %{project_slug: prefix}
     )
 
     :ok

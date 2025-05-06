@@ -702,18 +702,12 @@ defmodule TuistWeb.API.CacheController do
     }
   )
 
-  def clean(
-        %{
-          assigns: %{selected_project: selected_project},
-          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}
-        } = conn,
-        _params
-      ) do
-    project_slug = "#{account_handle}/#{project_handle}"
-
-    Storage.delete_all_objects("#{project_slug}/builds")
-    Storage.delete_all_objects("#{project_slug}/tests")
-    CacheActionItems.delete_all_action_items(%{project: selected_project})
+  def clean(%{assigns: %{selected_project: %{id: project_id}}} = conn, _params) do
+    %{
+      project_id: project_id
+    }
+    |> Tuist.Projects.Workers.CleanProjectWorker.new()
+    |> Oban.insert!()
 
     send_resp(conn, :no_content, "")
   end

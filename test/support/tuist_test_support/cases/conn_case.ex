@@ -20,11 +20,13 @@ defmodule TuistTestSupport.Cases.ConnCase do
   using do
     quote do
       use TuistWeb, :verified_routes
+      use Oban.Testing, repo: Tuist.Repo
 
       import Phoenix.ConnTest
       import Plug.Conn
       import TuistTestSupport.Cases.ConnCase
       import TuistTestSupport.Utilities
+
       # The default endpoint for testing
       @endpoint TuistWeb.Endpoint
 

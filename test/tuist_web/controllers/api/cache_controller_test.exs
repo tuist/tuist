@@ -7,6 +7,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.CacheActionItems
   alias Tuist.CacheActionItems.CacheActionItem
   alias Tuist.CommandEvents
+  alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -498,7 +499,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle/cache/clean" do
-    test "given project is cleaned", %{conn: conn, cache: cache} do
+    test "the given user project is cleaned", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -506,34 +507,26 @@ defmodule TuistWeb.API.CacheControllerTest do
       builds_prefix = "#{account.name}/#{project.name}/builds"
       tests_prefix = "#{account.name}/#{project.name}/tests"
 
-      expect(Storage, :delete_all_objects, fn ^builds_prefix ->
-        :ok
-      end)
-
-      expect(Storage, :delete_all_objects, fn ^tests_prefix ->
-        :ok
-      end)
-
-      hash = "hash"
-
-      CacheActionItems.create_cache_action_item(%{
-        hash: hash,
-        project: project
-      })
-
-      conn = Authentication.put_current_user(conn, user)
-
       # When
       conn =
-        conn
-        |> assign(:cache, cache)
-        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+        Oban.Testing.with_testing_mode(:manual, fn ->
+          conn =
+            conn
+            |> Authentication.put_current_user(user)
+            |> assign(:cache, cache)
+            |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+
+          assert_enqueued(
+            worker: CleanProjectWorker,
+            args: %{project_id: project.id}
+          )
+
+          conn
+        end)
 
       # Then
       response = response(conn, :no_content)
-
       assert response == ""
-      assert CacheActionItems.get_cache_action_item(%{project: project, hash: hash}) == nil
     end
 
     test "given organization project is cleaned", %{conn: conn, cache: cache} do
@@ -546,21 +539,22 @@ defmodule TuistWeb.API.CacheControllerTest do
       builds_prefix = "#{account.name}/#{project.name}/builds"
       tests_prefix = "#{account.name}/#{project.name}/tests"
 
-      expect(Storage, :delete_all_objects, fn ^builds_prefix ->
-        :ok
-      end)
-
-      expect(Storage, :delete_all_objects, fn ^tests_prefix ->
-        :ok
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
       # When
       conn =
-        conn
-        |> assign(:cache, cache)
-        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+        Oban.Testing.with_testing_mode(:manual, fn ->
+          conn =
+            conn
+            |> Authentication.put_current_user(user)
+            |> assign(:cache, cache)
+            |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
+
+          assert_enqueued(
+            worker: CleanProjectWorker,
+            args: %{project_id: project.id}
+          )
+
+          conn
+        end)
 
       # Then
       response = response(conn, :no_content)

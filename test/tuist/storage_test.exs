@@ -158,7 +158,11 @@ defmodule Tuist.StorageTest do
                                           :get,
                                           ^bucket_name,
                                           ^object_key,
-                                          [query_params: [], expires_in: ^expires_in, virtual_host: true] ->
+                                          [
+                                            query_params: [],
+                                            expires_in: ^expires_in,
+                                            virtual_host: true
+                                          ] ->
         {:ok, url}
       end)
 
@@ -192,7 +196,11 @@ defmodule Tuist.StorageTest do
                                           :put,
                                           ^bucket_name,
                                           ^object_key,
-                                          [query_params: [], expires_in: ^expires_in, virtual_host: true] ->
+                                          [
+                                            query_params: [],
+                                            expires_in: ^expires_in,
+                                            virtual_host: true
+                                          ] ->
         {:ok, url}
       end)
 
@@ -385,7 +393,7 @@ defmodule Tuist.StorageTest do
         delete_operation
       end)
 
-      expect(ExAws, :request!, fn ^delete_operation -> :ok end)
+      expect(ExAws, :request, fn ^delete_operation -> {:ok, %{}} end)
 
       # When
       assert Storage.delete_all_objects(project_slug) == :ok
