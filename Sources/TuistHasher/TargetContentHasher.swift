@@ -108,6 +108,11 @@ public final class TargetContentHasher: TargetContentHashing {
         }
 
         let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
+        let dependenciesHash = try await dependenciesContentHasher.hash(
+            graphTarget: graphTarget,
+            hashedTargets: hashedTargets,
+            hashedPaths: hashedPaths
+        )
 
         if let projectHash {
             return TargetContentHash(
@@ -116,6 +121,7 @@ public final class TargetContentHasher: TargetContentHashing {
                         projectHash,
                         graphTarget.target.product.rawValue,
                         settingsHash,
+                        dependenciesHash.hash,
                     ].compactMap { $0 } + destinations + additionalStrings
                 ),
                 hashedPaths: [:]
@@ -132,11 +138,7 @@ public final class TargetContentHasher: TargetContentHashing {
             targetScripts: graphTarget.target.scripts,
             sourceRootPath: graphTarget.project.sourceRootPath
         )
-        let dependenciesHash = try await dependenciesContentHasher.hash(
-            graphTarget: graphTarget,
-            hashedTargets: hashedTargets,
-            hashedPaths: hashedPaths
-        )
+
         hashedPaths = dependenciesHash.hashedPaths
         let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.mapValues(\.value))
         let destinationHashes: [String] = if let destination, graphTarget.target.product == .uiTests {

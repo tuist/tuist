@@ -1,13 +1,13 @@
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistSupportTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistHasher
 
-final class TargetContentHasherTests: TuistUnitTestCase {
+struct TargetContentHasherTests {
     private var contentHasher: MockContentHashing!
     private var coreDataModelsContentHasher: MockCoreDataModelsContentHashing!
     private var sourceFilesContentHasher: MockSourceFilesContentHashing!
@@ -21,8 +21,7 @@ final class TargetContentHasherTests: TuistUnitTestCase {
     private var dependenciesContentHasher: MockDependenciesContentHashing!
     private var subject: TargetContentHasher!
 
-    override func setUp() async throws {
-        try await super.setUp()
+    init() async throws {
         contentHasher = MockContentHashing()
         coreDataModelsContentHasher = MockCoreDataModelsContentHashing()
         sourceFilesContentHasher = MockSourceFilesContentHashing()
@@ -82,22 +81,7 @@ final class TargetContentHasherTests: TuistUnitTestCase {
             .willReturn("deployment_targets_hash")
     }
 
-    override func tearDown() async throws {
-        contentHasher = nil
-        coreDataModelsContentHasher = nil
-        sourceFilesContentHasher = nil
-        targetScriptsContentHasher = nil
-        resourcesContentHasher = nil
-        copyFilesContentHasher = nil
-        headersContentHasher = nil
-        plistContentHasher = nil
-        settingsContentHasher = nil
-        dependenciesContentHasher = nil
-        subject = nil
-        try await super.tearDown()
-    }
-
-    func test_hash_when_targetBelongsToExternalProjectWithHash() async throws {
+    @Test func test_hash_when_targetBelongsToExternalProjectWithHash() async throws {
         // Given
         let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
 
@@ -110,10 +94,10 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone")
+        #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone")
     }
 
-    func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
+    @Test func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
         // Given
         let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
 
@@ -127,10 +111,10 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone-additional_string_one-additional_string_two")
+        #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two")
     }
 
-    func test_hash_with_additional_strings() async throws {
+    @Test func test_hash_with_additional_strings() async throws {
         // Given
         let target = GraphTarget.test(project: .test())
 
@@ -147,13 +131,13 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            got.hash,
-            "Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad-iPhone-deployment_targets_hash-settings_hash"
+        #expect(
+            got.hash ==
+                "Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad-iPhone-deployment_targets_hash-settings_hash"
         )
     }
 
-    func test_hash_with_destination() async throws {
+    @Test func test_hash_with_destination() async throws {
         // Given
         let target = GraphTarget.test(
             target: .test(
@@ -177,11 +161,11 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(
-            got.hash.contains("iPhone 16")
+        #expect(
+            got.hash.contains("iPhone 16") == true
         )
-        XCTAssertTrue(
-            got.hash.contains("iOS-16")
+        #expect(
+            got.hash.contains("iOS-16") == true
         )
     }
 }
