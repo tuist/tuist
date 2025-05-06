@@ -18,6 +18,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  MISE_EXPERIMENTAL: "1"
 
 jobs:
   release:
@@ -30,11 +31,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
-        with:
-          version: 2024.11.8
-          experimental: true
-        env:
-          MISE_HTTP_TIMEOUT: 300
       - name: Check if there are releasable changes
         id: is-releasable
         working-directory: app
@@ -93,7 +89,8 @@ jobs:
         if: env.should-release == 'true'
         run: |
           mise run install
-          mise use asdf:tuist/asdf-create-dmg@latest
+      - name: Install tuist/asdf-create-dmg
+        run: mise use asdf:tuist/asdf-create-dmg@latest
       - name: Bundle Tuist App
         if: env.should-release == 'true'
         run: mise run bundle:app
