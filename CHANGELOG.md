@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.49.1 - 2025-05-06
+
+### CLI
+
+#### Fixed
+
+- Fix compilation error in synthesised code when the feature "InternalImportsByDefault" is enabled [#7550](https://github.com/tuist/tuist/pull/7550) by [@chrisjrex](https://github.com/chrisjrex)
+- Fix wrong hash of external targets when their transitive dependencies change  [#7556](https://github.com/tuist/tuist/pull/7556) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.49.0 - 2025-05-05
 
 ### CLI
