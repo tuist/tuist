@@ -48,10 +48,17 @@ final class TargetImportsScanner: TargetImportsScanning {
             return []
         }
 
-        let sourceCode = try await fileSystem.readTextFile(at: path)
-        return try importSourceCodeScanner.extractImports(
-            from: sourceCode,
-            language: language
-        )
+        /// Targets might contain references to files to absent files, either by mistake
+        /// or because those files are generated later on, like it's the case with generated
+        /// projects with synthesized files. Therefore we can't assume their existence.
+        if try await fileSystem.exists(path) {
+            let sourceCode = try await fileSystem.readTextFile(at: path)
+            return try importSourceCodeScanner.extractImports(
+                from: sourceCode,
+                language: language
+            )
+        } else {
+            return Set()
+        }
     }
 }
