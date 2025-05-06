@@ -91,7 +91,7 @@ jobs:
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.0.0.app
+        run: sudo xcode-select -switch /Applications/Xcode_16.3.0.app
       - uses: actions/cache@v3
         name: "Cache installed dependencies folder"
         with:
