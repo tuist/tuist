@@ -7,6 +7,7 @@ import XCLogParser
 @Mockable
 public protocol XCActivityLogControlling {
     func mostRecentActivityLogPath(projectDerivedDataDirectory: AbsolutePath, after: Date) async throws -> AbsolutePath?
+    func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [String: Double]
     func parse(_ path: AbsolutePath) throws -> XCActivityLog
 }
 
