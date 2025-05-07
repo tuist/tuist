@@ -54,9 +54,9 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     socket_options: socket_opts,
     parameters: [
-      tcp_keepalives_idle: 60,
-      tcp_keepalives_interval: 30,
-      tcp_keepalives_count: 3
+      tcp_keepalives_idle: "60",
+      tcp_keepalives_interval: "30",
+      tcp_keepalives_count: "3"
     ]
   ]
 
