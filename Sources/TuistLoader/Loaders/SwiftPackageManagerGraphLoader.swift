@@ -254,13 +254,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
 
         if currentData != savedData {
-            ServiceContext.current?.ui?
-                .warning(
-                    .alert(
-                        "We detected outdated dependencies.",
-                        nextStep: "Run \(.command("tuist install")) to update them."
-                    )
-                )
+            ServiceContext.current?.alerts?.warning(.alert(
+                "We detected outdated dependencies.",
+                takeaway: "Run \(.command("tuist install")) to update them."
+            ))
         }
     }
 }

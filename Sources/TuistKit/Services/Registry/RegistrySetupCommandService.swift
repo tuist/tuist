@@ -119,7 +119,7 @@ struct RegistrySetupCommandService {
         ServiceContext.current?.alerts?.success(
             .alert(
                 "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
-                nextSteps: [
+                takeaways: [
                     "Commit the generated configuration file to share the configuration with the rest of your team",
                     "Ensure that your team members run \(.command("tuist registry login")) to log in to the registry",
                     "For more information about the registry, such as how to set up the registry in your CI, head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/develop/registry"))",

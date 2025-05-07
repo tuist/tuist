@@ -205,12 +205,13 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
         let errorAlert: ErrorAlert? = if let errorAlertMessage {
-            .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
+            .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
         } else {
             nil
         }
         let successAlerts = ServiceContext.current?.alerts?.success() ?? []
         let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
+        let takeaways = ServiceContext.current?.alerts?.takeaways() ?? []
 
         if !warningAlerts.isEmpty {
             print("\n")
@@ -220,18 +221,19 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if let errorAlert {
             print("\n")
-            var errorAlertNextSteps = errorAlert.nextSteps
+            var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+            ServiceContext.current?.ui?.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
-            var successAlertNextSteps = successAlert.nextSteps
+            var successAlertNextSteps = successAlert.takeaways
+            successAlertNextSteps.append(contentsOf: takeaways)
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
             print("\n")
-            ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
+            ServiceContext.current?.ui?.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
 
