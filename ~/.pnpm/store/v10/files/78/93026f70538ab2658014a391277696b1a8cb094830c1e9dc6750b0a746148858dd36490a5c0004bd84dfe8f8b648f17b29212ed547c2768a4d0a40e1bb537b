@@ -1,1 +1,0 @@
-{"version":3,"file":"constants.d.ts","sourceRoot":"","sources":["../../../src/components/HttpMethod/constants.ts"],"names":[],"mappings":"AAAA,eAAO,MAAM,mBAAmB,2FAUtB,CAAA;AAEV,MAAM,MAAM,aAAa,GAAG,CAAC,OAAO,mBAAmB,CAAC,CAAC,MAAM,CAAC,CAAA;AAEhE,eAAO,MAAM,mBAAmB,EAAE;KAAG,CAAC,IAAI,aAAa,GAAG,MAAM;CAU/D,CAAA;AAED,eAAO,MAAM,0BAA0B,EAAE;KAAG,CAAC,IAAI,aAAa,GAAG,MAAM;CAUtE,CAAA"}

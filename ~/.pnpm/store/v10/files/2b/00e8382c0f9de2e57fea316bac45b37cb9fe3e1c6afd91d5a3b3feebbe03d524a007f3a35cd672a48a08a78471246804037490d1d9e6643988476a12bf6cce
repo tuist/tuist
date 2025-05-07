@@ -1,1 +1,0 @@
-{"version":3,"file":"esm.d.ts","sourceRoot":"","sources":["../src/esm.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EACV,sBAAsB,EACtB,iBAAiB,EAClB,MAAM,sBAAsB,CAAA;AAM7B,mCAAmC;AACnC,wBAAgB,sBAAsB;AACpC,yCAAyC;AACzC,EAAE,EAAE,WAAW,GAAG,IAAI;AACtB,iDAAiD;AACjD,aAAa,EAAE,sBAAsB;AACrC;;;GAGG;AACH,iBAAiB,UAAO;IAsBtB,uDAAuD;4BAC/B,sBAAsB;qBAO7B,iBAAiB;IAGlC,8CAA8C;;IAE9C,sCAAsC;;EAGzC"}

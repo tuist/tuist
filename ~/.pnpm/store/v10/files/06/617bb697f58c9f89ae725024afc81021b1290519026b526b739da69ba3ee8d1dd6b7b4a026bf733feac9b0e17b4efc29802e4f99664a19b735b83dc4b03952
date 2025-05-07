@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * python/requests
- */
-export declare const pythonRequests: Plugin;
-//# sourceMappingURL=requests.d.ts.map

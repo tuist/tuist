@@ -1,2 +1,0 @@
-export declare const LOGOS: readonly ["Adonisjs", "Docusaurus", "Dotnet", "Elysiajs", "Express", "Fastapi", "Fastify", "Go", "Hono", "Laravel", "Litestar", "Nestjs", "Nextjs", "Nitro", "Nuxt", "Openapi", "Platformatic", "React", "Rust", "Vue"];
-//# sourceMappingURL=index.d.ts.map

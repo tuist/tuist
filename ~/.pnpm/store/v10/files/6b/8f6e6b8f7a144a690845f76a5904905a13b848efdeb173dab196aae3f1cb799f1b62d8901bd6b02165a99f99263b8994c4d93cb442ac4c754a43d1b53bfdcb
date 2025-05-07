@@ -1,1 +1,0 @@
-import{computed as p,ref as s}from"vue";function d(u,e,r){let i=s(r==null?void 0:r.value),f=p(()=>u.value!==void 0);return[p(()=>f.value?u.value:i.value),function(t){return f.value||(i.value=t),e==null?void 0:e(t)}]}export{d as useControllable};

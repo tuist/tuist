@@ -1,9 +1,0 @@
-import type { Tag } from '@scalar/types/legacy';
-type __VLS_Props = {
-    id?: string;
-    tag: Tag;
-    isCollapsed?: boolean;
-};
-declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
-export default _default;
-//# sourceMappingURL=Endpoints.vue.d.ts.map

@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * ruby/native
- */
-export declare const rubyNative: Plugin;
-//# sourceMappingURL=native.d.ts.map

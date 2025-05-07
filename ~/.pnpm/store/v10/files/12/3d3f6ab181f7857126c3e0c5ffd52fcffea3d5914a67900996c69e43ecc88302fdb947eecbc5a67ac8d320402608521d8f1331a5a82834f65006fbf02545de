@@ -1,7 +1,0 @@
-import t from "./TestRequestButton.vue2.js";
-/* empty css                       */
-import o from "../../_virtual/_plugin-vue_export-helper.js";
-const s = /* @__PURE__ */ o(t, [["__scopeId", "data-v-ea8189a2"]]);
-export {
-  s as default
-};

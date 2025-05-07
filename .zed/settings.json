@@ -1,0 +1,8 @@
+{
+  "context_servers": {
+    "tidewave": {
+        "url": "http://localhost:8080/tidewave/mcp",
+        "env": {}
+      }
+  }
+}

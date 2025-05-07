@@ -1,7 +1,0 @@
-import o from "./Webhooks.vue2.js";
-/* empty css              */
-import e from "../../_virtual/_plugin-vue_export-helper.js";
-const f = /* @__PURE__ */ e(o, [["__scopeId", "data-v-8cee6fce"]]);
-export {
-  f as default
-};

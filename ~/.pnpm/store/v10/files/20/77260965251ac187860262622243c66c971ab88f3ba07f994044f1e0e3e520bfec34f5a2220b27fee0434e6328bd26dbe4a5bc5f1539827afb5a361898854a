@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * js/jquery
- */
-export declare const jsJquery: Plugin;
-//# sourceMappingURL=jquery.d.ts.map

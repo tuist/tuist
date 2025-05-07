@@ -1,8 +1,0 @@
-import t from "./RequestSidebarItem.vue2.js";
-/* empty css                        */
-/* empty css                        */
-import o from "../../_virtual/_plugin-vue_export-helper.js";
-const a = /* @__PURE__ */ o(t, [["__scopeId", "data-v-682d438e"]]);
-export {
-  a as default
-};
