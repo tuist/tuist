@@ -52,23 +52,22 @@ if Enum.member?([:prod, :stag, :can], env) do
     username: username,
     password: password,
     hostname: parsed_url.host,
-    socket_options: socket_opts
+    socket_options: socket_opts,
+    parameters: [
+      tcp_keepalives_idle: 60,
+      tcp_keepalives_interval: 30,
+      tcp_keepalives_count: 3
+    ]
   ]
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
-      database_options
-      |> Keyword.put(:ssl, true)
-      |> Keyword.put(:ssl_opts,
-        # TODO: Add proper certificate verification
+      Keyword.put(database_options, :ssl,
         server_name_indication: to_charlist(parsed_url.host),
-        verify: :verify_none,
-        parameters: [
-          tcp_keepalives_idle: 300,
-          tcp_keepalives_interval: 60,
-          tcp_keepalives_count: 5
-        ]
+        verify: :verify_none
       )
+
+      # TODO: Add proper certificate verification
     else
       database_options
     end
