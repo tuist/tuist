@@ -77,6 +77,7 @@ public enum Constants {
         public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
         public static let cirrusTuistCacheURL = "CIRRUS_TUIST_CACHE_URL"
+        public static let warningsAsErrors = "TUIST_WARNINGS_AS_ERRORS"
     }
 
     public enum URLs {

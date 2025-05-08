@@ -248,6 +248,6 @@ public struct TuistCommand: AsyncParsableCommand {
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
-        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
+        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" && $0 != "--warnings-as-errors" }
     }
 }

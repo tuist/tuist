@@ -53,6 +53,10 @@ extension ServiceContext {
         if CommandLine.arguments.contains("--quiet") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.quiet, value: "true")
         }
+
+        if CommandLine.arguments.contains("--warnings-as-errors") {
+            try? ProcessEnv.setVar(Constants.EnvironmentVariables.warningsAsErrors, value: "true")
+        }
     }
 
     func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
