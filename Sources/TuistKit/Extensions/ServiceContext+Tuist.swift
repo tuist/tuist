@@ -22,6 +22,8 @@ struct IgnoreOutputPipeline: StandardPipelining {
 
 extension ServiceContext {
     public static func tuist(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
+        try setupEnv()
+
         var context = ServiceContext.topLevel
 
         let (logger, logFilePath) = try await setupLogger()
@@ -35,7 +37,7 @@ extension ServiceContext {
         }
     }
 
-    private static func setupEnv() async throws {
+    private static func setupEnv() throws {
         if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
             throw TuistServiceContextError.exclusiveOptionError("quiet", "verbose")
         }
