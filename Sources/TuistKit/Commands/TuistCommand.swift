@@ -145,10 +145,24 @@ public struct TuistCommand: AsyncParsableCommand {
 
         do {
             try await executeCommand()
+            try checkForWarningsAsErrors()
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch {
             onError(parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath)
         }
+    }
+
+    private static func checkForWarningsAsErrors() throws {
+        if ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.warningsAsErrors] == nil {
+            return
+        }
+
+        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
+        if warningAlerts.isEmpty {
+            return
+        }
+
+        throw WarningsAsErrorsError()
     }
 
     private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
@@ -249,5 +263,15 @@ public struct TuistCommand: AsyncParsableCommand {
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
         return arguments.filter { $0 != "--verbose" && $0 != "--quiet" && $0 != "--warnings-as-errors" }
+    }
+
+    private struct WarningsAsErrorsError: FatalError {
+        var description: String {
+            "The command completed successfully, but there were warnings."
+        }
+
+        var type: ErrorType {
+            .abort
+        }
     }
 }
