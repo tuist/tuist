@@ -238,12 +238,16 @@ final class ConfigGenerator: ConfigGenerating {
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
-            let relativePath = path.relative(to: sourceRootPath).pathString
-            if project.xcodeProjPath.parentDirectory == sourceRootPath {
-                settings["INFOPLIST_FILE"] = .string(relativePath)
-            } else {
-                settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+        if let infoPlist = target.infoPlist {
+            if let path = infoPlist.path {
+                let relativePath = path.relative(to: sourceRootPath).pathString
+                if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                    settings["INFOPLIST_FILE"] = .string(relativePath)
+                } else {
+                    settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+                }
+            } else if case let .variable(configName, configuration: _) = infoPlist {
+                settings["INFOPLIST_FILE"] = .string(configName)
             }
         }
 
