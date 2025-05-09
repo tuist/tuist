@@ -1,0 +1,95 @@
+import { defineComponent as v, computed as c, openBlock as a, createBlock as i, unref as e, withCtx as t, createVNode as l, createTextVNode as k, createElementVNode as y, normalizeClass as M, createElementBlock as b, Fragment as N, renderList as g, createCommentVNode as u } from "vue";
+import { ScalarErrorBoundary as C } from "@scalar/components";
+import L from "../../ShowMoreButton.vue.js";
+import B from "../../Section/SectionContainer.vue.js";
+import I from "../../Section/Section.vue.js";
+import w from "../../Section/SectionHeader.vue.js";
+import f from "../Lazy/Lazy.vue2.js";
+import E from "../../Section/CompactSection.vue.js";
+import H from "../Schema/SchemaHeading.vue.js";
+import O from "../Schema/Schema.vue.js";
+import { useSidebar as V } from "../../../hooks/useSidebar.js";
+import { useNavState as z } from "../../../hooks/useNavState.js";
+const p = 10, J = /* @__PURE__ */ v({
+  __name: "Models",
+  props: {
+    schemas: {}
+  },
+  setup(h) {
+    const d = h, { collapsedSidebarItems: S } = V(), { getModelId: s } = z(), m = c(
+      () => Object.keys(d.schemas ?? {}).length <= p || S[s()]
+    ), _ = c(() => {
+      const r = Object.keys(d.schemas ?? {});
+      return m.value ? r : r.slice(0, p);
+    });
+    return (r, n) => r.schemas ? (a(), i(e(B), {
+      key: 0,
+      id: "models"
+    }, {
+      default: t(() => [
+        l(e(I), null, {
+          default: t(() => [
+            l(e(w), { level: 2 }, {
+              default: t(() => n[0] || (n[0] = [
+                k("Models")
+              ])),
+              _: 1
+            }),
+            l(e(f), {
+              id: "models",
+              isLazy: !1
+            }),
+            y("div", {
+              class: M(["models-list", { "models-list-truncated": !m.value }])
+            }, [
+              (a(!0), b(N, null, g(_.value, (o) => (a(), i(e(f), {
+                id: e(s)({ name: o }),
+                key: o,
+                isLazy: ""
+              }, {
+                default: t(() => [
+                  l(e(E), {
+                    id: e(s)({ name: o }),
+                    class: "models-list-item",
+                    label: o
+                  }, {
+                    heading: t(() => [
+                      l(e(H), {
+                        name: o,
+                        value: r.schemas[o]
+                      }, null, 8, ["name", "value"])
+                    ]),
+                    default: t(() => [
+                      l(e(C), null, {
+                        default: t(() => [
+                          l(e(O), {
+                            hideHeading: !0,
+                            noncollapsible: "",
+                            value: r.schemas[o]
+                          }, null, 8, ["value"])
+                        ]),
+                        _: 2
+                      }, 1024)
+                    ]),
+                    _: 2
+                  }, 1032, ["id", "label"])
+                ]),
+                _: 2
+              }, 1032, ["id"]))), 128))
+            ], 2),
+            m.value ? u("", !0) : (a(), i(L, {
+              key: 0,
+              id: e(s)(),
+              class: "show-more-models"
+            }, null, 8, ["id"]))
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    })) : u("", !0);
+  }
+});
+export {
+  J as default
+};

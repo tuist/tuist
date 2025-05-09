@@ -1,0 +1,82 @@
+import { defineComponent as C, resolveComponent as h, openBlock as s, createElementBlock as c, createVNode as d, normalizeClass as B, unref as p, withModifiers as D, withCtx as I, createElementVNode as m, normalizeStyle as M, createCommentVNode as u, createBlock as R, toDisplayString as E } from "vue";
+import N from "./SidebarListElementActions.vue.js";
+import { useActiveEntities as S } from "../../store/active-entities.js";
+import { ScalarIcon as z } from "@scalar/components";
+import { useRouter as V } from "vue-router";
+const A = { class: "empty-variable-name text-sm line-clamp-1 break-all group-hover:pr-5" }, F = /* @__PURE__ */ C({
+  __name: "SidebarListElement",
+  props: {
+    variable: {},
+    collectionId: {},
+    warningMessage: {},
+    isDeletable: { type: Boolean },
+    isCopyable: { type: Boolean },
+    isRenameable: { type: Boolean },
+    type: {}
+  },
+  emits: ["delete", "colorModal", "rename"],
+  setup(b, { emit: v }) {
+    const k = b, r = v, y = V(), { activeWorkspace: t } = S(), f = (e, a, i) => {
+      var n;
+      const o = {
+        workspaceId: (n = t.value) == null ? void 0 : n.uid,
+        type: k.type,
+        collectionId: i || void 0,
+        uid: a
+      }, l = i ? `/workspace/${o.workspaceId}/${o.type}/${o.collectionId}/${o.uid}` : `/workspace/${o.workspaceId}/${o.type}/${o.uid}`;
+      e.metaKey ? window.open(l, "_blank") : y.push({ path: l });
+    }, g = (e) => {
+      r("delete", e);
+    }, w = (e) => {
+      r("colorModal", e);
+    }, $ = (e) => {
+      r("rename", e);
+    };
+    return (e, a) => {
+      var o, l;
+      const i = h("router-link");
+      return s(), c("li", null, [
+        d(i, {
+          class: B(["h-8 text-c-2 hover:bg-b-2 group relative block flex items-center gap-1.5 rounded py-1 pr-1.5 font-medium no-underline", [e.variable.color ? "pl-1" : "pl-1.5"]]),
+          exactActiveClass: "active-link",
+          role: "button",
+          to: e.collectionId ? `/workspace/${(o = p(t)) == null ? void 0 : o.uid}/${e.type}/${e.collectionId}/${e.variable.uid}` : `/workspace/${(l = p(t)) == null ? void 0 : l.uid}/${e.type}/${e.variable.uid}`,
+          onClick: a[1] || (a[1] = D((n) => f(n, e.variable.uid, e.collectionId), ["prevent"]))
+        }, {
+          default: I(() => [
+            e.variable.color ? (s(), c("button", {
+              key: 0,
+              class: "hover:bg-b-3 rounded p-1.5",
+              type: "button",
+              onClick: a[0] || (a[0] = (n) => w(e.variable.uid))
+            }, [
+              m("div", {
+                class: "h-2.5 w-2.5 rounded-xl",
+                style: M({ backgroundColor: e.variable.color })
+              }, null, 4)
+            ])) : u("", !0),
+            e.variable.icon ? (s(), R(p(z), {
+              key: 1,
+              class: "text-sidebar-c-2 size-3.5 stroke-[2.25]",
+              icon: e.variable.icon
+            }, null, 8, ["icon"])) : u("", !0),
+            m("span", A, E(e.variable.name), 1),
+            d(N, {
+              isCopyable: !!e.isCopyable,
+              isDeletable: !!e.isDeletable,
+              isRenameable: !!e.isRenameable,
+              variable: { ...e.variable, isDefault: e.variable.isDefault ?? !1 },
+              warningMessage: e.warningMessage,
+              onDelete: g,
+              onRename: $
+            }, null, 8, ["isCopyable", "isDeletable", "isRenameable", "variable", "warningMessage"])
+          ]),
+          _: 1
+        }, 8, ["class", "to"])
+      ]);
+    };
+  }
+});
+export {
+  F as default
+};

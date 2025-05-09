@@ -1,0 +1,23 @@
+import o from "@scalar/themes/tailwind";
+import { useMediaQuery as i } from "@vueuse/core";
+import { computed as m, unref as c } from "vue";
+function a() {
+  const t = o.theme.screens, s = Object.fromEntries(
+    Object.entries(t).map(([e, r]) => [e, i(`(min-width: ${r})`)])
+  ), n = m(
+    () => Object.fromEntries(
+      Object.entries(s).map(([e, r]) => [e, c(r)])
+    )
+  );
+  return {
+    /** The screen sizes defined in the preset */
+    screens: t,
+    /** Min-width reactive media queries for each of the screen sizes */
+    mediaQueries: s,
+    /** The breakpoints as reactive min-width media queries */
+    breakpoints: n
+  };
+}
+export {
+  a as useBreakpoints
+};

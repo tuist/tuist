@@ -1,0 +1,22 @@
+export declare const ROUTES: readonly [{
+    readonly prettyName: "Request";
+    readonly name: "request";
+    readonly icon: "ExternalLink";
+}, {
+    readonly prettyName: "Cookies";
+    readonly name: "cookies";
+    readonly icon: "Cookie";
+}, {
+    readonly prettyName: "Environment";
+    readonly name: "environment";
+    readonly icon: "Brackets";
+}, {
+    readonly prettyName: "Settings";
+    readonly name: "settings";
+    readonly icon: "Settings";
+}, {
+    readonly prettyName: "Servers";
+    readonly name: "servers";
+    readonly icon: "Server";
+}];
+//# sourceMappingURL=constants.d.ts.map

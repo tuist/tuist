@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * shell/httpie
+ */
+export declare const shellHttpie: Plugin;
+//# sourceMappingURL=httpie.d.ts.map

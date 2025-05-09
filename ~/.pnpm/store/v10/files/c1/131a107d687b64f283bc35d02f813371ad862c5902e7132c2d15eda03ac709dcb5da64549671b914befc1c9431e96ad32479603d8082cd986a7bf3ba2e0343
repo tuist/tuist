@@ -1,0 +1,45 @@
+import { defineComponent as u, openBlock as m, createElementBlock as d, withModifiers as f, renderSlot as c, createElementVNode as b, createVNode as n, unref as a, withCtx as r, createTextVNode as s, toDisplayString as v } from "vue";
+import { ScalarButton as l } from "@scalar/components";
+const g = { class: "flex gap-10 justify-between" }, y = /* @__PURE__ */ u({
+  __name: "SidebarListElementForm",
+  props: {
+    danger: { type: Boolean },
+    label: {}
+  },
+  emits: ["cancel", "submit"],
+  setup(x, { emit: i }) {
+    const o = i;
+    return (t, e) => (m(), d("form", {
+      class: "flex flex-col gap-4 text-base",
+      onSubmit: e[1] || (e[1] = f((p) => o("submit"), ["prevent"]))
+    }, [
+      c(t.$slots, "default", {}, void 0, !0),
+      b("div", g, [
+        n(a(l), {
+          class: "gap-1.5 px-2.5 h-8 shadow-none focus:outline-none flex items-center cursor-pointer",
+          type: "button",
+          variant: "outlined",
+          onClick: e[0] || (e[0] = (p) => o("cancel"))
+        }, {
+          default: r(() => e[2] || (e[2] = [
+            s(" Cancel ")
+          ])),
+          _: 1
+        }),
+        n(a(l), {
+          class: "gap-1.5 font-medium px-2.5 h-8 shadow-none focus:outline-none custom-scroll whitespace-nowrap",
+          type: "submit",
+          variant: t.danger ? "danger" : "solid"
+        }, {
+          default: r(() => [
+            s(v(t.label ?? "Save"), 1)
+          ]),
+          _: 1
+        }, 8, ["variant"])
+      ])
+    ], 32));
+  }
+});
+export {
+  y as default
+};

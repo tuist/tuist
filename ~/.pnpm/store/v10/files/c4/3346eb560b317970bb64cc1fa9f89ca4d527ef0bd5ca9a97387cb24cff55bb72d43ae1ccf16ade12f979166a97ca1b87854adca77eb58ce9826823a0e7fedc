@@ -1,0 +1,85 @@
+import { defineComponent as x, computed as $, watch as b, openBlock as d, createBlock as h, withCtx as f, createTextVNode as K, toDisplayString as R, createCommentVNode as V } from "vue";
+import C from "../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import P from "./RequestTable.vue.js";
+import { REGEX as q } from "@scalar/oas-utils/helpers";
+import { useWorkspace as E } from "../../../store/store.js";
+const A = /* @__PURE__ */ x({
+  __name: "RequestPathParams",
+  props: {
+    example: {},
+    operation: {},
+    paramKey: {},
+    title: {},
+    environment: {},
+    envVariables: {},
+    workspace: {}
+  },
+  setup(t) {
+    const { requestMutators: p, requestExampleMutators: u } = E(), s = $(
+      () => t.example.parameters[t.paramKey].map((e) => ({
+        ...e,
+        enum: e.enum
+      }))
+    ), y = (e, o, n) => {
+      var m, a;
+      const i = t.example.parameters[t.paramKey], r = (m = i[e]) == null ? void 0 : m.key;
+      if (r) {
+        if (o === "key") {
+          if ((a = i[e]) != null && a.required)
+            return;
+          if (n) {
+            const c = encodeURIComponent(r), l = encodeURIComponent(n), v = new RegExp(`(?<=/):${c}(?=[/?#]|$)`, "g"), w = t.operation.path.replace(v, `:${l}`);
+            p.edit(t.operation.uid, "path", w);
+          } else {
+            i.splice(e, 1);
+            const c = new RegExp(`/:${encodeURIComponent(r)}(?=[/?#]|$)`, "g"), l = t.operation.path.replace(c, "");
+            p.edit(t.operation.uid, "path", l);
+          }
+        }
+        u.edit(
+          t.example.uid,
+          `parameters.${t.paramKey}.${e}.${o}`,
+          n
+        );
+      }
+    }, g = (e) => {
+      var m;
+      const o = ((m = e.match(q.PATH)) == null ? void 0 : m.map((a) => a.slice(1, -1))) || [], n = t.example.parameters[t.paramKey], i = new Map(n.map((a) => [a.key, a])), r = o.map(
+        (a) => i.get(a) || { key: a, value: "", enabled: !0 }
+      );
+      n.forEach((a) => {
+        !o.includes(a.key) && (a.value || a.required) && r.push(a);
+      }), n.splice(0, n.length, ...r), u.edit(t.example.uid, `parameters.${t.paramKey}`, n);
+    }, k = (e) => {
+      e && g(e);
+    };
+    return b(
+      () => t.operation.path,
+      (e) => {
+        e && k(e);
+      }
+    ), (e, o) => (d(), h(C, {
+      itemCount: s.value.length
+    }, {
+      title: f(() => [
+        K(R(e.title), 1)
+      ]),
+      default: f(() => [
+        s.value.length ? (d(), h(P, {
+          key: 0,
+          class: "flex-1",
+          columns: ["32px", "", ""],
+          envVariables: e.envVariables,
+          environment: e.environment,
+          items: s.value,
+          workspace: e.workspace,
+          onUpdateRow: y
+        }, null, 8, ["envVariables", "environment", "items", "workspace"])) : V("", !0)
+      ]),
+      _: 1
+    }, 8, ["itemCount"]));
+  }
+});
+export {
+  A as default
+};

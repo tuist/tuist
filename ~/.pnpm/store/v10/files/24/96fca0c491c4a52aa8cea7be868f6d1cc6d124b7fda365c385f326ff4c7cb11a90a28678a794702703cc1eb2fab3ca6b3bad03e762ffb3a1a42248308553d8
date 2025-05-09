@@ -1,0 +1,37 @@
+import { defineComponent as l, computed as p, openBlock as a, createElementBlock as i, withModifiers as d, createVNode as m, unref as f, createElementVNode as s } from "vue";
+import { ScalarIcon as c } from "@scalar/components";
+import { mediaTypes as u } from "../consts/mediaTypes.js";
+const x = ["download", "href"], k = /* @__PURE__ */ l({
+  __name: "ResponseBodyDownload",
+  props: {
+    href: {},
+    type: {},
+    filename: {}
+  },
+  setup(t) {
+    const n = t, r = p(() => {
+      var e;
+      const o = ((e = u[n.type ?? ""]) == null ? void 0 : e.extension) ?? ".unknown";
+      return n.filename ? n.filename : `response${o}`;
+    });
+    return (o, e) => (a(), i("a", {
+      class: "flex gap-1 text-c-3 text-xxs no-underline items-center hover:bg-b-3 rounded py-0.5 px-1.5",
+      download: `${r.value}`,
+      href: o.href,
+      onClick: e[0] || (e[0] = d(() => {
+      }, ["stop"]))
+    }, [
+      m(f(c), {
+        icon: "Download",
+        size: "xs"
+      }),
+      e[1] || (e[1] = s("span", null, [
+        s("span", null, "Download"),
+        s("span", { class: "sr-only" }, "Response Body")
+      ], -1))
+    ], 8, x));
+  }
+});
+export {
+  k as default
+};

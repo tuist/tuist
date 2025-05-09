@@ -1,0 +1,94 @@
+import { defineComponent as y, useSlots as C, watch as d, openBlock as t, createBlock as u, normalizeClass as v, createSlots as B, withCtx as a, unref as l, isRef as w, createCommentVNode as p, createElementBlock as c, createVNode as f, renderList as D, renderSlot as M, normalizeProps as V, guardReactiveProps as $ } from "vue";
+import { OpenApiClientButton as H } from "@scalar/api-client/components";
+import { ScalarSidebarFooter as K, ScalarColorModeToggleButton as L } from "@scalar/components";
+import { useBreakpoints as N } from "@scalar/use-hooks/useBreakpoints";
+import R from "../ApiReferenceLayout.vue.js";
+import U from "../MobileHeader.vue.js";
+import z from "../../features/Search/SearchButton.vue.js";
+import { useSidebar as A } from "../../hooks/useSidebar.js";
+import { useNavState as O } from "../../hooks/useNavState.js";
+const P = {
+  key: 0,
+  class: "scalar-api-references-standalone-search"
+}, T = { key: 1 }, X = /* @__PURE__ */ y({
+  __name: "ModernLayout",
+  props: {
+    configuration: {},
+    parsedSpec: {},
+    rawSpec: {},
+    isDark: { type: Boolean }
+  },
+  emits: ["toggleDarkMode", "updateContent"],
+  setup(m) {
+    const n = m, g = C(), { mediaQueries: S } = N(), { isSidebarOpen: i } = A(), k = !1;
+    d(S.lg, (e, o) => {
+      o && !e && (i.value = !1);
+    });
+    const { hash: h } = O();
+    return d(h, (e, o) => {
+      e && e !== o && (i.value = !1);
+    }), (e, o) => (t(), u(R, {
+      class: v({
+        "scalar-api-references-standalone-mobile": e.configuration.showSidebar
+      }),
+      configuration: e.configuration,
+      parsedSpec: e.parsedSpec,
+      rawSpec: e.rawSpec,
+      onUpdateContent: o[2] || (o[2] = (r) => e.$emit("updateContent", r))
+    }, B({
+      header: a(() => [
+        n.configuration.showSidebar ? (t(), u(U, {
+          key: 0,
+          open: l(i),
+          "onUpdate:open": o[0] || (o[0] = (r) => w(i) ? i.value = r : null)
+        }, null, 8, ["open"])) : p("", !0)
+      ]),
+      "sidebar-start": a(({ spec: r }) => {
+        var s;
+        return [
+          n.configuration.hideSearch ? p("", !0) : (t(), c("div", P, [
+            f(l(z), {
+              searchHotKey: (s = n.configuration) == null ? void 0 : s.searchHotKey,
+              spec: r
+            }, null, 8, ["searchHotKey", "spec"])
+          ]))
+        ];
+      }),
+      "sidebar-end": a(() => [
+        f(l(K), { class: "darklight-reference" }, {
+          toggle: a(() => [
+            n.configuration.hideDarkModeToggle ? (t(), c("span", T)) : (t(), u(l(L), {
+              key: 0,
+              modelValue: e.isDark,
+              "onUpdate:modelValue": o[1] || (o[1] = (r) => e.$emit("toggleDarkMode"))
+            }, null, 8, ["modelValue"]))
+          ]),
+          default: a(() => {
+            var r;
+            return [
+              n.configuration.hideClientButton ? p("", !0) : (t(), u(l(H), {
+                key: 0,
+                buttonSource: "sidebar",
+                integration: e.configuration._integration,
+                isDevelopment: k,
+                url: (r = e.configuration.spec) == null ? void 0 : r.url
+              }, null, 8, ["integration", "url"]))
+            ];
+          }),
+          _: 1
+        })
+      ]),
+      _: 2
+    }, [
+      D(g, (r, s) => ({
+        name: s,
+        fn: a((b) => [
+          M(e.$slots, s, V($(b || {})), void 0, !0)
+        ])
+      }))
+    ]), 1032, ["class", "configuration", "parsedSpec", "rawSpec"]));
+  }
+});
+export {
+  X as default
+};

@@ -1,0 +1,89 @@
+import type { Workspace } from '@scalar/oas-utils/entities';
+import type { Environment } from '@scalar/oas-utils/entities/environment';
+import { type CodeMirrorLanguage } from '@scalar/use-codemirror';
+import type { EnvVariable } from '../../store/active-entities';
+declare const _default: __VLS_WithTemplateSlots<import("vue").DefineComponent<{
+    colorPicker?: boolean;
+    disabled?: boolean;
+    modelValue: string | number;
+    error?: boolean;
+    emitOnBlur?: boolean;
+    lineNumbers?: boolean;
+    lint?: boolean;
+    disableTabIndent?: boolean;
+    language?: CodeMirrorLanguage;
+    handleFieldSubmit?: (e: string) => void;
+    handleFieldChange?: (e: string) => void;
+    placeholder?: string;
+    required?: boolean;
+    disableEnter?: boolean;
+    disableCloseBrackets?: boolean;
+    enum?: string[];
+    examples?: string[];
+    type?: string | string[] | undefined;
+    nullable?: boolean;
+    withVariables?: boolean;
+    importCurl?: boolean;
+    isCopyable?: boolean;
+    default?: string | number;
+    environment: Environment;
+    envVariables: EnvVariable[];
+    workspace: Workspace;
+}, {
+    focus: () => void;
+}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    submit: (v: string) => any;
+    "update:modelValue": (v: string) => any;
+    curl: (v: string) => any;
+}, string, import("vue").PublicProps, Readonly<{
+    colorPicker?: boolean;
+    disabled?: boolean;
+    modelValue: string | number;
+    error?: boolean;
+    emitOnBlur?: boolean;
+    lineNumbers?: boolean;
+    lint?: boolean;
+    disableTabIndent?: boolean;
+    language?: CodeMirrorLanguage;
+    handleFieldSubmit?: (e: string) => void;
+    handleFieldChange?: (e: string) => void;
+    placeholder?: string;
+    required?: boolean;
+    disableEnter?: boolean;
+    disableCloseBrackets?: boolean;
+    enum?: string[];
+    examples?: string[];
+    type?: string | string[] | undefined;
+    nullable?: boolean;
+    withVariables?: boolean;
+    importCurl?: boolean;
+    isCopyable?: boolean;
+    default?: string | number;
+    environment: Environment;
+    envVariables: EnvVariable[];
+    workspace: Workspace;
+}> & Readonly<{
+    onSubmit?: (v: string) => any;
+    "onUpdate:modelValue"?: (v: string) => any;
+    onCurl?: (v: string) => any;
+}>, {
+    disabled: boolean;
+    emitOnBlur: boolean;
+    nullable: boolean;
+    colorPicker: boolean;
+    disableTabIndent: boolean;
+    disableEnter: boolean;
+    disableCloseBrackets: boolean;
+    withVariables: boolean;
+    isCopyable: boolean;
+}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>, {
+    warning?(_: {}): any;
+    icon?(_: {}): any;
+}>;
+export default _default;
+type __VLS_WithTemplateSlots<T, S> = T & {
+    new (): {
+        $slots: S;
+    };
+};
+//# sourceMappingURL=CodeInput.vue.d.ts.map

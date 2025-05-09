@@ -1,0 +1,64 @@
+import { defineComponent as u, openBlock as i, createElementBlock as y, Fragment as B, createVNode as m, withCtx as t, createTextVNode as o, createBlock as f, createCommentVNode as k } from "vue";
+import p from "./ParameterList.vue.js";
+import q from "./RequestBody.vue.js";
+const V = /* @__PURE__ */ u({
+  __name: "OperationParameters",
+  props: {
+    operation: {}
+  },
+  setup(n) {
+    const l = n, a = (s) => {
+      var e, r;
+      return ((r = (e = l.operation) == null ? void 0 : e.parameters) == null ? void 0 : r.filter((d) => d.in === s)) ?? [];
+    };
+    return (s, e) => {
+      var r;
+      return i(), y(B, null, [
+        m(p, {
+          parameters: a("path")
+        }, {
+          title: t(() => e[0] || (e[0] = [
+            o("Path Parameters")
+          ])),
+          _: 1
+        }, 8, ["parameters"]),
+        m(p, {
+          parameters: a("query")
+        }, {
+          title: t(() => e[1] || (e[1] = [
+            o("Query Parameters")
+          ])),
+          _: 1
+        }, 8, ["parameters"]),
+        m(p, {
+          parameters: a("header")
+        }, {
+          title: t(() => e[2] || (e[2] = [
+            o("Headers")
+          ])),
+          _: 1
+        }, 8, ["parameters"]),
+        m(p, {
+          parameters: a("cookie")
+        }, {
+          title: t(() => e[3] || (e[3] = [
+            o("Cookies")
+          ])),
+          _: 1
+        }, 8, ["parameters"]),
+        (r = s.operation) != null && r.requestBody ? (i(), f(q, {
+          key: 0,
+          requestBody: s.operation.requestBody
+        }, {
+          title: t(() => e[4] || (e[4] = [
+            o("Body")
+          ])),
+          _: 1
+        }, 8, ["requestBody"])) : k("", !0)
+      ], 64);
+    };
+  }
+});
+export {
+  V as default
+};

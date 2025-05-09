@@ -1,0 +1,134 @@
+import { defineComponent as v, computed as y, openBlock as n, createBlock as f, unref as e, withCtx as a, createVNode as o, createTextVNode as m, toDisplayString as p, createElementVNode as c, createElementBlock as g, Fragment as N, renderList as b, withModifiers as V, normalizeClass as w, createCommentVNode as B } from "vue";
+import { isOperationDeprecated as E } from "../../../helpers/operation.js";
+import { ScalarMarkdown as I } from "@scalar/components";
+import $ from "../../ScreenReader.vue.js";
+import H from "../../Section/Section.vue.js";
+import O from "../../Section/SectionHeader.vue.js";
+import T from "../../Anchor/Anchor.vue.js";
+import D from "../../Section/SectionContent.vue.js";
+import M from "../../Section/SectionColumns.vue.js";
+import C from "../../Section/SectionColumn.vue.js";
+import z from "../../Card/Card.vue.js";
+import A from "../../Card/CardHeader.vue.js";
+import F from "../../Card/CardContent.vue.js";
+import L from "../../HttpMethod/HttpMethod.vue.js";
+import { useNavState as R } from "../../../hooks/useNavState.js";
+import { useSidebar as U } from "../../../hooks/useSidebar.js";
+const j = ["aria-label"], q = ["href", "onClick"], se = /* @__PURE__ */ v({
+  __name: "Endpoints",
+  props: {
+    id: {},
+    tag: {},
+    isCollapsed: { type: Boolean }
+  },
+  setup(h) {
+    const s = h, { getOperationId: i, getTagId: _ } = R(), { scrollToOperation: S } = U(), d = y(() => s.tag["x-displayName"] ?? s.tag.name), k = async (t) => {
+      const l = i(t, s.tag);
+      S(l);
+    };
+    return (t, l) => (n(), f(e(H), {
+      id: t.id,
+      label: t.tag.name.toUpperCase()
+    }, {
+      default: a(() => [
+        o(e(O), { level: 2 }, {
+          default: a(() => [
+            o(e(T), {
+              id: e(_)(t.tag)
+            }, {
+              default: a(() => [
+                m(p(d.value), 1)
+              ]),
+              _: 1
+            }, 8, ["id"])
+          ]),
+          _: 1
+        }),
+        o(e(D), null, {
+          default: a(() => [
+            o(e(M), null, {
+              default: a(() => [
+                o(e(C), null, {
+                  default: a(() => [
+                    o(e(I), {
+                      clamp: t.isCollapsed ? "7" : !1,
+                      value: t.tag.description,
+                      withImages: ""
+                    }, null, 8, ["clamp", "value"])
+                  ]),
+                  _: 1
+                }),
+                o(e(C), null, {
+                  default: a(() => {
+                    var u;
+                    return [
+                      ((u = t.tag.operations) == null ? void 0 : u.length) > 0 ? (n(), f(e(z), {
+                        key: 0,
+                        class: "scalar-card-sticky"
+                      }, {
+                        default: a(() => [
+                          o(e(A), { muted: "" }, {
+                            default: a(() => [
+                              o($, null, {
+                                default: a(() => [
+                                  m(p(d.value), 1)
+                                ]),
+                                _: 1
+                              }),
+                              l[0] || (l[0] = m(" Endpoints "))
+                            ]),
+                            _: 1
+                          }),
+                          o(e(F), {
+                            class: "custom-scroll",
+                            muted: ""
+                          }, {
+                            default: a(() => [
+                              c("ul", {
+                                "aria-label": `${d.value} endpoints`,
+                                class: "endpoints"
+                              }, [
+                                (n(!0), g(N, null, b(t.tag.operations, (r) => (n(), g("li", {
+                                  key: e(i)(r, t.tag),
+                                  class: "contents"
+                                }, [
+                                  c("a", {
+                                    class: "endpoint",
+                                    href: `#${e(i)(r, t.tag)}`,
+                                    onClick: V((G) => k(r), ["prevent"])
+                                  }, [
+                                    o(e(L), {
+                                      method: r.httpVerb
+                                    }, null, 8, ["method"]),
+                                    c("span", {
+                                      class: w(["endpoint-path", {
+                                        deprecated: e(E)(r)
+                                      }])
+                                    }, p(r.path), 3)
+                                  ], 8, q)
+                                ]))), 128))
+                              ], 8, j)
+                            ]),
+                            _: 1
+                          })
+                        ]),
+                        _: 1
+                      })) : B("", !0)
+                    ];
+                  }),
+                  _: 1
+                })
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }, 8, ["id", "label"]));
+  }
+});
+export {
+  se as default
+};

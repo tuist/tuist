@@ -1,0 +1,60 @@
+import { defineComponent as u, openBlock as t, createBlock as r, withCtx as a, createElementBlock as i, toDisplayString as m, renderSlot as f, createElementVNode as k, unref as l, Fragment as V, renderList as v, normalizeClass as _, createVNode as y, createTextVNode as b, createCommentVNode as h } from "vue";
+import w from "../DataTable/DataTable.vue.js";
+import E from "../DataTable/DataTableInput.vue.js";
+import g from "../DataTable/DataTableRow.vue.js";
+import C from "../ViewLayout/ViewLayoutSection.vue.js";
+import { useActiveEntities as N } from "../../store/active-entities.js";
+const U = { key: 0 }, B = { class: "custom-scroll flex flex-1 flex-col gap-1.5" }, A = /* @__PURE__ */ u({
+  __name: "Form",
+  props: {
+    title: {},
+    options: {},
+    data: {},
+    onUpdate: { type: Function }
+  },
+  setup(D) {
+    const { activeEnvVariables: c, activeEnvironment: d, activeWorkspace: n } = N();
+    return (e, F) => (t(), r(C, null, {
+      title: a(() => [
+        e.title ? (t(), i("span", U, m(e.title), 1)) : f(e.$slots, "title", { key: 1 })
+      ]),
+      default: a(() => [
+        k("div", B, [
+          Object.keys(e.data).length > 0 && l(n) ? (t(), r(w, {
+            key: 0,
+            columns: [""]
+          }, {
+            default: a(() => [
+              (t(!0), i(V, null, v(e.options, (o, s) => (t(), r(g, {
+                key: s,
+                class: _({ "border-t": s === 0 })
+              }, {
+                default: a(() => [
+                  y(E, {
+                    envVariables: l(c),
+                    environment: l(d),
+                    modelValue: e.data[o.key] ?? "",
+                    placeholder: o.placeholder,
+                    workspace: l(n),
+                    "onUpdate:modelValue": (p) => e.onUpdate(o.key, p)
+                  }, {
+                    default: a(() => [
+                      b(m(o.label), 1)
+                    ]),
+                    _: 2
+                  }, 1032, ["envVariables", "environment", "modelValue", "placeholder", "workspace", "onUpdate:modelValue"])
+                ]),
+                _: 2
+              }, 1032, ["class"]))), 128))
+            ]),
+            _: 1
+          })) : h("", !0)
+        ])
+      ]),
+      _: 3
+    }));
+  }
+});
+export {
+  A as default
+};

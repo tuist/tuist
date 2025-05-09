@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * c/libcurl
+ */
+export declare const cLibcurl: Plugin;
+//# sourceMappingURL=libcurl.d.ts.map

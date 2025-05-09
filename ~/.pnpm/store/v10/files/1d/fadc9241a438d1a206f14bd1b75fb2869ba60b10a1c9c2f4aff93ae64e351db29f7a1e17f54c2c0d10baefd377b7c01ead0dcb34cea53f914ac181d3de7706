@@ -1,0 +1,178 @@
+import { defineComponent as $, reactive as z, ref as B, computed as E, watch as w, onMounted as V, onBeforeUnmount as j, openBlock as m, createElementBlock as b, createElementVNode as d, createVNode as r, unref as i, withCtx as c, createBlock as x, createCommentVNode as O, toDisplayString as D, createTextVNode as _, Fragment as K, renderList as q } from "vue";
+import F from "../ScalarHotkey.vue.js";
+import { ROUTES as H } from "../../constants.js";
+import { useActiveEntities as W } from "../../store/active-entities.js";
+import { ScalarContextMenu as G, ScalarIcon as h, ScalarFloating as J, ScalarDropdownMenu as P, ScalarDropdownButton as I } from "@scalar/components";
+import { capitalize as Q } from "@scalar/oas-utils/helpers";
+import { useClipboard as X } from "@scalar/use-hooks/useClipboard";
+import { useRouter as Y } from "vue-router";
+import Z from "./TopNavItem.vue.js";
+import { useWorkspace as ee } from "../../store/store.js";
+const te = { class: "flex relative h-10 pl-2 mac:pl-[72px] t-app__top-nav" }, oe = { class: "flex h-10 flex-1 items-center gap-1.5 text-sm font-medium pr-2.5 relative overflow-hidden" }, ae = {
+  key: 0,
+  class: "h-full w-full overflow-hidden"
+}, de = /* @__PURE__ */ $({
+  __name: "TopNav",
+  props: {
+    openNewTab: {}
+  },
+  setup(S) {
+    const L = S, { activeRequest: R } = W(), u = Y(), { events: g } = ee(), { copyToClipboard: U } = X(), o = z([{ label: "", path: "", icon: "Add" }]), a = B(0), T = E(() => a.value);
+    function k() {
+      var t;
+      const e = H.find((n) => u.currentRoute.value.name == n.name);
+      e && ((e == null ? void 0 : e.name) === "request" ? o[a.value] = {
+        label: ((t = R.value) == null ? void 0 : t.summary) || "",
+        path: u.currentRoute.value.path,
+        icon: e.icon
+      } : o[a.value] = {
+        label: Q(e == null ? void 0 : e.name) || "",
+        path: u.currentRoute.value.path,
+        icon: e.icon
+      });
+    }
+    function v() {
+      var t;
+      const e = (t = o[a.value]) == null ? void 0 : t.path;
+      e && u.push(e);
+    }
+    function f() {
+      o.push({ label: "", path: "", icon: "Add" }), a.value = o.length - 1, k();
+    }
+    function p(e) {
+      a.value = e, v();
+    }
+    w(
+      () => u.currentRoute.value.path,
+      () => {
+        k();
+      },
+      { immediate: !0 }
+    );
+    function N(e) {
+      o.splice(e, 1), a.value = Math.min(
+        a.value,
+        o.length - 1
+      ), v();
+    }
+    const y = (e) => {
+      var n;
+      if (!((n = o[e]) != null && n.path)) return;
+      const t = new URL(window.location.href);
+      t.pathname = o[e].path, U(t.toString());
+    }, A = (e) => {
+      o.splice(0, e), o.splice(1), a.value = 0, v();
+    }, C = (e) => {
+      if (e) {
+        if (e.addTopNav && f(), e.closeTopNav && N(a.value), e.navigateTopNavLeft && p(Math.max(a.value - 1, 0)), e.navigateTopNavRight && p(Math.min(a.value + 1, o.length - 1)), e.jumpToTab) {
+          const t = Number(e.jumpToTab.key) - 1;
+          t >= 0 && t < o.length && p(t);
+        }
+        e.jumpToLastTab && p(o.length - 1);
+      }
+    }, M = (e) => {
+      o.push({
+        label: e.name,
+        path: e.uid,
+        icon: "ExternalLink"
+      });
+    };
+    return w(
+      () => L.openNewTab,
+      (e) => {
+        e && M(e);
+      },
+      { immediate: !0 }
+    ), V(() => g.hotKeys.on(C)), j(() => g.hotKeys.off(C)), (e, t) => (m(), b("nav", te, [
+      t[3] || (t[3] = d("div", { class: "absolute inset-0 app-drag-region" }, null, -1)),
+      d("div", oe, [
+        o.length === 1 ? (m(), b("div", ae, [
+          r(i(G), { triggerClass: "flex custom-scroll gap-1.5 h-full items-center justify-center w-full whitespace-nowrap" }, {
+            trigger: c(() => {
+              var n, l, s;
+              return [
+                (n = o[0]) != null && n.icon ? (m(), x(i(h), {
+                  key: 0,
+                  icon: (l = o[0]) == null ? void 0 : l.icon,
+                  size: "xs",
+                  thickness: "2.5"
+                }, null, 8, ["icon"])) : O("", !0),
+                d("span", null, D((s = o[0]) == null ? void 0 : s.label), 1)
+              ];
+            }),
+            content: c(() => [
+              r(i(J), { placement: "right-start" }, {
+                floating: c(() => [
+                  r(i(P), { class: "scalar-app scalar-client" }, {
+                    default: c(() => [
+                      r(i(I), {
+                        class: "flex items-center gap-1.5",
+                        onClick: f
+                      }, {
+                        default: c(() => [
+                          r(i(h), {
+                            icon: "AddTab",
+                            size: "sm",
+                            thickness: "1.5"
+                          }),
+                          t[1] || (t[1] = _(" New Tab ")),
+                          r(F, {
+                            class: "bg-b-2 ml-auto",
+                            hotkey: "T"
+                          })
+                        ]),
+                        _: 1
+                      }),
+                      r(i(I), {
+                        class: "flex items-center gap-1.5",
+                        onClick: t[0] || (t[0] = (n) => y(T.value))
+                      }, {
+                        default: c(() => [
+                          r(i(h), {
+                            icon: "Link",
+                            size: "sm",
+                            thickness: "1.5"
+                          }),
+                          t[2] || (t[2] = _(" Copy URL "))
+                        ]),
+                        _: 1
+                      })
+                    ]),
+                    _: 1
+                  })
+                ]),
+                _: 1
+              })
+            ]),
+            _: 1
+          })
+        ])) : (m(!0), b(K, { key: 1 }, q(o, (n, l) => (m(), x(Z, {
+          key: n.path,
+          active: l === T.value,
+          hotkey: (l + 1).toString(),
+          icon: n.icon,
+          label: n.label,
+          onClick: (s) => p(l),
+          onClose: (s) => N(l),
+          onCloseOtherTabs: (s) => A(l),
+          onCopyUrl: (s) => y(l),
+          onNewTab: f
+        }, null, 8, ["active", "hotkey", "icon", "label", "onClick", "onClose", "onCloseOtherTabs", "onCopyUrl"]))), 128)),
+        d("button", {
+          class: "text-c-3 hover:bg-b-3 p-1.5 rounded app-no-drag-region",
+          type: "button",
+          onClick: f
+        }, [
+          r(i(h), {
+            icon: "Add",
+            size: "xs",
+            thickness: "2.5"
+          })
+        ])
+      ])
+    ]));
+  }
+});
+export {
+  de as default
+};

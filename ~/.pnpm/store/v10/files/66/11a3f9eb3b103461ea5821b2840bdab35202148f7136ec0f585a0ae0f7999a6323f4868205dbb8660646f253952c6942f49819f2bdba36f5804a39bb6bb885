@@ -1,0 +1,79 @@
+import { defineComponent as A, computed as C, openBlock as t, createBlock as c, unref as e, withCtx as o, createVNode as d, createTextVNode as N, createElementBlock as s, Fragment as v, renderList as k, createCommentVNode as g } from "vue";
+import y from "../../Section/SectionContainerAccordion.vue.js";
+import B from "../../Section/SectionHeader.vue.js";
+import M from "../../Section/SectionAccordion.vue.js";
+import V from "../../Anchor/Anchor.vue.js";
+import j from "../Schema/SchemaHeading.vue.js";
+import S from "../Schema/SchemaProperty.vue.js";
+import { useNavState as H } from "../../../hooks/useNavState.js";
+const O = {
+  key: 0,
+  class: "properties"
+}, h = { key: 1 }, D = /* @__PURE__ */ A({
+  __name: "ModelsAccordion",
+  props: {
+    schemas: {}
+  },
+  setup(b) {
+    const u = b, q = C(() => u.schemas ? Object.entries(u.schemas).map(([m, n]) => ({
+      name: m,
+      schema: n
+    })) : []), { getModelId: a } = H();
+    return (m, n) => u.schemas ? (t(), c(e(y), {
+      key: 0,
+      class: "reference-models"
+    }, {
+      title: o(() => [
+        d(e(B), { level: 2 }, {
+          default: o(() => n[0] || (n[0] = [
+            N("Models")
+          ])),
+          _: 1
+        })
+      ]),
+      default: o(() => [
+        (t(!0), s(v, null, k(q.value, ({ name: l, schema: r }) => (t(), c(e(M), {
+          id: e(a)({ name: l }),
+          key: l,
+          label: l
+        }, {
+          title: o(() => [
+            d(e(V), {
+              id: e(a)({ name: l }),
+              class: "reference-models-anchor"
+            }, {
+              default: o(() => [
+                d(e(j), {
+                  class: "reference-models-label",
+                  name: l,
+                  value: r
+                }, null, 8, ["name", "value"])
+              ]),
+              _: 2
+            }, 1032, ["id"])
+          ]),
+          default: o(() => [
+            r != null && r.properties ? (t(), s("div", O, [
+              (t(!0), s(v, null, k(Object.entries(r.properties), ([i, x]) => {
+                var p, f, _;
+                return t(), c(e(S), {
+                  key: i,
+                  name: i,
+                  required: ((p = r.required) == null ? void 0 : p.includes(i)) || ((_ = (f = r.properties) == null ? void 0 : f[i]) == null ? void 0 : _.required) === !0,
+                  value: x
+                }, null, 8, ["name", "required", "value"]);
+              }), 128))
+            ])) : (t(), s("div", h, [
+              d(e(S), { value: r }, null, 8, ["value"])
+            ]))
+          ]),
+          _: 2
+        }, 1032, ["id", "label"]))), 128))
+      ]),
+      _: 1
+    })) : g("", !0);
+  }
+});
+export {
+  D as default
+};

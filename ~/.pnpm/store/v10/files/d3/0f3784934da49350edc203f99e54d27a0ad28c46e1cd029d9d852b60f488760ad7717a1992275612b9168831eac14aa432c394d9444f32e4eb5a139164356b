@@ -1,0 +1,63 @@
+import { z } from 'zod';
+export declare const parameterTypeSchema: z.ZodEnum<["path", "query", "header", "cookie"]>;
+export type ParamType = z.infer<typeof parameterTypeSchema>;
+export declare const parameterStyleSchema: z.ZodEnum<["matrix", "simple", "form", "label", "spaceDelimited", "pipeDelimited", "deepObject"]>;
+export type ParameterStyle = z.infer<typeof parameterStyleSchema>;
+/**
+ * OpenAPI compliant parameters object
+ */
+export declare const oasParameterSchema: z.ZodObject<{
+    in: z.ZodEnum<["path", "query", "header", "cookie"]>;
+    name: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    /** Defaulted to false */
+    required: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    /** Defaulted to false */
+    deprecated: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    schema: z.ZodOptional<z.ZodUnknown>;
+    content: z.ZodOptional<z.ZodUnknown>;
+    /** Defaulted according to @url https://spec.openapis.org/oas/v3.1.0#parameter-object */
+    style: z.ZodOptional<z.ZodEnum<["matrix", "simple", "form", "label", "spaceDelimited", "pipeDelimited", "deepObject"]>>;
+    example: z.ZodOptional<z.ZodUnknown>;
+    examples: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
+        value: z.ZodUnknown;
+        summary: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        value?: unknown;
+        summary?: string | undefined;
+    }, {
+        value?: unknown;
+        summary?: string | undefined;
+    }>>>;
+}, "strip", z.ZodTypeAny, {
+    required: boolean;
+    name: string;
+    in: "path" | "cookie" | "query" | "header";
+    deprecated: boolean;
+    example?: unknown;
+    description?: string | undefined;
+    schema?: unknown;
+    content?: unknown;
+    style?: "matrix" | "simple" | "form" | "label" | "spaceDelimited" | "pipeDelimited" | "deepObject" | undefined;
+    examples?: Record<string, {
+        value?: unknown;
+        summary?: string | undefined;
+    }> | undefined;
+}, {
+    name: string;
+    in: "path" | "cookie" | "query" | "header";
+    example?: unknown;
+    required?: boolean | undefined;
+    description?: string | undefined;
+    deprecated?: boolean | undefined;
+    schema?: unknown;
+    content?: unknown;
+    style?: "matrix" | "simple" | "form" | "label" | "spaceDelimited" | "pipeDelimited" | "deepObject" | undefined;
+    examples?: Record<string, {
+        value?: unknown;
+        summary?: string | undefined;
+    }> | undefined;
+}>;
+export type RequestParameter = z.infer<typeof oasParameterSchema>;
+export type RequestParameterPayload = z.input<typeof oasParameterSchema>;
+//# sourceMappingURL=parameters.d.ts.map

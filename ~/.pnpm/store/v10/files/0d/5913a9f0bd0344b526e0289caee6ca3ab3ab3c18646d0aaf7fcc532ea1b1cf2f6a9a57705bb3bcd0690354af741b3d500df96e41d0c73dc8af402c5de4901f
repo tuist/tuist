@@ -1,0 +1,217 @@
+import { defineComponent as le, ref as V, computed as j, watch as ne, onMounted as ue, onBeforeUnmount as ce, openBlock as i, createElementBlock as g, Fragment as me, unref as t, normalizeClass as z, createElementVNode as ve, createBlock as b, createCommentVNode as B, createVNode as E, withCtx as F } from "vue";
+import { isDefined as de } from "@scalar/oas-utils/helpers";
+import { safeJSON as pe } from "@scalar/object-utils/parse";
+import { useBreakpoints as fe } from "@scalar/use-hooks/useBreakpoints";
+import { useToasts as ye } from "@scalar/use-toasts";
+import { useRouter as Se } from "vue-router";
+import Q from "../../components/EmptyState.vue.js";
+import qe from "../../components/ImportCurl/ImportCurlModal.vue.js";
+import Re from "../../components/ViewLayout/ViewLayout.vue.js";
+import be from "../../components/ViewLayout/ViewLayoutContent.vue.js";
+import { importCurlCommand as ke } from "../../libs/importers/curl.js";
+import { PathId as I } from "../../routes.js";
+import { useActiveEntities as he } from "../../store/active-entities.js";
+import { useOpenApiWatcher as xe } from "./hooks/useOpenApiWatcher.js";
+import we from "./RequestSection/RequestSection.vue.js";
+import Ue from "./RequestSubpageHeader.vue.js";
+import Ve from "./ResponseSection/ResponseSection.vue.js";
+import Ee from "./RequestSidebar.vue.js";
+import { createRequestOperation as Oe } from "../../libs/send-request/create-request-operation.js";
+import { ERRORS as Ce } from "../../libs/errors.js";
+import { useWorkspace as Ne } from "../../store/store.js";
+import { useLayout as ge } from "../../hooks/useLayout.js";
+const Be = { class: "flex h-full" }, Ie = {
+  key: 1,
+  class: "flex h-full flex-1 flex-col"
+}, rt = /* @__PURE__ */ le({
+  __name: "Request",
+  emits: ["newTab"],
+  setup(We) {
+    const $ = Ne(), { toast: W } = ye(), { layout: k } = ge(), {
+      activeCollection: l,
+      activeExample: v,
+      activeEnvironment: h,
+      activeRequest: c,
+      activeWorkspace: n,
+      activeServer: O,
+      activeEnvVariables: T,
+      activeWorkspaceCollections: J,
+      activeWorkspaceRequests: P
+    } = he(), {
+      cookies: G,
+      modalState: d,
+      requestHistory: D,
+      showSidebar: K,
+      securitySchemes: X,
+      requestMutators: Y,
+      serverMutators: Z,
+      servers: ee,
+      events: x
+    } = $, m = V(k !== "modal"), M = V(), e = V(), C = V(""), te = Se(), oe = j(
+      () => D.findLast((r) => {
+        var o;
+        return r.request.uid === ((o = v.value) == null ? void 0 : o.uid);
+      })
+    ), { mediaQueries: re } = fe();
+    ne(re.xl, (r) => m.value = r, {
+      immediate: k !== "modal"
+    });
+    const A = j(
+      () => {
+        var r, o;
+        return (k === "modal" ? (r = l.value) == null ? void 0 : r.selectedSecuritySchemeUids : (o = c.value) == null ? void 0 : o.selectedSecuritySchemeUids) ?? [];
+      }
+    ), L = async () => {
+      var S, q, R, u;
+      if (!c.value || !v.value || !l.value)
+        return;
+      const r = typeof h.value == "object" ? h.value.value : "{}", o = pe.parse(r);
+      o.error && console.error("INVALID ENVIRONMENT!");
+      const a = o.error || typeof o.data != "object" ? {} : o.data ?? {}, s = ((S = n.value) == null ? void 0 : S.cookies.map((N) => G[N]).filter(de)) ?? [], w = ((R = (q = l.value) == null ? void 0 : q.info) == null ? void 0 : R.title) === "Drafts" ? void 0 : O.value, [p, f] = Oe({
+        request: c.value,
+        example: v.value,
+        selectedSecuritySchemeUids: A.value,
+        proxyUrl: ((u = n.value) == null ? void 0 : u.proxyUrl) ?? "",
+        environment: a,
+        globalCookies: s,
+        status: x.requestStatus,
+        securitySchemes: X,
+        server: w
+      });
+      if (p) {
+        W(p.message, "error");
+        return;
+      }
+      M.value = f.controller;
+      const [y, U] = await f.sendRequest();
+      y ? W(y.message, "error") : D.push(U);
+    }, se = async () => {
+      var r;
+      return (r = M.value) == null ? void 0 : r.abort(Ce.REQUEST_ABORTED);
+    };
+    ue(() => {
+      x.executeRequest.on(L), x.cancelRequest.on(se);
+    }), xe(), ce(() => x.executeRequest.off(L));
+    function ae({
+      requestName: r,
+      collectionUid: o
+    }) {
+      var p, f, y, U, S, q, R;
+      if (!e.value) return;
+      const a = J.value.find(
+        (u) => u.uid === o
+      );
+      if (!a) return;
+      const s = ((p = a == null ? void 0 : a.info) == null ? void 0 : p.title) === "Drafts";
+      if (!s && e.value.servers) {
+        const u = Object.values(ee).find(
+          (N) => {
+            var H, _;
+            return N.url === ((_ = (H = e == null ? void 0 : e.value) == null ? void 0 : H.servers) == null ? void 0 : _[0]);
+          }
+        );
+        u ? C.value = u.uid : C.value = Z.add(
+          { url: e.value.servers[0] ?? "/" },
+          a.uid
+        ).uid;
+      }
+      const w = Y.add(
+        {
+          summary: r,
+          path: s ? (f = e == null ? void 0 : e.value) == null ? void 0 : f.url : (y = e == null ? void 0 : e.value) == null ? void 0 : y.path,
+          method: (U = e == null ? void 0 : e.value) == null ? void 0 : U.method,
+          parameters: (S = e == null ? void 0 : e.value) == null ? void 0 : S.parameters,
+          selectedServerUid: s ? void 0 : C.value,
+          requestBody: (q = e == null ? void 0 : e.value) == null ? void 0 : q.requestBody
+        },
+        a.uid
+      );
+      w && ((R = n.value) != null && R.uid) && te.push({
+        name: "request",
+        params: {
+          [I.Workspace]: n.value.uid,
+          [I.Collection]: a.uid,
+          [I.Request]: w.uid
+        }
+      }), d.hide();
+    }
+    function ie(r) {
+      e.value = ke(r), d.show();
+    }
+    return (r, o) => {
+      var a;
+      return i(), g(me, null, [
+        t(l) && t(n) ? (i(), g("div", {
+          key: 0,
+          class: z(["bg-b-1 relative z-0 flex h-full flex-1 flex-col overflow-hidden pt-0", {
+            "!mb-0 !mr-0 !border-0": t(k) === "modal"
+          }])
+        }, [
+          ve("div", Be, [
+            t(K) ? (i(), b(Ee, {
+              key: 0,
+              isSidebarOpen: m.value,
+              onNewTab: o[0] || (o[0] = (s) => r.$emit("newTab", s)),
+              "onUpdate:isSidebarOpen": o[1] || (o[1] = (s) => m.value = s)
+            }, null, 8, ["isSidebarOpen"])) : B("", !0),
+            t(c) ? (i(), g("div", Ie, [
+              E(Ue, {
+                modelValue: m.value,
+                "onUpdate:modelValue": o[2] || (o[2] = (s) => m.value = s),
+                collection: t(l),
+                envVariables: t(T),
+                environment: t(h),
+                operation: t(c),
+                server: t(O),
+                workspace: t(n),
+                onHideModal: o[3] || (o[3] = () => t(d).hide()),
+                onImportCurl: ie
+              }, null, 8, ["modelValue", "collection", "envVariables", "environment", "operation", "server", "workspace"]),
+              E(Re, null, {
+                default: F(() => [
+                  t(v) ? (i(), b(be, {
+                    key: 0,
+                    class: z(["flex-1", [m.value ? "sidebar-active-hide-layout" : ""]])
+                  }, {
+                    default: F(() => {
+                      var s;
+                      return [
+                        E(we, {
+                          collection: t(l),
+                          envVariables: t(T),
+                          environment: t(h),
+                          example: t(v),
+                          operation: t(c),
+                          selectedSecuritySchemeUids: A.value,
+                          server: t(O),
+                          workspace: t(n)
+                        }, null, 8, ["collection", "envVariables", "environment", "example", "operation", "selectedSecuritySchemeUids", "server", "workspace"]),
+                        E(Ve, {
+                          numWorkspaceRequests: t(P).length,
+                          response: (s = oe.value) == null ? void 0 : s.response
+                        }, null, 8, ["numWorkspaceRequests", "response"])
+                      ];
+                    }),
+                    _: 1
+                  }, 8, ["class"])) : B("", !0)
+                ]),
+                _: 1
+              })
+            ])) : (i(), b(Q, { key: 2 }))
+          ])
+        ], 2)) : (i(), b(Q, { key: 1 })),
+        e.value ? (i(), b(qe, {
+          key: 2,
+          collectionUid: ((a = t(l)) == null ? void 0 : a.uid) ?? "",
+          parsedCurl: e.value,
+          state: t(d),
+          onClose: o[4] || (o[4] = (s) => t(d).hide()),
+          onImportCurl: ae
+        }, null, 8, ["collectionUid", "parsedCurl", "state"])) : B("", !0)
+      ], 64);
+    };
+  }
+});
+export {
+  rt as default
+};

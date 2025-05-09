@@ -1,0 +1,111 @@
+import { defineComponent as y, ref as S, computed as _, openBlock as n, createBlock as i, unref as e, withCtx as r, createVNode as u, createSlots as B, createElementVNode as a, createCommentVNode as k, normalizeStyle as H, createElementBlock as V, Fragment as w, renderList as z, toDisplayString as d, normalizeClass as L } from "vue";
+import { formatMs as U } from "../../libs/formatters.js";
+import { PathId as v } from "../../routes.js";
+import { Listbox as E, ListboxButton as F, ListboxOptions as I, ListboxOption as M } from "@headlessui/vue";
+import { ScalarFloating as N, ScalarIcon as R, ScalarFloatingBackdrop as O } from "@scalar/components";
+import { httpStatusCodes as W } from "@scalar/oas-utils/helpers";
+import { useRouter as A } from "vue-router";
+import D from "../HttpMethod/HttpMethod.vue.js";
+import { getStatusCodeColor as P } from "./httpStatusCodeColors.js";
+import { useWorkspace as $ } from "../../store/store.js";
+const j = { class: "min-w-0" }, G = { class: "min-w-0 truncate text-c-1" }, se = /* @__PURE__ */ y({
+  __name: "AddressBarHistory",
+  props: {
+    operation: {},
+    target: {}
+  },
+  setup(p) {
+    const { requestHistory: f, requestExampleMutators: b } = $(), x = A(), g = S(f[0] ?? null), h = _(
+      () => f.filter((o) => o.request.requestUid === p.operation.uid).slice().reverse()
+    );
+    function q(o) {
+      const s = x.currentRoute.value.params.workspace;
+      p.operation.uid !== o.request.requestUid && x.push({
+        name: "request",
+        params: {
+          [v.Workspace]: s,
+          [v.Request]: o.request.requestUid
+        }
+      }), b.set({ ...o.request });
+    }
+    return (o, s) => (n(), i(e(E), {
+      modelValue: g.value,
+      "onUpdate:modelValue": s[0] || (s[0] = (m) => g.value = m)
+    }, {
+      default: r(({ open: m }) => [
+        u(e(N), {
+          offset: 0,
+          resize: "",
+          target: o.target
+        }, B({
+          default: r(() => {
+            var l;
+            return [
+              (l = h.value) != null && l.length ? (n(), i(e(F), {
+                key: 0,
+                class: "addressbar-history-button z-context-plus mr-1 rounded-lg p-1.5 text-c-3 focus:text-c-1"
+              }, {
+                default: r(() => [
+                  u(e(R), {
+                    icon: "History",
+                    size: "sm",
+                    thickness: "2.25"
+                  }),
+                  s[1] || (s[1] = a("span", { class: "sr-only" }, "Request History", -1))
+                ]),
+                _: 1
+              })) : k("", !0)
+            ];
+          }),
+          _: 2
+        }, [
+          m ? {
+            name: "floating",
+            fn: r(({ width: l }) => [
+              u(e(I), {
+                class: "address-bg-states border-t custom-scroll max-h-[inherit] p-0.75 grid grid-cols-[44px,1fr,repeat(3,auto)] items-center",
+                style: H({ width: l })
+              }, {
+                default: r(() => [
+                  (n(!0), V(w, null, z(h.value, (t, C) => (n(), i(e(M), {
+                    key: t.timestamp,
+                    class: "contents font-code text-sm *:rounded-none first:*:rounded-l last:*:rounded-r *:h-8 *:ui-active:bg-b-2 *:flex *:items-center *:cursor-pointer *:px-1.5 text-c-2 font-medium",
+                    value: C,
+                    onClick: (c) => q(t)
+                  }, {
+                    default: r(() => {
+                      var c;
+                      return [
+                        t.response.method ? (n(), i(D, {
+                          key: 0,
+                          class: "text-[11px]",
+                          method: t.response.method
+                        }, null, 8, ["method"])) : k("", !0),
+                        a("div", j, [
+                          a("div", G, d(t.response.path), 1)
+                        ]),
+                        a("div", null, d(e(U)(t.response.duration)), 1),
+                        a("div", {
+                          class: L([e(P)(t.response.status).color])
+                        }, d(t.response.status), 3),
+                        a("div", null, d((c = e(W)[t.response.status]) == null ? void 0 : c.name), 1)
+                      ];
+                    }),
+                    _: 2
+                  }, 1032, ["value", "onClick"]))), 128))
+                ]),
+                _: 2
+              }, 1032, ["style"]),
+              u(e(O), { class: "-top-[--scalar-address-bar-height] rounded-lg" })
+            ]),
+            key: "0"
+          } : void 0
+        ]), 1032, ["target"])
+      ]),
+      _: 1
+    }, 8, ["modelValue"]));
+  }
+});
+export {
+  se as default
+};

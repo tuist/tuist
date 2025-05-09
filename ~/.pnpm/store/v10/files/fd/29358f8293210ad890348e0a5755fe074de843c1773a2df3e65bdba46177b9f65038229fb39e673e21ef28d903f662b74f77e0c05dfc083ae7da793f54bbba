@@ -1,0 +1,60 @@
+export const isUri: (string: string) => boolean;
+export const isUriReference: (string: string) => boolean;
+export const isAbsoluteUri: (string: string) => boolean;
+export const isIri: (string: string) => boolean;
+export const isIriReference: (string: string) => boolean;
+export const isAbsoluteIri: (string: string) => boolean;
+export const parseUri: Parser<IdentifierComponents>;
+export const parseUriReference: Parser<RelativeIdentifierComponents>;
+export const parseAbsoluteUri: Parser<AbsoluteIdentifierComponents>;
+export const parseIri: Parser<IdentifierComponents>;
+export const parseIriReference: Parser<RelativeIdentifierComponents>;
+export const parseAbsoluteIri: Parser<AbsoluteIdentifierComponents>;
+export const toAbsoluteUri: (identifier: string) => string;
+export const toAbsoluteIri: (identifier: string) => string;
+export const normalizeUri: (identifier: string) => string;
+export const normalizeIri: (identifier: string) => string;
+export const resolveUri: (reference: string, base: string) => string;
+export const resolveIri: (reference: string, base: string) => string;
+export const toRelativeUri: (uri: string, relativeTo: string) => string;
+export const toRelativeIri: (uri: string, relativeTo: string) => string;
+export type IdentifierComponents = {
+    scheme: string;
+    authority: string;
+    userinfo?: string;
+    host: string;
+    port?: string;
+    path: string;
+    query?: string;
+    fragment?: string;
+};
+export type AbsoluteIdentifierComponents = {
+    scheme: string;
+    authority: string;
+    userinfo?: string;
+    host: string;
+    port?: string;
+    path: string;
+    query?: string;
+};
+export type RelativeIdentifierComponents = {
+    scheme?: string;
+    authority?: string;
+    userinfo?: string;
+    host?: string;
+    port?: string;
+    path: string;
+    query?: string;
+    fragment?: string;
+};
+export type Parser<A> = (value: string) => A;
+export type Normalizer = (value: string) => string;
+export type Strategy = {
+    parseAbsolute: Parser<AbsoluteIdentifierComponents>;
+    parseReference: Parser<RelativeIdentifierComponents>;
+    parse: Parser<IdentifierComponents>;
+    normalizePath: Normalizer;
+    normalizeQuery: Normalizer;
+    normalizeFragment: Normalizer;
+};
+//# sourceMappingURL=index.d.ts.map

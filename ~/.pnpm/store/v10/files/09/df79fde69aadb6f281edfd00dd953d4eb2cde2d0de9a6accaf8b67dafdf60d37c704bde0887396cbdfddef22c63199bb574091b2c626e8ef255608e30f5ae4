@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * shell/wget
+ */
+export declare const shellWget: Plugin;
+//# sourceMappingURL=wget.d.ts.map

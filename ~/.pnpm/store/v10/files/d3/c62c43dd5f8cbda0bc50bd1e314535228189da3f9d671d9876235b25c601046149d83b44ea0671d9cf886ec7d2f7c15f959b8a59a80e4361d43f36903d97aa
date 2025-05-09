@@ -1,0 +1,49 @@
+import { defineComponent as s, openBlock as l, createElementBlock as n, createElementVNode as e, toDisplayString as r, normalizeClass as a } from "vue";
+const i = { class: "sr-only" }, d = {
+  class: "size-4",
+  fill: "none",
+  viewBox: "0 0 24 24",
+  xmlns: "http://www.w3.org/2000/svg"
+}, p = { "clip-path": "url(#mask)" }, g = /* @__PURE__ */ s({
+  __name: "SidebarToggle",
+  props: {
+    modelValue: { type: Boolean }
+  },
+  emits: ["update:modelValue"],
+  setup(u) {
+    return (o, t) => (l(), n("button", {
+      class: "scalar-sidebar-toggle text-c-3 hover:bg-b-2 active:text-c-1 p-2 rounded-lg",
+      type: "button",
+      onClick: t[0] || (t[0] = (m) => o.$emit("update:modelValue", !o.modelValue))
+    }, [
+      e("span", i, r(o.modelValue ? "Hide" : "Show") + " sidebar", 1),
+      (l(), n("svg", d, [
+        t[1] || (t[1] = e("defs", null, [
+          e("clipPath", { id: "mask" }, [
+            e("path", {
+              "clip-rule": "evenodd",
+              d: "M9 3.2H4c-1.7 0-3 1.3-3 3v11.5c0 1.7 1.3 3 3 3h5V3.2z"
+            })
+          ])
+        ], -1)),
+        e("g", p, [
+          e("path", {
+            class: a(["transition-transform duration-300", o.modelValue ? "translate-x-0" : "-translate-x-1/2"]),
+            d: "M1 3.2h8v17.5H1z",
+            fill: "currentColor"
+          }, null, 2)
+        ]),
+        t[2] || (t[2] = e("path", {
+          d: "M20 20.8H4c-1.7 0-3-1.3-3-3V6.2c0-1.7 1.3-3 3-3h16c1.7 0 3 1.3 3 3v11.5c0 1.7-1.3 3-3 3zM9 3.2v17.5",
+          stroke: "currentColor",
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+          "stroke-width": "2"
+        }, null, -1))
+      ]))
+    ]));
+  }
+});
+export {
+  g as default
+};

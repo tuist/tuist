@@ -1,0 +1,14 @@
+import { isRequestMethod as s } from "../fixtures/httpRequestMethods.js";
+const e = "get", r = (t) => {
+  if (typeof t != "string")
+    return console.warn(
+      `Request method is not a string. Using ${e} as the default.`
+    ), e;
+  const o = t.trim().toUpperCase();
+  return s(o) ? o : (console.warn(
+    `${t} is not a valid request method. Using ${e} as the default.`
+  ), e);
+};
+export {
+  r as normalizeRequestMethod
+};

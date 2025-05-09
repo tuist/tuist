@@ -1,0 +1,87 @@
+import { defineComponent as h, openBlock as o, createElementBlock as r, normalizeClass as f, unref as e, createVNode as t, withCtx as n, createElementVNode as i, Fragment as v, renderList as w, createTextVNode as d, toDisplayString as y, createCommentVNode as b } from "vue";
+import { ROUTES as k } from "../../constants.js";
+import { ScalarIcon as N } from "@scalar/components";
+import { useRouter as S } from "vue-router";
+import B from "./DownloadAppButton.vue.js";
+import C from "./SideHelp.vue.js";
+import u from "./SideNavGroup.vue.js";
+import _ from "./SideNavRouterLink.vue.js";
+import { useLayout as V } from "../../hooks/useLayout.js";
+const j = { class: "flex items-center" }, E = { class: "flex items-center" }, L = {
+  key: 0,
+  class: "hidden sm:ml-1.5 sm:flex items-center justify-center"
+}, q = /* @__PURE__ */ h({
+  __name: "SideNav",
+  setup(R) {
+    const { currentRoute: m } = S(), { layout: a } = V();
+    return ($, l) => (o(), r("nav", {
+      "aria-label": "App Navigation",
+      class: f([
+        "flex items-center justify-center sm:justify-between gap-1.5 app-drag-region pt-2",
+        e(a) === "web" ? "border h-header !pt-0" : "sm:flex-col px-2 pb-2"
+      ]),
+      role: "navigation"
+    }, [
+      t(u, { class: "app-no-drag-region" }, {
+        default: n(() => [
+          i("a", {
+            class: f(["hidden items-center mr-3 ml-1", {
+              "sm:flex": e(a) === "web"
+            }]),
+            href: "https://www.scalar.com",
+            target: "_blank"
+          }, [
+            t(e(N), {
+              icon: "Logo",
+              size: "xl"
+            })
+          ], 2),
+          (o(!0), r(v, null, w(e(k).filter(
+            (s) => s.name !== "settings"
+          ), ({ icon: s, name: c, prettyName: g }, x) => {
+            var p;
+            return o(), r("li", { key: x }, [
+              t(_, {
+                active: !!((p = e(m).name) != null && p.startsWith(c)),
+                icon: s,
+                name: c
+              }, {
+                default: n(() => [
+                  d(y(g), 1)
+                ]),
+                _: 2
+              }, 1032, ["active", "icon", "name"])
+            ]);
+          }), 128))
+        ]),
+        _: 1
+      }),
+      t(u, { class: "app-no-drag-region" }, {
+        default: n(() => [
+          i("li", j, [
+            t(_, {
+              active: e(m).name === "settings",
+              icon: "Settings",
+              name: "settings"
+            }, {
+              default: n(() => l[0] || (l[0] = [
+                d(" Settings ")
+              ])),
+              _: 1
+            }, 8, ["active"])
+          ]),
+          i("li", E, [
+            t(C)
+          ]),
+          e(a) !== "desktop" ? (o(), r("li", L, [
+            t(B)
+          ])) : b("", !0)
+        ]),
+        _: 1
+      })
+    ], 2));
+  }
+});
+export {
+  q as default
+};

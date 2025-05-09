@@ -1,0 +1,38 @@
+import { defineComponent as a, openBlock as r, createBlock as n, unref as o, withCtx as c, renderSlot as m } from "vue";
+import p from "./SideNavLink.vue.js";
+import { PathId as s } from "../../routes.js";
+import { useActiveEntities as f } from "../../store/active-entities.js";
+import { RouterLink as u } from "vue-router";
+const $ = /* @__PURE__ */ a({
+  __name: "SideNavRouterLink",
+  props: {
+    icon: {},
+    name: {},
+    active: { type: Boolean }
+  },
+  setup(l) {
+    const { activeWorkspace: i } = f();
+    return (e, d) => {
+      var t;
+      return r(), n(p, {
+        is: o(u),
+        active: !!e.active,
+        icon: e.icon,
+        to: {
+          name: `${e.name}.default`,
+          params: {
+            [o(s).Workspace]: (t = o(i)) == null ? void 0 : t.uid
+          }
+        }
+      }, {
+        default: c(() => [
+          m(e.$slots, "default")
+        ]),
+        _: 3
+      }, 8, ["is", "active", "icon", "to"]);
+    };
+  }
+});
+export {
+  $ as default
+};

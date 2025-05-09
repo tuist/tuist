@@ -1,0 +1,39 @@
+import { defineComponent as r, openBlock as a, createBlock as i, resolveDynamicComponent as m, normalizeClass as s, unref as o, withCtx as l, renderSlot as t, createVNode as c, createElementVNode as d } from "vue";
+import { ScalarIcon as p } from "@scalar/components";
+import { useLayout as u } from "../../hooks/useLayout.js";
+const v = /* @__PURE__ */ r({
+  __name: "SideNavLink",
+  props: {
+    is: {},
+    active: { type: Boolean },
+    icon: {}
+  },
+  setup(f) {
+    const { layout: n } = u();
+    return (e, b) => (a(), i(m(e.is ?? "a"), {
+      class: s(["hover:bg-b-3 dark:hover:bg-b-2 no-underline min-w-[37px] max-w-[37px] flex items-center justify-center rounded-lg p-2", {
+        "bg-b-3 dark:bg-b-2 transition-none hover:cursor-default text-c-1": e.active,
+        "sm:min-w-max sm:max-w-max sm:rounded sm:py-1.5": o(n) === "web"
+      }])
+    }, {
+      default: l(() => [
+        t(e.$slots, "icon", {}, () => [
+          c(o(p), {
+            class: s(o(n) === "web" ? "sm:hidden" : ""),
+            icon: e.icon,
+            thickness: "1.5"
+          }, null, 8, ["class", "icon"])
+        ]),
+        d("span", {
+          class: s(["text-sm font-medium sr-only", { "sm:not-sr-only": o(n) === "web" }])
+        }, [
+          t(e.$slots, "default")
+        ], 2)
+      ]),
+      _: 3
+    }, 8, ["class"]));
+  }
+});
+export {
+  v as default
+};

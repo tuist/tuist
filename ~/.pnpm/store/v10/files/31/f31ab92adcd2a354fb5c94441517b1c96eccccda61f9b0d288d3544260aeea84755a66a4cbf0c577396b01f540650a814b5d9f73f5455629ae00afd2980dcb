@@ -1,0 +1,69 @@
+/** Create cookie mutators for the workspace */
+export declare function createStoreCookies(useLocalStorage: boolean): {
+    cookies: Record<string, {
+        value: string;
+        uid: string & import("zod").BRAND<"cookie">;
+        name: string;
+        path?: string | undefined;
+        domain?: string | undefined;
+    }>;
+    cookieMutators: {
+        add: (item: {
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }) => void;
+        delete: (uid: (string & import("zod").BRAND<"cookie">) | null | undefined) => void;
+        set: (item: {
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }) => void;
+        edit: <P extends "name" | "uid" | "path" | "value" | "domain">(uid: (string & import("zod").BRAND<"cookie">) | null | undefined, path: P, value: P extends "name" | "uid" | "path" | "value" | "domain" ? {
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[P] : P extends `${infer K}.${infer R}` ? K extends "name" | "uid" | "path" | "value" | "domain" ? R extends import("@scalar/object-utils/nested").Path<{
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[K]> ? import("@scalar/object-utils/nested").PathValue<{
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[K], R> : never : K extends `${number}` ? never : never : P extends `${number}` ? never : never) => void;
+        untrackedEdit: <P extends "name" | "uid" | "path" | "value" | "domain">(uid: string & import("zod").BRAND<"cookie">, path: P, value: P extends "name" | "uid" | "path" | "value" | "domain" ? {
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[P] : P extends `${infer K}.${infer R}` ? K extends "name" | "uid" | "path" | "value" | "domain" ? R extends import("@scalar/object-utils/nested").Path<{
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[K]> ? import("@scalar/object-utils/nested").PathValue<{
+            value: string;
+            uid: string & import("zod").BRAND<"cookie">;
+            name: string;
+            path?: string | undefined;
+            domain?: string | undefined;
+        }[K], R> : never : K extends `${number}` ? never : never : P extends `${number}` ? never : never) => void;
+        undo: (uid: string & import("zod").BRAND<"cookie">) => void;
+        redo: (uid: string & import("zod").BRAND<"cookie">) => void;
+        reset: () => void;
+    };
+};
+//# sourceMappingURL=cookies.d.ts.map

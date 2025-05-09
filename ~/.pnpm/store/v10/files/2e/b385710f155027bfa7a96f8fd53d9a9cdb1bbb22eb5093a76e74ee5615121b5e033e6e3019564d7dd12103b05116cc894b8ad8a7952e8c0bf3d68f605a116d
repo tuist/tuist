@@ -1,0 +1,1 @@
+var r;import*as e from"vue";let n=Symbol("headlessui.useid"),o=0;const i=(r=e.useId)!=null?r:function(){return e.inject(n,()=>`${++o}`)()};function s(t){e.provide(n,t)}export{s as provideUseId,i as useId};

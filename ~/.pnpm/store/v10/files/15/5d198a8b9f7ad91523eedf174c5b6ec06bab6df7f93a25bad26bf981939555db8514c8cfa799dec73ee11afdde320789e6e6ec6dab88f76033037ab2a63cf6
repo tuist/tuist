@@ -1,0 +1,13 @@
+import type { Collection, Operation, Server } from '@scalar/oas-utils/entities/spec';
+import type { TransformedOperation } from '@scalar/types/legacy';
+type __VLS_Props = {
+    id?: string;
+    collection: Collection;
+    server: Server | undefined;
+    operation: Operation;
+    /** @deprecated Use `operation` instead */
+    transformedOperation: TransformedOperation;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=ClassicLayout.vue.d.ts.map

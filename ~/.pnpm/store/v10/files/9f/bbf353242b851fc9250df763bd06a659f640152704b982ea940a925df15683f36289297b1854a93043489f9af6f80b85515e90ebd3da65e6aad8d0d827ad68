@@ -1,0 +1,85 @@
+import { defineComponent as b, ref as C, computed as u, openBlock as o, createBlock as n, createSlots as N, withCtx as d, createTextVNode as h, toDisplayString as g, createElementBlock as T, createElementVNode as _, unref as a, createCommentVNode as r, createVNode as $ } from "vue";
+import E from "../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import { useResponseBody as P } from "../../../hooks/useResponseBody.js";
+import S from "./ResponseBodyDownload.vue.js";
+import U from "./ResponseBodyInfo.vue.js";
+import j from "./ResponseBodyPreview.vue.js";
+import D from "./ResponseBodyRaw.vue.js";
+import F from "./ResponseBodyToggle.vue.js";
+import { mediaTypes as I } from "../consts/mediaTypes.js";
+const q = {
+  key: 0,
+  class: "max-h-[calc(100%-32px)] border-t-1/2 flex flex-col bg-b-1 overflow-hidden"
+}, z = { class: "flex justify-between items-center border-b-1/2 px-3 py-1.5" }, A = { class: "text-xxs leading-3 font-code" }, X = /* @__PURE__ */ b({
+  __name: "ResponseBody",
+  props: {
+    title: {},
+    data: {},
+    headers: {}
+  },
+  setup(x) {
+    const c = x, s = C(!0), p = u(
+      () => {
+        var t;
+        return !!((t = e.value) != null && t.raw && e.value.preview);
+      }
+    ), k = u(() => s.value || !p.value), B = u(() => !s.value || !p.value), { mimeType: i, attachmentFilename: R, dataUrl: l } = P({
+      data: c.data,
+      headers: c.headers
+    }), e = u(() => I[i.value.essence]);
+    return (t, m) => (o(), n(E, { class: "max-h-content overflow-x-auto" }, N({
+      title: d(() => [
+        h(g(t.title), 1)
+      ]),
+      default: d(() => {
+        var f, v, y, w;
+        return [
+          t.data ? (o(), T("div", q, [
+            _("div", z, [
+              _("span", A, g(a(i).essence), 1),
+              p.value ? (o(), n(F, {
+                key: 0,
+                modelValue: s.value,
+                "onUpdate:modelValue": m[0] || (m[0] = (V) => s.value = V)
+              }, null, 8, ["modelValue"])) : r("", !0)
+            ]),
+            (f = e.value) != null && f.raw && B.value ? (o(), n(D, {
+              key: a(l),
+              content: t.data,
+              language: e.value.language
+            }, null, 8, ["content", "language"])) : r("", !0),
+            (v = e.value) != null && v.preview && k.value ? (o(), n(j, {
+              key: a(l),
+              alpha: e.value.alpha,
+              mode: e.value.preview,
+              src: a(l),
+              type: a(i).essence
+            }, null, 8, ["alpha", "mode", "src", "type"])) : r("", !0),
+            !((y = e.value) != null && y.raw) && !((w = e.value) != null && w.preview) ? (o(), n(U, { key: 2 }, {
+              default: d(() => m[1] || (m[1] = [
+                h(" Binary file ")
+              ])),
+              _: 1
+            })) : r("", !0)
+          ])) : r("", !0)
+        ];
+      }),
+      _: 2
+    }, [
+      t.data && a(l) ? {
+        name: "actions",
+        fn: d(() => [
+          $(S, {
+            filename: a(R),
+            href: a(l),
+            type: a(i).essence
+          }, null, 8, ["filename", "href", "type"])
+        ]),
+        key: "0"
+      } : void 0
+    ]), 1024));
+  }
+});
+export {
+  X as default
+};

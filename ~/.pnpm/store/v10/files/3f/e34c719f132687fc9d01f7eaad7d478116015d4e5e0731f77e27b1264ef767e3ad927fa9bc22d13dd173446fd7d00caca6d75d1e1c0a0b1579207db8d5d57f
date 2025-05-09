@@ -1,0 +1,1 @@
+{"version":3,"file":"upgradeFromTwoToThree.d.ts","sourceRoot":"","sources":["../../src/utils/upgradeFromTwoToThree.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAa,SAAS,EAAE,MAAM,uBAAuB,CAAA;AACjE,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,qBAAqB,CAAA;AAIxD;;;;GAIG;AACH,wBAAgB,qBAAqB,CAAC,qBAAqB,EAAE,aAAa,0CAkQzE"}

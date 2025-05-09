@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * java/okhttp
+ */
+export declare const javaOkhttp: Plugin;
+//# sourceMappingURL=okhttp.d.ts.map

@@ -1,0 +1,7 @@
+import t from "./OpenApiClientButton.vue2.js";
+/* empty css                         */
+import o from "../_virtual/_plugin-vue_export-helper.js";
+const r = /* @__PURE__ */ o(t, [["__scopeId", "data-v-2e9f75f1"]]);
+export {
+  r as default
+};

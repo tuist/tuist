@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * go/native
+ */
+export declare const goNative: Plugin;
+//# sourceMappingURL=native.d.ts.map

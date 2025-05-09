@@ -1,0 +1,86 @@
+import { defineComponent as g, ref as C, openBlock as n, createElementBlock as l, Fragment as h, createElementVNode as w, unref as a, createVNode as i, createCommentVNode as r, withModifiers as k, withCtx as M, createBlock as D } from "vue";
+import N from "./Actions/DeleteSidebarListElement.vue.js";
+import { useModal as $, ScalarIcon as m, ScalarModal as B } from "@scalar/components";
+import { useClipboard as x } from "@scalar/use-hooks/useClipboard";
+const E = { class: "absolute flex right-1 opacity-0 group-hover:opacity-100" }, R = /* @__PURE__ */ g({
+  __name: "SidebarListElementActions",
+  props: {
+    variable: {},
+    warningMessage: {},
+    isCopyable: { type: Boolean },
+    isDeletable: { type: Boolean },
+    isRenameable: { type: Boolean }
+  },
+  emits: ["delete", "rename"],
+  setup(d, { emit: p }) {
+    const b = p, o = C({ action: "None", name: "" }), s = $(), { copyToClipboard: v } = x();
+    function f(e) {
+      o.value = { action: e, name: d.variable.name }, s.show();
+    }
+    function c() {
+      s.hide(), o.value = { action: "None", name: "" };
+    }
+    function y(e) {
+      b("delete", e), c();
+    }
+    return (e, t) => (n(), l(h, null, [
+      w("div", E, [
+        e.isCopyable ? (n(), l("button", {
+          key: 0,
+          class: "text-c-3 hover:bg-b-3 hover:text-c-1 rounded p-[5px]",
+          type: "button",
+          onClick: t[0] || (t[0] = (u) => a(v)(e.variable.name))
+        }, [
+          i(a(m), {
+            class: "h-3 w-3",
+            icon: "Clipboard"
+          })
+        ])) : r("", !0),
+        e.isRenameable ? (n(), l("button", {
+          key: 1,
+          class: "text-c-3 hover:bg-b-3 hover:text-c-1 rounded p-[5px]",
+          type: "button",
+          onClick: t[1] || (t[1] = (u) => b("rename", e.variable.uid))
+        }, [
+          i(a(m), {
+            class: "h-3 w-3",
+            icon: "Edit"
+          })
+        ])) : r("", !0),
+        !e.variable.isDefault && e.isDeletable ? (n(), l("button", {
+          key: 2,
+          class: "text-c-3 hover:bg-b-3 hover:text-c-1 rounded p-1",
+          type: "button",
+          onClick: t[2] || (t[2] = k((u) => f(
+            "Delete"
+            /* Delete */
+          ), ["prevent"]))
+        }, [
+          i(a(m), {
+            class: "h-3.5 w-3.5",
+            icon: "Close"
+          })
+        ])) : r("", !0)
+      ]),
+      i(a(B), {
+        size: "sm",
+        state: a(s),
+        title: `${o.value.action} ${o.value.name}`
+      }, {
+        default: M(() => [
+          o.value.action === "Delete" ? (n(), D(N, {
+            key: 0,
+            variableName: o.value.name,
+            warningMessage: e.warningMessage,
+            onClose: c,
+            onDelete: t[3] || (t[3] = (u) => y(e.variable.uid))
+          }, null, 8, ["variableName", "warningMessage"])) : r("", !0)
+        ]),
+        _: 1
+      }, 8, ["state", "title"])
+    ], 64));
+  }
+});
+export {
+  R as default
+};

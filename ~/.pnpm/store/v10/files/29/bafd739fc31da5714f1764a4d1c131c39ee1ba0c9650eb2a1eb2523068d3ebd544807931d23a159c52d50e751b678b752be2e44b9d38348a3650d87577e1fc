@@ -1,0 +1,207 @@
+@precedence {
+  attribute @left,
+  structure @left,
+  valueOp @left
+}
+
+@skip { whitespace | Comment }
+
+@top StyleSheet { item* }
+
+@top Styles { blockContent }
+
+item {
+  RuleSet |
+  ImportStatement |
+  MediaStatement |
+  CharsetStatement |
+  NamespaceStatement |
+  KeyframesStatement |
+  SupportsStatement |
+  AtRule
+}
+
+RuleSet {
+  selector ("," selector)* Block
+}
+
+ImportStatement {
+  @specialize[@name=import]<AtKeyword, "@import"> value commaSep<query> ";"
+}
+
+MediaStatement {
+  @specialize[@name=media]<AtKeyword, "@media"> commaSep<query> Block
+}
+
+CharsetStatement {
+  @specialize[@name=charset]<AtKeyword, "@charset"> value ";"
+}
+
+NamespaceStatement {
+  @specialize[@name=namespace]<AtKeyword, "@namespace">
+  NamespaceName { identifier }?
+  (StringLiteral | CallLiteral) ";"
+}
+
+KeyframesStatement {
+  @specialize[@name=keyframes]<AtKeyword, "@keyframes">
+  KeyframeName { identifier | StringLiteral }
+  KeyframeList
+}
+
+KeyframeSelector {
+  KeyframeRangeName { identifier } NumberLiteral? |
+  NumberLiteral
+}
+
+KeyframeList {
+  "{" (KeyframeSelector ("," KeyframeSelector)* Block)* "}"
+}
+
+SupportsStatement {
+  @specialize[@name=supports]<AtKeyword, "@supports"> query Block
+}
+
+AtRule { AtKeyword commaSep<query> (";" | Block) }
+
+Block { "{" blockContent "}" }
+
+blockContent { ~item item* (Declaration (";" ~item item* Declaration?)*)? }
+
+selector {
+  UniversalSelector |
+  TagSelector { ~item TagName { identifier ~item } } |
+  NestingSelector |
+  ClassSelector { selector? !attribute "." ClassName { identifier } } |
+  PseudoClassSelector {
+    selector? !attribute (":" | "::") (
+      PseudoClassName { identifier } |
+      pseudoClassWithArg ArgList<value+> |
+      PseudoClassName { callee } ArgList<selector>)
+  } |
+  IdSelector { selector? !attribute "#" IdName { identifier } } |
+  AttributeSelector { selector? !attribute "[" AttributeName { identifier } (MatchOp value)? "]" } |
+  ChildSelector { selector !structure ChildOp selector } |
+  DescendantSelector { selector !structure descendantOp selector } |
+  SiblingSelector { selector !structure SiblingOp selector }
+}
+
+pseudoClassWithArg {
+  @specialize[@name=PseudoClassName]<callee, "lang" | "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type" | "nth-of-type" | "dir" | "host-context">
+}
+
+NumberLiteral {
+  numberLiteralInner Unit?
+}
+
+ArgList<content> { "(" commaSep<content> ")" }
+
+Declaration {
+  (PropertyName { identifier ~item } | VariableName)
+  ":" (value (","? value)*)? Important?
+}
+
+query {
+  KeywordQuery { identifier } |
+  FeatureQuery { "(" FeatureName { identifier } ":" value+ ")" } |
+  BinaryQuery { query !valueOp LogicOp query } |
+  UnaryQuery { @specialize[@name=UnaryQueryOp]<identifier, "not" | "only"> query } |
+  ParenthesizedQuery { "(" query ")" } |
+  SelectorQuery { @specialize[@name=selector]<callee, "selector"> "(" selector ")" }
+}
+
+value {
+  VariableName |
+  ValueName { identifier } |
+  ParenthesizedValue { "(" value ")" } |
+  ColorLiteral |
+  NumberLiteral |
+  StringLiteral |
+  BinaryExpression { value !valueOp BinOp value } |
+  CallExpression |
+  CallLiteral |
+  LineNames { "[" LineName { identifier }* "]" }
+}
+
+CallLiteral {
+  @specialize[@name=CallTag]<callee, "url" | "url-prefix" | "domain" | "regexp">
+  "(" (ParenthesizedContent | StringLiteral)? ")"
+}
+
+CallExpression {
+  Callee { callee } ArgList<value+>
+}
+
+@skip {} {
+  Comment[isolate] { "/*" (commentContent | commentLineBreak)* commentEnd }
+}
+
+@local tokens {
+  commentEnd { "*/" | @eof }
+  commentLineBreak { "\n" }
+  @else commentContent
+}
+
+commaSep<value> { "" | value ("," value)* }
+
+@external tokens descendant from "./tokens" {
+  descendantOp
+}
+
+@external tokens unitToken from "./tokens" {
+  Unit
+}
+
+@external tokens identifiers from "./tokens" {
+  callee,
+  identifier,
+  VariableName
+}
+
+@tokens {
+  UniversalSelector { "*" }
+
+  NestingSelector { "&" }
+
+  AtKeyword { "@" @asciiLetter (@asciiLetter | @digit | "-")* }
+
+  MatchOp { $[~^|*$]? "=" }
+
+  ChildOp { ">" ">"? }
+
+  SiblingOp { "~" | "+" }
+
+  LogicOp { "and" | "or" }
+
+  BinOp { $[+\-*/] }
+
+  Important { "!important" }
+
+  whitespace { @whitespace+ }
+
+  hexDigit { @digit | $[a-fA-F] }
+
+  ParenthesizedContent { !['")] ![)]+ }
+
+  @precedence { whitespace, ParenthesizedContent, "/*" }
+
+  ColorLiteral {
+    "#" hexDigit hexDigit hexDigit (hexDigit (hexDigit hexDigit (hexDigit hexDigit)?)?)?
+  }
+
+  numberLiteralInner { ("+" | "-")? (@digit+ ("." @digit*)? | "." @digit+) (("e" | "E") ("+" | "-")? @digit+)? }
+
+  @precedence { numberLiteralInner, BinOp, SiblingOp }
+
+  StringLiteral[isolate] { "\"" (!["\n\\] | "\\" _)* "\"" | "'" (!['\n\\] | "\\" _)* "'" }
+
+  "#" "."
+
+  ":" "::" ";" ","
+
+  "(" ")" "[" "]" "{" "}"
+}
+
+@external propSource cssHighlighting from "./highlight"
+
+@detectDelim

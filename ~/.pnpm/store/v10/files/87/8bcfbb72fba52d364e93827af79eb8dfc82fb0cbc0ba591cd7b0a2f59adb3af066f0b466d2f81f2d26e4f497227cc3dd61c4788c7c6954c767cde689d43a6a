@@ -1,0 +1,44 @@
+import { useLayout as I } from "../../hooks/useLayout.js";
+function F(f, { collections: l, collectionMutators: a, tags: o, tagMutators: p, workspaceMutators: x }) {
+  const { layout: b } = I(), y = (i, r) => {
+    i.type === "collection" ? a.edit(i.uid, "children", r) : i.type === "tag" && p.edit(i.uid, "children", r);
+  };
+  return {
+    handleDragEnd: (i, r) => {
+      var D, U, v, C;
+      if (!i || !r) return;
+      const { id: n, parentId: d } = i, { id: u, parentId: s, offset: c } = r;
+      if (d ? l[d] ? a.edit(
+        d,
+        "children",
+        l[d].children.filter((e) => e !== n)
+      ) : o[d] && p.edit(
+        d,
+        "children",
+        o[d].children.filter((e) => e !== n)
+      ) : x.edit(
+        (D = f.value) == null ? void 0 : D.uid,
+        "collections",
+        ((U = f.value) == null ? void 0 : U.collections.filter((e) => e !== n)) ?? []
+      ), c === 2) {
+        const e = l[u] || o[u];
+        e && y(e, [...e.children ?? [], n]);
+      } else if (s) {
+        const e = l[s] || o[s];
+        if (!e) return;
+        const t = [...e.children ?? []], h = t.findIndex((E) => u === E) ?? 0;
+        t.splice(h + c, 0, n), y(e, t);
+      } else {
+        const e = [...((v = f.value) == null ? void 0 : v.collections) ?? []], t = e.findIndex((h) => u === h) ?? 0;
+        e.splice(t + c, 0, n), x.edit((C = f.value) == null ? void 0 : C.uid, "collections", e);
+      }
+    },
+    isDroppable: (i, r) => {
+      var n, d;
+      return !(b === "modal" || !l[i.id] && r.offset !== 2 || l[i.id] && ((d = (n = l[r.id]) == null ? void 0 : n.info) == null ? void 0 : d.title) === "Drafts");
+    }
+  };
+}
+export {
+  F as dragHandlerFactory
+};

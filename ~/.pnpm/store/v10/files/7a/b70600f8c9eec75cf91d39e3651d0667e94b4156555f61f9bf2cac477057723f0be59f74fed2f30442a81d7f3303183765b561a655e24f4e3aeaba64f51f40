@@ -1,0 +1,86 @@
+import { defineComponent as w, ref as d, computed as a, openBlock as s, createElementBlock as z, Fragment as S, createElementVNode as m, normalizeClass as $, renderSlot as u, createBlock as k, unref as o, withCtx as B, normalizeStyle as R, createCommentVNode as b } from "vue";
+import { getSideAxis as g } from "@floating-ui/utils";
+import { useFloating as x, autoUpdate as E, offset as C, flip as F, shift as M, size as H } from "@floating-ui/vue";
+import { useResizeWithTarget as T } from "./useResizeWithTarget.js";
+import W from "../ScalarTeleport/ScalarTeleport.vue.js";
+const I = /* @__PURE__ */ w({
+  inheritAttrs: !1,
+  __name: "ScalarFloating",
+  props: {
+    placement: { default: "bottom" },
+    offset: { default: 5 },
+    resize: { type: Boolean, default: !1 },
+    target: {},
+    middleware: { default: () => [] },
+    teleport: { type: [Boolean, String] }
+  },
+  setup(t) {
+    const i = d(null), n = d(null), r = a(() => {
+      var e;
+      if (typeof window < "u" && n.value) {
+        if (typeof t.target == "string") {
+          const l = document.getElementById(t.target);
+          if (l) return l;
+          console.warn(`ScalarFloating: Target with id="${t.target}" not found`);
+        } else if (t.target instanceof HTMLElement) return t.target;
+        return ((e = n.value.children) == null ? void 0 : e[0]) || n.value;
+      }
+    }), f = T(r, {
+      enabled: a(() => t.resize)
+    }), c = a(
+      () => g(t.placement) === "y" ? f.width.value : void 0
+    ), h = a(
+      () => g(t.placement) === "x" ? f.height.value : void 0
+    ), { floatingStyles: p, middlewareData: y } = x(r, i, {
+      placement: a(() => t.placement),
+      whileElementsMounted: E,
+      middleware: a(() => [
+        C(t.offset),
+        F(),
+        M(),
+        H({
+          apply({ availableWidth: e, availableHeight: l, elements: v }) {
+            Object.assign(v.floating.style, {
+              maxWidth: `${Math.max(0, e) - 25}px`,
+              maxHeight: `${Math.max(0, l) - 25}px`
+            });
+          }
+        }),
+        ...t.middleware
+      ])
+    });
+    return (e, l) => (s(), z(S, null, [
+      m("div", {
+        ref_key: "wrapperRef",
+        ref: n,
+        class: $({ contents: !!e.$slots.default })
+      }, [
+        u(e.$slots, "default")
+      ], 2),
+      e.$slots.floating ? (s(), k(o(W), {
+        key: 0,
+        disabled: !e.teleport,
+        to: typeof e.teleport == "string" ? e.teleport : void 0
+      }, {
+        default: B(() => [
+          m("div", {
+            ref_key: "floatingRef",
+            ref: i,
+            class: "relative z-context",
+            style: R(o(p))
+          }, [
+            u(e.$slots, "floating", {
+              data: o(y),
+              height: h.value,
+              width: c.value
+            })
+          ], 4)
+        ]),
+        _: 3
+      }, 8, ["disabled", "to"])) : b("", !0)
+    ], 64));
+  }
+});
+export {
+  I as default
+};

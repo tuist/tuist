@@ -1,0 +1,256 @@
+import { defineComponent as q, ref as i, computed as T, watch as F, onMounted as G, onBeforeUnmount as Q, openBlock as a, createBlock as z, unref as r, withCtx as y, createElementVNode as u, createVNode as p, createTextVNode as K, createElementBlock as m, withDirectives as M, withKeys as w, withModifiers as g, vModelText as j, Fragment as P, renderList as B, toDisplayString as N, vShow as J, normalizeClass as X, createCommentVNode as Y, resolveDynamicComponent as Z, mergeProps as ee, nextTick as V } from "vue";
+import { Dialog as oe, DialogPanel as te, DialogTitle as ne } from "@headlessui/vue";
+import { useModal as ae, ScalarIcon as A } from "@scalar/components";
+import { useRouter as le } from "vue-router";
+import { ROUTES as se } from "../../constants.js";
+import { useActiveEntities as re } from "../../store/active-entities.js";
+import me from "./CommandPaletteCollection.vue.js";
+import ce from "./CommandPaletteExample.vue.js";
+import ie from "./CommandPaletteImport.vue.js";
+import ue from "./CommandPaletteRequest.vue.js";
+import de from "./CommandPaletteServer.vue.js";
+import pe from "./CommandPaletteTag.vue.js";
+import fe from "./CommandPaletteWorkspace.vue.js";
+import { useWorkspace as ve } from "../../store/store.js";
+const he = {
+  key: 0,
+  class: "custom-scroll max-h-[50dvh] min-h-0 flex-1 rounded-lg p-1.5"
+}, Ce = { class: "bg-b-2 focus-within:bg-b-1 focus-within:border-b-3 sticky top-0 flex items-center rounded-md border border-transparent pl-2 shadow-[0_-8px_0_8px_var(--scalar-background-1),0_0_8px_8px_var(--scalar-background-1)]" }, xe = { for: "commandmenu" }, _e = ["onKeydown"], ke = ["onClick"], be = {
+  key: 0,
+  class: "text-c-3 p-2 pt-3 text-center text-sm"
+}, ye = {
+  key: 1,
+  class: "flex-1 p-1.5"
+}, we = {
+  name: "TheCommandPalette"
+}, ge = {
+  "Import from OpenAPI/Swagger/Postman": ie,
+  "Create Request": ue,
+  "Create Workspace": fe,
+  "Add Tag": pe,
+  "Add Server": de,
+  "Create Collection": me,
+  "Add Example": ce
+}, Ve = /* @__PURE__ */ q({
+  ...we,
+  setup(Pe) {
+    const S = [
+      {
+        label: "",
+        commands: [
+          {
+            name: "Create Request",
+            icon: "ExternalLink"
+          },
+          {
+            name: "Import from OpenAPI/Swagger/Postman",
+            icon: "Import"
+          },
+          {
+            name: "Add Tag",
+            icon: "Folder"
+          },
+          {
+            name: "Create Collection",
+            icon: "Collection"
+          },
+          {
+            name: "Add Example",
+            icon: "Example"
+          },
+          {
+            name: "Add Server",
+            icon: "Server"
+          }
+        ]
+      },
+      {
+        label: "More Actions",
+        commands: [
+          {
+            name: "Create Workspace",
+            icon: "Workspace"
+          },
+          {
+            name: "Add Environment",
+            icon: "Brackets",
+            path: "environment.default"
+          },
+          {
+            name: "Add Cookie",
+            icon: "Cookie",
+            path: "cookies.default"
+          }
+        ]
+      },
+      {
+        label: "Pages",
+        commands: se.map((o) => ({
+          name: o.prettyName,
+          icon: o.icon,
+          path: `${o.name}.default`
+        }))
+      }
+    ], d = ae(), { push: W } = le(), { activeWorkspace: H } = re(), { events: f } = ve(), x = i(), l = i(""), s = i(null), c = i(-1), D = i([]), v = T(
+      () => S.reduce((o, e) => {
+        const t = e.commands.filter(
+          (n) => n.name.toLowerCase().includes(l.value.toLowerCase())
+        );
+        return [...o, ...t];
+      }, [])
+    ), h = () => {
+      d.hide(), l.value = "", s.value = null, c.value = -1;
+    }, O = (o) => {
+      l.value !== "" && (o == null || o.preventDefault()), s.value = null, V(() => {
+        var e;
+        return (e = _.value) == null ? void 0 : e.focus();
+      });
+    }, $ = (o) => {
+      var e;
+      "path" in o ? (W({
+        name: o.path,
+        params: {
+          workspace: (e = H.value) == null ? void 0 : e.uid
+        }
+      }), h()) : s.value = o.name;
+    }, _ = i(), I = ({
+      commandName: o,
+      metaData: e
+    } = {}) => {
+      s.value = o ?? null, x.value = e, d.show(), V(() => {
+        var t;
+        return (t = _.value) == null ? void 0 : t.focus();
+      });
+    };
+    F(l, (o) => {
+      o && v.value.length > 0 && (c.value = 0);
+    });
+    const R = (o, e) => {
+      var C;
+      if (!d.open) return;
+      e.preventDefault();
+      const t = o === "up" ? -1 : 1, n = v.value.length;
+      c.value = (c.value + t + n) % n, (C = D.value[c.value]) == null || C.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }, k = T(
+      () => v.value[c.value]
+    ), U = (o) => {
+      !k.value || s.value || (o.preventDefault(), o.stopPropagation(), $(k.value));
+    }, E = (o) => {
+      d.open && o != null && o.closeModal && h();
+    };
+    return G(() => {
+      f.commandPalette.on(I), f.hotKeys.on(E);
+    }), Q(() => {
+      f.commandPalette.off(I), f.hotKeys.off(E);
+    }), (o, e) => (a(), z(r(oe), {
+      open: r(d).open,
+      onClose: e[5] || (e[5] = (t) => h())
+    }, {
+      default: y(() => [
+        e[7] || (e[7] = u("div", { class: "commandmenu-overlay z-overlay" }, null, -1)),
+        p(r(te), { class: "commandmenu z-overlay flex flex-col" }, {
+          default: y(() => [
+            p(r(ne), { class: "sr-only" }, {
+              default: y(() => e[6] || (e[6] = [
+                K("API Client Command Menu")
+              ])),
+              _: 1
+            }),
+            s.value ? (a(), m("div", ye, [
+              u("button", {
+                class: "p-0.75 hover:bg-b-3 text-c-3 active:text-c-1 my-1.25 z-1 absolute mr-1.5 rounded",
+                type: "button",
+                onClick: e[3] || (e[3] = (t) => s.value = null)
+              }, [
+                p(r(A), {
+                  icon: "ChevronLeft",
+                  size: "md",
+                  thickness: "1.5"
+                })
+              ]),
+              (a(), z(Z(ge[s.value]), ee(x.value ? { metaData: x.value } : {}, {
+                onBack: e[4] || (e[4] = (t) => O(t)),
+                onClose: h
+              }), null, 16))
+            ])) : (a(), m("div", he, [
+              u("div", Ce, [
+                u("label", xe, [
+                  p(r(A), {
+                    class: "text-c-2 mr-2.5",
+                    icon: "Search",
+                    size: "md",
+                    thickness: "1.5"
+                  })
+                ]),
+                M(u("input", {
+                  id: "commandmenu",
+                  ref_key: "commandInputRef",
+                  ref: _,
+                  "onUpdate:modelValue": e[0] || (e[0] = (t) => l.value = t),
+                  autocomplete: "off",
+                  autofocus: "",
+                  class: "w-full rounded border-none bg-none py-1.5 text-sm focus:outline-none",
+                  placeholder: "Search commands...",
+                  type: "text",
+                  onKeydown: [
+                    e[1] || (e[1] = w(g((t) => R("down", t), ["stop"]), ["down"])),
+                    w(g(U, ["stop"]), ["enter"]),
+                    e[2] || (e[2] = w(g((t) => R("up", t), ["stop"]), ["up"]))
+                  ]
+                }, null, 40, _e), [
+                  [j, l.value]
+                ])
+              ]),
+              (a(), m(P, null, B(S, (t) => (a(), m(P, {
+                key: t.label
+              }, [
+                M(u("div", { class: "text-c-3 mb-1 mt-2 px-2 text-xs font-medium" }, N(t.label), 513), [
+                  [
+                    J,
+                    t.commands.filter(
+                      (n) => n.name.toLowerCase().includes(l.value.toLowerCase())
+                    ).length > 0
+                  ]
+                ]),
+                (a(!0), m(P, null, B(t.commands.filter(
+                  (n) => n.name.toLowerCase().includes(l.value.toLowerCase())
+                ), (n, C) => {
+                  var L;
+                  return a(), m("div", {
+                    key: n.name,
+                    ref_for: !0,
+                    ref: (b) => {
+                      b && (D.value[C] = b);
+                    },
+                    class: X(["commandmenu-item hover:bg-b-2 flex cursor-pointer items-center rounded px-2 py-1.5 text-sm", {
+                      "bg-b-2": n.name === ((L = k.value) == null ? void 0 : L.name)
+                    }]),
+                    onClick: (b) => $(n)
+                  }, [
+                    p(r(A), {
+                      class: "text-c-2 mr-2.5",
+                      icon: n.icon,
+                      size: "md",
+                      thickness: "1.5"
+                    }, null, 8, ["icon"]),
+                    K(" " + N(n.name), 1)
+                  ], 10, ke);
+                }), 128))
+              ], 64))), 64)),
+              v.value.length ? Y("", !0) : (a(), m("div", be, " No commands found "))
+            ]))
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    }, 8, ["open"]));
+  }
+});
+export {
+  ge as PaletteComponents,
+  Ve as default
+};

@@ -1,0 +1,55 @@
+{
+  "name": "@zag-js/store",
+  "version": "1.8.2",
+  "description": "The reactive store package for zag machines",
+  "keywords": [
+    "js",
+    "utils",
+    "store",
+    "reactivity"
+  ],
+  "author": "Segun Adebayo <sage@adebayosegun.com>",
+  "homepage": "https://github.com/chakra-ui/zag#readme",
+  "license": "MIT",
+  "repository": "https://github.com/chakra-ui/zag/tree/main/packages/utilities/store",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/chakra-ui/zag/issues"
+  },
+  "dependencies": {
+    "proxy-compare": "3.0.1"
+  },
+  "clean-package": "../../clean-package.config.json",
+  "main": "dist/index.js",
+  "devDependencies": {
+    "clean-package": "2.2.0"
+  },
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "lint": "eslint src",
+    "test-ci": "pnpm test --ci --runInBand -u",
+    "test-watch": "pnpm test --watchAll"
+  }
+}

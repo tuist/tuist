@@ -1,0 +1,243 @@
+{
+  "name": "@scalar/api-client",
+  "description": "the open source API testing client",
+  "license": "MIT",
+  "author": "Scalar (https://github.com/scalar)",
+  "homepage": "https://github.com/scalar/scalar",
+  "bugs": "https://github.com/scalar/scalar/issues/new/choose",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scalar/scalar.git",
+    "directory": "packages/api-client"
+  },
+  "keywords": [
+    "api",
+    "client",
+    "graphql",
+    "postman alternative",
+    "rest",
+    "testing"
+  ],
+  "version": "2.2.51",
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./views/Servers": {
+      "import": "./dist/views/Servers/index.js",
+      "types": "./dist/views/Servers/index.d.ts",
+      "default": "./dist/views/Servers/index.js"
+    },
+    "./views/Request/types": {
+      "import": "./dist/views/Request/types/index.js",
+      "types": "./dist/views/Request/types/index.d.ts",
+      "default": "./dist/views/Request/types/index.js"
+    },
+    "./views/Request/libs": {
+      "import": "./dist/views/Request/libs/index.js",
+      "types": "./dist/views/Request/libs/index.d.ts",
+      "default": "./dist/views/Request/libs/index.js"
+    },
+    "./views/Request/consts": {
+      "import": "./dist/views/Request/consts/index.js",
+      "types": "./dist/views/Request/consts/index.d.ts",
+      "default": "./dist/views/Request/consts/index.js"
+    },
+    "./views/Request/components": {
+      "import": "./dist/views/Request/components/index.js",
+      "types": "./dist/views/Request/components/index.d.ts",
+      "default": "./dist/views/Request/components/index.js"
+    },
+    "./views/Request/ResponseSection": {
+      "import": "./dist/views/Request/ResponseSection/index.js",
+      "types": "./dist/views/Request/ResponseSection/index.d.ts",
+      "default": "./dist/views/Request/ResponseSection/index.js"
+    },
+    "./views/Request/RequestSection": {
+      "import": "./dist/views/Request/RequestSection/index.js",
+      "types": "./dist/views/Request/RequestSection/index.d.ts",
+      "default": "./dist/views/Request/RequestSection/index.js"
+    },
+    "./views/Request/RequestSection/RequestAuth": {
+      "import": "./dist/views/Request/RequestSection/RequestAuth/index.js",
+      "types": "./dist/views/Request/RequestSection/RequestAuth/index.d.ts",
+      "default": "./dist/views/Request/RequestSection/RequestAuth/index.js"
+    },
+    "./views/Components/CodeSnippet": {
+      "import": "./dist/views/Components/CodeSnippet/index.js",
+      "types": "./dist/views/Components/CodeSnippet/index.d.ts",
+      "default": "./dist/views/Components/CodeSnippet/index.js"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    },
+    "./store": {
+      "import": "./dist/store/index.js",
+      "types": "./dist/store/index.d.ts",
+      "default": "./dist/store/index.js"
+    },
+    "./libs": {
+      "import": "./dist/libs/index.js",
+      "types": "./dist/libs/index.d.ts",
+      "default": "./dist/libs/index.js"
+    },
+    "./libs/send-request": {
+      "import": "./dist/libs/send-request/index.js",
+      "types": "./dist/libs/send-request/index.d.ts",
+      "default": "./dist/libs/send-request/index.js"
+    },
+    "./libs/importers": {
+      "import": "./dist/libs/importers/index.js",
+      "types": "./dist/libs/importers/index.d.ts",
+      "default": "./dist/libs/importers/index.js"
+    },
+    "./layouts/Web": {
+      "import": "./dist/layouts/Web/index.js",
+      "types": "./dist/layouts/Web/index.d.ts",
+      "default": "./dist/layouts/Web/index.js"
+    },
+    "./layouts/Modal": {
+      "import": "./dist/layouts/Modal/index.js",
+      "types": "./dist/layouts/Modal/index.d.ts",
+      "default": "./dist/layouts/Modal/index.js"
+    },
+    "./layouts/App": {
+      "import": "./dist/layouts/App/index.js",
+      "types": "./dist/layouts/App/index.d.ts",
+      "default": "./dist/layouts/App/index.js"
+    },
+    "./hooks": {
+      "import": "./dist/hooks/index.js",
+      "types": "./dist/hooks/index.d.ts",
+      "default": "./dist/hooks/index.js"
+    },
+    "./components": {
+      "import": "./dist/components/index.js",
+      "types": "./dist/components/index.d.ts",
+      "default": "./dist/components/index.js"
+    },
+    "./components/Sidebar": {
+      "import": "./dist/components/Sidebar/index.js",
+      "types": "./dist/components/Sidebar/index.d.ts",
+      "default": "./dist/components/Sidebar/index.js"
+    },
+    "./components/Server": {
+      "import": "./dist/components/Server/index.js",
+      "types": "./dist/components/Server/index.d.ts",
+      "default": "./dist/components/Server/index.js"
+    },
+    "./components/ImportCollection": {
+      "import": "./dist/components/ImportCollection/index.js",
+      "types": "./dist/components/ImportCollection/index.d.ts",
+      "default": "./dist/components/ImportCollection/index.js"
+    },
+    "./components/HttpMethod": {
+      "import": "./dist/components/HttpMethod/index.js",
+      "types": "./dist/components/HttpMethod/index.d.ts",
+      "default": "./dist/components/HttpMethod/index.js"
+    },
+    "./components/DataTable": {
+      "import": "./dist/components/DataTable/index.js",
+      "types": "./dist/components/DataTable/index.d.ts",
+      "default": "./dist/components/DataTable/index.js"
+    },
+    "./components/CommandPalette": {
+      "import": "./dist/components/CommandPalette/index.js",
+      "types": "./dist/components/CommandPalette/index.d.ts",
+      "default": "./dist/components/CommandPalette/index.js"
+    },
+    "./components/AddressBar": {
+      "import": "./dist/components/AddressBar/index.js",
+      "types": "./dist/components/AddressBar/index.d.ts",
+      "default": "./dist/components/AddressBar/index.js"
+    },
+    "./css/*.css": {
+      "import": "./dist/css/*.css",
+      "require": "./dist/css/*.css",
+      "default": "./dist/css/*.css"
+    },
+    "./*.css": {
+      "import": "./dist/*.css",
+      "require": "./dist/*.css",
+      "default": "./dist/*.css"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "module": "dist/index.js",
+  "dependencies": {
+    "@headlessui/tailwindcss": "^0.2.0",
+    "@headlessui/vue": "^1.7.20",
+    "@vueuse/core": "^10.10.0",
+    "@vueuse/integrations": "^11.2.0",
+    "focus-trap": "^7",
+    "fuse.js": "^7.0.0",
+    "microdiff": "^1.4.0",
+    "nanoid": "^5.0.9",
+    "pretty-bytes": "^6.1.1",
+    "pretty-ms": "^8.0.0",
+    "shell-quote": "^1.8.1",
+    "vue": "^3.5.12",
+    "vue-router": "^4.3.0",
+    "whatwg-mimetype": "^4.0.0",
+    "yaml": "^2.4.5",
+    "zod": "^3.23.8",
+    "@scalar/icons": "0.1.3",
+    "@scalar/import": "0.2.27",
+    "@scalar/oas-utils": "0.2.107",
+    "@scalar/openapi-parser": "0.10.8",
+    "@scalar/postman-to-openapi": "0.1.30",
+    "@scalar/openapi-types": "0.1.8",
+    "@scalar/object-utils": "1.1.13",
+    "@scalar/snippetz": "0.2.14",
+    "@scalar/themes": "0.9.68",
+    "@scalar/types": "0.0.34",
+    "@scalar/use-hooks": "0.1.22",
+    "@scalar/use-toasts": "0.7.9",
+    "@scalar/use-codemirror": "0.11.70",
+    "@scalar/use-tooltip": "1.0.6",
+    "@scalar/components": "0.13.25",
+    "@scalar/draggable": "0.1.10"
+  },
+  "devDependencies": {
+    "@types/shell-quote": "^1.7.5",
+    "@types/whatwg-mimetype": "^3.0.2",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vue/test-utils": "^2.4.1",
+    "autoprefixer": "^10.4.19",
+    "jsdom": "^22.1.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "tailwindcss-color-mix": "^0.0.8",
+    "type-fest": "^4.20.0",
+    "vite": "^5.4.10",
+    "vite-svg-loader": "^5.1.0",
+    "vitest": "^1.6.0",
+    "@scalar/build-tooling": "0.1.14",
+    "@scalar/galaxy": "0.2.20"
+  },
+  "scripts": {
+    "build": "scalar-build-vite",
+    "dev": "pnpm playground:app",
+    "lint:check": "eslint .",
+    "lint:fix": "eslint .  --fix",
+    "playground:app": "vite ./playground/app -c ./vite.config.ts",
+    "playground:modal": "vite ./playground/modal -c ./vite.config.ts",
+    "playground:web": "vite ./playground/web -c ./vite.config.ts",
+    "preview": "vite preview",
+    "test": "vitest",
+    "types:build": "scalar-types-build-vue",
+    "types:check": "scalar-types-check-vue"
+  }
+}

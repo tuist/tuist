@@ -1,0 +1,1 @@
+{"version":3,"file":"useColorMode.d.ts","sourceRoot":"","sources":["../../src/useColorMode/useColorMode.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,SAAS,EAAE,aAAa,EAAE,mBAAmB,EAAE,MAAM,SAAS,CAAA;AAM5E;;GAEG;AACH,wBAAgB,YAAY,CAAC,IAAI,GAAE,mBAAwB;IA+EvD,yCAAyC;;IAKzC,+CAA+C;;IAE/C,yDAAyD;;IAEzD,qDAAqD;;IAErD,kDAAkD;0BA5EvB,SAAS;IA8EpC,uCAAuC;mCAvEL,aAAa;EA0ElD"}

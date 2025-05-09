@@ -1,0 +1,62 @@
+import { parse as c } from "shell-quote";
+function b(i) {
+  const e = c(i).map((o) => typeof o == "object" && "op" in o && o.op === "glob" ? o.pattern.trim() : typeof o == "string" ? o.trim() : o).filter((o) => o !== ""), a = { url: "" }, t = e[Symbol.iterator]();
+  let r = t.next().value;
+  for (; r; )
+    r === "-X" || r === "--request" ? h(t, a) : r === "--url" ? s(t, a) : r === "-H" || r === "--header" ? p(t, a) : r === "--data" || r === "-d" || r === "--data-raw" || r === "--data-urlencode" || r === "--data-binary" || r === "--data-ascii" ? u(t, a, i) : typeof r == "string" && !a.url && (r.startsWith("http") || r.startsWith("www.")) ? s([r][Symbol.iterator](), a) : r === "-P" ? d(t, a) : typeof r == "string" && r.toLowerCase().includes("content-type") ? f(r, a) : r === "-u" || r === "--user" ? m(t, a) : (r === "-b" || r === "--cookie") && l(t, a), r = t.next().value;
+  return a;
+}
+function h(i, e) {
+  e.method = i.next().value.toLowerCase();
+}
+function s(i, e) {
+  const a = new URL(i.next().value.replace(/['"]/g, ""));
+  e.servers = [a.origin], e.path = a.pathname !== "/" ? a.pathname : "", e.url = e.servers[0] + e.path;
+  const t = n(a.search);
+  e.queryParameters = e.queryParameters ? [...e.queryParameters, ...t] : t;
+}
+function p(i, e) {
+  const a = i.next().value.split(/:(.*)/);
+  e.headers = e.headers || {}, a[1] !== void 0 ? e.headers[a[0].trim()] = a[1].trim() : e.headers[a[0].trim()] = "";
+}
+function d(i, e) {
+  const a = i.next().value.replace(/['"]/g, "").split("=");
+  e.pathVariables = e.pathVariables || {}, a[1] !== void 0 ? e.pathVariables[a[0].trim()] = a[1].trim() : e.pathVariables[a[0].trim()] = "";
+}
+function n(i) {
+  const e = [];
+  return new URL(i, "http://example.com").searchParams.forEach((t, r) => {
+    e.push({ key: r, value: t });
+  }), e;
+}
+function f(i, e) {
+  const a = i.replace(/['"]/g, "").split(/:(.+)/);
+  e.headers = e.headers || {}, a[0] && (a[1] !== void 0 ? e.headers[a[0].trim()] = a[1].trim() : e.headers[a[0].trim()] = "");
+}
+function m(i, e) {
+  const a = i.next().value;
+  try {
+    const t = btoa(a);
+    e.headers = e.headers || {}, e.headers.Authorization = `Basic ${t}`;
+  } catch (t) {
+    console.warn(
+      "Could not base64 encode these HTTP basic auth credentials:",
+      a,
+      t
+    );
+  }
+}
+function l(i, e) {
+  const a = i.next().value;
+  e.headers = e.headers || {}, e.headers.Cookie ? e.headers.Cookie += `; ${a}` : e.headers.Cookie = a.replace(/;$/, "");
+}
+function u(i, e, a) {
+  const t = i.next().value;
+  if (typeof t == "string" && (t.startsWith("@") ? e.body = "" : e.body = t, !e.url || a.includes("-G"))) {
+    const r = n(`?${e.body}`);
+    e.queryParameters = e.queryParameters ? [...e.queryParameters, ...r] : r;
+  }
+}
+export {
+  b as parseCurlCommand
+};

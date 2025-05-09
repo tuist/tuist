@@ -1,0 +1,110 @@
+import { defineComponent as k, useAttrs as z, ref as h, onMounted as V, openBlock as l, createElementBlock as s, createElementVNode as v, normalizeClass as u, unref as o, createBlock as y, resolveDynamicComponent as T, mergeProps as M, withKeys as $, normalizeStyle as O, toDisplayString as g, createCommentVNode as d, renderSlot as E, createTextVNode as N } from "vue";
+import { useTextareaAutosize as A } from "@vueuse/core";
+import { nanoid as D } from "nanoid";
+import { cva as I, cx as x } from "../../cva.js";
+import K from "../ScalarIcon/ScalarIcon.vue.js";
+const P = { class: "scalar-input-container relative" }, R = ["for"], j = { class: "icon-slot cursor-pointer text-c-ghost hover:text-c-1 !empty:flex !empty:w-7 !empty:items-center !empty:pr-3" }, Q = /* @__PURE__ */ k({
+  __name: "ScalarTextField",
+  props: {
+    modelValue: {},
+    placeholder: {},
+    label: {},
+    labelShadowColor: { default: "var(--scalar-background-1)" },
+    error: { type: Boolean },
+    isMultiline: { type: Boolean },
+    helperText: {},
+    emitOnBlur: { type: Boolean, default: !0 },
+    handleFieldSubmit: {},
+    handleFieldChange: {},
+    disableTrim: { type: Boolean, default: !1 }
+  },
+  emits: ["submit", "update:modelValue"],
+  setup(w, { emit: S }) {
+    const t = w, p = S, B = I({
+      base: "scalar-input-wrapper relative flex items-center rounded border border-solid border-border",
+      variants: {
+        focus: {
+          true: "scalar-input-wrapper-focus border-c-3 has-actv-btn:border has-actv-btn:border-border"
+        },
+        error: { true: "scalar-input-wrapper-error border-red" }
+      }
+    }), c = z(), m = c.id || `id-${D()}`, a = h(), n = h(!1);
+    let f;
+    if (t.isMultiline) {
+      const { triggerResize: e } = A({
+        element: a,
+        input: t.modelValue
+      });
+      f = e;
+    }
+    function C(e) {
+      const r = e.target.value;
+      t.isMultiline && f(), t.handleFieldChange ? t.handleFieldChange(r) : p("update:modelValue", r);
+    }
+    function b(e) {
+      const r = e.target, i = t.disableTrim || t.isMultiline ? r.value : r.value.trim();
+      t.handleFieldSubmit ? t.handleFieldSubmit(i) : p("submit", i);
+    }
+    function F(e) {
+      n.value = !1, t.emitOnBlur && t.modelValue && b(e);
+    }
+    return V(() => {
+      var e;
+      Object.prototype.hasOwnProperty.call(c, "autofocus") && ((e = a.value) == null || e.focus());
+    }), (e, r) => (l(), s("div", P, [
+      v("div", {
+        class: u(o(B)({ error: e.error, focus: n.value }))
+      }, [
+        (l(), y(T(e.isMultiline ? "textarea" : "input"), M({ id: o(m) }, e.$attrs, {
+          ref_key: "input",
+          ref: a,
+          class: [
+            "scalar-input",
+            o(x)(
+              { "min-h-[77px]": e.isMultiline },
+              "z-10 w-full resize-none appearance-none border-0 bg-transparent p-3 text-sm text-c-1",
+              "outline-none transition-opacity"
+            )
+          ],
+          placeholder: e.placeholder,
+          value: e.modelValue,
+          onBlur: F,
+          onFocus: r[0] || (r[0] = (i) => n.value = !0),
+          onInput: C,
+          onKeydown: $(b, ["enter"])
+        }), null, 16, ["id", "class", "placeholder", "value"])),
+        e.label ? (l(), s("label", {
+          key: 0,
+          class: u(
+            o(x)(
+              "scalar-input-label pointer-events-none absolute left-0 top-0 mx-2 my-3 px-1 text-sm",
+              "z-10 origin-top-left rounded text-c-3 shadow-current transition-transform"
+            )
+          ),
+          for: o(m),
+          style: O({
+            "box-shadow": `0 0 4px 4px ${e.labelShadowColor}`,
+            "background-color": e.labelShadowColor
+          })
+        }, g(e.label), 15, R)) : d("", !0),
+        v("div", j, [
+          E(e.$slots, "default", {}, void 0, !0)
+        ])
+      ], 2),
+      e.helperText ? (l(), s("span", {
+        key: 0,
+        class: u(["helper-text mt-1.5 flex items-center gap-1 text-sm", e.error ? "font-medium text-red" : "text-c-2"])
+      }, [
+        e.error ? (l(), y(o(K), {
+          key: 0,
+          icon: "Error",
+          size: "sm"
+        })) : d("", !0),
+        N(" " + g(e.helperText), 1)
+      ], 2)) : d("", !0)
+    ]));
+  }
+});
+export {
+  Q as default
+};

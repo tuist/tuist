@@ -1,0 +1,192 @@
+import { defineComponent as j, ref as D, computed as I, watch as L, openBlock as l, createBlock as U, unref as r, withCtx as m, createElementVNode as y, createVNode as x, createTextVNode as d, createElementBlock as i, Fragment as v, toDisplayString as V, createCommentVNode as E } from "vue";
+import { useLoadingState as W, ScalarButton as R, ScalarIcon as J, ScalarTooltip as Y, ScalarCodeBlock as q } from "@scalar/components";
+import { useToasts as G } from "@scalar/use-toasts";
+import { useActiveEntities as H } from "../../store/active-entities.js";
+import K from "./CommandActionForm.vue.js";
+import Q from "./CommandActionInput.vue.js";
+import X from "./WatchModeToggle.vue.js";
+import { isPostmanCollection as P, getPostmanDocumentDetails as Z, convertPostmanToOpenApi as F } from "../../libs/postman.js";
+import { getOpenApiDocumentDetails as ee } from "../../libs/getOpenApiDocumentDetails.js";
+import { isUrl as C } from "../../libs/isUrl.js";
+import { useFileDialog as te } from "../../hooks/useFileDialog.js";
+import { useWorkspace as oe } from "../../store/store.js";
+const ae = { class: "flex justify-between" }, le = { class: "flex w-full flex-row items-center justify-between gap-3" }, ne = { class: "w-content bg-b-1 z-100 text-xxs text-c-1 pointer-events-none z-10 grid max-w-[320px] gap-1.5 rounded p-2 leading-5 shadow-lg" }, se = { class: "text-c-2 flex items-center" }, re = {
+  key: 0,
+  class: "text-pretty"
+}, ie = {
+  key: 1,
+  class: "text-pretty"
+}, he = /* @__PURE__ */ j({
+  __name: "CommandPaletteImport",
+  emits: ["close", "back"],
+  setup(ue, { emit: T }) {
+    const S = T, { activeWorkspace: p } = H(), { importSpecFile: w, importSpecFromUrl: M } = oe(), { toast: u } = G(), c = W(), t = D(""), f = D(!0), s = I(() => P(t.value) ? Z(t.value) : ee(t.value)), _ = I(
+      () => s.value ? s.value.type : "json"
+    ), g = I(() => C(t.value)), $ = I(() => !!s.value), { open: z } = te({
+      onChange: async (a) => {
+        const e = a == null ? void 0 : a[0];
+        if (e) {
+          const o = new FileReader();
+          o.onload = async (k) => {
+            var b, A, O;
+            const n = (b = k.target) == null ? void 0 : b.result;
+            try {
+              P(n) ? await w(
+                await F(n),
+                ((A = p.value) == null ? void 0 : A.uid) ?? ""
+              ) : await w(n, ((O = p.value) == null ? void 0 : O.uid) ?? ""), u("Import successful", "info"), S("close");
+            } catch (h) {
+              console.error(h);
+              const N = (h == null ? void 0 : h.message) || "Unknown error";
+              u(`Import failed: ${N}`, "error");
+            }
+          }, o.readAsText(e);
+        }
+      },
+      multiple: !1,
+      accept: ".json,.yaml,.yml"
+    });
+    L(g, (a) => {
+      a || (f.value = !1);
+    }), L(t, (a) => {
+      C(a) || (f.value = !1);
+    });
+    async function B() {
+      var a, e, o, k;
+      if (!(!t.value || c.isLoading)) {
+        c.startLoading();
+        try {
+          if (g.value) {
+            const [n] = await M(
+              t.value,
+              ((a = p.value) == null ? void 0 : a.uid) ?? "",
+              {
+                proxyUrl: (e = p.value) == null ? void 0 : e.proxyUrl,
+                watchMode: f.value
+              }
+            );
+            if (n) {
+              u(
+                "There was a possible CORS error while importing your spec, please make sure this server is allowed in the CORS policy of your OpenAPI document.",
+                "error",
+                { timeout: 5e3 }
+              ), c.invalidate(2e3, !0);
+              return;
+            }
+          } else if ($.value)
+            P(t.value) ? (await w(
+              await F(t.value),
+              ((o = p.value) == null ? void 0 : o.uid) ?? ""
+            ), u("Successfully converted Postman collection", "info")) : await w(
+              t.value,
+              ((k = p.value) == null ? void 0 : k.uid) ?? ""
+            );
+          else {
+            u("Import failed: Invalid URL or OpenAPI document", "error"), c.invalidate(2e3, !0);
+            return;
+          }
+          c.clear(), S("close"), u("Import successful", "info");
+        } catch (n) {
+          console.error("[importCollection]", n);
+          const b = (n == null ? void 0 : n.message) || "Unknown error";
+          c.invalidate(2e3, !0), u(`Import failed: ${b}`, "error");
+        }
+      }
+    }
+    return (a, e) => (l(), U(K, {
+      disabled: !t.value.trim(),
+      loading: r(c),
+      onSubmit: B
+    }, {
+      options: m(() => [
+        y("div", le, [
+          x(r(R), {
+            class: "hover:bg-b-2 relative max-h-8 gap-1.5 p-2 text-xs",
+            variant: "outlined",
+            onClick: r(z)
+          }, {
+            default: m(() => [
+              e[6] || (e[6] = d(" JSON, or YAML File ")),
+              x(r(J), {
+                class: "text-c-3",
+                icon: "UploadSimple",
+                size: "md"
+              })
+            ]),
+            _: 1
+          }, 8, ["onClick"]),
+          x(r(Y), {
+            as: "div",
+            class: "z-[10001]",
+            side: "bottom",
+            sideOffset: 5
+          }, {
+            trigger: m(() => [
+              x(X, {
+                modelValue: f.value,
+                "onUpdate:modelValue": e[3] || (e[3] = (o) => f.value = o),
+                disabled: !g.value
+              }, null, 8, ["modelValue", "disabled"])
+            ]),
+            content: m(() => [
+              y("div", ne, [
+                y("div", se, [
+                  g.value ? (l(), i("span", re, " Automatically updates the API client when the OpenAPI URL content changes, ensuring your client remains up-to-date. ")) : (l(), i("span", ie, " Watch Mode is only available for URL imports. It automatically updates the API client when the OpenAPI URL content changes. "))
+                ])
+              ])
+            ]),
+            _: 1
+          })
+        ])
+      ]),
+      submit: m(() => [
+        e[7] || (e[7] = d(" Import ")),
+        g.value ? (l(), i(v, { key: 0 }, [
+          d(" from URL ")
+        ], 64)) : s.value && _.value ? (l(), i(v, { key: 1 }, [
+          s.value.title ? (l(), i(v, { key: 0 }, [
+            d(' "' + V(s.value.title) + '" ', 1)
+          ], 64)) : (l(), i(v, { key: 1 }, [
+            d(V(s.value.version), 1)
+          ], 64))
+        ], 64)) : (l(), i(v, { key: 2 }, [
+          d(" Collection ")
+        ], 64))
+      ]),
+      default: m(() => [
+        !s.value || r(C)(t.value) ? (l(), U(Q, {
+          key: 0,
+          modelValue: t.value,
+          "onUpdate:modelValue": e[0] || (e[0] = (o) => t.value = o),
+          placeholder: "OpenAPI/Swagger/Postman URL or document",
+          onOnDelete: e[1] || (e[1] = (o) => S("back", o))
+        }, null, 8, ["modelValue"])) : (l(), i(v, { key: 1 }, [
+          y("div", ae, [
+            e[5] || (e[5] = y("div", { class: "text-c-2 min-h-8 py-2 pl-8 text-xs" }, "Preview", -1)),
+            x(r(R), {
+              class: "hover:bg-b-2 relative ml-auto max-h-8 gap-1.5 p-2 text-xs",
+              variant: "ghost",
+              onClick: e[2] || (e[2] = (o) => t.value = "")
+            }, {
+              default: m(() => e[4] || (e[4] = [
+                d(" Clear ")
+              ])),
+              _: 1
+            })
+          ]),
+          s.value && !r(C)(t.value) ? (l(), U(r(q), {
+            key: 0,
+            class: "bg-b-2 mt-1 max-h-[40dvh] rounded border [--scalar-small:--scalar-font-size-4]",
+            content: t.value,
+            copy: !1,
+            lang: _.value
+          }, null, 8, ["content", "lang"])) : E("", !0)
+        ], 64))
+      ]),
+      _: 1
+    }, 8, ["disabled", "loading"]));
+  }
+});
+export {
+  he as default
+};

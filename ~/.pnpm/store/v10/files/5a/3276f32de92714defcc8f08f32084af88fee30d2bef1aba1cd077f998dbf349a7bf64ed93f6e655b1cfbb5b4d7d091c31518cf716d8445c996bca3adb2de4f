@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * php/curl
+ */
+export declare const phpCurl: Plugin;
+//# sourceMappingURL=curl.d.ts.map

@@ -1,0 +1,51 @@
+import { createModalRouter as c } from "../../router.js";
+import i from "./ApiClientModal.vue.js";
+import { createApiClient as n } from "../../libs/create-client.js";
+const S = async ({
+  el: r = null,
+  configuration: e = {},
+  mountOnInitialize: l = !0,
+  store: t
+}) => {
+  var p, a, s;
+  const u = {
+    ...e,
+    showSidebar: !1
+  }, o = n({
+    el: r,
+    appComponent: i,
+    configuration: u,
+    persistData: !1,
+    isReadOnly: !0,
+    store: t,
+    mountOnInitialize: l,
+    router: c(),
+    layout: "modal"
+  }), { importSpecFile: m, importSpecFromUrl: d } = o.store;
+  return t || ((p = e.spec) != null && p.url ? await d(e.spec.url, "default", {
+    proxyUrl: e.proxyUrl,
+    setCollectionSecurity: !0,
+    ...e
+  }) : (a = e.spec) != null && a.content && await m((s = e.spec) == null ? void 0 : s.content, "default", {
+    setCollectionSecurity: !0,
+    ...e
+  })), o;
+}, A = ({
+  el: r = null,
+  configuration: e = {},
+  mountOnInitialize: l = !0,
+  store: t
+}) => n({
+  el: r,
+  appComponent: i,
+  configuration: e,
+  persistData: !1,
+  isReadOnly: !0,
+  mountOnInitialize: l,
+  store: t,
+  router: c()
+});
+export {
+  S as createApiClientModal,
+  A as createApiClientModalSync
+};

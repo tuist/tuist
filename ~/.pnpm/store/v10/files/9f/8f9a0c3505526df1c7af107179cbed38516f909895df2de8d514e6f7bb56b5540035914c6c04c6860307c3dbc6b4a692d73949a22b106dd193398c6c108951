@@ -1,0 +1,17 @@
+import { LS_KEYS as i } from "@scalar/oas-utils/helpers";
+import { mutationFactory as c } from "@scalar/object-utils/mutator-record";
+import { reactive as t } from "vue";
+function s(r) {
+  const o = t({}), e = c(
+    o,
+    t({}),
+    r && i.COOKIE
+  );
+  return {
+    cookies: o,
+    cookieMutators: e
+  };
+}
+export {
+  s as createStoreCookies
+};

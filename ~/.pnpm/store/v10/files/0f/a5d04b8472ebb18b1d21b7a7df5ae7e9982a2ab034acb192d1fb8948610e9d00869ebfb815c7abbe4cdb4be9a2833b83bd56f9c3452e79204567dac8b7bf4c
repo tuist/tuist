@@ -1,0 +1,19 @@
+import type { Collection, Request as Operation, Server } from '@scalar/oas-utils/entities/spec';
+type __VLS_Props = {
+    collection: Collection;
+    operation: Operation | undefined;
+    server: Server | undefined;
+    serverOption: {
+        id: Server['uid'];
+        label: string;
+    };
+    type: 'collection' | 'request';
+    layout: 'client' | 'reference';
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    "update:variable": (key: string, value: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    "onUpdate:variable"?: (key: string, value: string) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLDivElement>;
+export default _default;
+//# sourceMappingURL=ServerDropdownItem.vue.d.ts.map

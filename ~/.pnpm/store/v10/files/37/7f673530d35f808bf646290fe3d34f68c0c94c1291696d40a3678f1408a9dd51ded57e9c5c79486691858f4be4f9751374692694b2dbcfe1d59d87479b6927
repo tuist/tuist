@@ -1,0 +1,50 @@
+import { defineComponent as d, computed as c, openBlock as p, createBlock as f, createSlots as x, withCtx as r, createTextVNode as u, createElementVNode as h, createVNode as a, unref as e } from "vue";
+import y from "../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import { useResponseBody as b } from "../../../hooks/useResponseBody.js";
+import { ScalarVirtualText as g } from "@scalar/components";
+import { formatJsonOrYamlString as _ } from "@scalar/oas-utils/helpers";
+import v from "./ResponseBodyDownload.vue.js";
+const N = /* @__PURE__ */ d({
+  __name: "ResponseBodyVirtual",
+  props: {
+    content: {},
+    data: {},
+    headers: {}
+  },
+  setup(s) {
+    const o = s, l = c(() => _(o.content)), { mimeType: i, attachmentFilename: m, dataUrl: n } = b({
+      data: o.data,
+      headers: o.headers
+    });
+    return (k, t) => (p(), f(y, { class: "!max-h-100% overflow-x-auto response-body-virtual" }, x({
+      title: r(() => [
+        t[0] || (t[0] = u("Body"))
+      ]),
+      default: r(() => [
+        t[1] || (t[1] = h("div", { class: "py-1.5 px-2.5 font-code text-xxs border-1/2 rounded-t border-b-0" }, " This response body is massive! Syntax highlighting won’t work here. ", -1)),
+        a(e(g), {
+          containerClass: "custom-scroll scalar-code-block border-1/2 rounded-b flex flex-1 max-h-screen",
+          contentClass: "language-plaintext whitespace-pre font-code text-base",
+          lineHeight: 20,
+          text: l.value
+        }, null, 8, ["text"])
+      ]),
+      _: 2
+    }, [
+      e(n) ? {
+        name: "actions",
+        fn: r(() => [
+          a(v, {
+            filename: e(m),
+            href: e(n),
+            type: e(i).essence
+          }, null, 8, ["filename", "href", "type"])
+        ]),
+        key: "0"
+      } : void 0
+    ]), 1024));
+  }
+});
+export {
+  N as default
+};

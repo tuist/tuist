@@ -1,0 +1,63 @@
+import { defineComponent as S, ref as g, withDirectives as D, openBlock as l, createElementBlock as m, normalizeClass as h, normalizeStyle as L, unref as s, renderSlot as n, createElementVNode as r, toDisplayString as _, createCommentVNode as u, Fragment as W, vShow as $ } from "vue";
+import { useBreakpoints as z } from "@scalar/use-hooks/useBreakpoints";
+import { useWorkspace as B } from "../../store/store.js";
+import { useLayout as C } from "../../hooks/useLayout.js";
+const I = {
+  key: 0,
+  class: "min-h-12 xl:min-h-client-header flex items-center justify-between px-3 py-1.5 md:px-[18px] md:py-2.5 text-sm"
+}, X = { class: "font-medium m-0 text-sm whitespace-nowrap" }, N = { class: "bg-b-1 relative z-10 pt-0 md:px-2.5 md:pb-2.5 sticky bottom-0 w-[inherit] has-[.empty-sidebar-item]:border-t-1/2" }, F = /* @__PURE__ */ S({
+  __name: "Sidebar",
+  props: {
+    title: {},
+    isSidebarOpen: { type: Boolean, default: !0 }
+  },
+  setup(y) {
+    const w = y, { sidebarWidth: o, setSidebarWidth: i } = B(), { layout: c } = C(), a = g(!1), p = g(null), { breakpoints: d } = z(), x = (e) => {
+      e.preventDefault();
+      const f = e.clientX, k = parseInt(
+        getComputedStyle(p.value).width || o.value,
+        10
+      ), b = (E) => {
+        a.value = !0, document.body.classList.add("dragging");
+        let t = k + E.clientX - f;
+        t > 420 && (t = 420 + (t - 420) * 0.2), t < 240 && (t = 240), i(`${t}px`);
+      }, v = () => {
+        a.value = !1, document.body.classList.remove("dragging"), document.documentElement.removeEventListener("mousemove", b, !1), document.documentElement.removeEventListener("mouseup", v, !1), parseInt(o.value, 10) > 420 ? i("360px") : parseInt(o.value, 10) < 240 && i("240px");
+      };
+      document.documentElement.addEventListener("mousemove", b, !1), document.documentElement.addEventListener("mouseup", v, !1);
+    };
+    return (e, f) => D((l(), m("aside", {
+      ref_key: "sidebarRef",
+      ref: p,
+      class: h(["sidebar overflow-hidden relative flex flex-col flex-1 md:flex-none bg-b-1 md:border-b-0 md:border-r-1/2 min-w-full md:min-w-fit leading-3", { dragging: a.value }]),
+      style: L({ width: s(d).lg ? s(o) : "100%" })
+    }, [
+      n(e.$slots, "header", {}, void 0, !0),
+      s(c) !== "modal" && e.title ? (l(), m("div", I, [
+        r("h2", X, _(e.title), 1),
+        s(d).lg ? u("", !0) : n(e.$slots, "button", { key: 0 }, void 0, !0)
+      ])) : u("", !0),
+      r("div", {
+        class: h(["custom-scroll sidebar-height pb-0 md:pb-[37px] w-[inherit]", {
+          "sidebar-mask": s(c) !== "modal"
+        }])
+      }, [
+        n(e.$slots, "content", {}, void 0, !0)
+      ], 2),
+      s(d).lg ? (l(), m(W, { key: 1 }, [
+        r("div", N, [
+          n(e.$slots, "button", {}, void 0, !0)
+        ]),
+        r("div", {
+          class: "resizer",
+          onMousedown: x
+        }, null, 32)
+      ], 64)) : u("", !0)
+    ], 6)), [
+      [$, w.isSidebarOpen]
+    ]);
+  }
+});
+export {
+  F as default
+};

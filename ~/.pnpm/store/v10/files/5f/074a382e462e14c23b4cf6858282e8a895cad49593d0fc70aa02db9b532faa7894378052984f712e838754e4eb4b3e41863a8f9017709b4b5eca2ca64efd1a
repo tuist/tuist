@@ -1,0 +1,1 @@
+{"version":3,"file":"create-fetch-headers.d.ts","sourceRoot":"","sources":["../../../src/libs/send-request/create-fetch-headers.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,iCAAiC,CAAA;AAErE,mDAAmD;AACnD,wBAAgB,kBAAkB,CAChC,OAAO,EAAE,IAAI,CAAC,cAAc,EAAE,YAAY,CAAC,EAC3C,GAAG,EAAE,MAAM,0BAgBZ"}

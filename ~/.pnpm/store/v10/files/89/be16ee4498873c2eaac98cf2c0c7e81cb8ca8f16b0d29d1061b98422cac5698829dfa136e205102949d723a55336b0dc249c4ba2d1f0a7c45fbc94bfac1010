@@ -1,0 +1,37 @@
+import { z } from 'zod';
+
+const parameterTypeSchema = z.enum(['path', 'query', 'header', 'cookie']);
+const parameterStyleSchema = z.enum([
+    'matrix',
+    'simple',
+    'form',
+    'label',
+    'spaceDelimited',
+    'pipeDelimited',
+    'deepObject',
+]);
+/**
+ * OpenAPI compliant parameters object
+ */
+const oasParameterSchema = z.object({
+    in: parameterTypeSchema,
+    name: z.string(),
+    description: z.string().optional(),
+    /** Defaulted to false */
+    required: z.boolean().optional().default(false),
+    /** Defaulted to false */
+    deprecated: z.boolean().optional().default(false),
+    schema: z.unknown().optional(),
+    content: z.unknown().optional(),
+    /** Defaulted according to @url https://spec.openapis.org/oas/v3.1.0#parameter-object */
+    style: parameterStyleSchema.optional(),
+    example: z.unknown().optional(),
+    examples: z
+        .record(z.string(), z.object({
+        value: z.unknown(),
+        summary: z.string().optional(),
+    }))
+        .optional(),
+});
+
+export { oasParameterSchema, parameterStyleSchema, parameterTypeSchema };

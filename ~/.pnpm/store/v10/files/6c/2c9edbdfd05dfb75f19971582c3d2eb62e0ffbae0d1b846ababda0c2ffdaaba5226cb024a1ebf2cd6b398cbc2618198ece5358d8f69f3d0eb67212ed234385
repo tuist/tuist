@@ -1,0 +1,22 @@
+type __VLS_Props = {
+    isSidebarOpen: boolean;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    "update:modelValue": (v: boolean) => any;
+    clearDrafts: () => any;
+    newTab: (args_0: {
+        name: string;
+        uid: string;
+    }) => any;
+    "update:isSidebarOpen": (v: boolean) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    "onUpdate:modelValue"?: (v: boolean) => any;
+    onClearDrafts?: () => any;
+    onNewTab?: (args_0: {
+        name: string;
+        uid: string;
+    }) => any;
+    "onUpdate:isSidebarOpen"?: (v: boolean) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=RequestSidebar.vue.d.ts.map

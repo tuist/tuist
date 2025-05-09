@@ -1,0 +1,107 @@
+import { ERRORS as k, normalizeError as g } from "../errors.js";
+import { normalizeHeaders as A } from "../normalize-headers.js";
+import { createFetchBody as I } from "./create-fetch-body.js";
+import { createFetchHeaders as Q } from "./create-fetch-headers.js";
+import { createFetchQueryParams as V } from "./create-fetch-query-params.js";
+import { decodeBuffer as X } from "./decode-buffer.js";
+import { setRequestCookies as $, getCookieHeader as K } from "./set-request-cookies.js";
+import { replaceTemplateVariables as c } from "../string-template.js";
+import { isDefined as M, mergeUrls as Y, shouldUseProxy as p } from "@scalar/oas-utils/helpers";
+import { buildRequestSecurity as G } from "./build-request-security.js";
+const ce = ({
+  environment: R,
+  example: a,
+  globalCookies: C,
+  proxyUrl: s,
+  request: d,
+  securitySchemes: P,
+  selectedSecuritySchemeUids: T = [],
+  server: i,
+  status: o
+}) => {
+  try {
+    const t = R ?? {}, y = new AbortController(), S = a.parameters.path.reduce((r, e) => (e.enabled && (r[e.key] = c(e.value, t)), r), {}), q = c((i == null ? void 0 : i.url) ?? "", t), h = c(d.path, S);
+    let n = q || h;
+    if (!n) throw k.URL_EMPTY;
+    Object.entries((i == null ? void 0 : i.variables) ?? {}).forEach(([r, e]) => {
+      n = c(n, {
+        [r]: S[r] || e.default
+      });
+    });
+    const H = V(a, t), U = Q(a, t), { body: L } = I(d.method, a, t), { cookieParams: E } = $({
+      example: a,
+      env: t,
+      globalCookies: C,
+      serverUrl: n,
+      proxyUrl: s
+    }), D = T.flat().map((r) => P[r]).filter(M), l = G(D, t), m = { ...Object.entries(l.headers).reduce((r, [e, u]) => (r[e.toLowerCase()] = u, r), {}), ...U }, _ = [...E, ...l.cookies], z = new URLSearchParams([
+      ...H,
+      ...l.urlParams
+    ]);
+    n = Y(n, h, z);
+    const f = c(
+      K(_, m.Cookie),
+      t
+    );
+    f && (p(s, n) ? (console.warn(
+      "We’re using a `X-Scalar-Cookie` custom header to the request. The proxy will forward this as a `Cookie` header. We do this to avoid the browser omitting the `Cookie` header for cross-origin requests for security reasons."
+    ), m["X-Scalar-Cookie"] = f) : (console.warn(
+      `We’re trying to add a Cookie header, but browsers often omit them for cross-origin requests for various security reasons. If it’s not working, that’s probably why. Here are the requirements for it to work:
+
+          - The browser URL must be on the same domain as the server URL.
+          - The connection must be made over HTTPS.
+          `
+    ), m.Cookie = f));
+    const F = new URLSearchParams([["scalar_url", n.toString()]]), B = p(s, n) ? `${s}?${F.toString()}` : n, b = new Request(B, {
+      method: d.method.toUpperCase(),
+      body: L ?? null,
+      headers: m
+    });
+    return [
+      null,
+      {
+        request: b,
+        sendRequest: async () => {
+          o == null || o.emit("start");
+          const r = Date.now();
+          try {
+            const e = await fetch(b, {
+              signal: y.signal
+            });
+            o == null || o.emit("stop");
+            const u = A(
+              e.headers,
+              p(s, n)
+            ), O = e.headers.get("content-type") ?? "text/plain;charset=UTF-8", w = await e.arrayBuffer(), W = X(w, O), j = "getSetCookie" in e.headers && typeof e.headers.getSetCookie == "function" ? e.headers.getSetCookie() : [];
+            return [
+              null,
+              {
+                timestamp: Date.now(),
+                request: a,
+                response: {
+                  ...e,
+                  headers: u,
+                  cookieHeaderKeys: j,
+                  data: W,
+                  size: w.byteLength,
+                  duration: Date.now() - r,
+                  method: d.method,
+                  status: e.status,
+                  path: h
+                }
+              }
+            ];
+          } catch (e) {
+            return o == null || o.emit("abort"), [g(e, k.REQUEST_FAILED), null];
+          }
+        },
+        controller: y
+      }
+    ];
+  } catch (t) {
+    return console.error(t), o == null || o.emit("abort"), [g(t), null];
+  }
+};
+export {
+  ce as createRequestOperation
+};

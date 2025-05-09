@@ -1,0 +1,4 @@
+export { default as Tag } from './Tag.vue.js';
+export { default as TagAccordion } from './TagAccordion.vue.js';
+export { default as TagList } from './TagList.vue.js';
+//# sourceMappingURL=index.d.ts.map

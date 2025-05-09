@@ -1,0 +1,57 @@
+import { isDefined as p } from "@scalar/oas-utils/helpers";
+import { ADD_AUTH_OPTIONS as O } from "../consts/new-auth-options.js";
+const d = (t) => ({
+  id: t.uid,
+  label: t.type === "openIdConnect" ? `${t.nameKey} (coming soon)` : t.nameKey
+}), b = (t, e) => d(
+  t.reduce(
+    (r, a, i) => {
+      const m = e[a];
+      return m && (r.nameKey += `${i > 0 ? " & " : ""}${m.nameKey}`, r.uid = `${r.uid}${i > 0 ? "," : ""}${m.uid}`), r;
+    },
+    { type: "complex", nameKey: "", uid: "" }
+  )
+), A = (t, e) => {
+  var r;
+  return JSON.stringify(t == null ? void 0 : t.security) === "[{}]" && ((r = e == null ? void 0 : e.security) != null && r.length) ? !!(e != null && e.security.find((i) => JSON.stringify(i) === "{}")) ? e.security : [...e.security, {}] : (t == null ? void 0 : t.security) ?? (e == null ? void 0 : e.security) ?? [];
+}, D = (t, e, r, a = !1) => {
+  {
+    const i = e.reduce(
+      (n, s) => {
+        const u = r[s];
+        return u && (n[u.nameKey] = u), n;
+      },
+      {}
+    ), m = t.flatMap((n) => {
+      const s = Object.keys(n);
+      if (s.length > 1) {
+        const u = s.map((g) => {
+          var h;
+          return (h = i[g]) == null ? void 0 : h.uid;
+        }).filter(p);
+        return b(u, r);
+      }
+      if (s[0]) {
+        const u = i[s[0]];
+        if (u) return d(u);
+      }
+      return [];
+    }), y = e.filter((n) => !m.some((s) => s.id === n)).map((n) => {
+      const s = r[n];
+      return s ? d(s) : null;
+    }).filter(p), f = [
+      { label: "Required authentication", options: m },
+      { label: "Available authentication", options: y }
+    ];
+    return a ? m.length ? f : y : (f.push({
+      label: "Add new authentication",
+      options: O
+    }), f);
+  }
+};
+export {
+  b as formatComplexScheme,
+  d as formatScheme,
+  D as getSchemeOptions,
+  A as getSecurityRequirements
+};

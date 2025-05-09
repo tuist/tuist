@@ -1,0 +1,66 @@
+import { defineComponent as f, openBlock as o, createBlock as a, unref as s, normalizeClass as l, withCtx as r, createElementVNode as u, createVNode as c, createCommentVNode as n, renderSlot as i, createElementBlock as d, toDisplayString as p, mergeProps as m } from "vue";
+import { Disclosure as h, DisclosureButton as b, DisclosurePanel as x } from "@headlessui/vue";
+import { ScalarIcon as y } from "@scalar/components";
+const g = { class: "bg-b-2 flex items-center" }, v = { class: "flex flex-1 items-center gap-1.5 text-c-1" }, C = {
+  key: 0,
+  class: "bg-b-2 text-c-2 text-3xs inline-flex h-4 w-4 items-center justify-center rounded-full font-semibold border"
+}, k = {
+  key: 0,
+  class: "ui-not-open:invisible flex items-center gap-2 pr-1.5"
+}, O = /* @__PURE__ */ f({
+  __name: "ViewLayoutCollapse",
+  props: {
+    defaultOpen: { type: Boolean, default: !0 },
+    itemCount: { default: 0 },
+    layout: { default: "client" }
+  },
+  setup(_) {
+    return (e, w) => (o(), a(s(h), {
+      as: "div",
+      class: l(["focus-within:text-c-1 text-c-2 request-item border-b", { "first:border-t": e.layout === "client" }]),
+      defaultOpen: e.defaultOpen,
+      static: e.layout === "reference"
+    }, {
+      default: r(({ open: t }) => [
+        u("div", g, [
+          c(s(b), {
+            class: l([
+              "group hover:text-c-1 flex flex-1 items-center gap-2.5 overflow-hidden py-1.5 text-sm font-medium max-h-8 px-1 md:px-1.5 xl:pl-2 xl:pr-0.5 outline-none",
+              { "!pl-3": e.layout === "reference" }
+            ]),
+            disabled: e.layout === "reference"
+          }, {
+            default: r(() => [
+              e.layout !== "reference" ? (o(), a(s(y), {
+                key: 0,
+                class: l([
+                  "text-c-3 group-hover:text-c-1 group-focus-visible:outline ui-open:rotate-90 ui-not-open:rotate-0 rounded-px outline-offset-2"
+                ]),
+                icon: "ChevronRight",
+                size: "md"
+              })) : n("", !0),
+              u("div", v, [
+                i(e.$slots, "title", { open: t }),
+                !t && e.itemCount ? (o(), d("span", C, p(e.itemCount), 1)) : n("", !0)
+              ])
+            ]),
+            _: 2
+          }, 1032, ["class", "disabled"]),
+          e.$slots.actions ? (o(), d("div", k, [
+            i(e.$slots, "actions", { open: t })
+          ])) : n("", !0)
+        ]),
+        c(s(x), m(e.$attrs, { class: "h-full max-h-fit rounded-b diclosure-panel" }), {
+          default: r(() => [
+            i(e.$slots, "default", { open: t })
+          ]),
+          _: 2
+        }, 1040)
+      ]),
+      _: 3
+    }, 8, ["class", "defaultOpen", "static"]));
+  }
+});
+export {
+  O as default
+};

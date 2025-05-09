@@ -1,0 +1,65 @@
+import { defineComponent as f, computed as b, ref as k, openBlock as o, createElementBlock as s, createElementVNode as u, renderSlot as g, normalizeClass as C, toDisplayString as q, withDirectives as S, Fragment as _, renderList as V, vModelSelect as N, createCommentVNode as n, createVNode as B, unref as h } from "vue";
+import { ScalarMarkdown as j } from "@scalar/components";
+import w from "../../../components/Content/Schema/Schema.vue.js";
+const D = { key: 0 }, E = { class: "request-body-title" }, M = ["value"], T = {
+  key: 0,
+  class: "request-body-description"
+}, z = {
+  key: 0,
+  class: "request-body-schema"
+}, R = /* @__PURE__ */ f({
+  __name: "RequestBody",
+  props: {
+    requestBody: {}
+  },
+  setup(a) {
+    var d;
+    const l = b(
+      () => {
+        var e;
+        return Object.keys(((e = a.requestBody) == null ? void 0 : e.content) ?? {});
+      }
+    ), t = k("application/json");
+    return (d = a.requestBody) != null && d.content && l.value.length > 0 && (t.value = l.value[0]), (e, i) => {
+      var c, v, y, m;
+      return e.requestBody ? (o(), s("div", D, [
+        u("div", E, [
+          g(e.$slots, "title", {}, void 0, !0),
+          u("div", {
+            class: C(["request-body-title-select", {
+              "request-body-title-no-select": l.value.length <= 1
+            }])
+          }, [
+            u("span", null, q(t.value), 1),
+            e.requestBody && l.value.length > 1 ? S((o(), s("select", {
+              key: 0,
+              "onUpdate:modelValue": i[0] || (i[0] = (p) => t.value = p)
+            }, [
+              (o(!0), s(_, null, V((c = e.requestBody) == null ? void 0 : c.content, (p, r) => (o(), s("option", {
+                key: r,
+                value: r
+              }, q(r), 9, M))), 128))
+            ], 512)), [
+              [N, t.value]
+            ]) : n("", !0)
+          ], 2),
+          e.requestBody.description ? (o(), s("div", T, [
+            B(h(j), {
+              value: e.requestBody.description
+            }, null, 8, ["value"])
+          ])) : n("", !0)
+        ]),
+        (v = e.requestBody.content) != null && v[t.value] ? (o(), s("div", z, [
+          B(h(w), {
+            compact: "",
+            noncollapsible: "",
+            value: (m = (y = e.requestBody.content) == null ? void 0 : y[t.value]) == null ? void 0 : m.schema
+          }, null, 8, ["value"])
+        ])) : n("", !0)
+      ])) : n("", !0);
+    };
+  }
+});
+export {
+  R as default
+};

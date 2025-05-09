@@ -1,0 +1,58 @@
+import { defineComponent as p, ref as m, openBlock as f, createBlock as v, withCtx as n, createElementVNode as u, createVNode as l, unref as s } from "vue";
+import x from "../../IconSelector.vue.js";
+import V from "./SidebarListElementForm.vue.js";
+import { ScalarButton as _, ScalarTextField as b } from "@scalar/components";
+import { LibraryIcon as S } from "@scalar/icons";
+const C = { class: "grid gap-2 grid-cols-[auto,1fr]" }, g = { class: "flex aspect-square" }, k = /* @__PURE__ */ p({
+  __name: "EditSidebarListCollection",
+  props: {
+    name: {},
+    icon: {}
+  },
+  emits: ["close", "edit"],
+  setup(d, { emit: c }) {
+    const r = d, i = c, a = m(r.name), o = m(r.icon);
+    return (w, e) => (f(), v(V, {
+      onCancel: e[2] || (e[2] = (t) => i("close")),
+      onSubmit: e[3] || (e[3] = (t) => i("edit", a.value, o.value))
+    }, {
+      default: n(() => [
+        u("div", C, [
+          u("div", g, [
+            l(x, {
+              modelValue: o.value,
+              "onUpdate:modelValue": e[0] || (e[0] = (t) => o.value = t),
+              placement: "bottom-start"
+            }, {
+              default: n(() => [
+                l(s(_), {
+                  class: "aspect-square px-0 h-auto",
+                  variant: "outlined"
+                }, {
+                  default: n(() => [
+                    l(s(S), {
+                      class: "size-4 text-c-2",
+                      src: o.value
+                    }, null, 8, ["src"])
+                  ]),
+                  _: 1
+                })
+              ]),
+              _: 1
+            }, 8, ["modelValue"])
+          ]),
+          l(s(b), {
+            modelValue: a.value,
+            "onUpdate:modelValue": e[1] || (e[1] = (t) => a.value = t),
+            autofocus: "",
+            class: "flex-1"
+          }, null, 8, ["modelValue"])
+        ])
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  k as default
+};

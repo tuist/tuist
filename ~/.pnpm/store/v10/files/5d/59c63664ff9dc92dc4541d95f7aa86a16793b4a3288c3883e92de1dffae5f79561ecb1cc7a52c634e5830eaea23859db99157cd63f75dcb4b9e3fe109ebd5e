@@ -1,0 +1,21 @@
+import { openBlock as o, createElementBlock as r, createElementVNode as n } from "vue";
+const t = {
+  xmlns: "http://www.w3.org/2000/svg",
+  fill: "none",
+  viewBox: "0 0 24 24"
+};
+function l(a, e) {
+  return o(), r("svg", t, e[0] || (e[0] = [
+    n("path", {
+      stroke: "currentColor",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      d: "M4.999 21.002H19M11.56 3.264a.5.5 0 0 1 .877 0l2.953 5.605a1 1 0 0 0 1.516.294L21.185 5.5a.5.5 0 0 1 .798.519l-2.835 10.248a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.018 6.019a.5.5 0 0 1 .798-.52l4.277 3.665a1 1 0 0 0 1.516-.294l2.953-5.606Z"
+    }, null, -1)
+  ]));
+}
+const c = { render: l };
+export {
+  c as default,
+  l as render
+};

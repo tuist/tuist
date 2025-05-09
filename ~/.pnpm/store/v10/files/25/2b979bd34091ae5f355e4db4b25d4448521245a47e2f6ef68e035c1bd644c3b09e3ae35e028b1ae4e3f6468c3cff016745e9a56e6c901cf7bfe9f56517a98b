@@ -1,0 +1,108 @@
+import { defineComponent as w, ref as m, computed as b, openBlock as l, createBlock as u, normalizeClass as k, withCtx as g, createElementBlock as s, renderSlot as i, createTextVNode as B, createCommentVNode as d, createElementVNode as C, Fragment as $, mergeProps as f, unref as h } from "vue";
+import q from "../CodeInput/CodeInput.vue.js";
+import { ScalarIconButton as O } from "@scalar/components";
+import A from "./DataTableCell.vue.js";
+import I from "./DataTableInputSelect.vue.js";
+const E = {
+  key: 0,
+  class: "text-c-1 flex items-center pl-3 pr-0"
+}, F = { class: "row-1 overflow-x-auto" }, S = ["readOnly", "type", "value"], T = {
+  key: 2,
+  class: "scalar-input-required absolute centered-y right-2 pt-px text-xxs text-c-3 bg-b-1 shadow-[-8px_0_4px_var(--scalar-background-1)] opacity-100 duration-150 transition-opacity peer-has-[:focus-visible]:opacity-0"
+}, x = {
+  key: 1,
+  class: "absolute centered-y right-7 text-orange text-xs"
+}, z = /* @__PURE__ */ w({
+  inheritAttrs: !1,
+  __name: "DataTableInput",
+  props: {
+    id: {},
+    type: {},
+    containerClass: {},
+    required: { type: Boolean, default: !1 },
+    modelValue: {},
+    canAddCustomEnumValue: { type: Boolean, default: !0 },
+    readOnly: { type: Boolean, default: !1 },
+    enum: {},
+    min: {},
+    max: {},
+    environment: {},
+    envVariables: {},
+    workspace: {}
+  },
+  emits: ["update:modelValue", "inputFocus", "inputBlur", "selectVariable"],
+  setup(v, { emit: y }) {
+    const t = v, r = y, n = m(!0), c = m(!1), V = () => {
+      c.value || r("inputBlur");
+    }, p = b(
+      () => t.type === "password" ? n.value ? "password" : "text" : t.type ?? "text"
+    );
+    return (e, a) => (l(), u(A, {
+      class: k(["relative row", e.containerClass])
+    }, {
+      default: g(() => [
+        e.$slots.default ? (l(), s("div", E, [
+          i(e.$slots, "default", {}, void 0, !0),
+          a[5] || (a[5] = B(": "))
+        ])) : d("", !0),
+        C("div", F, [
+          t.enum && t.enum.length ? (l(), u(I, {
+            key: 0,
+            canAddCustomValue: t.canAddCustomEnumValue,
+            modelValue: t.modelValue,
+            value: t.enum,
+            "onUpdate:modelValue": a[0] || (a[0] = (o) => r("update:modelValue", o))
+          }, null, 8, ["canAddCustomValue", "modelValue", "value"])) : (l(), s($, { key: 1 }, [
+            n.value && e.type === "password" ? (l(), s("input", f({ key: 0 }, e.id ? { ...e.$attrs, id: e.id } : e.$attrs, {
+              autocomplete: "off",
+              class: "border-none text-c-1 disabled:text-c-2 min-w-0 w-full peer px-2 py-1.25 -outline-offset-2",
+              "data-1p-ignore": "",
+              readOnly: e.readOnly,
+              spellcheck: "false",
+              type: p.value,
+              value: e.modelValue,
+              onInput: a[1] || (a[1] = (o) => r(
+                "update:modelValue",
+                o.target.value ?? ""
+              ))
+            }), null, 16, S)) : (l(), u(q, f({ key: 1 }, e.$attrs, {
+              id: e.id,
+              class: "border-none text-c-1 disabled:text-c-2 min-w-0 w-full peer",
+              disableCloseBrackets: "",
+              disableTabIndent: "",
+              envVariables: e.envVariables,
+              environment: e.environment,
+              max: e.max,
+              min: e.min,
+              modelValue: e.modelValue ?? "",
+              readOnly: e.readOnly,
+              required: !!e.required,
+              spellcheck: "false",
+              type: p.value,
+              workspace: e.workspace,
+              onBlur: V,
+              onFocus: a[2] || (a[2] = (o) => r("inputFocus")),
+              "onUpdate:modelValue": a[3] || (a[3] = (o) => r("update:modelValue", o))
+            }), null, 16, ["id", "envVariables", "environment", "max", "min", "modelValue", "readOnly", "required", "type", "workspace"])),
+            e.required ? (l(), s("div", T, " Required ")) : d("", !0)
+          ], 64))
+        ]),
+        e.$slots.warning ? (l(), s("div", x, [
+          i(e.$slots, "warning", {}, void 0, !0)
+        ])) : d("", !0),
+        i(e.$slots, "icon", {}, void 0, !0),
+        e.type === "password" ? (l(), u(h(O), {
+          key: 2,
+          class: "-ml-.5 mr-0.75 h-6 w-6 self-center p-1.5",
+          icon: n.value ? "Show" : "Hide",
+          label: n.value ? "Show Password" : "Hide Password",
+          onClick: a[4] || (a[4] = (o) => n.value = !n.value)
+        }, null, 8, ["icon", "label"])) : d("", !0)
+      ]),
+      _: 3
+    }, 8, ["class"]));
+  }
+});
+export {
+  z as default
+};

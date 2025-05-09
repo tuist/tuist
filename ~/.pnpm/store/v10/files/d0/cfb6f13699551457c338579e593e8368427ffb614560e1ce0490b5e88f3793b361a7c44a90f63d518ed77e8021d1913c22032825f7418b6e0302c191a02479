@@ -1,0 +1,6 @@
+import type { Plugin } from '../../../types/index.js';
+/**
+ * dart/http
+ */
+export declare const dartHttp: Plugin;
+//# sourceMappingURL=http.d.ts.map

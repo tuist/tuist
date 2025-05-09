@@ -1,0 +1,73 @@
+{
+  "name": "ts-deepmerge",
+  "type": "module",
+  "license": "ISC",
+  "version": "7.0.2",
+  "scripts": {
+    "clean": "rimraf ./{cjs,esm}/!(package.json)",
+    "compile": "yarn clean && yarn compile:esm && yarn compile:cjs",
+    "compile:watch": "yarn clean && concurrently --kill-others \"yarn compile:esm --watch\" \"yarn compile:cjs --watch\"",
+    "compile:esm": "yarn tsc --project tsconfig.esm.json",
+    "compile:cjs": "yarn tsc --project tsconfig.cjs.json",
+    "prepack": "yarn compile",
+    "format": "prettier --write \"**/*.{json,ts,tsx}\"",
+    "lint": "eslint \"./src/**/*.ts?(x)\"",
+    "lint:fix": "yarn format && yarn lint --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:all": "yarn lint:fix && yarn typecheck && yarn test --coverage"
+  },
+  "author": "Raice Hannay <voodoocreation@gmail.com>",
+  "description": "A TypeScript deep merge function.",
+  "keywords": [
+    "typescript",
+    "deep",
+    "merge",
+    "types",
+    "ts-merge",
+    "ts-deepmerge",
+    "merging",
+    "deep",
+    "deepmerge",
+    "deep-merge",
+    "recursive",
+    "recursive-merge"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:voodoocreation/ts-deepmerge.git"
+  },
+  "bugs": "https://github.com/voodoocreation/ts-deepmerge/issues",
+  "homepage": "https://github.com/voodoocreation/ts-deepmerge#readme",
+  "engines": {
+    "node": ">=14.13.1"
+  },
+  "exports": {
+    "import": "./esm/index.js",
+    "require": "./cjs/index.js"
+  },
+  "files": [
+    "**/package.json",
+    "**/index.js",
+    "**/*.d.ts"
+  ],
+  "types": "./cjs/index.d.ts",
+  "main": "./cjs/index.js",
+  "module": "./esm/index.js",
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.15.0",
+    "eslint-config-voodoocreation": "^7.0.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jest": "^28.9.0",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}

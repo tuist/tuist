@@ -1,0 +1,140 @@
+import { defineComponent as v, openBlock as l, createBlock as r, unref as a, withCtx as t, createElementVNode as x, normalizeClass as o, createVNode as i, normalizeStyle as b, createTextVNode as y, toDisplayString as g, createCommentVNode as d, createElementBlock as m, renderSlot as n, reactive as w } from "vue";
+import { Dialog as z, DialogPanel as k, DialogTitle as C, DialogDescription as D } from "@headlessui/vue";
+import { cva as c, cx as u } from "../../cva.js";
+import S from "../ScalarIconButton/ScalarIconButton.vue.js";
+const $ = {
+  key: 0,
+  class: "close-button z-10 fixed right-2 top-2"
+};
+function E() {
+  return w({
+    open: !1,
+    show() {
+      this.open = !0;
+    },
+    hide() {
+      this.open = !1;
+    }
+  });
+}
+const M = /* @__PURE__ */ v({
+  __name: "ScalarModal",
+  props: {
+    state: {},
+    title: {},
+    bodyClass: {},
+    maxWidth: {},
+    size: { default: "md" },
+    variant: {}
+  },
+  setup(N) {
+    const f = c({
+      base: [
+        "scalar-modal",
+        "col relative mx-auto mb-0 rounded-lg bg-b-1 p-0 text-left leading-snug text-c-1 opacity-0 md:w-[calc(100vw-16px)] lg:w-[calc(100vw-32px)]"
+      ].join(" "),
+      variants: {
+        size: {
+          xxs: "mt-20 max-w-screen-xxs",
+          xs: "mt-20 max-w-screen-xs",
+          sm: "mt-20 max-w-screen-sm",
+          md: "mt-20 max-w-screen-md",
+          lg: "m-auto max-w-screen-lg",
+          xl: "m-auto max-w-screen-xl",
+          full: "full-size-styles mt-0 lg:w-full"
+        },
+        variant: {
+          form: "scalar-modal-form",
+          history: "scalar-modal-history bg-b-1",
+          search: "scalar-modal-search",
+          error: "scalar-modal-error"
+        }
+      }
+    }), p = c({
+      base: [
+        "scalar-modal-body",
+        "relative max-h-[calc(100dvh-240px)] rounded-lg rounded-t-none border-t-1/2 bg-b-1 p-3"
+      ].join(" "),
+      variants: {
+        variant: {
+          form: "overflow-visible",
+          history: "pt-3",
+          search: "col !m-0 max-h-[440px] overflow-hidden p-0",
+          error: "overflow-y-scroll"
+        },
+        size: {
+          xxs: "max-h-[calc(100dvh-240px)]",
+          xs: "max-h-[calc(100dvh-240px)]",
+          sm: "max-h-[calc(100dvh-240px)]",
+          md: "max-h-[calc(100dvh-240px)]",
+          lg: "max-h-[calc(100dvh-180px)]",
+          xl: "m-0 max-h-[calc(100dvh-120px)] p-0",
+          full: "max-h-dvh rounded-none"
+        }
+      }
+    });
+    return (e, s) => (l(), r(a(z), {
+      open: e.state.open,
+      onClose: s[1] || (s[1] = (h) => e.state.hide())
+    }, {
+      default: t(() => [
+        x("div", {
+          class: o(
+            a(u)(
+              e.size === "full" ? "scalar-modal-layout-full" : "scalar-modal-layout",
+              "fixed left-0 top-0 flex items-start justify-center",
+              "z-[1001] h-[100dvh] w-[100dvw]",
+              "bg-backdrop opacity-0 dark:bg-backdropdark",
+              e.size === "full" && "flex"
+            )
+          )
+        }, [
+          i(a(k), {
+            class: o(a(f)({ size: e.size, variant: e.variant })),
+            style: b({ maxWidth: e.maxWidth })
+          }, {
+            default: t(() => [
+              e.title ? (l(), r(a(C), {
+                key: 0,
+                class: o(["scalar-modal-header m-0 -mb-1 rounded-lg p-3 text-left text-sm font-medium text-c-1", { "pb-0 pt-6": e.variant === "history" }])
+              }, {
+                default: t(() => [
+                  y(g(e.title), 1)
+                ]),
+                _: 1
+              }, 8, ["class"])) : d("", !0),
+              e.size === "full" ? (l(), m("div", {
+                key: 1,
+                class: o(e.bodyClass)
+              }, [
+                n(e.$slots, "default", {}, void 0, !0)
+              ], 2)) : (l(), r(a(D), {
+                key: 2,
+                class: o(a(u)(a(p)({ size: e.size, variant: e.variant }), e.bodyClass))
+              }, {
+                default: t(() => [
+                  n(e.$slots, "default", {}, void 0, !0)
+                ]),
+                _: 3
+              }, 8, ["class"]))
+            ]),
+            _: 3
+          }, 8, ["class", "style"]),
+          e.size === "full" ? (l(), m("div", $, [
+            i(a(S), {
+              class: "hover:bg-b-3 focus:outline-none",
+              icon: "Close",
+              label: "Clear Search",
+              onClose: s[0] || (s[0] = (h) => e.state.hide())
+            })
+          ])) : d("", !0)
+        ], 2)
+      ]),
+      _: 3
+    }, 8, ["open"]));
+  }
+});
+export {
+  M as default,
+  E as useModal
+};

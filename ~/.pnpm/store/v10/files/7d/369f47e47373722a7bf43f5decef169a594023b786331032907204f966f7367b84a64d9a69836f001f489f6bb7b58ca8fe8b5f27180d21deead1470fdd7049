@@ -1,0 +1,107 @@
+import { defineComponent as B, computed as m, openBlock as s, createBlock as n, unref as t, withCtx as l, createVNode as a, createTextVNode as y, createElementVNode as L, normalizeClass as O, createElementBlock as h, Fragment as w, renderList as S, toDisplayString as z, createCommentVNode as u } from "vue";
+import A from "../../components/ShowMoreButton.vue.js";
+import { ScalarMarkdown as E } from "@scalar/components";
+import H from "./components/Webhook.vue.js";
+import M from "../../components/Section/SectionContainer.vue.js";
+import j from "../../components/Section/Section.vue.js";
+import F from "../../components/Section/SectionHeader.vue.js";
+import _ from "../../components/Content/Lazy/Lazy.vue2.js";
+import K from "../../components/Section/CompactSection.vue.js";
+import { useNavState as T } from "../../hooks/useNavState.js";
+import { useSidebar as D } from "../../hooks/useSidebar.js";
+const g = 10, x = /* @__PURE__ */ B({
+  __name: "Webhooks",
+  props: {
+    webhooks: {}
+  },
+  setup(N) {
+    const W = N, k = m(() => Object.keys(W.webhooks ?? {})), { getWebhookId: d } = T(), { collapsedSidebarItems: C } = D(), c = m(
+      () => k.value.length <= g || C[d()]
+    ), I = m(() => {
+      const o = k.value;
+      return c.value ? o : o.slice(0, g);
+    });
+    return (o, b) => k.value.length ? (s(), n(t(M), {
+      key: 0,
+      id: "webhooks"
+    }, {
+      default: l(() => [
+        a(t(j), null, {
+          default: l(() => [
+            a(t(F), { level: 2 }, {
+              default: l(() => b[0] || (b[0] = [
+                y("Webhooks")
+              ])),
+              _: 1
+            }),
+            a(t(_), {
+              id: "webhooks",
+              isLazy: !1
+            }),
+            L("div", {
+              class: O(["webhooks-list", { "webhooks-list-truncated": !c.value }])
+            }, [
+              (s(!0), h(w, null, S(I.value, (e) => {
+                var f;
+                return s(), h(w, { key: e }, [
+                  (s(!0), h(w, null, S(Object.keys(
+                    (f = o.webhooks) == null ? void 0 : f[e]
+                  ), (r) => (s(), n(t(_), {
+                    id: t(d)({ name: e, method: r }),
+                    key: r,
+                    isLazy: ""
+                  }, {
+                    default: l(() => {
+                      var p;
+                      return [
+                        (p = o.webhooks) != null && p[e] ? (s(), n(t(K), {
+                          key: 0,
+                          id: t(d)({ name: e, method: r }),
+                          class: "webhooks-list-item",
+                          label: e
+                        }, {
+                          heading: l(() => {
+                            var i;
+                            return [
+                              y(z((i = o.webhooks[e][r]) == null ? void 0 : i.name), 1)
+                            ];
+                          }),
+                          default: l(() => {
+                            var i, v;
+                            return [
+                              (i = o.webhooks[e][r]) != null && i.description ? (s(), n(t(E), {
+                                key: 0,
+                                class: "webhook-section-description",
+                                value: (v = o.webhooks[e][r]) == null ? void 0 : v.description,
+                                withImages: ""
+                              }, null, 8, ["value"])) : u("", !0),
+                              a(H, {
+                                webhook: o.webhooks[e][r]
+                              }, null, 8, ["webhook"])
+                            ];
+                          }),
+                          _: 2
+                        }, 1032, ["id", "label"])) : u("", !0)
+                      ];
+                    }),
+                    _: 2
+                  }, 1032, ["id"]))), 128))
+                ], 64);
+              }), 128))
+            ], 2),
+            c.value ? u("", !0) : (s(), n(A, {
+              key: 0,
+              id: "webhooks",
+              class: "show-more-webhooks"
+            }))
+          ]),
+          _: 1
+        })
+      ]),
+      _: 1
+    })) : u("", !0);
+  }
+});
+export {
+  x as default
+};

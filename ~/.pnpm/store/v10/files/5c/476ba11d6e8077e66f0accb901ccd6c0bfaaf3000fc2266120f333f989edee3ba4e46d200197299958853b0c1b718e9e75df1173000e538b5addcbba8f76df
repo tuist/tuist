@@ -1,0 +1,87 @@
+import { defineComponent as g, openBlock as r, createElementBlock as a, createElementVNode as i, unref as l, createBlock as u, normalizeClass as k, createCommentVNode as s, createVNode as m } from "vue";
+import v from "../../components/AddressBar/AddressBar.vue.js";
+import V from "../../components/Sidebar/SidebarToggle.vue.js";
+import { ScalarIcon as d } from "@scalar/components";
+import { useRouter as C } from "vue-router";
+import y from "../../components/OpenApiClientButton.vue.js";
+import { useWorkspace as w } from "../../store/store.js";
+import { useLayout as h } from "../../hooks/useLayout.js";
+const B = { class: "lg:min-h-client-header flex items-center w-full justify-center p-2 pt-2 lg:pt-1 lg:p-1 flex-wrap t-app__top-container border-b-1/2" }, $ = { class: "flex flex-row items-center gap-1 lg:px-1 lg:mb-0 mb-2 lg:flex-1 w-1/2" }, S = { class: "flex flex-row items-center gap-1 lg:px-2.5 lg:mb-0 mb-2 lg:flex-1 justify-end w-1/2" }, E = /* @__PURE__ */ g({
+  __name: "RequestSubpageHeader",
+  props: {
+    collection: {},
+    operation: {},
+    server: {},
+    environment: {},
+    envVariables: {},
+    workspace: {},
+    modelValue: { type: Boolean }
+  },
+  emits: ["update:modelValue", "hideModal", "importCurl"],
+  setup(z) {
+    const { hideClientButton: p, showSidebar: c, integration: f } = w(), { layout: t } = h(), { currentRoute: b } = C();
+    return (e, o) => (r(), a("div", B, [
+      i("div", $, [
+        l(c) ? (r(), u(V, {
+          key: 0,
+          class: k(["ml-1", [
+            { hidden: e.modelValue },
+            { "xl:!flex": !e.modelValue },
+            { "!flex": l(t) === "modal" },
+            { "!hidden": l(t) === "modal" && e.modelValue }
+          ]]),
+          modelValue: e.modelValue,
+          "onUpdate:modelValue": o[0] || (o[0] = (n) => e.$emit("update:modelValue", n))
+        }, null, 8, ["class", "modelValue"])) : s("", !0)
+      ]),
+      m(v, {
+        collection: e.collection,
+        envVariables: e.envVariables,
+        environment: e.environment,
+        operation: e.operation,
+        server: e.server,
+        workspace: e.workspace,
+        onImportCurl: o[1] || (o[1] = (n) => e.$emit("importCurl", n))
+      }, null, 8, ["collection", "envVariables", "environment", "operation", "server", "workspace"]),
+      i("div", S, [
+        l(t) === "modal" && e.collection.documentUrl && !l(p) ? (r(), u(l(y), {
+          key: 0,
+          buttonSource: "modal",
+          class: "!w-fit lg:-mr-1",
+          integration: l(f) ?? e.collection.integration ?? null,
+          source: l(b).query.source === "gitbook" ? "gitbook" : "api-reference",
+          url: e.collection.documentUrl
+        }, null, 8, ["integration", "source", "url"])) : s("", !0),
+        l(t) === "modal" ? (r(), a("button", {
+          key: 1,
+          class: "app-exit-button p-2 rounded-full fixed right-2 top-2 gitbook-hidden",
+          type: "button",
+          onClick: o[2] || (o[2] = (n) => e.$emit("hideModal"))
+        }, [
+          m(l(d), {
+            icon: "Close",
+            size: "lg",
+            thickness: "2"
+          }),
+          o[4] || (o[4] = i("span", { class: "sr-only" }, "Close Client", -1))
+        ])) : s("", !0),
+        l(t) === "modal" ? (r(), a("button", {
+          key: 2,
+          class: "text-c-1 hover:bg-b-2 active:text-c-1 p-2 rounded -mr-1.5 gitbook-show",
+          type: "button",
+          onClick: o[3] || (o[3] = (n) => e.$emit("hideModal"))
+        }, [
+          m(l(d), {
+            icon: "Close",
+            size: "md",
+            thickness: "1.75"
+          }),
+          o[5] || (o[5] = i("span", { class: "sr-only" }, "Close Client", -1))
+        ])) : s("", !0)
+      ])
+    ]));
+  }
+});
+export {
+  E as default
+};

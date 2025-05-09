@@ -1,0 +1,44 @@
+{
+	"name": "get-own-enumerable-keys",
+	"version": "1.0.0",
+	"description": "Like `Object.keys()` but also includes symbols",
+	"license": "MIT",
+	"repository": "sindresorhus/get-own-enumerable-keys",
+	"funding": "https://github.com/sponsors/sindresorhus",
+	"author": {
+		"name": "Sindre Sorhus",
+		"email": "sindresorhus@gmail.com",
+		"url": "https://sindresorhus.com"
+	},
+	"type": "module",
+	"exports": {
+		"types": "./index.d.ts",
+		"default": "./index.js"
+	},
+	"engines": {
+		"node": ">=14.16"
+	},
+	"scripts": {
+		"test": "xo && ava && tsd"
+	},
+	"files": [
+		"index.js",
+		"index.d.ts"
+	],
+	"keywords": [
+		"object",
+		"own",
+		"enumerable",
+		"keys",
+		"key",
+		"property",
+		"properties",
+		"symbol",
+		"symbols"
+	],
+	"devDependencies": {
+		"ava": "^5.1.1",
+		"tsd": "^0.25.0",
+		"xo": "^0.53.1"
+	}
+}

@@ -1,0 +1,26 @@
+import { defineComponent as s, openBlock as n, createElementBlock as t, normalizeClass as r, unref as e, createVNode as m, createElementVNode as a, renderSlot as f } from "vue";
+import c from "../../components/SideNav/SideNav.vue.js";
+import d from "../../components/CommandPalette/TheCommandPalette.vue.js";
+import { useLayout as i } from "../../hooks/useLayout.js";
+const b = /* @__PURE__ */ s({
+  __name: "MainLayout",
+  setup(u) {
+    const { layout: o } = i();
+    return (l, p) => (n(), t("main", {
+      class: r(["flex flex-col sm:flex-row min-h-0 flex-1", e(o) === "web" ? "sm:flex-col" : "sm:flex-row"])
+    }, [
+      m(c, { class: "order-last sm:order-none sidenav" }),
+      m(e(d)),
+      a("div", {
+        class: r(["flex flex-1 flex-col min-w-0 min-h-0", {
+          "border sm:mr-1.5 sm:mb-1.5 sm:rounded-lg sm:*:rounded-lg": e(o) === "desktop"
+        }])
+      }, [
+        f(l.$slots, "default")
+      ], 2)
+    ], 2));
+  }
+});
+export {
+  b as default
+};

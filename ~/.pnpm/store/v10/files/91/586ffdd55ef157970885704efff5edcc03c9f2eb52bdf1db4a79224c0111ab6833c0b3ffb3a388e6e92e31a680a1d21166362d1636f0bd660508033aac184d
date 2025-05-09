@@ -1,0 +1,1 @@
+{"version":3,"file":"redirectToProxy.d.ts","sourceRoot":"","sources":["../../src/helpers/redirectToProxy.ts"],"names":[],"mappings":"AAIA,gEAAgE;AAChE,wBAAgB,eAAe,CAAC,KAAK,CAAC,EAAE,MAAM,EAAE,GAAG,CAAC,EAAE,MAAM,GAAG,MAAM,CAepE;AAED,wEAAwE;AACxE,eAAO,MAAM,cAAc,QAAS,MAAM,YAazC,CAAA;AAED,uFAAuF;AACvF,wBAAgB,cAAc,CAAC,KAAK,CAAC,EAAE,MAAM,EAAE,GAAG,CAAC,EAAE,MAAM,GAAG,OAAO,CAWpE"}

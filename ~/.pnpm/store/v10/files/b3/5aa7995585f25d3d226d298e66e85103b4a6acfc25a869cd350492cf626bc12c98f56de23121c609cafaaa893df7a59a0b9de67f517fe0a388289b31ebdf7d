@@ -1,0 +1,96 @@
+import { PathId as S } from "../../routes.js";
+import { useActiveEntities as L } from "../../store/active-entities.js";
+import { isDefined as y, shouldIgnoreEntity as T } from "@scalar/oas-utils/helpers";
+import M from "fuse.js";
+import { ref as n, watch as W, computed as b, nextTick as P } from "vue";
+import { useRouter as V } from "vue-router";
+import { useWorkspace as B } from "../../store/store.js";
+function Q() {
+  const u = V(), {
+    activeWorkspace: E,
+    activeWorkspaceRequests: f,
+    activeWorkspaceCollections: w
+  } = L(), { requests: x, tags: A } = B(), c = n([]), i = n([]), a = n(0), r = n(""), v = n(null), m = n([]), p = new M(c.value, {
+    keys: ["title", "description", "body"]
+  }), C = () => {
+    r.value = "", a.value = 0, i.value = [], v.value instanceof HTMLInputElement && v.value.blur();
+  }, d = (e) => {
+    c.value = e.filter((t) => !T(t)).filter((t) => {
+      var k;
+      const s = (k = w.value) == null ? void 0 : k.find(
+        (l) => l.requests.includes(t.uid)
+      );
+      return !!!(s != null && s.tags.map((l) => A[l]).filter(y).filter((l) => {
+        var I;
+        return (I = t.tags) == null ? void 0 : I.includes(l.name);
+      }).filter((l) => T(l)).length);
+    }).map((t) => {
+      var s, o;
+      return {
+        id: t.uid,
+        title: t.summary ?? t.method,
+        description: t.description ?? "",
+        httpVerb: t.method,
+        path: t.path,
+        link: (o = u == null ? void 0 : u.resolve({
+          name: "request",
+          params: {
+            [S.Request]: t.uid,
+            [S.Workspace]: (s = E.value) == null ? void 0 : s.uid
+          }
+        })) == null ? void 0 : o.href
+      };
+    }), p.setCollection(c.value);
+  }, R = () => {
+    a.value = 0, i.value = p.search(r.value);
+  };
+  W(r, (e) => {
+    e.length ? R() : i.value = [];
+  });
+  const D = (e) => {
+    const t = e === "up" ? -1 : 1, s = h.value.length;
+    a.value = (a.value + t + s) % s, P(() => {
+      const o = m.value[a.value];
+      o instanceof HTMLElement && o.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    });
+  }, F = () => {
+    if (a.value >= 0) {
+      const e = h.value[a.value];
+      e && g(e);
+    }
+  }, H = b(
+    () => f.value.map((e) => x[e]).filter(y)
+  );
+  W(
+    f,
+    () => {
+      d(H.value);
+    },
+    { immediate: !0 }
+  );
+  const g = (e) => {
+    u.push(e.item.id), C();
+  }, h = b(
+    () => r.value.length === 0 ? c.value.map((e) => ({
+      item: e
+    })) : i.value
+  );
+  return {
+    searchText: r,
+    searchResultsWithPlaceholderResults: h,
+    selectedSearchResult: a,
+    onSearchResultClick: g,
+    fuseSearch: R,
+    searchInputRef: v,
+    searchResultRefs: m,
+    navigateSearchResults: D,
+    selectSearchResult: F,
+    populateFuseDataArray: d
+  };
+}
+export {
+  Q as useSearch
+};

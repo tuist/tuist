@@ -1,0 +1,111 @@
+{
+  "author": "Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)",
+  "bugs": "https://github.com/syntax-tree/hast-util-sanitize/issues",
+  "contributors": [
+    "Jason Switzer <jswitzer@gmail.com>",
+    "Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)"
+  ],
+  "dependencies": {
+    "@types/hast": "^3.0.0",
+    "@ungap/structured-clone": "^1.0.0",
+    "unist-util-position": "^5.0.0"
+  },
+  "description": "hast utility to sanitize nodes",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ungap__structured-clone": "^1.0.0",
+    "aria-attributes": "^2.0.0",
+    "c8": "^10.0.0",
+    "deepmerge": "^4.0.0",
+    "hast-util-from-html": "^2.0.0",
+    "hast-util-to-html": "^9.0.0",
+    "hastscript": "^9.0.0",
+    "html-element-attributes": "^3.0.0",
+    "html-tag-names": "^2.0.0",
+    "prettier": "^3.0.0",
+    "remark-cli": "^12.0.0",
+    "remark-preset-wooorm": "^10.0.0",
+    "type-coverage": "^2.0.0",
+    "typescript": "^5.0.0",
+    "unist-builder": "^4.0.0",
+    "unist-util-visit": "^5.0.0",
+    "xo": "^0.59.0"
+  },
+  "exports": "./index.js",
+  "files": [
+    "lib/",
+    "index.d.ts.map",
+    "index.d.ts",
+    "index.js"
+  ],
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/unified"
+  },
+  "keywords": [
+    "clean",
+    "hast-util",
+    "hast",
+    "html",
+    "safe",
+    "sanitize",
+    "utility",
+    "util",
+    "unist",
+    "xss"
+  ],
+  "license": "MIT",
+  "name": "hast-util-sanitize",
+  "prettier": {
+    "bracketSpacing": false,
+    "semi": false,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "trailingComma": "none",
+    "useTabs": false
+  },
+  "remarkConfig": {
+    "plugins": [
+      "remark-preset-wooorm"
+    ]
+  },
+  "repository": "syntax-tree/hast-util-sanitize",
+  "scripts": {
+    "build": "tsc --build --clean && tsc --build && type-coverage",
+    "format": "remark . -qfo && prettier . -w --log-level warn && xo --fix",
+    "test-api": "node --conditions development test/index.js",
+    "test-coverage": "c8 --100 --reporter lcov npm run test-api",
+    "test": "npm run build && npm run format && npm run test-coverage"
+  },
+  "sideEffects": false,
+  "typeCoverage": {
+    "atLeast": 100,
+    "#": "Couple of needed `any`s",
+    "ignoreFiles": [
+      "lib/index.d.ts"
+    ],
+    "strict": true
+  },
+  "type": "module",
+  "version": "5.0.2",
+  "xo": {
+    "overrides": [
+      {
+        "files": [
+          "test/**/*.js"
+        ],
+        "rules": {
+          "max-nested-callbacks": "off",
+          "no-await-in-loop": "off",
+          "no-script-url": "off"
+        }
+      }
+    ],
+    "prettier": true,
+    "rules": {
+      "complexity": "off",
+      "logical-assignment-operators": "off",
+      "unicorn/prefer-at": "off"
+    }
+  }
+}

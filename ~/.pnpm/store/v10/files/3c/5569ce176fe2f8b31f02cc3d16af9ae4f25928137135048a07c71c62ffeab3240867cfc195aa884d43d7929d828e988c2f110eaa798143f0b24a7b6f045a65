@@ -1,0 +1,138 @@
+import { defineComponent as b, computed as c, openBlock as w, createElementBlock as x, createVNode as n, withCtx as s, createTextVNode as C, createElementVNode as m, unref as a, toDisplayString as S } from "vue";
+import k from "../../../components/DataTable/DataTable.vue.js";
+import $ from "../../../components/DataTable/DataTableRow.vue.js";
+import g from "../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import { ScalarCombobox as K, ScalarButton as V, ScalarIcon as _ } from "@scalar/components";
+import { snippetz as H } from "@scalar/snippetz";
+import { filterSecurityRequirements as j } from "./helpers/filter-security-requirements.js";
+import B from "../../Components/CodeSnippet/CodeSnippet.vue.js";
+import { useWorkspace as D } from "../../../store/store.js";
+const E = { class: "w-full" }, N = { class: "flex flex-1 -mx-1" }, R = { class: "bg-b-1 border-t flex items-center justify-center overflow-hidden" }, P = /* @__PURE__ */ b({
+  __name: "RequestCodeExample",
+  props: {
+    collection: {},
+    example: {},
+    operation: {},
+    server: {},
+    workspace: {}
+  },
+  setup(o) {
+    const { securitySchemes: p, workspaceMutators: u } = D(), f = c(
+      () => j(
+        o.operation.security || o.collection.security || [],
+        o.collection.selectedSecuritySchemeUids,
+        p
+      )
+    ), r = c(() => {
+      const e = {};
+      return {
+        options: H().clients().map((t) => ({
+          label: t.title,
+          options: t.clients.map((i) => (e[`${t.key},${i.client}`] = i.title, {
+            id: `${t.key},${i.client}`,
+            label: i.title
+          }))
+        })),
+        dict: e
+      };
+    }), d = c(() => {
+      var t;
+      const e = o.workspace.selectedHttpClient;
+      if (!e)
+        return ((t = r.value.options[0]) == null ? void 0 : t.options[0]) ?? {
+          id: "js,fetch",
+          label: "Fetch"
+        };
+      const l = `${e.targetKey},${e.clientKey}`;
+      return {
+        id: l,
+        label: r.value.dict[l] ?? "Unknown"
+      };
+    }), v = c(
+      () => {
+        var e;
+        return ((e = o.workspace.selectedHttpClient) == null ? void 0 : e.targetKey) ?? "js";
+      }
+    ), y = c(
+      () => {
+        var e;
+        return ((e = o.workspace.selectedHttpClient) == null ? void 0 : e.clientKey) ?? "fetch";
+      }
+    ), h = ({ id: e }) => {
+      const [l, t] = e.split(",");
+      !l || !t || u.edit(o.workspace.uid, "selectedHttpClient", {
+        targetKey: l,
+        clientKey: t
+      });
+    };
+    return (e, l) => (w(), x("div", E, [
+      n(g, {
+        class: "group/preview -mt-0.25 w-full border-b-0",
+        defaultOpen: !1,
+        hasIcon: !1
+      }, {
+        title: s(() => l[0] || (l[0] = [
+          C("Code Snippet")
+        ])),
+        actions: s(() => [
+          m("div", N, [
+            n(a(K), {
+              modelValue: d.value,
+              options: r.value.options,
+              placement: "bottom-end",
+              "onUpdate:modelValue": h
+            }, {
+              default: s(() => [
+                n(a(V), {
+                  class: "flex gap-1.5 h-full px-1.5 py-0.75 font-normal text-c-1 w-fit hover:bg-b-3",
+                  fullWidth: "",
+                  variant: "ghost"
+                }, {
+                  default: s(() => {
+                    var t;
+                    return [
+                      m("span", null, S((t = d.value) == null ? void 0 : t.label), 1),
+                      n(a(_), {
+                        icon: "ChevronDown",
+                        size: "md"
+                      })
+                    ];
+                  }),
+                  _: 1
+                })
+              ]),
+              _: 1
+            }, 8, ["modelValue", "options"])
+          ])
+        ]),
+        default: s(() => [
+          n(k, { columns: [""] }, {
+            default: s(() => [
+              n($, null, {
+                default: s(() => [
+                  m("div", R, [
+                    n(a(B), {
+                      class: "px-3 py-1.5",
+                      client: y.value,
+                      example: e.example,
+                      operation: e.operation,
+                      securitySchemes: f.value,
+                      server: e.server,
+                      target: v.value
+                    }, null, 8, ["client", "example", "operation", "securitySchemes", "server", "target"])
+                  ])
+                ]),
+                _: 1
+              })
+            ]),
+            _: 1
+          })
+        ]),
+        _: 1
+      })
+    ]));
+  }
+});
+export {
+  P as default
+};

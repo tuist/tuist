@@ -1,0 +1,12 @@
+import { openBlock as o, createElementBlock as r, renderSlot as t } from "vue";
+import l from "../../_virtual/_plugin-vue_export-helper.js";
+const d = {}, n = { class: "flex flex-col min-h-0 flex-1 *:border-t-1/2 first:*:border-t-0 md:*:border-t-0 xl:overflow-hidden md:flex-row leading-3" };
+function c(e, f) {
+  return o(), r("div", n, [
+    t(e.$slots, "default")
+  ]);
+}
+const a = /* @__PURE__ */ l(d, [["render", c]]);
+export {
+  a as default
+};

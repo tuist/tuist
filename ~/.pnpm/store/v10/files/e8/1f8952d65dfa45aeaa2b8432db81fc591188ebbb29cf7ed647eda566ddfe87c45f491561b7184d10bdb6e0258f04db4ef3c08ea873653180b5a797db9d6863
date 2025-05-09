@@ -1,0 +1,11 @@
+type __VLS_Props = {
+    sections: string[];
+    activeSection: string;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    setActiveSection: (value: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onSetActiveSection?: (value: string) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLFieldSetElement>;
+export default _default;
+//# sourceMappingURL=ContextBar.vue.d.ts.map

@@ -1,0 +1,49 @@
+{
+  "name": "@headlessui/tailwindcss",
+  "version": "0.2.2",
+  "description": "A complementary Tailwind CSS plugin",
+  "main": "dist/index.cjs",
+  "types": "dist/index.d.ts",
+  "module": "dist/headlessui.esm.js",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "exports": {
+    "types": {
+      "import": "./dist/index.d.ts",
+      "require": "./dist/index.d.cts"
+    },
+    "import": "./dist/headlessui.esm.js",
+    "require": "./dist/index.cjs"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tailwindlabs/headlessui.git",
+    "directory": "packages/@headlessui-tailwindcss"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "npm run build",
+    "build": "../../scripts/build.sh --external:tailwindcss && node ./scripts/fix-types.cjs",
+    "watch": "../../scripts/watch.sh --external:tailwindcss",
+    "test": "../../scripts/test.sh",
+    "lint": "../../scripts/lint.sh",
+    "lint-types": "npm run attw -P --workspaces --if-present",
+    "clean": "rimraf ./dist"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^3.0 || ^4.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.2.7"
+  }
+}

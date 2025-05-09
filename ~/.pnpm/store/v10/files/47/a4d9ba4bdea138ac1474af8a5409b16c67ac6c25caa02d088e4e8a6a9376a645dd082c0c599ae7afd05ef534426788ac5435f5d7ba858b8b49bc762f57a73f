@@ -1,0 +1,1 @@
+{"version":3,"file":"local-storage.d.ts","sourceRoot":"","sources":["../../src/migrations/local-storage.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,WAAW,CAAA;AAKxC;;GAEG;AACH,eAAO,MAAM,iBAAiB,UACrB,CAAC,OAAO,OAAO,EAAE,MAAM,OAAO,OAAO,CAAC,KAC5C,MAAM,CAAC,MAAM,EAAE,OAAO,CAKxB,CAAA;AAED,oDAAoD;AACpD,eAAO,MAAM,sBAAsB,QAAO,MAqBzC,CAAA"}

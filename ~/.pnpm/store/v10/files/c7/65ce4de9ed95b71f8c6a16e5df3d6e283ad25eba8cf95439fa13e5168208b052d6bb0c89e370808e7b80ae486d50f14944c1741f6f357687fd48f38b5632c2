@@ -1,0 +1,45 @@
+type __VLS_Props = {
+    modelValue: string;
+    placeholder?: string;
+    label?: string;
+    /** This color creates a mask over the input outline and should be set to the background color behind the textField */
+    labelShadowColor?: string;
+    error?: boolean;
+    isMultiline?: boolean;
+    helperText?: string;
+    emitOnBlur?: boolean;
+    handleFieldSubmit?: (e: string) => void;
+    handleFieldChange?: (e: string) => void;
+    /** Option to disable trimming for input fields */
+    disableTrim?: boolean;
+};
+declare function __VLS_template(): {
+    attrs: Partial<{}>;
+    slots: {
+        default?(_: {}): any;
+    };
+    refs: {
+        input: unknown;
+    };
+    rootEl: HTMLDivElement;
+};
+type __VLS_TemplateResult = ReturnType<typeof __VLS_template>;
+declare const __VLS_component: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    submit: (v: string) => any;
+    "update:modelValue": (v: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onSubmit?: ((v: string) => any) | undefined;
+    "onUpdate:modelValue"?: ((v: string) => any) | undefined;
+}>, {
+    labelShadowColor: string;
+    emitOnBlur: boolean;
+    disableTrim: boolean;
+}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, HTMLDivElement>;
+declare const _default: __VLS_WithTemplateSlots<typeof __VLS_component, __VLS_TemplateResult["slots"]>;
+export default _default;
+type __VLS_WithTemplateSlots<T, S> = T & {
+    new (): {
+        $slots: S;
+    };
+};
+//# sourceMappingURL=ScalarTextField.vue.d.ts.map

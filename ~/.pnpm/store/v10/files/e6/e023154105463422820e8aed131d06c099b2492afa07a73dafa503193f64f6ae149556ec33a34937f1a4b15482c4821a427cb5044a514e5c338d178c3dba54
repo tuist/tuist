@@ -1,0 +1,55 @@
+import { defineComponent as m, openBlock as i, createBlock as c, unref as e, withCtx as o, createVNode as r, normalizeProps as d, guardReactiveProps as u, mergeProps as _, renderSlot as l } from "vue";
+import { Popover as P, PopoverPanel as v, PopoverButton as B } from "@headlessui/vue";
+import { useBindCx as $ } from "../../hooks/useBindCx.js";
+import g from "../ScalarFloating/ScalarFloating.vue.js";
+import y from "../ScalarFloating/ScalarFloatingBackdrop.vue.js";
+const b = /* @__PURE__ */ m({
+  inheritAttrs: !1,
+  __name: "ScalarPopover",
+  props: {
+    placement: {},
+    offset: {},
+    resize: { type: Boolean },
+    target: {},
+    middleware: {},
+    teleport: { type: [Boolean, String] }
+  },
+  setup(h) {
+    const { cx: p } = $();
+    return (t, k) => (i(), c(e(P), { as: "template" }, {
+      default: o(({ open: a }) => [
+        r(e(g), d(u(t.$props)), {
+          floating: o(({ width: s, height: f }) => [
+            r(e(v), _({
+              style: { width: s, height: f }
+            }, e(p)("relative flex flex-col p-0.75")), {
+              default: o(({ close: n }) => [
+                l(t.$slots, "popover", {
+                  close: () => n(),
+                  open: a
+                }),
+                l(t.$slots, "backdrop", { open: a }, () => [
+                  r(e(y))
+                ])
+              ]),
+              _: 2
+            }, 1040, ["style"])
+          ]),
+          default: o(() => [
+            r(e(B), { as: "template" }, {
+              default: o(() => [
+                l(t.$slots, "default", { open: a })
+              ]),
+              _: 2
+            }, 1024)
+          ]),
+          _: 2
+        }, 1040)
+      ]),
+      _: 3
+    }));
+  }
+});
+export {
+  b as default
+};

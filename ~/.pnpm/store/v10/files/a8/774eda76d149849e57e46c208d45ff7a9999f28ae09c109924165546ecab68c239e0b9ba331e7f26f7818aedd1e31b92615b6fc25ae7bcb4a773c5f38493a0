@@ -1,0 +1,57 @@
+{
+  "name": "@zag-js/core",
+  "version": "1.8.2",
+  "description": "A minimal implementation of xstate fsm for UI machines",
+  "keywords": [
+    "ui-machines",
+    "state-machines",
+    "zag",
+    "fsm",
+    "xstate",
+    "finite state machine"
+  ],
+  "author": "Segun Adebayo <sage@adebayosegun.com>",
+  "homepage": "https://github.com/chakra-ui/zag#readme",
+  "license": "MIT",
+  "repository": "https://github.com/chakra-ui/zag/tree/main/packages/machine",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/chakra-ui/zag/issues"
+  },
+  "dependencies": {
+    "@zag-js/utils": "1.8.2",
+    "@zag-js/dom-query": "1.8.2"
+  },
+  "devDependencies": {
+    "clean-package": "2.2.0"
+  },
+  "clean-package": "../../clean-package.config.json",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest --passWithNoTests",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  }
+}

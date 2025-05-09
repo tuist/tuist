@@ -1,0 +1,58 @@
+{
+  "name": "@hyperjump/browser",
+  "version": "1.2.0",
+  "description": "Browse JSON-compatible data with hypermedia references",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./jref": "./lib/jref/index.js"
+  },
+  "browser": {
+    "./lib/index.js": "./lib/index.browser.js",
+    "./lib/browser/context-uri.js": "./lib/browser/context-uri.browser.js"
+  },
+  "scripts": {
+    "clean": "xargs -a .gitignore rm -rf",
+    "lint": "eslint lib",
+    "type-check": "tsc --noEmit",
+    "test": "vitest --watch=false"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperjump-io/browser.git"
+  },
+  "keywords": [
+    "json",
+    "reference",
+    "jref",
+    "hypermedia",
+    "$ref"
+  ],
+  "author": "Jason Desrosiers <jdesrosi@gmail.com>",
+  "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jdesrosiers"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "*",
+    "@types/node": "*",
+    "eslint-import-resolver-typescript": "*",
+    "eslint-plugin-import": "*",
+    "typescript": "*",
+    "typescript-eslint": "*",
+    "undici": "*",
+    "vitest": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@hyperjump/json-pointer": "^1.1.0",
+    "@hyperjump/uri": "^1.2.0",
+    "content-type": "^1.0.5",
+    "just-curry-it": "^5.3.0",
+    "type-is": "^1.6.18"
+  }
+}

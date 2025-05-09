@@ -1,0 +1,115 @@
+import N from "fuse.js";
+import { ref as h, watch as R, computed as V } from "vue";
+import { extractRequestBody as A } from "../../helpers/specHelpers.js";
+import { useOperation as B } from "../../hooks/useOperation.js";
+import { useNavState as P } from "../../hooks/useNavState.js";
+import { useSidebar as z } from "../../hooks/useSidebar.js";
+import { getHeadingsFromMarkdown as G } from "../../helpers/getHeadingsFromMarkdown.js";
+import { getModels as J } from "../../helpers/getModels.js";
+function te({
+  specification: a
+}) {
+  const { getHeadingId: T, getWebhookId: j, getModelId: L, getOperationId: W, getTagId: q } = P(), { hideModels: C } = z(), o = h([]), r = h([]), d = h(0), s = h(""), i = new N(o.value, {
+    keys: ["title", "description", "body"]
+  }), p = () => {
+    d.value = 0, r.value = i.search(s.value);
+  };
+  R(s, (l) => {
+    l.length ? p() : r.value = [];
+  });
+  function F() {
+    s.value = "", d.value = 0, r.value = [];
+  }
+  const H = V(
+    () => s.value.length === 0 ? o.value.slice(0, 25).map((u) => ({
+      item: u
+    })) : r.value.slice(0, 25)
+  );
+  return R(
+    a.value,
+    async () => {
+      var y, g, I, k, M, w, D, $, E;
+      if (o.value = [], !((g = (y = a.value) == null ? void 0 : y.tags) != null && g.length) && !((k = (I = a.value) == null ? void 0 : I.webhooks) != null && k.length)) {
+        i.setCollection([]);
+        return;
+      }
+      const l = [], u = G(
+        ((w = (M = a.value) == null ? void 0 : M.info) == null ? void 0 : w.description) ?? ""
+      );
+      u.length && (u.forEach((e) => {
+        l.push({
+          type: "heading",
+          title: `Info > ${e.value}`,
+          description: "",
+          href: `#${T(e)}`,
+          tag: e.slug,
+          body: ""
+        });
+      }), o.value = o.value.concat(l)), ($ = (D = a.value) == null ? void 0 : D.tags) == null || $.forEach((e) => {
+        const S = {
+          title: e["x-displayName"] ?? e.name,
+          href: `#${q(e)}`,
+          description: e.description,
+          type: "tag",
+          tag: e.name,
+          body: ""
+        };
+        o.value.push(S), e.operations && e.operations.forEach((t) => {
+          const { parameterMap: n } = B(t), x = A(t) || n.value;
+          let f = null;
+          typeof x != "boolean" && (f = x);
+          const O = {
+            type: "req",
+            title: t.name ?? t.path,
+            href: `#${W(t, e)}`,
+            operationId: t.operationId,
+            description: t.description ?? "",
+            httpVerb: t.httpVerb,
+            path: t.path,
+            tag: e.name,
+            operation: t
+          };
+          f && (O.body = f), o.value.push(O);
+        });
+      });
+      const c = (E = a.value) == null ? void 0 : E.webhooks, m = [];
+      c && Object.keys(c).forEach((e) => {
+        Object.keys(
+          c[e]
+        ).forEach((t) => {
+          var n;
+          m.push({
+            type: "webhook",
+            title: `Webhook: ${(n = c[e][t]) == null ? void 0 : n.name}`,
+            href: `#${j({ name: e, method: t })}`,
+            description: e,
+            httpVerb: t,
+            tag: e,
+            body: ""
+          });
+        }), o.value = o.value.concat(m);
+      });
+      const v = C.value ? {} : J(a.value), b = [];
+      v && (Object.keys(v).forEach((e) => {
+        b.push({
+          type: "model",
+          title: "Model",
+          href: `#${L({ name: e })}`,
+          description: v[e].title ?? e,
+          tag: e,
+          body: ""
+        });
+      }), o.value = o.value.concat(b)), i.setCollection(o.value);
+    },
+    { immediate: !0 }
+  ), {
+    resetSearch: F,
+    fuseSearch: p,
+    selectedSearchResult: d,
+    searchResultsWithPlaceholderResults: H,
+    searchText: s
+  };
+}
+export {
+  te as useSearchIndex
+};

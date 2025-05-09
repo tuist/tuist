@@ -1,0 +1,14 @@
+import type { ServerVariableValues, ServerVariables } from '../../components/Server/types';
+type __VLS_Props = {
+    variables?: ServerVariables | undefined;
+    values?: ServerVariableValues;
+    /** The ID of the input controlled by the variables form */
+    controls?: string;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    "update:variable": (name: string, value: string) => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    "onUpdate:variable"?: (name: string, value: string) => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=ServerVariablesForm.vue.d.ts.map

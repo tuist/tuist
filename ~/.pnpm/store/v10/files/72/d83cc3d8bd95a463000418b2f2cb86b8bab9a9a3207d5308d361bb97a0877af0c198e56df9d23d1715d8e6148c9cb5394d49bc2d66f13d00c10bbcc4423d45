@@ -1,0 +1,47 @@
+import { snippetz as a } from "@scalar/snippetz";
+import { getHarRequest as E } from "./get-har-request.js";
+const s = "ws://replace.me", w = (l, t, {
+  operation: i,
+  example: u,
+  server: c,
+  securitySchemes: g = []
+}) => {
+  var n;
+  try {
+    const r = E({
+      operation: i,
+      example: u,
+      server: c,
+      securitySchemes: g
+    });
+    if (!r.url)
+      return [new Error("Please enter a URL to see a code snippet"), null];
+    const o = r.url.startsWith("/") ? "" : "/";
+    try {
+      new URL(r.url);
+    } catch {
+      r.url = `${s}${o}${r.url}`;
+    }
+    if (((n = r.postData) == null ? void 0 : n.mimeType) === "application/json")
+      try {
+        JSON.parse(r.postData.text || "{}");
+      } catch {
+        return [new Error("Invalid JSON body"), null];
+      }
+    const p = l.replace("javascript", "js");
+    if (a().hasPlugin(p, t)) {
+      const e = a().print(
+        p,
+        t,
+        r
+      );
+      return e ? [null, e.replace(`${s}${o}`, "")] : [new Error("Error generating snippet"), null];
+    }
+  } catch (r) {
+    return console.error("[getSnippet]", r), [new Error("Error generating snippet"), null];
+  }
+  return [new Error("No snippet found"), null];
+};
+export {
+  w as getSnippet
+};

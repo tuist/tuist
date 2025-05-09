@@ -1,0 +1,68 @@
+{
+  "name": "@scalar/types",
+  "description": "Types to work with Scalar packages",
+  "license": "MIT",
+  "author": "Scalar (https://github.com/scalar)",
+  "homepage": "https://github.com/scalar/scalar",
+  "bugs": "https://github.com/scalar/scalar/issues/new/choose",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scalar/scalar.git",
+    "directory": "packages/types"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "scalar",
+    "references"
+  ],
+  "version": "0.0.34",
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./utils": {
+      "import": "./dist/utils/index.js",
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    },
+    "./legacy": {
+      "import": "./dist/legacy/index.js",
+      "types": "./dist/legacy/index.d.ts",
+      "default": "./dist/legacy/index.js"
+    },
+    "./external": {
+      "import": "./dist/external/index.js",
+      "types": "./dist/external/index.d.ts",
+      "default": "./dist/external/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "@unhead/schema": "^1.11.11",
+    "@scalar/openapi-types": "0.1.8"
+  },
+  "devDependencies": {
+    "@scalar/build-tooling": "0.1.14",
+    "@scalar/snippetz": "0.2.14"
+  },
+  "scripts": {
+    "build": "scalar-build-rollup",
+    "format": "scalar-format",
+    "format:check": "scalar-format-check",
+    "lint:check": "scalar-lint-check",
+    "lint:fix": "scalar-lint-fix",
+    "types:build": "scalar-types-build",
+    "types:check": "scalar-types-check"
+  }
+}

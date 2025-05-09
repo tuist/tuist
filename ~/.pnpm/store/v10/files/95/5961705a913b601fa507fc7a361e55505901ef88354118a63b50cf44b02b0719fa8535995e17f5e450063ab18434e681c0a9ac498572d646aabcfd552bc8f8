@@ -1,0 +1,60 @@
+{
+  "name": "@zag-js/collapsible",
+  "version": "1.8.2",
+  "description": "Core logic for the collapsible widget implemented as a state machine",
+  "keywords": [
+    "js",
+    "machine",
+    "xstate",
+    "statechart",
+    "component",
+    "chakra-ui",
+    "collapsible"
+  ],
+  "author": "Segun Adebayo <sage@adebayosegun.com>",
+  "homepage": "https://github.com/chakra-ui/zag#readme",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "repository": "https://github.com/chakra-ui/zag/tree/main/packages/collapsible",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/chakra-ui/zag/issues"
+  },
+  "dependencies": {
+    "@zag-js/anatomy": "1.8.2",
+    "@zag-js/core": "1.8.2",
+    "@zag-js/dom-query": "1.8.2",
+    "@zag-js/utils": "1.8.2",
+    "@zag-js/types": "1.8.2"
+  },
+  "devDependencies": {
+    "clean-package": "2.2.0"
+  },
+  "clean-package": "../../../clean-package.config.json",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  }
+}

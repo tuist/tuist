@@ -1,0 +1,7 @@
+import t from "./RequestAuthDataTable.vue2.js";
+/* empty css                          */
+import o from "../../../../_virtual/_plugin-vue_export-helper.js";
+const m = /* @__PURE__ */ o(t, [["__scopeId", "data-v-3569c0b2"]]);
+export {
+  m as default
+};

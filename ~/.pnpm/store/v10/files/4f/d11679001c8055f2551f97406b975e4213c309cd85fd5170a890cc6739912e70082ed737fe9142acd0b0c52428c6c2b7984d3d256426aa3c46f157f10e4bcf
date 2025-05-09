@@ -1,0 +1,16 @@
+import type { EnvVariable } from '../../../../store/active-entities';
+import type { Environment } from '@scalar/oas-utils/entities/environment';
+import { type Collection, type Oauth2Flow, type SecuritySchemeOauth2, type Server } from '@scalar/oas-utils/entities/spec';
+import type { Workspace } from '@scalar/oas-utils/entities/workspace';
+type __VLS_Props = {
+    collection: Collection;
+    environment: Environment;
+    envVariables: EnvVariable[];
+    flow: Oauth2Flow;
+    scheme: SecuritySchemeOauth2;
+    server: Server | undefined;
+    workspace: Workspace;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=OAuth2.vue.d.ts.map

@@ -1,0 +1,59 @@
+import { defineComponent as u, onBeforeMount as p, onMounted as _, onBeforeUnmount as y, computed as h, openBlock as t, createBlock as n, unref as r, withCtx as a, createElementVNode as v, createVNode as d, KeepAlive as w, resolveDynamicComponent as C, createCommentVNode as k } from "vue";
+import { addScalarClassesToHeadless as K } from "@scalar/components";
+import { getThemeStyles as T } from "@scalar/themes";
+import { useColorMode as H } from "@scalar/use-hooks/useColorMode";
+import { ScalarToasts as M } from "@scalar/use-toasts";
+import { RouterView as B } from "vue-router";
+import D from "../App/MainLayout.vue.js";
+import { useActiveEntities as E } from "../../store/active-entities.js";
+import L from "../../components/ImportCollection/ImportCollectionListener.vue.js";
+import { useWorkspace as S } from "../../store/store.js";
+import { handleHotKeyDown as V } from "../../libs/hot-keys.js";
+const x = ["innerHTML"], F = /* @__PURE__ */ u({
+  __name: "ApiClientWeb",
+  setup(A) {
+    H();
+    const { activeWorkspace: m } = E(), { events: o } = S();
+    p(() => K());
+    const i = (e) => V(e, o.hotKeys), l = (e) => {
+      e && e.openCommandPalette && (e.openCommandPalette.preventDefault(), o.commandPalette.emit());
+    };
+    _(() => {
+      window.addEventListener("keydown", i), o.hotKeys.on(l);
+    }), y(() => {
+      window.removeEventListener("keydown", i), o.hotKeys.off(l);
+    });
+    const c = h(
+      () => {
+        var e;
+        return m.value && `<style>${T((e = m.value) == null ? void 0 : e.themeId)}</style>`;
+      }
+    );
+    return (e, N) => (t(), n(r(L), null, {
+      default: a(() => {
+        var s;
+        return [
+          v("div", { innerHTML: c.value }, null, 8, x),
+          (s = r(m)) != null && s.uid ? (t(), n(D, { key: 0 }, {
+            default: a(() => [
+              d(r(B), null, {
+                default: a(({ Component: f }) => [
+                  (t(), n(w, null, [
+                    (t(), n(C(f)))
+                  ], 1024))
+                ]),
+                _: 1
+              })
+            ]),
+            _: 1
+          })) : k("", !0),
+          d(r(M))
+        ];
+      }),
+      _: 1
+    }));
+  }
+});
+export {
+  F as default
+};

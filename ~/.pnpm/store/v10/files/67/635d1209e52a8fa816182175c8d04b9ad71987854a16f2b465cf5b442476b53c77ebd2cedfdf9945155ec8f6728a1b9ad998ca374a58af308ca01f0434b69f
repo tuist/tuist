@@ -1,0 +1,38 @@
+import { defineComponent as u, ref as c, openBlock as i, createBlock as d, Transition as m, withCtx as l, unref as e, createElementBlock as f, createVNode as r, createTextVNode as p, createCommentVNode as g } from "vue";
+import { useLoadingState as v, ScalarLoading as x, ScalarButton as _ } from "@scalar/components";
+import { useWorkspace as k } from "../../../store/store.js";
+const L = {
+  key: 0,
+  class: "absolute inset-0 bg-b-1 flex flex-col gap-6 items-center justify-center"
+}, y = /* @__PURE__ */ u({
+  __name: "ResponseLoadingOverlay",
+  setup(S) {
+    const { events: n } = k(), t = v(), a = c();
+    return n.requestStatus.on((s) => {
+      s === "start" ? a.value = setTimeout(() => t.startLoading(), 1e3) : (clearTimeout(a.value), a.value = void 0, t.stopLoading());
+    }), (s, o) => (i(), d(m, null, {
+      default: l(() => [
+        e(t).isLoading ? (i(), f("div", L, [
+          r(e(x), {
+            class: "text-c-3",
+            loadingState: e(t),
+            size: "3xl"
+          }, null, 8, ["loadingState"]),
+          r(e(_), {
+            variant: "ghost",
+            onClick: o[0] || (o[0] = (C) => e(n).cancelRequest.emit())
+          }, {
+            default: l(() => o[1] || (o[1] = [
+              p(" Cancel ")
+            ])),
+            _: 1
+          })
+        ])) : g("", !0)
+      ]),
+      _: 1
+    }));
+  }
+});
+export {
+  y as default
+};

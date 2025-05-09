@@ -1,0 +1,1 @@
+{"version":3,"file":"migration.d.ts","sourceRoot":"","sources":["../../../src/migrations/v-2.1.0/migration.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,sCAAsC,CAAA;AAEnE,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,mBAAmB,CAAA;AAEhD,mCAAmC;AACnC,eAAO,MAAM,eAAe,SAAU,IAAI,CAAC,OAAO,CAAC,UAAU,EAAE,SAAS,CAAC;;;;;;;;;;CAuVxE,CAAA"}

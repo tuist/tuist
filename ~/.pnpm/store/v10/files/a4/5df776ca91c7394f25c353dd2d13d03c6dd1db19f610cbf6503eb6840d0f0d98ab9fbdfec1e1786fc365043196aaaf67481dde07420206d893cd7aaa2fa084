@@ -1,0 +1,165 @@
+import { defineComponent as U, ref as k, computed as d, openBlock as q, createBlock as $, withCtx as c, createElementVNode as f, toDisplayString as S, createElementBlock as B, normalizeClass as L, createCommentVNode as T, createVNode as u, unref as i } from "vue";
+import { useModal as j, ScalarComboboxMultiselect as z, ScalarButton as E, ScalarIcon as I } from "@scalar/components";
+import { isDefined as K } from "@scalar/oas-utils/helpers";
+import N from "../../../../components/ViewLayout/ViewLayoutCollapse.vue.js";
+import { useLayout as W } from "../../../../hooks/useLayout.js";
+import { useWorkspace as F } from "../../../../store/store.js";
+import G from "./DeleteRequestAuthModal.vue.js";
+import H from "./RequestAuthDataTable.vue.js";
+import { getSecurityRequirements as J, formatComplexScheme as P, formatScheme as Q, getSchemeOptions as X } from "../../libs/auth.js";
+const Y = { class: "inline-flex items-center gap-1" }, Z = { class: "-mx-1 flex flex-1" }, _ = { class: "text-c-1" }, ce = /* @__PURE__ */ U({
+  __name: "RequestAuth",
+  props: {
+    collection: {},
+    environment: {},
+    envVariables: {},
+    layout: {},
+    operation: {},
+    selectedSecuritySchemeUids: {},
+    server: {},
+    title: {},
+    workspace: {}
+  },
+  setup(r) {
+    const { layout: h } = W(), {
+      securitySchemes: y,
+      securitySchemeMutators: R,
+      requestMutators: C,
+      collectionMutators: V
+    } = F(), g = k(null), m = j(), v = k(
+      null
+    ), b = d(() => {
+      const e = J(r.operation, r.collection);
+      return { filteredRequirements: e.filter((o) => Object.keys(o).length), requirements: e };
+    }), p = d(() => {
+      const { filteredRequirements: e, requirements: t } = b.value;
+      if (!t.length) return null;
+      const o = e.length < t.length, n = o ? "Unlock" : "Lock", l = o ? "Optional" : "Required", M = `${e.length === 1 ? Object.keys(e[0] || {})[0] : ""} ${l}`;
+      return { icon: n, text: M };
+    }), s = d(
+      () => r.selectedSecuritySchemeUids.map((e) => {
+        if (Array.isArray(e)) return P(e, y);
+        const t = y[e ?? ""];
+        if (t)
+          return Q(t);
+      }).filter(K)
+    );
+    function A(e) {
+      var n;
+      const t = e.find((l) => l.payload), o = e.filter((l) => !l.payload).map(({ id: l }) => {
+        const a = l.split(",");
+        return a.length > 1 ? a : l;
+      });
+      if (t != null && t.payload) {
+        const l = R.add(
+          t.payload,
+          (n = r.collection) == null ? void 0 : n.uid
+        );
+        l && o.push(l.uid);
+      }
+      x(o);
+    }
+    const x = (e) => {
+      var t;
+      h === "modal" || r.layout === "reference" ? V.edit(r.collection.uid, "selectedSecuritySchemeUids", e) : (t = r.operation) != null && t.uid && C.edit(r.operation.uid, "selectedSecuritySchemeUids", e);
+    };
+    function D({ id: e, label: t }) {
+      v.value = { id: e, label: t }, m.show();
+    }
+    const w = (e) => {
+      var o;
+      if (!e) return;
+      const t = r.selectedSecuritySchemeUids.filter((n) => {
+        const l = e.split(",");
+        return l.length > 1 && Array.isArray(n) && l.length === n.length ? n.every((a) => !l.includes(a)) : n !== e;
+      });
+      x(t), (o = g.value) == null || o.$el.focus(), m.hide();
+    }, O = d(
+      () => {
+        var e;
+        return X(
+          b.value.filteredRequirements,
+          ((e = r.collection) == null ? void 0 : e.securitySchemes) ?? [],
+          y,
+          h === "modal" || r.layout === "reference"
+        );
+      }
+    );
+    return (e, t) => (q(), $(N, {
+      class: "group/params",
+      itemCount: s.value.length,
+      layout: e.layout
+    }, {
+      title: c(() => [
+        f("div", Y, [
+          f("span", null, S(e.title), 1),
+          p.value ? (q(), B("span", {
+            key: 0,
+            class: L(["text-c-3 text-xs leading-[normal]", { "text-c-1": p.value.text === "Required" }])
+          }, S(p.value.text), 3)) : T("", !0)
+        ])
+      ]),
+      actions: c(() => [
+        f("div", Z, [
+          u(i(z), {
+            class: "w-72 text-xs",
+            isDeletable: i(h) !== "modal" && e.layout !== "reference",
+            modelValue: s.value,
+            multiple: "",
+            options: O.value,
+            onDelete: D,
+            "onUpdate:modelValue": A
+          }, {
+            default: c(() => [
+              u(i(E), {
+                ref_key: "comboboxButtonRef",
+                ref: g,
+                class: "py-0.75 hover:bg-b-3 text-c-1 hover:text-c-1 h-auto px-1.5 font-normal",
+                fullWidth: "",
+                variant: "ghost"
+              }, {
+                default: c(() => {
+                  var o;
+                  return [
+                    f("div", _, S(s.value.length === 0 ? "Auth Type" : s.value.length === 1 ? (o = s.value[0]) == null ? void 0 : o.label : "Multiple"), 1),
+                    u(i(I), {
+                      class: "ml-1 shrink-0",
+                      icon: "ChevronDown",
+                      size: "sm"
+                    })
+                  ];
+                }),
+                _: 1
+              }, 512)
+            ]),
+            _: 1
+          }, 8, ["isDeletable", "modelValue", "options"])
+        ])
+      ]),
+      default: c(() => [
+        u(H, {
+          collection: e.collection,
+          envVariables: e.envVariables,
+          environment: e.environment,
+          layout: e.layout,
+          selectedSchemeOptions: s.value,
+          server: e.server,
+          workspace: e.workspace
+        }, null, 8, ["collection", "envVariables", "environment", "layout", "selectedSchemeOptions", "server", "workspace"]),
+        u(G, {
+          scheme: v.value,
+          state: i(m),
+          onClose: t[0] || (t[0] = (o) => i(m).hide()),
+          onDelete: t[1] || (t[1] = (o) => {
+            var n;
+            return w((n = v.value) == null ? void 0 : n.id);
+          })
+        }, null, 8, ["scheme", "state"])
+      ]),
+      _: 1
+    }, 8, ["itemCount", "layout"]));
+  }
+});
+export {
+  ce as default
+};

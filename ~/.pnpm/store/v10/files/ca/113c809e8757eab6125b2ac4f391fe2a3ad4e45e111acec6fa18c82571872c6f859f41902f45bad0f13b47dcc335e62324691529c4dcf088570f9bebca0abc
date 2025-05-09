@@ -1,0 +1,7 @@
+import t from "./HttpMethod.vue2.js";
+/* empty css                */
+import o from "../../_virtual/_plugin-vue_export-helper.js";
+const _ = /* @__PURE__ */ o(t, [["__scopeId", "data-v-46723816"]]);
+export {
+  _ as default
+};

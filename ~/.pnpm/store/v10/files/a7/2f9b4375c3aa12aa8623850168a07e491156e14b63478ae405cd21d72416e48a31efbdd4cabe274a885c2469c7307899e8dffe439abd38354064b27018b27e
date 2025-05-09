@@ -1,0 +1,27 @@
+import type { RequestPayload } from '@scalar/oas-utils/entities/spec';
+type __VLS_Props = {
+    parsedCurl: RequestPayload | null;
+    state: {
+        open: boolean;
+        show: () => void;
+        hide: () => void;
+    };
+    collectionUid: string;
+};
+declare const _default: import("vue").DefineComponent<__VLS_Props, {}, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, {} & {
+    importCurl: (payload: {
+        parsedCurl: RequestPayload;
+        requestName: string;
+        collectionUid: string;
+    }) => any;
+    close: () => any;
+}, string, import("vue").PublicProps, Readonly<__VLS_Props> & Readonly<{
+    onImportCurl?: (payload: {
+        parsedCurl: RequestPayload;
+        requestName: string;
+        collectionUid: string;
+    }) => any;
+    onClose?: () => any;
+}>, {}, {}, {}, {}, string, import("vue").ComponentProvideOptions, false, {}, any>;
+export default _default;
+//# sourceMappingURL=ImportCurlModal.vue.d.ts.map

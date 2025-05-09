@@ -1,0 +1,39 @@
+import { defineComponent as c, computed as p, openBlock as i, createElementBlock as f, normalizeClass as a, createElementVNode as V, createVNode as d, unref as s, createTextVNode as g } from "vue";
+import { ScalarIcon as x, ScalarToggle as b } from "@scalar/components";
+const N = /* @__PURE__ */ c({
+  __name: "WatchModeToggle",
+  props: {
+    modelValue: { type: Boolean },
+    disabled: { type: Boolean, default: !1 }
+  },
+  emits: ["update:modelValue"],
+  setup(n, { emit: m }) {
+    const r = n, l = m, o = p({
+      get: () => r.modelValue,
+      set: (e) => l("update:modelValue", e)
+    });
+    return (e, t) => (i(), f("label", {
+      class: a(["p-3 py-1.5 rounded flex items-center text-sm text-c-2 gap-2 select-none", e.disabled ? "cursor-default" : "cursor-pointer"]),
+      for: "watch-toggle"
+    }, [
+      V("span", {
+        class: a(["text-c-1 flex gap-1 items-center font-medium text-xs", { "text-c-3": !o.value }])
+      }, [
+        d(s(x), {
+          icon: "Watch",
+          size: "sm"
+        }),
+        t[1] || (t[1] = g(" Watch Mode "))
+      ], 2),
+      d(s(b), {
+        id: "watch-toggle",
+        disabled: !!e.disabled,
+        modelValue: o.value,
+        "onUpdate:modelValue": t[0] || (t[0] = (u) => l("update:modelValue", u))
+      }, null, 8, ["disabled", "modelValue"])
+    ], 2));
+  }
+});
+export {
+  N as default
+};

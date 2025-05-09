@@ -1,0 +1,1 @@
+{"version":3,"file":"OpenApiClientButton.vue.d.ts","sourceRoot":"","sources":["../../src/components/OpenApiClientButton.vue"],"names":[],"mappings":"AAuHA,KAAK,WAAW,GAAG;IACjB,YAAY,EAAE,SAAS,GAAG,OAAO,CAAA;IACjC,MAAM,CAAC,EAAE,eAAe,GAAG,SAAS,CAAA;IACpC,aAAa,CAAC,EAAE,OAAO,CAAA;IACvB,WAAW,CAAC,EAAE,MAAM,GAAG,IAAI,CAAA;IAC3B,GAAG,CAAC,EAAE,MAAM,CAAA;CACb,CAAC;;AA4HF,wBAMG"}

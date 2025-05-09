@@ -1,0 +1,65 @@
+import { defineComponent as w, ref as h, onBeforeMount as y, onMounted as T, onBeforeUnmount as v, computed as K, openBlock as t, createElementBlock as C, createElementVNode as k, createVNode as r, unref as a, createBlock as m, withCtx as d, KeepAlive as E, resolveDynamicComponent as H, createCommentVNode as N } from "vue";
+import b from "../../components/TopNav/TopNav.vue.js";
+import A from "./MainLayout.vue.js";
+import { useActiveEntities as S } from "../../store/active-entities.js";
+import { addScalarClassesToHeadless as B } from "@scalar/components";
+import { getThemeStyles as D } from "@scalar/themes";
+import { useColorMode as L } from "@scalar/use-hooks/useColorMode";
+import { ScalarToasts as M } from "@scalar/use-toasts";
+import { RouterView as P } from "vue-router";
+import { APP_HOTKEYS as V } from "./hotkeys.js";
+import { DEFAULT_HOTKEYS as x, handleHotKeyDown as $ } from "../../libs/hot-keys.js";
+import { useWorkspace as g } from "../../store/store.js";
+const O = {
+  id: "scalar-client-app",
+  class: "contents"
+}, U = ["innerHTML"], oe = /* @__PURE__ */ w({
+  __name: "ApiClientApp",
+  emits: ["newTab"],
+  setup(W) {
+    const p = { ...x, ...V }, s = h(null), f = (e) => {
+      s.value = e;
+    };
+    L();
+    const { activeWorkspace: n } = S(), { events: o } = g();
+    y(() => B());
+    const l = (e) => $(e, o.hotKeys, { hotKeys: p }), i = (e) => {
+      e && e.openCommandPalette && (e.openCommandPalette.preventDefault(), o.commandPalette.emit());
+    };
+    T(() => {
+      window.addEventListener("keydown", l), o.hotKeys.on(i);
+    }), v(() => {
+      window.removeEventListener("keydown", l), o.hotKeys.off(i);
+    });
+    const u = K(
+      () => {
+        var e;
+        return n.value && `<style>${D((e = n.value) == null ? void 0 : e.themeId)}</style>`;
+      }
+    );
+    return (e, Y) => {
+      var c;
+      return t(), C("div", O, [
+        k("div", { innerHTML: u.value }, null, 8, U),
+        r(b, { openNewTab: s.value }, null, 8, ["openNewTab"]),
+        (c = a(n)) != null && c.uid ? (t(), m(A, { key: 0 }, {
+          default: d(() => [
+            r(a(P), { onNewTab: f }, {
+              default: d(({ Component: _ }) => [
+                (t(), m(E, null, [
+                  (t(), m(H(_)))
+                ], 1024))
+              ]),
+              _: 1
+            })
+          ]),
+          _: 1
+        })) : N("", !0),
+        r(a(M))
+      ]);
+    };
+  }
+});
+export {
+  oe as default
+};

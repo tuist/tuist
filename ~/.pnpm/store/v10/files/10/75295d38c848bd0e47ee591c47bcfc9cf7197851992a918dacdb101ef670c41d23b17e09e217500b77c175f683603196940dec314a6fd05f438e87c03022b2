@@ -1,0 +1,35 @@
+import type { EventBus } from '../libs';
+import type { HotkeyEventName } from '@scalar/oas-utils/entities/hotkeys';
+import type { HotKeyConfig, HotKeyModifiers } from '@scalar/oas-utils/entities/workspace';
+export type HotKeyEvent = Partial<Record<HotkeyEventName, KeyboardEvent>>;
+/**
+ * Default set of keybindings
+ *
+ * Passing an empty object for hotkeys will disable them
+ *
+ * TODO we can add a merge or overwrite option
+ *
+ * The modifier can be set by the user but defaults to ctrl for windows/linux and meta for macos
+ *
+ * For the modifier key:
+ * - if you leave it blank it can be true or false
+ * - if you explicitly set it, the event must match ex: modifier false will not trigger if the modifier was pressed
+ */
+export declare const DEFAULT_HOTKEYS: HotKeyConfig;
+/** Checks if we are in an "input" */
+export declare const isInput: (ev: KeyboardEvent) => boolean;
+/** Converts our modifier config to the eventKey */
+export declare const getModifiers: (modifiers: HotKeyModifiers) => ("metaKey" | "ctrlKey" | "altKey" | "shiftKey")[];
+/**
+ * Global keydown handler for hotkeys
+ *
+ * This is the brain of the operation, we turn keybindings -> events
+ */
+export declare const handleHotKeyDown: (ev: KeyboardEvent, eventBus: EventBus<HotKeyEvent>, { hotKeys, modifiers }?: {
+    hotKeys?: Partial<Record<"" | "/" | "Space" | "Backspace" | "Tab" | "Enter" | "Escape" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" | "Delete" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "*" | "+" | "-" | "." | "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | ";" | "=" | "," | "`" | "[" | "\\" | "]", {
+        event: "addTopNav" | "closeModal" | "closeTopNav" | "createNew" | "executeRequest" | "focusAddressBar" | "focusRequestSearch" | "jumpToLastTab" | "jumpToTab" | "navigateSearchResultsDown" | "navigateSearchResultsUp" | "navigateTopNavLeft" | "navigateTopNavRight" | "openCommandPalette" | "selectSearchResult" | "toggleSidebar";
+        modifiers?: ("Meta" | "Control" | "Shift" | "Alt" | "default")[] | undefined;
+    }>> | undefined;
+    modifiers?: ("default" | "Meta" | "Control" | "Shift" | "Alt")[] | undefined;
+}) => void;
+//# sourceMappingURL=hot-keys.d.ts.map

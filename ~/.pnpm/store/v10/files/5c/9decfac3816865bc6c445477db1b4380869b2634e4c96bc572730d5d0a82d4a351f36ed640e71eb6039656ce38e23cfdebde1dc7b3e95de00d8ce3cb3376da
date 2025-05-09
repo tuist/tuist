@@ -1,0 +1,7 @@
+import t from "./EmptyState.vue2.js";
+/* empty css                */
+import o from "../_virtual/_plugin-vue_export-helper.js";
+const r = /* @__PURE__ */ o(t, [["__scopeId", "data-v-6c848a44"]]);
+export {
+  r as default
+};

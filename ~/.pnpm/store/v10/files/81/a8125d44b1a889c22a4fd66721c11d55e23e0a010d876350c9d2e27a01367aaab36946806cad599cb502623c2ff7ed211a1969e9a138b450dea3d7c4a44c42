@@ -1,0 +1,26 @@
+import { defineComponent as a, openBlock as o, createElementBlock as l, createBlock as t, resolveDynamicComponent as n, normalizeClass as r, withCtx as s, renderSlot as i } from "vue";
+import d from "../LoadingSkeleton.vue.js";
+const p = { class: "section-header-wrapper" }, h = /* @__PURE__ */ a({
+  __name: "SectionHeader",
+  props: {
+    loading: { type: Boolean, default: !1 },
+    tight: { type: Boolean, default: !1 },
+    level: { default: 1 }
+  },
+  setup(c) {
+    return (e, f) => (o(), l("div", p, [
+      e.loading ? (o(), t(d, { key: 0 })) : (o(), t(n(`h${e.level}`), {
+        key: 1,
+        class: r(["section-header", { tight: e.tight }])
+      }, {
+        default: s(() => [
+          i(e.$slots, "default", {}, void 0, !0)
+        ]),
+        _: 3
+      }, 8, ["class"]))
+    ]));
+  }
+});
+export {
+  h as default
+};
