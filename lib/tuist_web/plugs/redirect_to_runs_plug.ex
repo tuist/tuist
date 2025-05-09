@@ -19,7 +19,7 @@ defmodule TuistWeb.RedirectToRunsPlug do
       conn
     else
       conn
-      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/runs")
+      |> redirect(to: ~p"/#{account_handle}/#{project_handle}/binary-cache/generate-runs")
       |> halt()
     end
   end

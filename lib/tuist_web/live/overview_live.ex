@@ -30,7 +30,12 @@ defmodule TuistWeb.OverviewLive do
       URI.new!(
         "?" <>
           (params
-           |> Map.take(["analytics_environment", "analytics_date_range", "builds_environment", "builds_date_range"])
+           |> Map.take([
+             "analytics_environment",
+             "analytics_date_range",
+             "builds_environment",
+             "builds_date_range"
+           ])
            |> URI.encode_query())
       )
 
