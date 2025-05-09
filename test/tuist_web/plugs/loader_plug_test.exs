@@ -181,4 +181,94 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
                    end
     end
   end
+
+  describe "call/2 when body_params contains a project_id" do
+    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      slug = "#{project.account.name}/#{project.name}"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+        {:ok, project}
+      end)
+
+      # When
+      first_response =
+        %{conn | body_params: %{project_id: slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      second_response =
+        %{conn | body_params: %{project_id: slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      # Then
+      assert first_response.assigns[:selected_project] == project
+      assert first_response.assigns[:selected_account] == project.account
+      assert second_response.assigns[:selected_project] == project
+      assert second_response.assigns[:selected_account] == project.account
+    end
+
+    test "raises an error when the project is not found", %{conn: conn, cache: cache} do
+      # Given
+      account_handle = UUIDv7.generate()
+      project_handle = UUIDv7.generate()
+      slug = "#{account_handle}/#{project_handle}"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      # When/Then
+      assert_raise NotFoundError, "The project #{slug} was not found.", fn ->
+        %{conn | body_params: %{project_id: slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+      end
+    end
+  end
+
+  describe "call/2 when query_params contains a project_id" do
+    test "caches the responses across consecutive runs", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      slug = "#{project.account.name}/#{project.name}"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      expect(Projects, :get_project_by_slug, 1, fn ^slug, [preload: [:account]] ->
+        {:ok, project}
+      end)
+
+      # When
+      first_response =
+        %{conn | query_params: %{"project_id" => slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      second_response =
+        %{conn | query_params: %{"project_id" => slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+
+      # Then
+      assert first_response.assigns[:selected_project] == project
+      assert first_response.assigns[:selected_account] == project.account
+      assert second_response.assigns[:selected_project] == project
+      assert second_response.assigns[:selected_account] == project.account
+    end
+
+    test "raises an error when the project is not found", %{conn: conn, cache: cache} do
+      # Given
+      account_handle = UUIDv7.generate()
+      project_handle = UUIDv7.generate()
+      slug = "#{account_handle}/#{project_handle}"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      # When/Then
+      assert_raise NotFoundError, "The project #{slug} was not found.", fn ->
+        %{conn | query_params: %{"project_id" => slug}}
+        |> assign(:cache, cache)
+        |> LoaderPlug.call(plug_opts)
+      end
+    end
+  end
 end

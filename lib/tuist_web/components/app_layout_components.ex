@@ -163,7 +163,11 @@ defmodule TuistWeb.AppLayoutComponents do
   end
 
   def append_breadcrumb(%Phoenix.LiveView.Socket{} = socket, breadcrumb) do
-    Phoenix.Component.assign(socket, :breadcrumbs, Map.get(socket.assigns, :breadcrumbs, []) ++ [breadcrumb])
+    Phoenix.Component.assign(
+      socket,
+      :breadcrumbs,
+      Map.get(socket.assigns, :breadcrumbs, []) ++ [breadcrumb]
+    )
   end
 
   defp show_dashboard? do

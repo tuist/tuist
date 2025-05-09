@@ -8,6 +8,8 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias TuistWeb.Errors.NotFoundError
 
   def init(opts), do: opts
@@ -31,23 +33,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   end
 
   def call(%{path_params: %{"account_handle" => account_handle, "project_handle" => project_name}} = conn, _opts) do
-    project_slug = "#{account_handle}/#{project_name}"
-
-    project =
-      cached(conn, ["project", project_slug], fn ->
-        Projects.get_project_by_slug(project_slug, preload: [:account])
-      end)
-
-    case project do
-      {:ok, project} ->
-        conn
-        |> assign(:selected_project, project)
-        |> assign(:selected_account, project.account)
-
-      {:error, :not_found} ->
-        raise NotFoundError,
-              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
-    end
+    assign_selected_project(conn, "#{account_handle}/#{project_name}")
   end
 
   def call(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
@@ -65,6 +51,32 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
       account ->
         assign(conn, :selected_account, account)
+    end
+  end
+
+  def call(%{body_params: %{project_id: project_slug}} = conn, _opts) do
+    assign_selected_project(conn, project_slug)
+  end
+
+  def call(%{query_params: %{"project_id" => project_slug}} = conn, _opts) do
+    assign_selected_project(conn, project_slug)
+  end
+
+  def assign_selected_project(conn, project_slug) do
+    project =
+      cached(conn, ["project", project_slug], fn ->
+        Projects.get_project_by_slug(project_slug, preload: [:account])
+      end)
+
+    case project do
+      {:ok, project} ->
+        conn
+        |> assign(:selected_project, project)
+        |> assign(:selected_account, project.account)
+
+      {:error, :not_found} ->
+        raise NotFoundError,
+              gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
     end
   end
 

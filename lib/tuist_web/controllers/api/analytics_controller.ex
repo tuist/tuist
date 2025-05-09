@@ -21,7 +21,7 @@ defmodule TuistWeb.API.AnalyticsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.API.EnsureProjectPresencePlug)
+  plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
   plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
 

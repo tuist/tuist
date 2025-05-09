@@ -205,16 +205,17 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/start")
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/start")
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns forbidden when user is not authorized to create preview", %{
@@ -291,19 +292,20 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/generate-url",
-          preview_id: "preview-id",
-          multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
-        )
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/generate-url",
+            preview_id: "preview-id",
+            multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
+          )
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns forbidden when user is not authorized to create preview", %{
@@ -407,22 +409,23 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/complete",
-          preview_id: "preview_id",
-          multipart_upload_parts: %{
-            parts: [],
-            upload_id: "upload-id"
-          }
-        )
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/complete",
+            preview_id: "preview_id",
+            multipart_upload_parts: %{
+              parts: [],
+              upload_id: "upload-id"
+            }
+          )
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns error when preview doesn't exist", %{
@@ -562,13 +565,15 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview = PreviewsFixtures.preview_fixture()
 
       # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns bad_request when the id is invalid", %{
@@ -755,7 +760,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1")
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
 
       # Then
       response =
@@ -946,7 +955,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=feature-branch&page_size=1")
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=feature-branch&page_size=1"
+        )
 
       # Then
       response =
@@ -1029,9 +1042,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      first_page_conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2")
+      first_page_conn =
+        get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2")
 
-      second_page_conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2&page=2")
+      second_page_conn =
+        get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2&page=2")
 
       # Then
       first_page_response =
@@ -1058,13 +1073,18 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1")
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          get(
+            conn,
+            ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1"
+          )
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns forbidden when user is not authorized to read preview", %{
@@ -1079,7 +1099,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
       # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1")
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
 
       # Then
       response = json_response(conn, :forbidden)
@@ -1109,7 +1133,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+      conn =
+        post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
 
       # Then
       response = json_response(conn, :ok)
@@ -1128,13 +1153,18 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview = PreviewsFixtures.preview_fixture()
 
       # When
-      conn = post(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons")
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          post(
+            conn,
+            ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons"
+          )
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project tuist/non-existing-project was not found."
+      assert JSON.decode!(payload) == %{
+               "message" => "The project tuist/non-existing-project was not found."
+             }
     end
 
     test "returns forbidden when user is not authorized to read preview", %{
@@ -1150,7 +1180,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview = PreviewsFixtures.preview_fixture(project: project)
 
       # When
-      conn = post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+      conn =
+        post(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
 
       # Then
       response = json_response(conn, :forbidden)

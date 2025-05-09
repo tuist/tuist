@@ -595,16 +595,16 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = Authentication.put_current_user(conn, user)
 
       # When
-      conn =
-        conn
-        |> assign(:cache, cache)
-        |> put(~p"/api/projects/#{account.name}/non-existing-project/cache/clean")
+      {_, _, payload} =
+        assert_error_sent :not_found, fn ->
+          conn
+          |> assign(:cache, cache)
+          |> put(~p"/api/projects/#{account.name}/non-existing-project/cache/clean")
+        end
 
       # Then
-      response = json_response(conn, :not_found)
-
-      assert response["message"] ==
-               "The project #{account.name}/non-existing-project was not found."
+      assert JSON.decode!(payload) ==
+               %{"message" => "The project #{account.name}/non-existing-project was not found."}
     end
   end
 end
