@@ -3,6 +3,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
   use Mimic
 
   alias Tuist.CacheActionItems
+  alias Tuist.Projects
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -27,7 +28,28 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       expect(Storage, :delete_all_objects, 1, fn ^tests_objects -> :ok end)
 
       # When
-      %{project_id: project.id} |> CleanProjectWorker.new() |> Oban.insert!()
+      result = CleanProjectWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns :ok when the project doesn't exist" do
+      # Given
+      non_existent_project_id = Ecto.UUID.generate()
+
+      # Mock Projects.get_project_by_id to return nil
+      expect(Projects, :get_project_by_id, fn ^non_existent_project_id -> nil end)
+
+      # Don't expect any calls to Storage or CacheActionItems
+      # as the function should return early
+
+      # When
+      result =
+        CleanProjectWorker.perform(%Oban.Job{args: %{"project_id" => non_existent_project_id}})
+
+      # Then
+      assert result == :ok
     end
   end
 end
