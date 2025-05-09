@@ -10,6 +10,7 @@
     "@zag-js/dialog": "^1.8.2",
     "@zag-js/menu": "^1.8.2",
     "@zag-js/pin-input": "^1.8.2",
+    "@zag-js/popover": "^1.11.0",
     "@zag-js/select": "^1.8.2",
     "@zag-js/store": "^1.8.2",
     "@zag-js/tabs": "^1.8.2",

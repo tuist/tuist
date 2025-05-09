@@ -127,7 +127,8 @@ defmodule Tuist.CommandEvents do
       |> where(
         [e],
         e.name == "test" or
-          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building"))
+          (e.name == "xcodebuild" and
+             (e.subcommand == "test" or e.subcommand == "test-without-building"))
       )
 
     Flop.validate_and_run!(query, attrs, for: Event)

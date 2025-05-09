@@ -1,0 +1,370 @@
+defmodule TuistWeb.Noora.Filter do
+  @moduledoc false
+
+  use Phoenix.Component
+
+  import TuistWeb.Noora.Dropdown
+  import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.TextInput
+
+  defmodule Filter do
+    @moduledoc false
+    defstruct [
+      :id,
+      :display_name,
+      :type,
+      :options,
+      :options_display_names,
+      :operator,
+      :value
+    ]
+  end
+
+  defmodule Operations do
+    @moduledoc false
+    alias TuistWeb.Noora.Filter.Filter
+
+    def update_filters(current_filters, :change_value, params) do
+      filter_id = params["payload-filter-id"] || params["payloadFilterId"]
+      new_value = params["value"] || params["payloadFieldValue"]
+
+      Enum.map(current_filters, fn filter ->
+        if filter.id == filter_id do
+          %{filter | value: new_value}
+        else
+          filter
+        end
+      end)
+    end
+
+    def update_filters(current_filters, :change_operator, params) do
+      filter_id = params["payload-filter-id"] || params["payloadFilterId"]
+      new_operator_str = params["value"] || params["payloadFieldValue"]
+
+      new_operator =
+        if is_binary(new_operator_str),
+          do: String.to_existing_atom(new_operator_str),
+          else: new_operator_str
+
+      Enum.map(current_filters, fn filter ->
+        if filter.id == filter_id do
+          %{filter | operator: new_operator}
+        else
+          filter
+        end
+      end)
+    end
+
+    def update_filters(current_filters, :delete, params) do
+      filter_id = params["payload-filter-id"]
+      Enum.reject(current_filters, &(&1.id == filter_id))
+    end
+
+    def add_filter_to_query(filter_id, socket, params \\ nil) do
+      params = params || URI.decode_query(socket.assigns.uri.query)
+      filter = Enum.find(socket.assigns.available_filters, &(&1.id == filter_id))
+      filter_params = encode_filters_to_query([filter])
+
+      params |> Map.merge(filter_params) |> Map.drop(["before", "after"])
+    end
+
+    def update_filters_in_query(params, socket, query_params \\ nil) do
+      query_params = query_params || URI.decode_query(socket.assigns.uri.query)
+
+      current_filters =
+        decode_filters_from_query(query_params, socket.assigns.available_filters)
+
+      action = String.to_existing_atom(params["type"])
+      updated_filters = update_filters(current_filters, action, params)
+
+      filter_params = encode_filters_to_query(updated_filters)
+
+      if action == :delete do
+        filter_id = params["payload-filter-id"]
+
+        Map.drop(query_params, [
+          "filter_#{filter_id}_op",
+          "filter_#{filter_id}_val",
+          # Reset pagination
+          "before",
+          "after"
+        ])
+      else
+        query_params
+        |> Map.merge(filter_params)
+        # Reset pagination
+        |> Map.drop(["before", "after"])
+      end
+    end
+
+    def to_flop_filter(%Filter{value: nil}), do: []
+    def to_flop_filter(%Filter{value: ""}), do: []
+
+    def to_flop_filter(%Filter{id: id, operator: operator, value: value, options_display_names: display_names})
+        when is_map(display_names) and not is_nil(value) do
+      option_key =
+        display_names
+        |> Enum.find(fn {_k, v} -> to_string(v) == to_string(value) end)
+        |> case do
+          {key, _} -> key
+          nil -> value
+        end
+
+      [%{field: String.to_existing_atom(id), op: operator, value: option_key}]
+    end
+
+    def to_flop_filter(%Filter{id: id, operator: operator, value: value}) do
+      [%{field: String.to_existing_atom(id), op: operator, value: value}]
+    end
+
+    def convert_filters_to_flop(filters) when is_list(filters) do
+      Enum.flat_map(filters, &to_flop_filter/1)
+    end
+
+    def encode_filters_to_query(filters) when is_list(filters) do
+      Enum.reduce(filters, %{}, fn filter, acc ->
+        acc
+        |> Map.put("filter_#{filter.id}_op", to_string(filter.operator))
+        |> Map.put(
+          "filter_#{filter.id}_val",
+          if(is_nil(filter.value), do: "", else: to_string(filter.value))
+        )
+      end)
+    end
+
+    def decode_filters_from_query(params, available_filters) when is_map(params) and is_list(available_filters) do
+      params
+      |> extract_filter_ids()
+      |> Enum.flat_map(&build_filter(&1, params, available_filters))
+    end
+
+    # Extract filter IDs from query parameters
+    defp extract_filter_ids(params) do
+      params
+      |> Map.keys()
+      |> Enum.filter(&String.starts_with?(&1, "filter_"))
+      |> Enum.map(fn key ->
+        Regex.run(~r/^filter_([^_]+(?:_[^_]+)*)_(?:op|val)$/, key, capture: :all_but_first)
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&List.first/1)
+      |> Enum.uniq()
+    end
+
+    # Build a filter from ID, params, and available filters
+    defp build_filter(id, params, available_filters) do
+      with base_filter when not is_nil(base_filter) <-
+             Enum.find(available_filters, &(&1.id == id)),
+           op_str when not is_nil(op_str) <- params["filter_#{id}_op"] do
+        operator = String.to_existing_atom(op_str)
+        val = normalize_value(params["filter_#{id}_val"])
+        processed_val = process_option_value(val, base_filter)
+
+        create_filter(base_filter, operator, processed_val)
+      else
+        _ -> []
+      end
+    end
+
+    # Normalize empty values to nil
+    defp normalize_value(nil), do: nil
+    defp normalize_value(""), do: nil
+    defp normalize_value(val), do: val
+
+    # Process option values (convert to proper type if needed)
+    defp process_option_value(nil, _), do: nil
+
+    defp process_option_value(val, %{type: :option} = filter) do
+      case Integer.parse(val) do
+        {int_val, ""} ->
+          if Enum.member?(filter.options, int_val), do: int_val, else: val
+
+        _ ->
+          try_convert_to_atom(val, filter)
+      end
+    end
+
+    defp process_option_value(val, _), do: val
+
+    # Try to convert string to atom if it's in the options list
+    defp try_convert_to_atom(val, filter) do
+      atom_val = String.to_existing_atom(val)
+      if Enum.member?(filter.options, atom_val), do: atom_val, else: val
+    end
+
+    # Create the final filter if valid
+    defp create_filter(base_filter, operator, val) do
+      if base_filter.type == :option && !is_nil(val) && !Enum.member?(base_filter.options, val) do
+        []
+      else
+        [%{base_filter | operator: operator, value: val}]
+      end
+    end
+  end
+
+  attr :available_filters, :list, required: true, doc: "List of available filters to choose from"
+  attr :active_filters, :list, required: true, doc: "List of currently active filters"
+  attr :id, :string, required: true, doc: "Unique ID for the dropdown"
+  attr :label, :string, default: "Filter", doc: "Label for the dropdown"
+
+  attr :on_select, :string,
+    default: "add_filter",
+    doc: "Event to trigger when a filter is selected"
+
+  attr :rest, :global, doc: "Additional attributes"
+
+  def filter_dropdown(assigns) do
+    filtered_filters = filter_available_filters(assigns.available_filters, assigns.active_filters)
+
+    if Enum.empty?(filtered_filters) do
+      ~H""
+    else
+      assigns = assign(assigns, :filtered_filters, filtered_filters)
+
+      ~H"""
+      <.dropdown id={@id} label={@label} on_select={@on_select} {@rest}>
+        <:icon><.filter /></:icon>
+        <.dropdown_item
+          :for={filter <- @filtered_filters}
+          value={filter.id}
+          label={filter.display_name}
+        />
+      </.dropdown>
+      """
+    end
+  end
+
+  defp filter_available_filters(available_filters, active_filters) do
+    active_filter_ids = Enum.map(active_filters, & &1.id)
+    Enum.reject(available_filters, fn filter -> filter.id in active_filter_ids end)
+  end
+
+  attr :filter, Filter, required: true
+  attr :on_change, :string, default: nil
+
+  def active_filter(assigns) do
+    ~H"""
+    <div id={@filter.id} class="noora-filter">
+      <span data-part="label">{@filter.display_name}</span>
+      <div
+        id={"filter-#{@filter.id}-operator-dropdown"}
+        phx-hook="NooraDropdown"
+        data-part="dropdown"
+        data-on-select="update_filter"
+        data-meta-type="change_operator"
+        data-meta-payload-filter-id={@filter.id}
+      >
+        <div data-part="trigger">
+          <span data-part="label">
+            {operator_text(@filter.operator)}
+          </span>
+          <div data-part="indicator">
+            <div data-part="indicator-down">
+              <.chevron_down />
+            </div>
+            <div data-part="indicator-up">
+              <.chevron_up />
+            </div>
+          </div>
+        </div>
+        <div data-part="positioner">
+          <div class="noora-dropdown-content" data-part="content">
+            <.dropdown_item
+              :for={operator <- operators(@filter.type)}
+              value={operator}
+              label={operator_text(operator)}
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        :if={@filter.type === :option}
+        id={"filter-#{@filter.id}-value-dropdown"}
+        phx-hook="NooraDropdown"
+        data-part="dropdown"
+        data-on-select="update_filter"
+        data-meta-type="change_value"
+        data-meta-payload-filter-id={@filter.id}
+      >
+        <div data-part="trigger">
+          <span data-part="badge">
+            {get_display_value(@filter)}
+          </span>
+          <div data-part="indicator">
+            <div data-part="indicator-down">
+              <.chevron_down />
+            </div>
+            <div data-part="indicator-up">
+              <.chevron_up />
+            </div>
+          </div>
+        </div>
+        <div data-part="positioner">
+          <div class="noora-dropdown-content" data-part="content">
+            <.dropdown_item
+              :for={option <- @filter.options}
+              value={option}
+              label={Map.get(@filter.options_display_names, option, to_string(option))}
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        :if={@filter.type !== :option}
+        id={"filter-#{@filter.id}-value-popover"}
+        phx-hook="NooraPopover"
+        data-part="popover"
+      >
+        <div data-part="trigger">
+          <span data-part="badge">
+            {get_display_value(@filter)}
+          </span>
+          <div data-part="indicator">
+            <.chevron_down />
+          </div>
+        </div>
+        <div data-part="positioner">
+          <div class="noora-dropdown-content" data-part="content">
+            <.text_input
+              name="value"
+              type="basic"
+              value={@filter.value}
+              phx-blur="update_filter"
+              phx-value-target-type="update_filter"
+              phx-value-type="change_value"
+              phx-value-payload-filter-id={@filter.id}
+            />
+          </div>
+        </div>
+      </div>
+      <button
+        data-part="delete-icon"
+        phx-click="update_filter"
+        phx-value-type="delete"
+        phx-value-payload-filter-id={@filter.id}
+      >
+        <.trash_x />
+      </button>
+    </div>
+    """
+  end
+
+  defp operators(:option), do: [:==, :!=]
+  defp operators(:text), do: [:==, :=~]
+  defp operators(:number), do: [:==, :<, :>]
+
+  def operator_text(:==), do: "is"
+  def operator_text(:!=), do: "is not"
+  def operator_text(:=~), do: "contains"
+  def operator_text(:<), do: "less than"
+  def operator_text(:>), do: "greater than"
+  def operator_text(operator), do: to_string(operator)
+
+  defp get_display_value(%Filter{type: :option, value: value, options_display_names: display_names})
+       when is_map(display_names) and not is_nil(value) do
+    # Value could be an atom, integer, or string
+    Map.get(display_names, value, value)
+  end
+
+  defp get_display_value(%Filter{value: value}), do: value
+end

@@ -74,7 +74,11 @@ defmodule TuistWeb.Noora.TextInput do
   end
 
   def text_input(assigns) do
-    assigns = assigns |> assign_new(:value, fn -> "" end) |> assign_new(:error, fn -> nil end)
+    assigns =
+      assigns
+      |> assign_new(:value, fn -> "" end)
+      |> assign_new(:error, fn -> nil end)
+      |> assign_new(:id, fn -> "" end)
 
     ~H"""
     <div class="noora-text-input">

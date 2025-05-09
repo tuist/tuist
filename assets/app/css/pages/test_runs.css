@@ -19,6 +19,33 @@
     }
   }
 
+  & [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="search-input"] {
+    width: 330px;
+  }
+
+  & [data-part="test-runs-section"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="test-runs-table"] {
+    margin-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="empty-test-runs"] {
+    margin-top: var(--noora-spacing-6);
+  }
+
   & .noora-card {
     overflow-x: hidden;
   }
@@ -56,5 +83,9 @@
     & > [data-part="image"] {
       height: 150px;
     }
+  }
+
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
   }
 }

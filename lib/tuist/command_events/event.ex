@@ -18,7 +18,10 @@ defmodule Tuist.CommandEvents.Event do
       :name,
       :git_commit_sha,
       :git_ref,
-      :git_branch
+      :git_branch,
+      :status,
+      :is_ci,
+      :user_id
     ],
     sortable: [:created_at, :ran_at, :duration]
   }

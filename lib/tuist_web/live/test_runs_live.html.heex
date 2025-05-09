@@ -177,76 +177,92 @@
     </.empty_card_section>
   </.card>
   <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
-    <.card_section :if={not Enum.empty?(@test_runs)} data-part="test-runs-table-section">
-      <.table
-        id="test-runs-table"
-        rows={@test_runs}
-        row_navigate={
-          fn test_run ->
-            url(
-              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{test_run.id}"
-            )
-          end
-        }
-      >
-        <:col :let={test_run} label={gettext("Command")}>
-          <.text_and_description_cell label={
-            if test_run.command_arguments,
-              do:
-                "tuist " <>
-                  (test_run.command_arguments
-                   |> String.split(" ")
-                   |> Enum.take(2)
-                   |> Enum.join(" ")),
-              else: "tuist #{test_run.name}"
-          } />
-        </:col>
-        <:col :let={test_run} label="Status">
-          <%= if test_run.status == :success do %>
-            <.status_badge_cell label={gettext("Passed")} status="success" />
-          <% else %>
-            <.status_badge_cell label={gettext("Failed")} status="error" />
-          <% end %>
-        </:col>
-        <:col :let={test_run} label={gettext("Branch")}>
-          <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />
-        </:col>
-        <:col :let={test_run} label={gettext("Commit SHA")}>
-          <.text_cell label={
-            (test_run.git_commit_sha || "None")
-            |> String.slice(0, 7)
-          } />
-        </:col>
-        <:col :let={test_run} label={gettext("Ran by")}>
-          <.run_ran_by_badge_cell run={test_run} />
-        </:col>
-        <:col :let={test_run} label={gettext("Ran at")}>
-          <% relative_date =
-            case Timex.from_now(test_run.ran_at) |> String.split(" ") do
-              [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
-              _ -> Timex.from_now(test_run.ran_at)
-            end %>
-          <.text_cell sublabel={relative_date} />
-        </:col>
-      </.table>
-      <.pagination
-        uri={@uri}
-        has_previous_page={@test_runs_meta.has_previous_page?}
-        has_next_page={@test_runs_meta.has_next_page?}
-        start_cursor={@test_runs_meta.start_cursor}
-        end_cursor={@test_runs_meta.end_cursor}
-      />
+    <.card_section data-part="test-runs-section">
+      <div data-part="filters">
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={gettext("Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+      </div>
+
+      <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
+        <.table
+          id="test-runs-table"
+          rows={@test_runs}
+          row_navigate={
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{test_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={test_run} label={gettext("Command")}>
+            <.text_and_description_cell label={
+              if test_run.command_arguments,
+                do:
+                  "tuist " <>
+                    (test_run.command_arguments
+                     |> String.split(" ")
+                     |> Enum.take(2)
+                     |> Enum.join(" ")),
+                else: "tuist #{test_run.name}"
+            } />
+          </:col>
+          <:col :let={test_run} label="Status">
+            <%= if test_run.status == :success do %>
+              <.status_badge_cell label={gettext("Passed")} status="success" />
+            <% else %>
+              <.status_badge_cell label={gettext("Failed")} status="error" />
+            <% end %>
+          </:col>
+          <:col :let={test_run} label={gettext("Branch")}>
+            <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />
+          </:col>
+          <:col :let={test_run} label={gettext("Commit SHA")}>
+            <.text_cell label={
+              (test_run.git_commit_sha || "None")
+              |> String.slice(0, 7)
+            } />
+          </:col>
+          <:col :let={test_run} label={gettext("Ran by")}>
+            <.run_ran_by_badge_cell run={test_run} />
+          </:col>
+          <:col :let={test_run} label={gettext("Ran at")}>
+            <% relative_date =
+              case Timex.from_now(test_run.ran_at) |> String.split(" ") do
+                [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
+                _ -> Timex.from_now(test_run.ran_at)
+              end %>
+            <.text_cell sublabel={relative_date} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@test_runs_meta.has_previous_page?}
+          has_next_page={@test_runs_meta.has_next_page?}
+          start_cursor={@test_runs_meta.start_cursor}
+          end_cursor={@test_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
+        <.empty_card_section
+          title={gettext("No data yet")}
+          get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+          data-part="empty-test-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
     </.card_section>
-    <.empty_card_section
-      :if={Enum.empty?(@test_runs)}
-      title={gettext("No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
-      data-part="empty-test-runs-table-card-section"
-    >
-      <:image>
-        <img src="/images/empty_table_light.png" data-theme="light" />
-        <img src="/images/empty_table_dark.png" data-theme="dark" />
-      </:image>
-    </.empty_card_section>
   </.card>
 </div>

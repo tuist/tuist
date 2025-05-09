@@ -89,6 +89,19 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
+  def get_organization_members(%Organization{id: organization_id}) do
+    Repo.all(
+      from(u in User,
+        preload: [:account],
+        join: ur in UserRole,
+        on: ur.user_id == u.id,
+        join: r in Role,
+        on: ur.role_id == r.id,
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
+      )
+    )
+  end
+
   def get_organization_members_with_role(%Organization{id: organization_id}) do
     Repo.all(
       from(u in User,
@@ -1239,7 +1252,9 @@ defmodule Tuist.Accounts do
 
       with {:ok, _} <- UUIDv7.cast(token_id),
            token when not is_nil(token) <-
-             from(t in AccountToken, where: t.id == ^token_id) |> Repo.one() |> Repo.preload(preload),
+             from(t in AccountToken, where: t.id == ^token_id)
+             |> Repo.one()
+             |> Repo.preload(preload),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else

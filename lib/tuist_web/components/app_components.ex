@@ -149,7 +149,7 @@ defmodule TuistWeb.AppComponents do
         variant="secondary"
         label={gettext("Prev")}
         disabled={not @has_previous_page}
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("before", @start_cursor)  |> Map.delete("after"))}"}
+        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("before", @start_cursor) |> Map.delete("after"))}"}
       >
         <:icon_left><.chevron_left /></:icon_left>
       </.button>

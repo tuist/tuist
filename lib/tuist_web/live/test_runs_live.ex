@@ -4,16 +4,81 @@ defmodule TuistWeb.TestRunsLive do
   use TuistWeb.Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Noora.Filter
   import TuistWeb.Runs.RanByBadge
 
+  alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Noora.Filter
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
-    {:ok, assign(socket, :head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")}
+    socket =
+      socket
+      |> assign(:head_title, "#{gettext("Test Runs")} · #{slug} · Tuist")
+      |> assign(:available_filters, define_filters(project))
+
+    {:ok, socket}
+  end
+
+  defp define_filters(project) do
+    base = [
+      %Filter.Filter{
+        id: "name",
+        display_name: gettext("Command"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "status",
+        display_name: gettext("Status"),
+        type: :option,
+        options: [:success, :failure],
+        options_display_names: %{
+          success: gettext("Passed"),
+          failure: gettext("Failed")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "git_branch",
+        display_name: gettext("Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      }
+    ]
+
+    organization =
+      if Accounts.organization?(project.account) do
+        organization = Accounts.get_organization_by_id(project.account.organization_id)
+        users = Accounts.get_organization_members(organization)
+
+        [
+          %Filter.Filter{
+            id: "ran_by",
+            display_name: gettext("Ran by"),
+            type: :option,
+            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            options_display_names:
+              Map.merge(
+                %{ci: "CI"},
+                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+              ),
+            operator: :==,
+            value: nil
+          }
+        ]
+      else
+        []
+      end
+
+    base ++ organization
   end
 
   def handle_params(params, _uri, socket) do
@@ -23,6 +88,29 @@ defmodule TuistWeb.TestRunsLive do
       |> assign_analytics(params)
       |> assign_test_runs(params)
     }
+  end
+
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+
+    {:noreply,
+     push_patch(socket,
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs?#{updated_params}"
+     )}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs?#{updated_query_params}"
+     )
+     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
+     |> push_event("close-dropdown", %{id: "all", all: true})}
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -42,13 +130,7 @@ defmodule TuistWeb.TestRunsLive do
         _ -> opts
       end
 
-    uri =
-      URI.new!(
-        "?" <>
-          URI.encode_query(
-            Map.take(params, ["analytics_date_range", "analytics_environment", "analytics_selected_widget"])
-          )
-      )
+    uri = URI.new!("?" <> URI.encode_query(params))
 
     test_runs_analytics =
       Analytics.runs_analytics(project.id, "test", opts)
@@ -83,7 +165,10 @@ defmodule TuistWeb.TestRunsLive do
           %{
             dates: test_runs_duration_analytics.dates,
             values:
-              Enum.map(test_runs_duration_analytics.values, &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))),
+              Enum.map(
+                test_runs_duration_analytics.values,
+                &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
+              ),
             name: gettext("Avg. test run duration"),
             value_formatter: "{value}s"
           }
@@ -187,54 +272,60 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   defp assign_test_runs(%{assigns: %{selected_project: project}} = socket, params) do
-    {test_runs, test_runs_meta} =
-      cond do
-        !is_nil(params["after"]) ->
-          list_test_runs(project.id, after: params["after"])
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
-        !is_nil(params["before"]) ->
-          list_test_runs(project.id, before: params["before"])
+    flop_filters = [
+      %{field: :project_id, op: :==, value: project.id}
+      | build_flop_filters(filters)
+    ]
 
-        true ->
-          list_test_runs(project.id)
-      end
-
-    socket
-    |> assign(
-      :test_runs,
-      test_runs
-    )
-    |> assign(
-      :test_runs_meta,
-      test_runs_meta
-    )
-  end
-
-  defp list_test_runs(project_id, attrs \\ []) do
     options = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project_id}
-      ],
+      filters: flop_filters,
       order_by: [:created_at],
       order_directions: [:desc]
     }
 
     options =
       cond do
-        not is_nil(Keyword.get(attrs, :before)) ->
+        not is_nil(Map.get(params, "before")) ->
           options
           |> Map.put(:last, 20)
-          |> Map.put(:before, Keyword.get(attrs, :before))
+          |> Map.put(:before, Map.get(params, "before"))
 
-        not is_nil(Keyword.get(attrs, :after)) ->
+        not is_nil(Map.get(params, "after")) ->
           options
           |> Map.put(:first, 20)
-          |> Map.put(:after, Keyword.get(attrs, :after))
+          |> Map.put(:after, Map.get(params, "after"))
 
         true ->
           Map.put(options, :first, 20)
       end
 
-    CommandEvents.list_test_runs(options)
+    {test_runs, test_runs_meta} = CommandEvents.list_test_runs(options)
+
+    socket
+    |> assign(:active_filters, filters)
+    |> assign(:test_runs, test_runs)
+    |> assign(:test_runs_meta, test_runs_meta)
+  end
+
+  defp build_flop_filters(filters) do
+    {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    ran_by_flop_filters =
+      Enum.flat_map(ran_by, fn
+        %{value: :ci, operator: op} ->
+          [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: op} when not is_nil(value) ->
+          [%{field: :user_id, op: op, value: value}]
+
+        _ ->
+          []
+      end)
+
+    flop_filters ++ ran_by_flop_filters
   end
 end

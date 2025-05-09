@@ -17,6 +17,7 @@ defmodule TuistWeb.Noora do
       import TuistWeb.Noora.Checkbox
       import TuistWeb.Noora.DismissIcon
       import TuistWeb.Noora.Dropdown
+      import TuistWeb.Noora.Filter
       import TuistWeb.Noora.HintText
       import TuistWeb.Noora.Icon
       import TuistWeb.Noora.Label

@@ -256,6 +256,72 @@
   --noora-button-border-destructive-active: 0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
 
+  /* Badge */
+  --noora-badge-fill-label: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-light-100));
+  --noora-badge-fill-neutral: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-dark-600));
+  --noora-badge-fill-destructive: light-dark(var(--noora-red-500), var(--noora-red-700));
+  --noora-badge-fill-warning: light-dark(var(--noora-orange-500), var(--noora-orange-600));
+  --noora-badge-fill-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-600));
+  --noora-badge-fill-success: light-dark(var(--noora-green-500), var(--noora-green-600));
+  --noora-badge-fill-information: light-dark(var(--noora-azure-500), var(--noora-azure-700));
+  --noora-badge-fill-focus: light-dark(var(--noora-blue-500), var(--noora-blue-700));
+  --noora-badge-fill-primary: light-dark(var(--noora-purple-500), var(--noora-purple-700));
+  --noora-badge-fill-secondary: light-dark(var(--noora-pink-500), var(--noora-pink-700));
+
+  --noora-badge-light-fill-neutral-background: light-dark(
+    var(--noora-neutral-light-400),
+    color-mix(in oklch, var(--noora-neutral-dark-900) 50%, transparent)
+  );
+  --noora-badge-light-fill-neutral-label: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-100));
+  --noora-badge-light-fill-destructive-background: light-dark(
+    var(--noora-red-50),
+    color-mix(in oklch, var(--noora-red-500) 16%, transparent)
+  );
+  --noora-badge-light-fill-destructive-label: light-dark(var(--noora-red-600), var(--noora-red-500));
+  --noora-badge-light-fill-warning-background: light-dark(
+    var(--noora-orange-50),
+    color-mix(in oklch, var(--noora-orange-500) 16%, transparent)
+  );
+  --noora-badge-light-fill-warning-label: light-dark(var(--noora-orange-600), var(--noora-orange-500));
+  --noora-badge-light-fill-attention-background: light-dark(
+    var(--noora-yellow-50),
+    color-mix(in oklch, var(--noora-yellow-500) 16%, transparent)
+  );
+  --noora-badge-light-fill-attention-label: light-dark(var(--noora-yellow-700), var(--noora-yellow-500));
+  --noora-badge-light-fill-success-background: light-dark(
+    var(--noora-green-50),
+    color-mix(in oklch, var(--noora-green-500) 16%, transparent)
+  );
+  --noora-badge-light-fill-success-label: light-dark(var(--noora-green-700), var(--noora-green-500));
+  --noora-badge-light-fill-information-background: light-dark(
+    var(--noora-azure-50),
+    color-mix(in oklch, var(--noora-azure-500) 16%, transparent)
+  );
+  --noora-badge-light-fill-information-label: light-dark(var(--noora-azure-700), var(--noora-azure-400));
+  --noora-badge-light-fill-focus-background: light-dark(
+    var(--noora-blue-50),
+    color-mix(in oklch, var(--noora-blue-700) 16%, transparent)
+  );
+  --noora-badge-light-fill-focus-label: light-dark(var(--noora-blue-700), var(--noora-blue-500));
+  --noora-badge-light-fill-primary-background: light-dark(
+    var(--noora-purple-50),
+    color-mix(in oklch, var(--noora-purple-700) 16%, transparent)
+  );
+  --noora-badge-light-fill-primary-label: light-dark(var(--noora-purple-700), var(--noora-purple-400));
+  --noora-badge-light-fill-secondary-background: light-dark(
+    var(--noora-pink-50),
+    color-mix(in oklch, var(--noora-pink-700) 16%, transparent)
+  );
+  --noora-badge-light-fill-secondary-label: light-dark(var(--noora-pink-600), var(--noora-pink-500));
+
+  --noora-badge-disabled-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-light-1000));
+  --noora-badge-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-light-300));
+
+  --noora-badge-status-success: var(--noora-green-600);
+  --noora-badge-status-warning: var(--noora-orange-600);
+  --noora-badge-status-error: light-dark(var(--noora-red-500), var(--noora-red-600));
+  --noora-badge-status-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-500));
+
   /* Borders */
   --noora-surface-border-primary: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800));
   --noora-light-border-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),

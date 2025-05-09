@@ -66,6 +66,15 @@ class Menu extends Component {
  */
 export default {
   mounted() {
+    this.metadata = {};
+
+    for (const key in this.el.dataset) {
+      if (key.startsWith("meta")) {
+        const metaKey = key.charAt(4).toLowerCase() + key.slice(5);
+        this.metadata[metaKey] = this.el.dataset[key];
+      }
+    }
+
     this.context = {
       id: this.el.id,
       loopFocus: getBooleanOption(this.el, "loopFocus"),
@@ -84,7 +93,7 @@ export default {
       },
       onSelect: (details) => {
         if (this.el.dataset.onSelect) {
-          this.pushEvent(this.el.dataset.onSelect, details);
+          this.pushEvent(this.el.dataset.onSelect, { ...this.metadata, ...details });
         }
       },
       onEscapeKeyDown: (details) => {
@@ -110,6 +119,19 @@ export default {
     };
     this.menu = new Menu(this.el, this.context);
     this.menu.init();
+
+    this.handleOpenDropdown = (event) => {
+      if (event.detail.id == this.el.id) {
+        this.menu.api.setOpen(true);
+      }
+    };
+    this.handleCloseDropdown = (event) => {
+      if (event.detail.all || event.detail.id === this.el.id) {
+        this.menu.api.setOpen(false);
+      }
+    };
+    window.addEventListener("phx:open-dropdown", this.handleOpenDropdown);
+    window.addEventListener("phx:close-dropdown", this.handleCloseDropdown);
   },
 
   updated() {
@@ -118,5 +140,12 @@ export default {
 
   beforeDestroy() {
     this.menu.destroy();
+  },
+
+  destroyed() {
+    if (this.handleOpenDropdown) {
+      window.removeEventListener("phx:open-dropdown", this.handleOpenDropdown);
+      window.removeEventListener("phx:close-dropdown", this.handleCloseDropdown);
+    }
   },
 };
