@@ -208,38 +208,68 @@ defmodule TuistWeb.Noora.Dropdown do
 
   def dropdown_item(assigns) do
     ~H"""
-    <.link
-      class="noora-dropdown-item"
-      data-part="item"
-      data-value={@value || @label}
-      data-label={@label}
-      phx-click={@on_click}
-      phx-value-data={@value}
-      patch={@patch}
-      navigate={@navigate}
-      href={@href}
-      data-size={@size}
-      {@rest}
-    >
-      <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
-        {render_slot(@left_icon)}
-      </div>
-      <div data-part="body">
-        <span data-part="label">{@label}</span>
-        <span :if={@secondary_text} data-part="secondary-text">
-          ({@secondary_text})
-        </span>
-        <div :if={@size == "large"}>
-          <span data-part="description">
-            {@description}
-          </span>
+    <%= if is_nil(@patch) and is_nil(@navigate) and is_nil(@href) do %>
+      <span
+        class="noora-dropdown-item"
+        data-part="item"
+        data-value={@value || @label}
+        data-label={@label}
+        phx-click={@on_click}
+        phx-value-data={@value}
+        data-size={@size}
+        {@rest}
+      >
+        <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
+          {render_slot(@left_icon)}
         </div>
-      </div>
-
-      <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">
-        {render_slot(@right_icon)}
-      </div>
-    </.link>
+        <div data-part="body">
+          <span data-part="label">{@label}</span>
+          <span :if={@secondary_text} data-part="secondary-text">
+            ({@secondary_text})
+          </span>
+          <div :if={@size == "large"}>
+            <span data-part="description">
+              {@description}
+            </span>
+          </div>
+        </div>
+        <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">
+          {render_slot(@right_icon)}
+        </div>
+      </span>
+    <% else %>
+      <.link
+        class="noora-dropdown-item"
+        data-part="item"
+        data-value={@value || @label}
+        data-label={@label}
+        phx-click={@on_click}
+        phx-value-data={@value}
+        patch={@patch}
+        navigate={@navigate}
+        href={@href}
+        data-size={@size}
+        {@rest}
+      >
+        <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
+          {render_slot(@left_icon)}
+        </div>
+        <div data-part="body">
+          <span data-part="label">{@label}</span>
+          <span :if={@secondary_text} data-part="secondary-text">
+            ({@secondary_text})
+          </span>
+          <div :if={@size == "large"}>
+            <span data-part="description">
+              {@description}
+            </span>
+          </div>
+        </div>
+        <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">
+          {render_slot(@right_icon)}
+        </div>
+      </.link>
+    <% end %>
     """
   end
 

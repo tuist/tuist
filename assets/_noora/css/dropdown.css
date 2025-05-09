@@ -215,9 +215,9 @@
 .noora-dropdown-item {
   --noora-dropdown-hover-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
   display: flex;
-
   align-items: center;
   align-self: stretch;
+  cursor: pointer;
   border-radius: var(--noora-radius-medium);
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-body-medium);
