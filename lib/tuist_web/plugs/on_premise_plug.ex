@@ -30,7 +30,7 @@ defmodule TuistWeb.OnPremisePlug do
         if Date.diff(expiration_date, Time.utc_now()) < 30 do
           TuistWeb.WarningsHeaderPlug.put_warning(
             conn,
-            "The license will expire in #{DateTime.diff(expiration_date, Time.utc_now(), :day)} days. Please, contact contact@tuist.io to renovate it."
+            "The license will expire in #{DateTime.diff(expiration_date, Time.utc_now(), :day)} days. Please, contact contact@tuist.dev to renovate it."
           )
         else
           conn
@@ -43,7 +43,7 @@ defmodule TuistWeb.OnPremisePlug do
         conn
         |> put_status(422)
         |> json(%{
-          message: "The license has expired. Please, contact contact@tuist.io to renovate it."
+          message: "The license has expired. Please, contact contact@tuist.dev to renovate it."
         })
         |> halt()
     end

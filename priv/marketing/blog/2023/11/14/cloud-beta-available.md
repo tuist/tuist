@@ -47,7 +47,7 @@ tuist generate --no-cache # Disables the cache
 
 ## Next steps
 
-We're excited for you to try Tuist Cloud and we'd love to hear what you think about it. It's important for us to get [**feedback from users**](mailto:contact@tuist.io) like you as we continue to improve and evolve the tool. Don't forget to check out [the documentation](https://docs.tuist.io/cloud/get-started) to learn more about Tuist Cloud.
+We're excited for you to try Tuist Cloud and we'd love to hear what you think about it. It's important for us to get [**feedback from users**](mailto:contact@tuist.dev) like you as we continue to improve and evolve the tool. Don't forget to check out [the documentation](https://docs.tuist.io/cloud/get-started) to learn more about Tuist Cloud.
 
 Please note that starting January 2024, after the beta period, Tuist Cloud will become a paid product. The pricing will be based on how much you use the cache, which is part of our plan to make sure Tuist can keep improving for a long time.
 

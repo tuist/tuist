@@ -93,4 +93,4 @@ This policy contains additional compliance sections for GDPR, CCPA, and PIPEDA. 
 For questions or concerns regarding your privacy, please contact us at:
 
 **Tuist**  
-[contact@tuist.io](mailto:contact@tuist.io)
+[contact@tuist.dev](mailto:contact@tuist.dev)

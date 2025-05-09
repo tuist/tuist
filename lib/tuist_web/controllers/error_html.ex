@@ -71,7 +71,7 @@ defmodule TuistWeb.ErrorHTML do
     |> Map.put(:title, gettext("Oops! Something went wrong"))
     |> Map.put(
       :message,
-      gettext("Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it.")
+      gettext("Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it.")
     )
     |> Map.put(:error_name, gettext("500"))
     |> render_error_page()

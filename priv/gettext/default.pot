@@ -2083,11 +2083,6 @@ msgstr ""
 msgid "Social Media Links"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:74
-#, elixir-autogen, elixir-format
-msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
-msgstr ""
-
 #: lib/tuist_web/controllers/error_html.ex:31
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
@@ -2954,11 +2949,6 @@ msgstr ""
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
-#, elixir-autogen, elixir-format
-msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
-msgstr ""
-
 #: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
@@ -3253,4 +3243,14 @@ msgstr ""
 #: lib/tuist_web/live/test_runs_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Filter"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:74
+#, elixir-autogen, elixir-format
+msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.dev—we’d love to hear from you!"
 msgstr ""

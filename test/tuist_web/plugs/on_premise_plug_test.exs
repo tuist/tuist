@@ -43,7 +43,7 @@ defmodule TuistWeb.OnPremisePlugTest do
       assert got.halted == true
 
       assert json_response(got, 422) == %{
-               "message" => "The license has expired. Please, contact contact@tuist.io to renovate it."
+               "message" => "The license has expired. Please, contact contact@tuist.dev to renovate it."
              }
     end
 
@@ -57,7 +57,10 @@ defmodule TuistWeb.OnPremisePlugTest do
       stub(Tuist.Time, :utc_now, fn -> now end)
       expiration_date = DateTime.shift(now, day: 15)
 
-      stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
+      stub(Tuist.License, :get_license, fn ->
+        {:ok, %{valid: true, expiration_date: expiration_date}}
+      end)
+
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When
@@ -66,7 +69,7 @@ defmodule TuistWeb.OnPremisePlugTest do
       # Then
       assert TuistWeb.WarningsHeaderPlug.get_warnings(got) ==
                [
-                 "The license will expire in 15 days. Please, contact contact@tuist.io to renovate it."
+                 "The license will expire in 15 days. Please, contact contact@tuist.dev to renovate it."
                ]
     end
 
@@ -76,7 +79,10 @@ defmodule TuistWeb.OnPremisePlugTest do
       stub(Tuist.Environment, :on_premise?, fn -> true end)
       expiration_date = DateTime.shift(Tuist.Time.utc_now(), day: 35)
 
-      stub(Tuist.License, :get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)
+      stub(Tuist.License, :get_license, fn ->
+        {:ok, %{valid: true, expiration_date: expiration_date}}
+      end)
+
       opts = OnPremisePlug.init(:api_license_validation)
 
       # When

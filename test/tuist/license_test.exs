@@ -87,7 +87,7 @@ defmodule Tuist.LicenseTest do
 
       # When/Then
       assert_raise RuntimeError,
-                   "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one.",
+                   "The license key is invalid or expired. Please, contact contact@tuist.dev to get a new one.",
                    fn ->
                      License.assert_valid!()
                    end

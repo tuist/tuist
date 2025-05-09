@@ -14,7 +14,8 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup :set_mimic_from_context
 
   setup context do
-    current_month_remote_cache_hits_count = Map.get(context, :current_month_remote_cache_hits_count, 0)
+    current_month_remote_cache_hits_count =
+      Map.get(context, :current_month_remote_cache_hits_count, 0)
 
     %{account: account} =
       user =
@@ -23,7 +24,9 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
         preload: [:account]
       )
 
-    project = [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+    project =
+      [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+
     cache = String.to_atom(UUIDv7.generate())
     {:ok, _} = Cachex.start_link(name: cache)
 
@@ -47,7 +50,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     for _n <- 0..10 do
@@ -68,7 +75,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -90,7 +101,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -116,7 +131,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -142,7 +161,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -168,7 +191,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -190,7 +217,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -212,7 +243,11 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     plug_opts = BillingPlug.init([])
 
     conn =
-      assign(%{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}, :selected_project, project)
+      assign(
+        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
+        :selected_project,
+        project
+      )
 
     # When
     got = BillingPlug.call(conn, plug_opts)
@@ -220,7 +255,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Then
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
-             The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.io to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
+             The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.dev to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
              """
            }
   end

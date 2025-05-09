@@ -27,7 +27,7 @@ Our business model is straightforward:
 
 If you share our mission of promoting accessible and sustainable tools in the Apple ecosystem, we’d love to collaborate with you.
 
-If you're an organization or developer paying a hefty price for a valuable service with a pricing model you find unfair, or if there’s a tool you wish you could add to your setup without going through sales hurdles, let us know at [contact@tuist.io](mailto:contact@tuist.io).
+If you're an organization or developer paying a hefty price for a valuable service with a pricing model you find unfair, or if there’s a tool you wish you could add to your setup without going through sales hurdles, let us know at [contact@tuist.dev](mailto:contact@tuist.dev).
 
 **Our team will work with you to develop the feature, and in return, you’ll get lifetime access to it—yes, free forever, as long as there are no high underlying costs of infrastructure.** Together, we’ll build something that’s more accessible for the entire ecosystem, and you’ll benefit from it at no cost.
 

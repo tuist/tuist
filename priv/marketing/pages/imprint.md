@@ -10,7 +10,7 @@ description: Tuist was built for the future of Xcode development. We believe tha
 - VAT-ID: DE365569867
 - Handelsregister nummer: HRB257958B
 - Registration court: Amtsgericht Charlottenburg
-- Email: [contact@tuist.io](mailto:contact@tuist.io)
+- Email: [contact@tuist.dev](mailto:contact@tuist.dev)
 
 Responsible for all content according to § 55 Rundfunkstaatsvertrag (RSTV):
 

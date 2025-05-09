@@ -45,7 +45,7 @@ defmodule Tuist.License do
         raise "The license key exposed through the environment variable TUIST_LICENSE or TUIST_LICENSE_KEY is missing."
 
       {true, {:ok, %{valid: false}}} ->
-        raise "The license key is invalid or expired. Please, conctact contact@tuist.io to get a new one."
+        raise "The license key is invalid or expired. Please, contact contact@tuist.dev to get a new one."
 
       {true, {:error, error}} ->
         raise "The license validation failed with the following error: #{error}"

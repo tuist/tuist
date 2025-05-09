@@ -104,7 +104,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
-          The account '#{account_handle}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.io to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account_handle}/billing/upgrade")}.
+          The account '#{account_handle}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.dev to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account_handle}/billing/upgrade")}.
           """
         })
         |> halt()

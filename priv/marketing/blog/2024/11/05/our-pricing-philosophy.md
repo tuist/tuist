@@ -22,7 +22,7 @@ If you’re an indie developer or a small company that doesn’t use Tuist exten
 
 ### 3. We aim to be the cheapest at every scale
 
-We want to be the cheapest and most transparent option in the Swift app development ecosystem. If you think we are not, please [let us know](mailto:contact@tuist.io).
+We want to be the cheapest and most transparent option in the Swift app development ecosystem. If you think we are not, please [let us know](mailto:contact@tuist.dev).
 
 ## Our model
 
