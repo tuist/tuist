@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Japanese\n"
-"PO-Revision-Date: 2025-04-29 10:28\n"
+"PO-Revision-Date: 2025-05-09 16:23\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:426
 #, elixir-autogen, elixir-format
@@ -275,7 +275,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.ex:248
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:355
-#: lib/tuist_web/live/test_runs_live.ex:148
+#: lib/tuist_web/live/test_runs_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -320,7 +320,7 @@ msgstr ""
 msgid "Average time it takes to test a project when using the 'tuist test' command."
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:87
+#: lib/tuist_web/live/test_runs_live.ex:172
 #: lib/tuist_web/live/test_runs_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Avg. test run duration"
@@ -423,7 +423,8 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:70
 #: lib/tuist_web/live/preview_live.html.heex:112
 #: lib/tuist_web/live/previews_live.html.heex:50
-#: lib/tuist_web/live/test_runs_live.html.heex:211
+#: lib/tuist_web/live/test_runs_live.ex:50
+#: lib/tuist_web/live/test_runs_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -446,7 +447,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.ex:256
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:371
-#: lib/tuist_web/live/test_runs_live.ex:156
+#: lib/tuist_web/live/test_runs_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -540,14 +541,15 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:44
 #: lib/tuist_web/live/generate_runs_live.html.heex:44
 #: lib/tuist_web/live/run_detail_live.html.heex:95
-#: lib/tuist_web/live/test_runs_live.html.heex:192
+#: lib/tuist_web/live/test_runs_live.ex:31
+#: lib/tuist_web/live/test_runs_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:119
 #: lib/tuist_web/live/previews_live.html.heex:59
-#: lib/tuist_web/live/test_runs_live.html.heex:214
+#: lib/tuist_web/live/test_runs_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -974,7 +976,8 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:67
 #: lib/tuist_web/live/generate_runs_live.html.heex:67
 #: lib/tuist_web/live/run_detail_live.html.heex:109
-#: lib/tuist_web/live/test_runs_live.html.heex:208
+#: lib/tuist_web/live/test_runs_live.ex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -984,7 +987,7 @@ msgstr ""
 msgid "Failed builds"
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:78
+#: lib/tuist_web/live/test_runs_live.ex:160
 #: lib/tuist_web/live/test_runs_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Failed run count"
@@ -1323,7 +1326,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:363
 #: lib/tuist_web/live/run_detail_live.html.heex:238
 #: lib/tuist_web/live/run_detail_live.html.heex:327
-#: lib/tuist_web/live/test_runs_live.ex:152
+#: lib/tuist_web/live/test_runs_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
@@ -1473,7 +1476,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:122
 #: lib/tuist_web/live/generate_runs_live.html.heex:122
 #: lib/tuist_web/live/test_runs_live.html.heex:172
-#: lib/tuist_web/live/test_runs_live.html.heex:242
+#: lib/tuist_web/live/test_runs_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -1594,7 +1597,8 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:65
 #: lib/tuist_web/live/generate_runs_live.html.heex:65
 #: lib/tuist_web/live/run_detail_live.html.heex:107
-#: lib/tuist_web/live/test_runs_live.html.heex:206
+#: lib/tuist_web/live/test_runs_live.ex:42
+#: lib/tuist_web/live/test_runs_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr ""
@@ -1782,7 +1786,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:97
 #: lib/tuist_web/live/preview_live.html.heex:104
 #: lib/tuist_web/live/run_detail_live.html.heex:117
-#: lib/tuist_web/live/test_runs_live.html.heex:223
+#: lib/tuist_web/live/test_runs_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr ""
@@ -1791,7 +1795,8 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
 #: lib/tuist_web/live/previews_live.html.heex:66
 #: lib/tuist_web/live/run_detail_live.html.heex:113
-#: lib/tuist_web/live/test_runs_live.html.heex:220
+#: lib/tuist_web/live/test_runs_live.ex:65
+#: lib/tuist_web/live/test_runs_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""
@@ -2082,11 +2087,6 @@ msgstr ""
 msgid "Social Media Links"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:74
-#, elixir-autogen, elixir-format
-msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.io and we'll look into it."
-msgstr ""
-
 #: lib/tuist_web/controllers/error_html.ex:31
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
@@ -2167,6 +2167,7 @@ msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:128
 #: lib/tuist_web/live/run_detail_live.html.heex:105
+#: lib/tuist_web/live/test_runs_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -2283,13 +2284,13 @@ msgid "Test Optimizations"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:4
-#: lib/tuist_web/live/test_runs_live.ex:16
+#: lib/tuist_web/live/test_runs_live.ex:21
 #: lib/tuist_web/live/test_runs_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:70
+#: lib/tuist_web/live/test_runs_live.ex:152
 #: lib/tuist_web/live/test_runs_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Test run count"
@@ -2952,11 +2953,6 @@ msgstr ""
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
-#, elixir-autogen, elixir-format
-msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
-msgstr ""
-
 #: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
@@ -3011,19 +3007,19 @@ msgid "read more"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:243
-#: lib/tuist_web/live/test_runs_live.ex:143
+#: lib/tuist_web/live/test_runs_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:245
-#: lib/tuist_web/live/test_runs_live.ex:145
+#: lib/tuist_web/live/test_runs_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:244
-#: lib/tuist_web/live/test_runs_live.ex:144
+#: lib/tuist_web/live/test_runs_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -3038,12 +3034,12 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:49
+#: lib/tuist_web/plugs/loader_plug.ex:79
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:24
+#: lib/tuist_web/plugs/loader_plug.ex:26
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -3233,7 +3229,7 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:62
+#: lib/tuist_web/plugs/loader_plug.ex:48
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -3246,5 +3242,20 @@ msgstr ""
 #: lib/tuist_web/controllers/preview_controller.ex:117
 #, elixir-autogen, elixir-format
 msgid "The preview archive doesn't exist or has expired."
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.dev—we’d love to hear from you!"
 msgstr ""
 
