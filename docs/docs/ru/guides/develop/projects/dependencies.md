@@ -11,9 +11,8 @@ description: Узнайте, как объявлять зависимости в
 
 ## XcodeProj-кодированные графы {#xcodeprojcodified-graphs}
 
-Due to Xcode and XcodeProj's design,
-the maintenance of a dependency graph can be a tedious and error-prone task.
-Here are some examples of the problems that you might encounter:
+Из-за дизайна Xcode и XcodeProj, поддержка графа зависимостей может быть утомительной и подвержена ошибкам.
+Вот несколько примеров проблем, с которыми вы можете столкнуться:
 
 - Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
 - The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
