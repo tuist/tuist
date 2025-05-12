@@ -28,6 +28,8 @@ defmodule TuistWeb.OpsConfigurationLive do
 
   defp fetch_rows(_params, _node) do
     rows = [
+      # Displaying the version helps identify the running application version for debugging and operational purposes.
+      %{name: "Version", value: Tuist.Environment.version()},
       %{name: "S3 region", value: Tuist.Environment.s3_region()},
       %{
         name: "S3 request timeout",

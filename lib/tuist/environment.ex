@@ -16,6 +16,12 @@ defmodule Tuist.Environment do
     defstruct [:major, :date]
   end
 
+  defimpl String.Chars, for: Version do
+    def to_string(version) do
+      "#{version.major}.#{Timex.format!(version.date, "{0D}.{0M}.{YY}")}"
+    end
+  end
+
   def env do
     @env
   end

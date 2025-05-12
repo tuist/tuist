@@ -14,6 +14,8 @@ defmodule Tuist.Application do
 
   @impl true
   def start(_type, _args) do
+    Logger.info("Starting Tuist version #{Environment.version()}")
+
     load_secrets_in_application()
     start_error_tracking()
     start_telemetry()
