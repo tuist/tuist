@@ -261,19 +261,17 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       [
-         {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-         {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
-       ] ++
-         if(not Tuist.Environment.on_premise?() and env == :prod,
-           do: [
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
-             {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker}
-           ],
-           else: []
-         )}
+       if(not Tuist.Environment.on_premise?() and env == :prod,
+         do: [
+           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+           {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
+           {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
+           {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
+         ],
+         else: []
+       )}
   ]
 
 # Guardian
