@@ -189,13 +189,15 @@ struct XcodeBuildTestCommandServiceTests {
                                 name: "AUnitTests",
                                 hash: "hash-a-unit-tests",
                                 source: .local,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ): temporaryPath,
                             CacheItem(
                                 name: "BUnitTests",
                                 hash: "hash-b-unit-tests",
                                 source: .remote,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ): temporaryPath,
                         ]
                     )
@@ -227,13 +229,15 @@ struct XcodeBuildTestCommandServiceTests {
                                 name: "AUnitTests",
                                 hash: "hash-a-unit-tests",
                                 source: .local,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ),
                             "BUnitTests": CacheItem(
                                 name: "BUnitTests",
                                 hash: "hash-b-unit-tests",
                                 source: .remote,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ),
                         ],
                     ]
@@ -330,7 +334,8 @@ struct XcodeBuildTestCommandServiceTests {
                                 name: "AUnitTests",
                                 hash: "hash-a-unit-tests",
                                 source: .local,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ): temporaryPath,
                         ]
                     )
@@ -375,13 +380,15 @@ struct XcodeBuildTestCommandServiceTests {
                                 name: "AUnitTests",
                                 hash: "hash-a-unit-tests",
                                 source: .local,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ),
                             "BUnitTests": CacheItem(
                                 name: "BUnitTests",
                                 hash: "hash-b-unit-tests",
                                 source: .miss,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ),
                         ],
                     ]
@@ -486,7 +493,8 @@ struct XcodeBuildTestCommandServiceTests {
                                 name: "AUnitTests",
                                 hash: "hash-a-unit-tests",
                                 source: .miss,
-                                cacheCategory: .selectiveTests
+                                cacheCategory: .selectiveTests,
+                                time: nil
                             ),
                         ],
                     ]
@@ -595,13 +603,15 @@ struct XcodeBuildTestCommandServiceTests {
                             name: "AUnitTests",
                             hash: "hash-a-unit-tests",
                             source: .local,
-                            cacheCategory: .selectiveTests
+                            cacheCategory: .selectiveTests,
+                            time: nil
                         ): temporaryPath,
                         CacheItem(
                             name: "BUnitTests",
                             hash: "hash-b-unit-tests",
                             source: .local,
-                            cacheCategory: .selectiveTests
+                            cacheCategory: .selectiveTests,
+                            time: nil
                         ): temporaryPath,
                     ]
                 )
@@ -715,7 +725,8 @@ struct XcodeBuildTestCommandServiceTests {
                             name: "AUnitTests",
                             hash: "hash-a-unit-tests",
                             source: .local,
-                            cacheCategory: .selectiveTests
+                            cacheCategory: .selectiveTests,
+                            time: nil
                         ): temporaryPath,
                     ]
                 )

@@ -479,7 +479,8 @@ final class TestService { // swiftlint:disable:this type_body_length
                     name: element.target.name,
                     hash: hash,
                     source: .miss,
-                    cacheCategory: .selectiveTests
+                    cacheCategory: .selectiveTests,
+                    time: nil
                 )
                 result[element.path, default: [:]][element.target.name] = cacheItem
             }
