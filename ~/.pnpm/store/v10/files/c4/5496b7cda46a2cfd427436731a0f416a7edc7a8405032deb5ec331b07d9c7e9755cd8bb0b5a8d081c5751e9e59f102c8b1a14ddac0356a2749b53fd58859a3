@@ -1,7 +1,0 @@
-import o from "./SchemaHeading.vue2.js";
-/* empty css                   */
-import a from "../../../_virtual/_plugin-vue_export-helper.js";
-const r = /* @__PURE__ */ a(o, [["__scopeId", "data-v-2a52eb0b"]]);
-export {
-  r as default
-};

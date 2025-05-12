@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * powershell/webrequest
- */
-export declare const powershellWebrequest: Plugin;
-//# sourceMappingURL=webrequest.d.ts.map

@@ -1,1 +1,0 @@
-export { installLabelLayout as LabelLayout, installUniversalTransition as UniversalTransition } from './shared';

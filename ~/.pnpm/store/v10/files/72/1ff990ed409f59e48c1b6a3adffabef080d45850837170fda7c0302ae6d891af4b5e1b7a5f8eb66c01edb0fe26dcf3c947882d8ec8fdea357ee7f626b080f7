@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * clojure/clj_http
- */
-export declare const clojureCljhttp: Plugin;
-//# sourceMappingURL=clj_http.d.ts.map

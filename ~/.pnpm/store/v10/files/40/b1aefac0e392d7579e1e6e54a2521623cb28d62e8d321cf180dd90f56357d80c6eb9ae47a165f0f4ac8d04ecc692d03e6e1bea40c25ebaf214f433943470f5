@@ -1,6 +1,0 @@
-import { inject as o } from "vue";
-const n = Symbol(), i = () => o(n, {});
-export {
-  n as CONFIGURATION_SYMBOL,
-  i as useConfig
-};

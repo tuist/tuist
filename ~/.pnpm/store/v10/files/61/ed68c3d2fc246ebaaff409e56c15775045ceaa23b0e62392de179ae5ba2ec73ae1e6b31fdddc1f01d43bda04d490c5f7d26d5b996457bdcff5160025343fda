@@ -1,1 +1,0 @@
-{"version":3,"file":"getOpenApiDocumentDetails.d.ts","sourceRoot":"","sources":["../../src/libs/getOpenApiDocumentDetails.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,sBAAsB,GAAG;IACnC,OAAO,EAAE,MAAM,CAAA;IACf,IAAI,EAAE,MAAM,GAAG,MAAM,CAAA;IACrB,KAAK,EAAE,MAAM,GAAG,SAAS,CAAA;CAC1B,CAAA;AASD;;GAEG;AACH,wBAAgB,yBAAyB,CACvC,KAAK,EAAE,MAAM,GAAG,IAAI,GACnB,sBAAsB,GAAG,SAAS,CAoDpC"}

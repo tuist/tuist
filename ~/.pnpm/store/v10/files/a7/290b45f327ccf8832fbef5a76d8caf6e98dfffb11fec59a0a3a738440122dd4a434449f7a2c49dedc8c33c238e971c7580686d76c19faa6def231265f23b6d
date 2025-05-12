@@ -1,6 +1,0 @@
-import type { Target } from './types/index.js';
-/**
- * All available clients
- */
-export declare const clients: Target[];
-//# sourceMappingURL=clients.d.ts.map

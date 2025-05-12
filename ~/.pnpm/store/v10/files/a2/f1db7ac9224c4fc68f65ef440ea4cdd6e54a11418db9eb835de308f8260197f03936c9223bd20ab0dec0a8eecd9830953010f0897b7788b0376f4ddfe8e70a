@@ -1,8 +1,0 @@
-import o from "./CodeInput.vue2.js";
-/* empty css               */
-/* empty css               */
-import t from "../../_virtual/_plugin-vue_export-helper.js";
-const e = /* @__PURE__ */ t(o, [["__scopeId", "data-v-4d46a9ea"]]);
-export {
-  e as default
-};

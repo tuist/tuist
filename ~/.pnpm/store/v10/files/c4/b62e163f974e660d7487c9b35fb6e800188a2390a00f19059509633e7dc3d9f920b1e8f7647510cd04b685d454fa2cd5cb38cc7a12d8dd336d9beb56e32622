@@ -1,7 +1,0 @@
-import o from "./Tag.vue2.js";
-/* empty css         */
-import a from "../../../_virtual/_plugin-vue_export-helper.js";
-const p = /* @__PURE__ */ a(o, [["__scopeId", "data-v-d47a803a"]]);
-export {
-  p as default
-};

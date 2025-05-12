@@ -1,3 +1,0 @@
-export { default as ScalarIcon } from './ScalarIcon.vue.js';
-export { type Icon } from './utils/index.js';
-//# sourceMappingURL=index.d.ts.map

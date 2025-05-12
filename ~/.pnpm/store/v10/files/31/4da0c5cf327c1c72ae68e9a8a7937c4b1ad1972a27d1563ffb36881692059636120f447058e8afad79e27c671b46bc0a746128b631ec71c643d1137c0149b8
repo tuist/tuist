@@ -1,1 +1,0 @@
-{"version":3,"file":"types.d.ts","sourceRoot":"","sources":["../../../src/components/ScalarListbox/types.ts"],"names":[],"mappings":"AAAA,MAAM,MAAM,MAAM,GAAG;IACnB,EAAE,EAAE,MAAM,CAAA;IACV,KAAK,EAAE,MAAM,CAAA;IACb,QAAQ,CAAC,EAAE,OAAO,CAAA;IAClB,CAAC,CAAC,EAAE,MAAM,GAAG,GAAG,CAAA;CACjB,CAAA;AAED,MAAM,MAAM,WAAW,GAAG,OAAO,GAAG,UAAU,CAAA"}

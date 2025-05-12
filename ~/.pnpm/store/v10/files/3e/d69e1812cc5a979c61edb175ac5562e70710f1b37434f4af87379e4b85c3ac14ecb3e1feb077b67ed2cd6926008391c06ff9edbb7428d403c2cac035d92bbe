@@ -1,9 +1,0 @@
-const defaultStateFactory = () => ({});
-/**
- * This allows us to access the server state in the front-end
- */
-const ssrState = typeof window !== 'undefined'
-    ? (window.__SCALAR__ ?? defaultStateFactory())
-    : defaultStateFactory();
-
-export { defaultStateFactory, ssrState };

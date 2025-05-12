@@ -1,3 +1,0 @@
-export * from './import-spec.js';
-export * from './export-spec.js';
-//# sourceMappingURL=index.d.ts.map

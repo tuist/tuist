@@ -1,1 +1,0 @@
-{"version":3,"file":"ssrState.d.ts","sourceRoot":"","sources":["../../src/helpers/ssrState.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,sBAAsB,CAAA;AAEvD,OAAO,CAAC,MAAM,CAAC;IACb,UAAU,MAAM;QACd,UAAU,EAAE,WAAW,CAAA;KACxB;CACF;AAED,eAAO,MAAM,mBAAmB,QAAO,WAAmB,CAAA;AAE1D;;GAEG;AACH,eAAO,MAAM,QAAQ,EAAE,WAGI,CAAA"}

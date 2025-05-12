@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * java/asynchttp
- */
-export declare const javaAsynchttp: Plugin;
-//# sourceMappingURL=asynchttp.d.ts.map

@@ -1,6 +1,0 @@
-import type { Plugin } from '../../../types/index.js';
-/**
- * node/undici
- */
-export declare const nodeUndici: Plugin;
-//# sourceMappingURL=undici.d.ts.map
