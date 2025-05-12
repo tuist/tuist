@@ -9,7 +9,7 @@ description: Узнайте, как объявлять зависимости в
 Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
 Многомодульность означает определение зависимостей между ними, формируя **граф зависимостей**, который также может включать и внешние зависимости.
 
-## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
+## XcodeProj-кодированные графы {#xcodeprojcodified-graphs}
 
 Due to Xcode and XcodeProj's design,
 the maintenance of a dependency graph can be a tedious and error-prone task.
