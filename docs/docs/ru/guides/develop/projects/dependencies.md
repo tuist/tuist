@@ -9,13 +9,12 @@ description: Узнайте, как объявлять зависимости в
 Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
 Многомодульность означает определение зависимостей между ними, формируя **граф зависимостей**, который также может включать и внешние зависимости.
 
-## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
+## XcodeProj-кодированные графы {#xcodeprojcodified-graphs}
 
-Due to Xcode and XcodeProj's design,
-the maintenance of a dependency graph can be a tedious and error-prone task.
-Here are some examples of the problems that you might encounter:
+Из-за дизайна Xcode и XcodeProj, поддержка графа зависимостей может быть утомительной и подвержена ошибкам.
+Вот несколько примеров проблем, с которыми вы можете столкнуться:
 
-- Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
+- Поскольку система сборки Xcode'а выводит все продукты сборки в один и тот же каталог в `derived data` - проекты могут импортировать зависимости, которые они не должны. Компиляция может быть неудачной на CI, где сборки без кешей являются более распространенными или позже когда используется другая конфигурация.
 - The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
 - When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
 
@@ -64,7 +63,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">smart test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">selective test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -335,7 +334,7 @@ import ProjectDescriptionHelpers
 
 let packageSettings = PackageSettings(
     productTypes: [
-        "FPLPromises": .framework,
+        "FBLPromises": .framework,
     ]
 )
 #endif

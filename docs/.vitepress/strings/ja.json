@@ -319,8 +319,8 @@
                 "selective-testing": {
                   "text": "選択的テスト"
                 },
-                "xcodebuild": {
-                  "text": "xcodebuild"
+                "xcode-project": {
+                  "text": "Xcode project"
                 },
                 "generated-project": {
                   "text": "生成されたプロジェクト"

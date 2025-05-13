@@ -18,6 +18,9 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 > [!WARNING] 모듈 VS 파일 단위 세분화\
 > 테스트와 소스 코드 간의 의존성을 코드 내에서 파악할 수 없으므로 선택적 테스트의 세분화는 파일 단위에서만 가능합니다. 따라서 선택적 테스트의 이점을 극대화 하려면 파일을 작고 집중적으로 유지하길 권장합니다.
 
+> [!WARNING] TEST COVERAGE
+> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
 > [!IMPORTANT] GIT 플랫폼 연동 필요\
