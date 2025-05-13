@@ -1,16 +1,16 @@
 ---
-title: xcodebuild
+title: Xcode project
 titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방법 배우기."
 ---
 
-# xcodebuild {#xcodebuild}
+# Xcode project {#xcode-project}
 
 > [!IMPORTANT] 요구 사항
 >
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
-You can run the tests of your Xcode projects selectively through the command line. 예를 들어서, `tuist xcodebuild test -scheme App`와 같이 사용할 수 있습니다. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
+명령어를 통해 선택적으로 Xcode 프로젝트 테스트를 수행할 수 있습니다. 예를 들어서, `tuist xcodebuild test -scheme App`와 같이 사용할 수 있습니다. 해당 명령어 수행이 성공하면 프로젝트를 해시하고 다음 실행 시 변경 사항을 파악하기 위해 해시 값을 저장합니다.
 
 `tuist xcodebuild test`는 해시를 이용하여 테스트들을 필터링하고 가장 최근에 성공한 테스트 실행과 비교하여 변경된 부분이 있는 테스트만 재실행합니다.
 
@@ -32,6 +32,6 @@ You can run the tests of your Xcode projects selectively through the command lin
 
 `tuist xcodebuild test` 을 CI에서 사용하기 위해서는, <LocalizedLink href="/guides/automate/continuous-integration">Continuous integration guide</LocalizedLink>에 나와있는 설명을 참고하시면 됩니다.
 
-Check out the following video to see selective testing in action:
+선택적 테스트에 대한 영상을 확인해 보세요:
 
 <iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
