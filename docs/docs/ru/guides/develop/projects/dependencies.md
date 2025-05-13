@@ -14,7 +14,7 @@ description: Узнайте, как объявлять зависимости в
 Из-за дизайна Xcode и XcodeProj, поддержка графа зависимостей может быть утомительной и подвержена ошибкам.
 Вот несколько примеров проблем, с которыми вы можете столкнуться:
 
-- Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
+- Поскольку система сборки Xcode'а выводит все продукты сборки в один и тот же каталог в `derived data` - проекты могут импортировать зависимости, которые они не должны. Компиляция может быть неудачной на CI, где сборки без кешей являются более распространенными или позже когда используется другая конфигурация.
 - The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
 - When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
 
