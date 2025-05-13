@@ -319,8 +319,8 @@
                 "selective-testing": {
                   "text": "Selective testing"
                 },
-                "xcodebuild": {
-                  "text": "xcodebuild"
+                "xcode-project": {
+                  "text": "Xcode project"
                 },
                 "generated-project": {
                   "text": "Generated project"
