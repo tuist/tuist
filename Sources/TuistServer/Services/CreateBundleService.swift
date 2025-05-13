@@ -119,16 +119,6 @@ public final class CreateBundleService: CreateBundleServicing {
     }
 }
 
-public struct ServerBundle {
-    public let url: URL
-
-    init?(_ bundle: Components.Schemas.Bundle) {
-        guard let url = URL(string: bundle.url)
-        else { return nil }
-        self.url = url
-    }
-}
-
 extension Components.Schemas.BundleArtifact {
     init(_ artifact: AppBundleArtifact) {
         let artifactType: Components.Schemas.BundleArtifact.artifact_typePayload = switch artifact.artifactType {

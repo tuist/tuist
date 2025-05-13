@@ -1,5 +1,5 @@
 {
-  "originHash" : "1e881e23605a5b24aef2d311fdbe6d3ce5982807a648bb07601cb71df6a9cfc9",
+  "originHash" : "29990ea1ac94095c093a518f3e036f4f46c9f3d9134c50a84b15780c488a610a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "f4cf9cbd670162f9efc3a7028ff70521467851b7",
-        "version" : "0.7.14"
+        "revision" : "26cb055305b93c38147c6321df5a0366a1947ff9",
+        "version" : "0.7.18"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "68f3ed6c4b62afab27a84425494cb61421a61ac1",
-        "version" : "0.3.1"
+        "revision" : "118a0b8934e585b80952586db30bcb72aef45a74",
+        "version" : "0.3.2"
       }
     },
     {
@@ -348,8 +348,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "6e17bc946821e550b88d22fd964423f70f1ce42d",
-        "version" : "2.82.0"
+        "revision" : "34d486b01cd891297ac615e40d5999536a1e138d",
+        "version" : "2.83.0"
       }
     },
     {

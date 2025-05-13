@@ -43,19 +43,21 @@ struct InspectBundleCommandService {
     }
 
     func run(
-        path: String,
+        path: String?,
+        bundle: String,
         json: Bool
     ) async throws {
-        let path = try AbsolutePath(
-            validating: path,
+        let bundlePath = try AbsolutePath(
+            validating: bundle,
             relativeTo: try await fileSystem.currentWorkingDirectory()
         )
+        let path = try await self.path(path)
 
         let config = try await configLoader
-            .loadConfig(path: try await fileSystem.currentWorkingDirectory())
+            .loadConfig(path: path)
 
         if json {
-            let appBundleReport = try await rosalind.analyzeAppBundle(at: path)
+            let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
             let json = try appBundleReport.toJSON()
             ServiceContext.current?.logger?.info(
                 .init(stringLiteral: json.toString(prettyPrint: true)),
@@ -88,7 +90,7 @@ struct InspectBundleCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { updateStep in
-            let appBundleReport = try await rosalind.analyzeAppBundle(at: path)
+            let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
             updateStep("Pushing bundle to the server...")
             return try await createBundleService.createBundle(
                 fullHandle: fullHandle,
@@ -103,5 +105,13 @@ struct InspectBundleCommandService {
                 "View the bundle analysis at \(serverBundle.url.absoluteString)"
             )
         )
+    }
+
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        if let path {
+            return try await AbsolutePath(validating: path, relativeTo: fileSystem.currentWorkingDirectory())
+        } else {
+            return try await fileSystem.currentWorkingDirectory()
+        }
     }
 }

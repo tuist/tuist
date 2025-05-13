@@ -1,5 +1,7 @@
 import ArgumentParser
+import FileSystem
 import Foundation
+import Path
 
 struct InspectBundleCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
@@ -12,9 +14,9 @@ struct InspectBundleCommand: AsyncParsableCommand {
     @Argument(
         help: "The path to the bundle.",
         completion: .directory,
-        envKey: .inspectBundlePath
+        envKey: .inspectBundle
     )
-    var path: String
+    var bundle: String
 
     @Flag(
         help: "The output in JSON format.",
@@ -22,10 +24,19 @@ struct InspectBundleCommand: AsyncParsableCommand {
     )
     var json: Bool = false
 
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the directory that contains the project associated with the inspected bundle.",
+        completion: .directory,
+        envKey: .inspectBundlePath
+    )
+    var path: String?
+
     func run() async throws {
         try await InspectBundleCommandService()
             .run(
                 path: path,
+                bundle: bundle,
                 json: json
             )
     }
