@@ -335,7 +335,7 @@ import ProjectDescriptionHelpers
 
 let packageSettings = PackageSettings(
     productTypes: [
-        "FPLPromises": .framework,
+        "FBLPromises": .framework,
     ]
 )
 #endif
