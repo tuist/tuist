@@ -13,6 +13,7 @@ class TargetLinter: TargetLinting {
 
     private let settingsLinter: SettingsLinting
     private let targetScriptLinter: TargetScriptLinting
+    private let signatureProvider: XCFrameworkSignatureProvider
     private let fileSystem: FileSysteming
 
     // MARK: - Init
@@ -20,10 +21,12 @@ class TargetLinter: TargetLinting {
     init(
         settingsLinter: SettingsLinting = SettingsLinter(),
         targetScriptLinter: TargetScriptLinting = TargetScriptLinter(),
+        signatureProvider: XCFrameworkSignatureProvider = XCFrameworkSignatureProvider(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
+        self.signatureProvider = signatureProvider
         self.fileSystem = fileSystem
     }
 
@@ -40,6 +43,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         try await issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
+        try await issues.append(contentsOf: lintXCFrameworkDependency(target: target))
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
         try await issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         try await issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
@@ -276,6 +280,61 @@ class TargetLinter: TargetLinting {
         }
     }
 
+    private func lintXCFrameworkDependency(target: Target) async throws -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+
+        for dependency in target.dependencies {
+            if case let .xcframework(path, expectedSignature, _, _) = dependency, let expectedSignature {
+                let actualSignature = try await signatureProvider.signature(of: path)
+                if expectedSignature != actualSignature {
+                    let issue = LintingIssue(
+                        reason: signatureMismatchReason(
+                            targetName: target.name,
+                            pathString: path.pathString,
+                            expectedSignature: expectedSignature,
+                            actualSignature: actualSignature
+                        ),
+                        severity: .error
+                    )
+                    issues.append(issue)
+                }
+            }
+        }
+
+        return issues
+    }
+
+    private func signatureMismatchReason(
+        targetName: String,
+        pathString: String,
+        expectedSignature: XCFrameworkSignature,
+        actualSignature: XCFrameworkSignature
+    ) -> String {
+        let expectedString = expectedSignature.signatureString() ?? "nil"
+        let actualString = actualSignature.signatureString() ?? "nil"
+
+        let baseReason =
+            """
+            The target '\(targetName)' depends on the XCFramework at \(pathString), 
+            expecting signature \(expectedString), but found \(actualString).
+
+            Ensure that the expected signature format is correct and that the XCFramework is authentic.
+            """
+
+        let specificReason: String
+        switch expectedSignature {
+        case .unsigned:
+            specificReason = "unsigned XCFrameworks should not have any signature."
+        case .signedWithAppleCertificate:
+            specificReason =
+                "XCFrameworks signed with Apple Developer certificates must have the format: `AppleDeveloperProgram:<team identifier>:<team name>`."
+        case .selfSigned:
+            specificReason = "self signed XCFrameworks must have the format: `SelfSigned:<sha256 fingerprint>`."
+        }
+
+        return baseReason + "\nSpecifically, " + specificReason
+    }
+
     private func lintValidSourceFileCodeGenAttributes(target: Target) -> [LintingIssue] {
         let knownSupportedExtensions = [
             "intentdefinition",
@@ -347,7 +406,7 @@ extension TargetDependency {
             return target
         case let .framework(path, _, _):
             return path.basename
-        case let .xcframework(path, _, _):
+        case let .xcframework(path, _, _, _):
             return path.basename
         case let .library(path, _, _, _):
             return path.basename

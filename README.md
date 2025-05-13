@@ -604,6 +604,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukevanin"><img src="https://avatars.githubusercontent.com/u/550579?v=4" width="100px;" alt=""/><br /><sub><b>Luke Van In</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mustafataibah.vercel.app/"><img src="https://avatars.githubusercontent.com/u/83141712?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Taibah</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/vkondrashkov"><img src="https://avatars.githubusercontent.com/u/16046780?v=4" width="100px;" alt=""/><br /><sub><b>Vladislav Kondrashkov</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/chrisjrex"><img src="https://avatars.githubusercontent.com/u/4457170?v=4" width="100px;" alt=""/><br /><sub><b>Christopher Rex</b></sub></a></td>
     </tr>
   </tbody>
 </table>

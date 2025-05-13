@@ -1413,7 +1413,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func canEmbedFrameworks(target: Target) -> Bool {
-        let validProducts: [Product] = [
+        var validProducts: [Product] = [
             .app,
             .watch2App,
             .appClip,
@@ -1423,6 +1423,9 @@ public class GraphTraverser: GraphTraversing {
             .systemExtension,
             .xpc,
         ]
+        if target.supportedPlatforms == Set([.macOS]) {
+            validProducts.append(.bundle)
+        }
         return validProducts.contains(target.product)
     }
 
@@ -1502,6 +1505,7 @@ public class GraphTraverser: GraphTraversing {
         case let .xcframework(xcframework):
             return .xcframework(
                 path: xcframework.path,
+                expectedSignature: xcframework.expectedSignature,
                 infoPlist: xcframework.infoPlist,
                 status: xcframework.status,
                 condition: condition

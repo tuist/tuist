@@ -28,6 +28,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Develop",
                     subcommands: [
+                        HashCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CleanCommand.self,
@@ -123,9 +124,17 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                try await trackableCommand.run(
-                    backend: backend
-                )
+                if command is NooraReadyCommand {
+                    try await ServiceContext.current?.withLoggerForNoora(logFilePath: logFilePath) {
+                        try await trackableCommand.run(
+                            backend: backend
+                        )
+                    }
+                } else {
+                    try await trackableCommand.run(
+                        backend: backend
+                    )
+                }
             }
         } catch {
             parsingError = error
@@ -196,34 +205,35 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
         let errorAlert: ErrorAlert? = if let errorAlertMessage {
-            .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
+            .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
         } else {
             nil
         }
         let successAlerts = ServiceContext.current?.alerts?.success() ?? []
         let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
+        let takeaways = ServiceContext.current?.alerts?.takeaways() ?? []
 
         if !warningAlerts.isEmpty {
             print("\n")
-            for warningAlert in warningAlerts {
-                ServiceContext.current?.ui?.warning(warningAlert)
-            }
+            ServiceContext.current?.ui?.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
         if let errorAlert {
             print("\n")
-            var errorAlertNextSteps = errorAlert.nextSteps
+            var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+            ServiceContext.current?.ui?.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
-            var successAlertNextSteps = successAlert.nextSteps
+            var successAlertNextSteps = successAlert.takeaways
+            successAlertNextSteps.append(contentsOf: takeaways)
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
+            print("\n")
+            ServiceContext.current?.ui?.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
 

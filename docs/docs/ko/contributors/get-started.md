@@ -19,7 +19,7 @@ Swift에 대한 경험이 없다면, 언어와 Foundation API에서 자주 사�
 Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 - macOS 14.0+
-- Xcode 16.0+
+- Xcode 16.3+
 
 ## 로컬에 프로젝트 설정하기 {#set-up-the-project-locally}
 

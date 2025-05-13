@@ -69,8 +69,6 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
-    private let contentHasher: ContentHashing
-
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -97,7 +95,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
-        contentHasher: ContentHashing = ContentHasher(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
         fileSystem: FileSysteming = FileSystem(),
@@ -109,7 +106,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
-        self.contentHasher = contentHasher
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.configLoader = configLoader
         self.fileSystem = fileSystem
@@ -201,6 +197,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
         // Load config
         let config = try await configLoader.loadConfig(path: path)
+            .assertingIsGeneratedProjectOrSwiftPackage(
+                errorMessageOverride: "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
+            )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let destination = try await destination(

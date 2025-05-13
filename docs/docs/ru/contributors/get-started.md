@@ -19,7 +19,7 @@ description: Начните вносить свой вклад в Tuist c пом
 Минимальные требования для внесения вклада в Tuist:
 
 - macOS 14.0+
-- Xcode 16.0+
+- Xcode 16.3+
 
 ## Настройте проект локально {#set-up-the-project-locally}
 

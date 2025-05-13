@@ -145,7 +145,7 @@ public struct InitCommandService {
             )
         }
 
-        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: nextSteps))
+        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", takeaways: nextSteps))
     }
 
     private func mise(path: AbsolutePath, nextSteps _: inout [TerminalText]) async throws {

@@ -1276,6 +1276,31 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcceptanceTestCase {
+    func test_app_with_signed_xcframework_dependencies() async throws {
+        try await setUpFixture(.appWithSignedXCFrameworkDependencies)
+        try await run(GenerateCommand.self)
+    }
+
+    func test_app_with_mismatching_signed_xcframework_dependencies() async throws {
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.appWithSignedXCFrameworkDependenciesMismatchingSignature)
+            do {
+                try await run(GenerateCommand.self)
+                XCTFail("Generate should have failed")
+            } catch {
+                XCTAssertStandardError(
+                    pattern: "self signed XCFrameworks must have the format"
+                )
+                XCTAssertEqual(
+                    (error as? FatalError)?.description,
+                    "Fatal linting issues found"
+                )
+            }
+        }
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
