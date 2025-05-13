@@ -19,7 +19,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
     )
 
     private let formatter: Formatting
-    private let environment: Environmenting
     private let simulatorController: SimulatorController
     private let system: Systeming
     private let commandRunner: CommandRunning
@@ -27,20 +26,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public convenience init() {
         self.init(
             formatter: Formatter(),
-            environment: Environment.shared,
-            commandRunner: CommandRunner()
+            commandRunner: CommandRunner(),
+            system: System.shared
         )
     }
 
     init(
         formatter: Formatting,
-        environment: Environmenting,
-        commandRunner: CommandRunning
+        commandRunner: CommandRunning,
+        system: Systeming
     ) {
         self.formatter = formatter
-        self.environment = environment
         self.simulatorController = SimulatorController()
-        self.system = System.shared
+        self.system = system
         self.commandRunner = commandRunner
     }
 
@@ -323,7 +321,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
-            if self.environment.isVerbose == true {
+            if Environment.current.isVerbose == true {
                 return string
             } else {
                 return self.format(string)
