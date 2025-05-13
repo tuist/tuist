@@ -512,9 +512,9 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.xcodebuild.text",
+                "sidebars.guides.items.develop.items.selective-testing.items.xcode-project.text",
               ),
-              link: `/${locale}/guides/develop/selective-testing/xcodebuild`,
+              link: `/${locale}/guides/develop/selective-testing/xcode-project`,
             },
             {
               text: localizedString(
