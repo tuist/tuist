@@ -105,6 +105,7 @@
         id="widget-average-build-time"
         trend_value={@build_analytics.trend}
         trend_label={@analytics_trend_label}
+        trend_inverse={true}
         empty={@build_analytics.total_average_duration == 0}
       />
       <.widget
@@ -120,6 +121,7 @@
         id="widget-average-test-time"
         trend_value={@test_analytics.trend}
         trend_label={@analytics_trend_label}
+        trend_inverse={true}
         empty={@test_analytics.total_average_duration == 0}
       />
     </div>

@@ -44,13 +44,13 @@ msgstr ""
 msgid "%{app_name} icon"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:474
+#: lib/tuist_web/live/overview_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:69
-#: lib/tuist_web/live/overview_live.html.heex:132
+#: lib/tuist_web/live/overview_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "%{binary_cache_effectiveness}%"
 msgstr ""
@@ -68,7 +68,7 @@ msgid "%{display_name} · Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:101
-#: lib/tuist_web/live/overview_live.html.heex:116
+#: lib/tuist_web/live/overview_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
@@ -96,7 +96,7 @@ msgstr ""
 msgid "%{run_duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:141
+#: lib/tuist_web/live/overview_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "%{selective_test_effectiveness}%"
 msgstr ""
@@ -117,7 +117,7 @@ msgid "/per month"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:55
-#: lib/tuist_web/live/overview_live.html.heex:391
+#: lib/tuist_web/live/overview_live.html.heex:393
 #: lib/tuist_web/live/test_runs_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "12 months"
@@ -134,14 +134,14 @@ msgid "200"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:50
-#: lib/tuist_web/live/overview_live.html.heex:386
+#: lib/tuist_web/live/overview_live.html.heex:388
 #: lib/tuist_web/live/test_runs_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "30 days"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:45
-#: lib/tuist_web/live/overview_live.html.heex:381
+#: lib/tuist_web/live/overview_live.html.heex:383
 #: lib/tuist_web/live/test_runs_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "7 days"
@@ -271,7 +271,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:253
 #: lib/tuist_web/live/overview_live.html.heex:19
-#: lib/tuist_web/live/overview_live.html.heex:355
+#: lib/tuist_web/live/overview_live.html.heex:357
 #: lib/tuist_web/live/test_runs_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -291,8 +291,8 @@ msgid "Are you sure you want to delete this?"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:96
-#: lib/tuist_web/live/overview_live.html.heex:472
-#: lib/tuist_web/live/overview_live.html.heex:535
+#: lib/tuist_web/live/overview_live.html.heex:474
+#: lib/tuist_web/live/overview_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr ""
@@ -302,7 +302,7 @@ msgstr ""
 msgid "Average test run duration represents the average time it took to run a test during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:111
+#: lib/tuist_web/live/overview_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Average test time"
 msgstr ""
@@ -312,7 +312,7 @@ msgstr ""
 msgid "Average time it takes to build a project as reported from Xcode post actions."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:113
+#: lib/tuist_web/live/overview_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to test a project when using the 'tuist test' command."
 msgstr ""
@@ -345,14 +345,14 @@ msgstr ""
 msgid "Binary Cache"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:228
+#: lib/tuist_web/live/overview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Binary cache and selective testing: no data yet"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:62
-#: lib/tuist_web/live/overview_live.html.heex:130
-#: lib/tuist_web/live/overview_live.html.heex:200
+#: lib/tuist_web/live/overview_live.html.heex:132
+#: lib/tuist_web/live/overview_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Binary cache effectiveness"
 msgstr ""
@@ -426,7 +426,7 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:346
+#: lib/tuist_web/live/overview_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
@@ -443,7 +443,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:261
 #: lib/tuist_web/live/overview_live.html.heex:35
-#: lib/tuist_web/live/overview_live.html.heex:371
+#: lib/tuist_web/live/overview_live.html.heex:373
 #: lib/tuist_web/live/test_runs_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -933,7 +933,7 @@ msgid "Enterprise-Grade Fully Automated\n            Mobile DevOps Platform"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:15
-#: lib/tuist_web/live/overview_live.html.heex:351
+#: lib/tuist_web/live/overview_live.html.heex:353
 #: lib/tuist_web/live/test_runs_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Environment:"
@@ -978,7 +978,7 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:406
+#: lib/tuist_web/live/overview_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr ""
@@ -994,7 +994,7 @@ msgstr ""
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:252
+#: lib/tuist_web/live/overview_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
 msgstr ""
@@ -1284,17 +1284,17 @@ msgstr ""
 msgid "Keep up with the latest and greatest changes in Tuist."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:455
+#: lib/tuist_web/live/overview_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:302
+#: lib/tuist_web/live/overview_live.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:327
+#: lib/tuist_web/live/overview_live.html.heex:329
 #: lib/tuist_web/live/previews_live.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
@@ -1319,7 +1319,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:257
 #: lib/tuist_web/live/overview_live.html.heex:27
-#: lib/tuist_web/live/overview_live.html.heex:363
+#: lib/tuist_web/live/overview_live.html.heex:365
 #: lib/tuist_web/live/run_detail_live.html.heex:238
 #: lib/tuist_web/live/run_detail_live.html.heex:327
 #: lib/tuist_web/live/test_runs_live.ex:237
@@ -1458,7 +1458,7 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:547
+#: lib/tuist_web/live/overview_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
 msgstr ""
@@ -1477,12 +1477,12 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:337
+#: lib/tuist_web/live/overview_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "No previews yet"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:460
+#: lib/tuist_web/live/overview_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
 msgstr ""
@@ -1599,12 +1599,12 @@ msgstr ""
 msgid "Passed"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:401
+#: lib/tuist_web/live/overview_live.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:250
+#: lib/tuist_web/live/overview_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
 msgstr ""
@@ -1692,7 +1692,7 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:316
+#: lib/tuist_web/live/overview_live.html.heex:318
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/previews_live.ex:26
 #: lib/tuist_web/live/previews_live.html.heex:18
@@ -1919,7 +1919,7 @@ msgstr ""
 msgid "Running tests - 4.200 tests skipped (already run)"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:307
+#: lib/tuist_web/live/overview_live.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
 msgstr ""
@@ -1960,8 +1960,8 @@ msgid "Selective Testing"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:79
-#: lib/tuist_web/live/overview_live.html.heex:139
-#: lib/tuist_web/live/overview_live.html.heex:215
+#: lib/tuist_web/live/overview_live.html.heex:141
+#: lib/tuist_web/live/overview_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
 msgstr ""
@@ -2297,7 +2297,7 @@ msgstr ""
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:237
+#: lib/tuist_web/live/overview_live.html.heex:239
 #: lib/tuist_web/live/project_tests_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Tests"
