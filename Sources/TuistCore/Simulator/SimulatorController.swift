@@ -125,18 +125,15 @@ public final class SimulatorController: SimulatorControlling {
     private let userInputReader: UserInputReading
 
     private let system: Systeming
-    private let devEnvironment: DeveloperEnvironmenting
     private let xcodeController: XcodeControlling
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
         system: Systeming = System.shared,
-        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
         xcodeController: XcodeControlling = XcodeController.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
-        self.devEnvironment = devEnvironment
         self.xcodeController = xcodeController
     }
 
@@ -367,7 +364,7 @@ public final class SimulatorController: SimulatorControlling {
 
     public func macOSDestination(catalyst: Bool = false) -> String {
         let arch: String
-        switch devEnvironment.architecture {
+        switch DeveloperEnvironment.current.architecture {
         case .arm64:
             arch = "arm64"
         case .x8664:

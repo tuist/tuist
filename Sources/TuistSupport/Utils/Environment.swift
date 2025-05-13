@@ -53,6 +53,9 @@ public protocol Environmenting: AnyObject, Sendable {
 
 /// Local environment controller.
 public final class Environment: Environmenting {
+    @TaskLocal public static var current: Environmenting = Environment()
+
+    @available(*, deprecated, message: "Use Environment.current instead")
     public static var shared: Environmenting {
         _shared.value
     }
@@ -224,3 +227,28 @@ public final class Environment: Environmenting {
         }
     }
 }
+
+#if DEBUG && canImport(Testing)
+    import Testing
+
+    extension Environment {
+        public static var mocked: MockEnvironmenting? { current as? MockEnvironmenting }
+    }
+
+    public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
+        public func provideScope(
+            for _: Test,
+            testCase _: Test.Case?,
+            performing function: @Sendable () async throws -> Void
+        ) async throws {
+            try await Environment.$current.withValue(MockEnvironmenting()) {
+                try await function()
+            }
+        }
+    }
+
+    extension Trait where Self == EnvironmentTestingTrait {
+        /// When this trait is applied to a test, the environment will be mocked.
+        public static var withMockedEnvironment: Self { Self() }
+    }
+#endif
