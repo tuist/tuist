@@ -114,15 +114,18 @@ defmodule Tuist.AccountsTest do
   describe "update_account_current_month_usage/2" do
     test "updates the account usage" do
       # Given
-      now = ~U[2025-05-18 15:27:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
+      now = ~N[2025-05-18 15:27:00Z]
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
 
       # When
       got =
-        Accounts.update_account_current_month_usage(account_id, %{
-          remote_cache_hits_count: 20
-        })
+        Accounts.update_account_current_month_usage(
+          account_id,
+          %{
+            remote_cache_hits_count: 20
+          },
+          updated_at: now
+        )
 
       # Then
       assert %{
@@ -132,7 +135,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "account_current_month_usage/1" do
+  describe "account_month_usage/1" do
     test "returns the right value when there are remote cache hits" do
       # Given
       now = ~U[2025-05-18 15:27:00Z]
@@ -149,7 +152,7 @@ defmodule Tuist.AccountsTest do
         )
 
       # When
-      got = Accounts.account_current_month_usage(account_id)
+      got = Accounts.account_month_usage(account_id)
 
       # Then
       assert %{remote_cache_hits_count: 1} == got
@@ -158,12 +161,11 @@ defmodule Tuist.AccountsTest do
     test "returns the right value when there are no remote cache hits" do
       # Given
       now = ~U[2025-05-18 15:27:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: _project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
       # When
-      got = Accounts.account_current_month_usage(account_id)
+      got = Accounts.account_month_usage(account_id, now)
 
       # Then
       assert %{remote_cache_hits_count: 0} == got

@@ -18,7 +18,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
          %{project: project, account: account} do
       # Given
       now = NaiveDateTime.utc_now(:second)
-      stub(Tuist.Time, :naive_utc_now, fn -> now end)
+      stub(NaiveDateTime, :utc_now, fn -> now end)
 
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,

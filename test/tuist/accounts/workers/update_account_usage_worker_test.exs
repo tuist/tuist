@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts.Workers.UpdateAccountUsageWorker
@@ -16,9 +16,6 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
   describe "perform/1" do
     test "updates the current month usage for the account", %{project: project, account: account} do
       # Given
-      now = ~U[2025-04-18 15:55:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
-
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         remote_cache_target_hits: ["foo", "bar"],
@@ -26,13 +23,18 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
         created_at: ~U[2025-04-18 15:54:00Z]
       )
 
+      updated_at = ~U[2025-04-18 15:55:00Z]
+
       # When
-      {:ok, _} = %{account_id: account.id} |> UpdateAccountUsageWorker.new() |> Oban.insert()
+      {:ok, _} =
+        %{account_id: account.id, updated_at: updated_at}
+        |> UpdateAccountUsageWorker.new()
+        |> Oban.insert()
 
       # # Then
       account = Repo.reload!(account)
       assert account.current_month_remote_cache_hits_count == 1
-      assert account.current_month_remote_cache_hits_count_updated_at == ~N[2025-04-18 15:55:00]
+      assert account.current_month_remote_cache_hits_count_updated_at == ~N[2025-04-18 15:55:00Z]
     end
   end
 end

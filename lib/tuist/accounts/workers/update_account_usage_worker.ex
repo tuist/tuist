@@ -9,10 +9,13 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorker do
 
   @impl Oban.Worker
 
-  def perform(%Oban.Job{args: %{"account_id" => account_id}}) do
+  def perform(%Oban.Job{args: %{"account_id" => account_id, "updated_at" => updated_at_string}}) do
+    {:ok, updated_at, _} = DateTime.from_iso8601(updated_at_string)
+
     Accounts.update_account_current_month_usage(
       account_id,
-      Accounts.account_current_month_usage(account_id)
+      Accounts.account_month_usage(account_id, updated_at),
+      updated_at: updated_at
     )
 
     :ok

@@ -28,7 +28,8 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
   def process_results({accounts, meta}) do
     Enum.each(accounts, fn %{id: account_id} ->
       %{
-        account_id: account_id
+        account_id: account_id,
+        updated_at: DateTime.utc_now()
       }
       |> UpdateAccountUsageWorker.new()
       |> Oban.insert()

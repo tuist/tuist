@@ -503,18 +503,17 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}) do
+  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}, opts \\ []) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
       current_month_remote_cache_hits_count: remote_cache_hits_count,
-      current_month_remote_cache_hits_count_updated_at: DateTime.utc_now()
+      current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
     })
     |> Repo.update!()
   end
 
-  def account_current_month_usage(account_id) do
-    now = DateTime.utc_now()
-    beginning_of_month = Timex.beginning_of_month(now)
+  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
+    beginning_of_month = Timex.beginning_of_month(date)
 
     query =
       from c in Event,
