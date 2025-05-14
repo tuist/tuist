@@ -349,6 +349,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
@@ -553,7 +554,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(
             url: "https://github.com/tuist/Rosalind",
-            .upToNextMajor(from: "0.5.1")
+            .upToNextMajor(from: "0.5.12")
         ),
     ],
     targets: targets
