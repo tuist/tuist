@@ -21,6 +21,7 @@ defmodule TuistTestSupport.Fixtures.PreviewsFixtures do
     git_commit_sha = Keyword.get(opts, :git_commit_sha, "7c184b7")
     ran_by_account_id = Keyword.get(opts, :ran_by_account_id, project.account.id)
     inserted_at = Keyword.get(opts, :inserted_at, DateTime.utc_now())
+    preload = Keyword.get(opts, :preload, [])
 
     Previews.create_preview(
       %{
@@ -34,7 +35,8 @@ defmodule TuistTestSupport.Fixtures.PreviewsFixtures do
         git_commit_sha: git_commit_sha,
         ran_by_account_id: ran_by_account_id
       },
-      inserted_at: inserted_at
+      inserted_at: inserted_at,
+      preload: preload
     )
   end
 end

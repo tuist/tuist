@@ -45,6 +45,52 @@ defmodule Tuist.PreviewsTest do
     end
   end
 
+  describe "preview_commit_sha/1" do
+    test "returns the git_commit_sha if present" do
+      # Given
+      git_commit_sha = "7c184b7"
+      preview = PreviewsFixtures.preview_fixture(git_commit_sha: git_commit_sha)
+
+      # When
+      got = Previews.preview_commit_sha(preview)
+
+      # Then
+      assert(got == git_commit_sha)
+    end
+
+    test "returns nil if no git commit sha information is available" do
+      # Given
+      preview = PreviewsFixtures.preview_fixture(git_commit_sha: nil, preload: [:command_event])
+
+      # When
+      got = Previews.preview_commit_sha(preview)
+
+      # Then
+      assert(got == nil)
+    end
+
+    test "returns the command event git commit sha" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = PreviewsFixtures.preview_fixture(project: project)
+      git_commit_sha = "7c184b7"
+
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview.id,
+          git_commit_sha: git_commit_sha
+        )
+
+      # When
+      got = Previews.preview_commit_sha(preview)
+
+      # Then
+      assert(got == git_commit_sha)
+    end
+  end
+
   describe "get_preview_by_id/1" do
     test "returns a preview by id" do
       # Given

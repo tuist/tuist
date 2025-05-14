@@ -118,8 +118,7 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Commit SHA")}</div>
             <span data-part="label">
-              {(@preview.git_commit_sha || @preview.command_event.git_commit_sha || "None")
-              |> String.slice(0, 7)}
+              {Tuist.Previews.preview_commit_sha(@preview) || gettext("None")}
             </span>
           </div>
         </div>

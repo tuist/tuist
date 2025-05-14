@@ -36,6 +36,20 @@ defmodule Tuist.Previews do
       ran_by_account_id: ran_by_account_id
     })
     |> Repo.insert!()
+    |> Repo.preload(Keyword.get(opts, :preload, []))
+  end
+
+  def preview_commit_sha(preview) do
+    cond do
+      not is_nil(preview.git_commit_sha) ->
+        String.slice(preview.git_commit_sha, 0, 7)
+
+      not is_nil(preview.command_event) ->
+        String.slice(preview.command_event.git_commit_sha, 0, 7)
+
+      true ->
+        nil
+    end
   end
 
   def list_previews(attrs, opts \\ []) do

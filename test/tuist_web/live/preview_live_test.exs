@@ -15,6 +15,28 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  test "renders none as a commit when git_commit_sha and command_event.git_commit_sha are absent",
+       %{
+         conn: conn,
+         organization: organization,
+         project: project
+       } do
+    # Given
+    preview =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        supported_platforms: [:ios, :macos],
+        git_commit_sha: nil
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "div[data-part='metadata'] span[data-part='label']", "None")
+  end
+
   test "it shows supported platforms", %{
     conn: conn,
     organization: organization,
@@ -25,7 +47,8 @@ defmodule TuistWeb.PreviewLiveTest do
       PreviewsFixtures.preview_fixture(project: project, supported_platforms: [:ios, :macos])
 
     # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, ".noora-tag span", "iOS")
@@ -44,7 +67,8 @@ defmodule TuistWeb.PreviewLiveTest do
     stub(UAParser, :parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "iOS"}} end)
 
     # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     refute has_element?(lv, "#preview-run-button span", "Run")
@@ -57,10 +81,13 @@ defmodule TuistWeb.PreviewLiveTest do
     preview: preview
   } do
     # Given
-    stub(UAParser, :parse, fn _ -> %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}} end)
+    stub(UAParser, :parse, fn _ ->
+      %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}}
+    end)
 
     # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
@@ -92,7 +119,8 @@ defmodule TuistWeb.PreviewLiveTest do
     preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
 
     # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")

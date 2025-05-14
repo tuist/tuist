@@ -1209,7 +1209,7 @@ msgstr ""
 msgid "Included for free"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:129
+#: lib/tuist_web/live/preview_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Install App"
 msgstr ""
@@ -1488,6 +1488,7 @@ msgid "No recent builds yet"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:115
+#: lib/tuist_web/live/preview_live.html.heex:121
 #: lib/tuist_web/live/run_detail_live.html.heex:137
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:83
@@ -1558,7 +1559,7 @@ msgstr ""
 msgid "Or set up a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:160
+#: lib/tuist_web/live/preview_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Or share using CLI"
 msgstr ""
@@ -1769,7 +1770,7 @@ msgstr ""
 msgid "Pulling cache binaries..."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:143
+#: lib/tuist_web/live/preview_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
@@ -1934,12 +1935,12 @@ msgstr ""
 msgid "Scale your Swift App development"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:133
+#: lib/tuist_web/live/preview_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:136
+#: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr ""
@@ -2371,12 +2372,12 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:154
+#: lib/tuist_web/live/preview_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:151
+#: lib/tuist_web/live/preview_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr ""
