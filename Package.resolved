@@ -1,5 +1,5 @@
 {
-  "originHash" : "1e881e23605a5b24aef2d311fdbe6d3ce5982807a648bb07601cb71df6a9cfc9",
+  "originHash" : "28f76bcaea2c4c8b8431f759abd9def4d93a6e2cb1aaf4550a14d70e1a09697c",
   "pins" : [
     {
       "identity" : "aexml",
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "5458fc568b2d8542c3cac60bba519bf7db9c254b",
-        "version" : "0.31.0"
+        "revision" : "b4b752d9d2cf3975ee05620c66284a3414fcf56e",
+        "version" : "0.32.0"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "68f3ed6c4b62afab27a84425494cb61421a61ac1",
-        "version" : "0.3.1"
+        "revision" : "118a0b8934e585b80952586db30bcb72aef45a74",
+        "version" : "0.3.2"
       }
     },
     {
@@ -200,6 +200,15 @@
       }
     },
     {
+      "identity" : "rosalind",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Rosalind",
+      "state" : {
+        "revision" : "f21227dbb8f07547ff2542ba6f04e00c68dd2ce1",
+        "version" : "0.5.13"
+      }
+    },
+    {
       "identity" : "shellout",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/JohnSundell/ShellOut.git",
@@ -254,6 +263,15 @@
       }
     },
     {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "a54383ada6cecde007d374f58f864e29370ba5c3",
+        "version" : "1.3.2"
+      }
+    },
+    {
       "identity" : "swift-atomics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics.git",
@@ -272,12 +290,30 @@
       }
     },
     {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "e8d6eba1fef23ae5b359c46b03f7d94be2f41fed",
+        "version" : "3.12.3"
+      }
+    },
+    {
       "identity" : "swift-custom-dump",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-custom-dump",
       "state" : {
         "revision" : "82645ec760917961cfa08c9c0c7104a57a0fa4b1",
         "version" : "1.3.3"
+      }
+    },
+    {
+      "identity" : "swift-fileio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/swift-fileio.git",
+      "state" : {
+        "revision" : "23349fe1eb23c6ca2876d461a46ff60c0fa92f9c",
+        "version" : "0.9.0"
       }
     },
     {
@@ -321,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "0f54d58bb5db9e064f332e8524150de379d1e51c",
-        "version" : "2.82.1"
+        "revision" : "34d486b01cd891297ac615e40d5999536a1e138d",
+        "version" : "2.83.0"
       }
     },
     {

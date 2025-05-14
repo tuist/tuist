@@ -91,6 +91,7 @@ let targets: [Target] = [
             .product(name: "XCResultKit", package: "XCResultKit"),
             .product(name: "MCP", package: "mcp-swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -348,6 +349,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
@@ -550,6 +552,10 @@ let package = Package(
             url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")
         ),
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
+        .package(
+            url: "https://github.com/tuist/Rosalind",
+            .upToNextMajor(from: "0.5.13")
+        ),
     ],
     targets: targets
 )

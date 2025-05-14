@@ -31,6 +31,76 @@ components:
       type: object
       x-struct:
       x-validate:
+    BundleRequest:
+      description: Request schema for bundle creation
+      properties:
+        bundle:
+          properties:
+            app_bundle_id:
+              description: The bundle ID of the app
+              type: string
+              x-struct:
+              x-validate:
+            artifacts:
+              description: The artifacts in this bundle
+              items:
+                $ref: '#/components/schemas/BundleArtifact'
+              type: array
+              x-struct:
+              x-validate:
+            download_size:
+              description: The bundle download size in bytes
+              type: integer
+              x-struct:
+              x-validate:
+            git_branch:
+              description: The git branch associated with the bundle.
+              type: string
+              x-struct:
+              x-validate:
+            git_commit_sha:
+              description: The git commit SHA associated with the bundle.
+              type: string
+              x-struct:
+              x-validate:
+            install_size:
+              description: The bundle install size in bytes
+              type: integer
+              x-struct:
+              x-validate:
+            name:
+              description: The name of the bundle
+              type: string
+              x-struct:
+              x-validate:
+            supported_platforms:
+              description: List of supported platforms
+              items:
+                $ref: '#/components/schemas/BundleSupportedPlatform'
+              type: array
+              x-struct:
+              x-validate:
+            version:
+              description: The version of the bundle
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - bundle_id
+            - name
+            - supported_platforms
+            - version
+            - install_size
+            - artifacts
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - bundle
+      title: BundleRequest
+      type: object
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -640,6 +710,72 @@ components:
       type: integer
       x-struct:
       x-validate:
+    Bundle:
+      description: Response schema for bundle
+      properties:
+        id:
+          description: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL of the bundle
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - url
+      title: Bundle
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Bundle
+      x-validate:
+    BundleArtifact:
+      description: A bundle artifact schema
+      properties:
+        artifact_type:
+          description: The type of artifact
+          enum:
+            - directory
+            - file
+            - font
+            - binary
+            - localization
+            - asset
+          type: string
+          x-struct:
+          x-validate:
+        children:
+          description: Nested child artifacts, for example for artifacts that represent a directory.
+          items:
+            $ref: '#/components/schemas/BundleArtifact'
+          type: array
+          x-struct:
+          x-validate:
+        path:
+          description: The path to the artifact relative to the root of the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        shasum:
+          description: The SHA checksum of the artifact
+          type: string
+          x-struct:
+          x-validate:
+        size:
+          description: The size of the artifact in bytes
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - artifact_type
+        - path
+        - size
+        - shasum
+      title: BundleArtifact
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -971,6 +1107,22 @@ components:
       title: Run
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
+      x-validate:
+    BundleSupportedPlatform:
+      description: A platform that a bundle can support (e.g. iOS)
+      enum:
+        - ios
+        - ios_simulator
+        - tvos
+        - tvos_simulator
+        - watchos
+        - watchos_simulator
+        - visionos
+        - visionos_simulator
+        - macos
+      title: BundleSupportedPlatform
+      type: string
+      x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
       x-validate:
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
@@ -1800,6 +1952,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid email or password.
+        429:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've exceeded the rate limit.
       summary: Authenticate with email and password.
       tags:
         - Authentication
@@ -1842,6 +2000,123 @@ paths:
       summary: Request new tokens.
       tags:
         - Authentication
+  /api/projects/{account_handle}/{project_handle}/bundles:
+    post:
+      callbacks: {}
+      operationId: createBundle
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Request schema for bundle creation
+              properties:
+                bundle:
+                  properties:
+                    app_bundle_id:
+                      description: The bundle ID of the app
+                      type: string
+                      x-struct:
+                      x-validate:
+                    artifacts:
+                      description: The artifacts in this bundle
+                      items:
+                        $ref: '#/components/schemas/BundleArtifact'
+                      type: array
+                      x-struct:
+                      x-validate:
+                    download_size:
+                      description: The bundle download size in bytes
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    git_branch:
+                      description: The git branch associated with the bundle.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_commit_sha:
+                      description: The git commit SHA associated with the bundle.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    install_size:
+                      description: The bundle install size in bytes
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the bundle
+                      type: string
+                      x-struct:
+                      x-validate:
+                    supported_platforms:
+                      description: List of supported platforms
+                      items:
+                        $ref: '#/components/schemas/BundleSupportedPlatform'
+                      type: array
+                      x-struct:
+                      x-validate:
+                    version:
+                      description: The version of the bundle
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - bundle_id
+                    - name
+                    - supported_platforms
+                    - version
+                    - install_size
+                    - artifacts
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - bundle
+              title: BundleRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: Bundle params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: The bundle was created
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An error occurred while updating the account.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to update your account.
+      summary: Create a new bundle with artifacts
+      tags: []
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
