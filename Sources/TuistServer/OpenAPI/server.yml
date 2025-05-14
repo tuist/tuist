@@ -36,16 +36,16 @@ components:
       properties:
         bundle:
           properties:
+            app_bundle_id:
+              description: The bundle ID of the app
+              type: string
+              x-struct:
+              x-validate:
             artifacts:
               description: The artifacts in this bundle
               items:
                 $ref: '#/components/schemas/BundleArtifact'
               type: array
-              x-struct:
-              x-validate:
-            bundle_id:
-              description: The bundle ID
-              type: string
               x-struct:
               x-validate:
             download_size:
@@ -714,7 +714,7 @@ components:
       description: Response schema for bundle
       properties:
         id:
-          description: The ID of the bundle. This is no a bundle ID that you'd set in Xcode.
+          description: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
           type: string
           x-struct:
           x-validate:
@@ -746,14 +746,14 @@ components:
           x-struct:
           x-validate:
         children:
-          description: Nested child artifacts
+          description: Nested child artifacts, for example for artifacts that represent a directory.
           items:
             $ref: '#/components/schemas/BundleArtifact'
           type: array
           x-struct:
           x-validate:
         path:
-          description: The path of the artifact
+          description: The path to the artifact relative to the root of the bundle.
           type: string
           x-struct:
           x-validate:
@@ -1109,6 +1109,7 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.Run
       x-validate:
     BundleSupportedPlatform:
+      description: A platform that a bundle can support (e.g. iOS)
       enum:
         - ios
         - ios_simulator
@@ -2028,16 +2029,16 @@ paths:
               properties:
                 bundle:
                   properties:
+                    app_bundle_id:
+                      description: The bundle ID of the app
+                      type: string
+                      x-struct:
+                      x-validate:
                     artifacts:
                       description: The artifacts in this bundle
                       items:
                         $ref: '#/components/schemas/BundleArtifact'
                       type: array
-                      x-struct:
-                      x-validate:
-                    bundle_id:
-                      description: The bundle ID
-                      type: string
                       x-struct:
                       x-validate:
                     download_size:

@@ -1079,14 +1079,14 @@ internal enum Components {
         internal struct BundleRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
             internal struct bundlePayload: Codable, Hashable, Sendable {
+                /// The bundle ID of the app
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/app_bundle_id`.
+                internal var app_bundle_id: Swift.String?
                 /// The artifacts in this bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
                 internal var artifacts: [Components.Schemas.BundleArtifact]
-                /// The bundle ID
-                ///
-                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/bundle_id`.
-                internal var bundle_id: Swift.String
                 /// The bundle download size in bytes
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/download_size`.
@@ -1118,8 +1118,8 @@ internal enum Components {
                 /// Creates a new `bundlePayload`.
                 ///
                 /// - Parameters:
+                ///   - app_bundle_id: The bundle ID of the app
                 ///   - artifacts: The artifacts in this bundle
-                ///   - bundle_id: The bundle ID
                 ///   - download_size: The bundle download size in bytes
                 ///   - git_branch: The git branch associated with the bundle.
                 ///   - git_commit_sha: The git commit SHA associated with the bundle.
@@ -1128,8 +1128,8 @@ internal enum Components {
                 ///   - supported_platforms: List of supported platforms
                 ///   - version: The version of the bundle
                 internal init(
+                    app_bundle_id: Swift.String? = nil,
                     artifacts: [Components.Schemas.BundleArtifact],
-                    bundle_id: Swift.String,
                     download_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
@@ -1138,8 +1138,8 @@ internal enum Components {
                     supported_platforms: [Components.Schemas.BundleSupportedPlatform],
                     version: Swift.String
                 ) {
+                    self.app_bundle_id = app_bundle_id
                     self.artifacts = artifacts
-                    self.bundle_id = bundle_id
                     self.download_size = download_size
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
@@ -1149,8 +1149,8 @@ internal enum Components {
                     self.version = version
                 }
                 internal enum CodingKeys: String, CodingKey {
+                    case app_bundle_id
                     case artifacts
-                    case bundle_id
                     case download_size
                     case git_branch
                     case git_commit_sha
@@ -2076,7 +2076,7 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/Bundle`.
         internal struct Bundle: Codable, Hashable, Sendable {
-            /// The ID of the bundle. This is no a bundle ID that you'd set in Xcode.
+            /// The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/id`.
             internal var id: Swift.String
@@ -2087,7 +2087,7 @@ internal enum Components {
             /// Creates a new `Bundle`.
             ///
             /// - Parameters:
-            ///   - id: The ID of the bundle. This is no a bundle ID that you'd set in Xcode.
+            ///   - id: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
             ///   - url: The URL of the bundle
             internal init(
                 id: Swift.String,
@@ -2127,7 +2127,7 @@ internal enum Components {
                     yield &storage.value.artifact_type
                 }
             }
-            /// Nested child artifacts
+            /// Nested child artifacts, for example for artifacts that represent a directory.
             ///
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
             internal var children: [Components.Schemas.BundleArtifact]? {
@@ -2138,7 +2138,7 @@ internal enum Components {
                     yield &storage.value.children
                 }
             }
-            /// The path of the artifact
+            /// The path to the artifact relative to the root of the bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
             internal var path: Swift.String {
@@ -2175,8 +2175,8 @@ internal enum Components {
             ///
             /// - Parameters:
             ///   - artifact_type: The type of artifact
-            ///   - children: Nested child artifacts
-            ///   - path: The path of the artifact
+            ///   - children: Nested child artifacts, for example for artifacts that represent a directory.
+            ///   - path: The path to the artifact relative to the root of the bundle.
             ///   - shasum: The SHA checksum of the artifact
             ///   - size: The size of the artifact in bytes
             internal init(
@@ -2225,11 +2225,11 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
                 var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload
-                /// Nested child artifacts
+                /// Nested child artifacts, for example for artifacts that represent a directory.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
                 var children: [Components.Schemas.BundleArtifact]?
-                /// The path of the artifact
+                /// The path to the artifact relative to the root of the bundle.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
                 var path: Swift.String
@@ -2679,6 +2679,8 @@ internal enum Components {
                 case url
             }
         }
+        /// A platform that a bundle can support (e.g. iOS)
+        ///
         /// - Remark: Generated from `#/components/schemas/BundleSupportedPlatform`.
         internal enum BundleSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
             case ios = "ios"
@@ -5037,14 +5039,14 @@ internal enum Operations {
                 internal struct jsonPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle`.
                     internal struct bundlePayload: Codable, Hashable, Sendable {
+                        /// The bundle ID of the app
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/app_bundle_id`.
+                        internal var app_bundle_id: Swift.String?
                         /// The artifacts in this bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/artifacts`.
                         internal var artifacts: [Components.Schemas.BundleArtifact]
-                        /// The bundle ID
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/bundle_id`.
-                        internal var bundle_id: Swift.String
                         /// The bundle download size in bytes
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/download_size`.
@@ -5076,8 +5078,8 @@ internal enum Operations {
                         /// Creates a new `bundlePayload`.
                         ///
                         /// - Parameters:
+                        ///   - app_bundle_id: The bundle ID of the app
                         ///   - artifacts: The artifacts in this bundle
-                        ///   - bundle_id: The bundle ID
                         ///   - download_size: The bundle download size in bytes
                         ///   - git_branch: The git branch associated with the bundle.
                         ///   - git_commit_sha: The git commit SHA associated with the bundle.
@@ -5086,8 +5088,8 @@ internal enum Operations {
                         ///   - supported_platforms: List of supported platforms
                         ///   - version: The version of the bundle
                         internal init(
+                            app_bundle_id: Swift.String? = nil,
                             artifacts: [Components.Schemas.BundleArtifact],
-                            bundle_id: Swift.String,
                             download_size: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -5096,8 +5098,8 @@ internal enum Operations {
                             supported_platforms: [Components.Schemas.BundleSupportedPlatform],
                             version: Swift.String
                         ) {
+                            self.app_bundle_id = app_bundle_id
                             self.artifacts = artifacts
-                            self.bundle_id = bundle_id
                             self.download_size = download_size
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -5107,8 +5109,8 @@ internal enum Operations {
                             self.version = version
                         }
                         internal enum CodingKeys: String, CodingKey {
+                            case app_bundle_id
                             case artifacts
-                            case bundle_id
                             case download_size
                             case git_branch
                             case git_commit_sha

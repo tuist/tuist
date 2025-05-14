@@ -70,7 +70,7 @@ struct InspectBundleCommandServiceTests {
 
     @Test func analyzeAppBundle() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 let bundlePath = temporaryDirectory.appending(component: "App.ipa")
 

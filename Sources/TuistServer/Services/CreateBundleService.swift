@@ -82,8 +82,8 @@ public final class CreateBundleService: CreateBundleServicing {
                 body: .json(
                     .init(
                         bundle: .init(
+                            app_bundle_id: appBundleReport.bundleId,
                             artifacts: appBundleReport.artifacts.map { .init($0) },
-                            bundle_id: appBundleReport.bundleId,
                             download_size: appBundleReport.downloadSize,
                             git_branch: gitBranch,
                             git_commit_sha: gitCommitSHA,
