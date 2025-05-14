@@ -1,0 +1,374 @@
+defmodule Tuist.Bundles do
+  @moduledoc """
+  The Bundles context.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.Bundles.Artifact
+  alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.SummaryWorker
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
+
+  @doc """
+  Creates a bundle with associated artifacts.
+  """
+  def create_bundle(attrs \\ %{}) do
+    %Bundle{}
+    |> Bundle.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets a single bundle.
+  """
+  def get_bundle(id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+    bundle = Bundle |> Repo.get(id) |> Repo.preload(preload)
+
+    if is_nil(bundle) do
+      {:error, :not_found}
+    else
+      {:ok, %{bundle | artifacts: bundle_artifacts(bundle)}}
+    end
+  end
+
+  defp bundle_artifacts(%Bundle{id: id}) do
+    # Get all artifacts for this bundle in a single query
+    all_artifacts =
+      Repo.all(
+        from a in Artifact,
+          where: a.bundle_id == ^id,
+          select: %{
+            id: a.id,
+            artifact_type: a.artifact_type,
+            path: a.path,
+            size: a.size,
+            shasum: a.shasum,
+            artifact_id: a.artifact_id,
+            bundle_id: a.bundle_id,
+            inserted_at: a.inserted_at,
+            updated_at: a.updated_at
+          }
+      )
+
+    # Filter top-level artifacts (those with no parent)
+    top_level_artifacts = Enum.filter(all_artifacts, fn artifact -> is_nil(artifact.artifact_id) end)
+
+    # Group child artifacts by their parent ID for efficient lookup
+    artifacts_by_parent =
+      all_artifacts
+      |> Enum.filter(fn artifact -> !is_nil(artifact.artifact_id) end)
+      |> Enum.group_by(fn artifact -> artifact.artifact_id end)
+
+    # Build the tree structure in memory
+    build_nested_structure(top_level_artifacts, artifacts_by_parent)
+  end
+
+  defp build_nested_structure(top_level_artifacts, artifacts_by_parent) do
+    # Create a map of all artifacts for quick lookup
+    all_artifacts = top_level_artifacts ++ List.flatten(Map.values(artifacts_by_parent))
+    artifacts_by_id = Map.new(all_artifacts, &{&1.id, &1})
+
+    # Recursive function to build the tree
+    build_tree = fn
+      build_tree, parent_id ->
+        # Get direct children of this parent
+        children =
+          artifacts_by_parent |> Map.get(parent_id, []) |> Enum.map(fn child -> Map.put(child, :children, []) end)
+
+        parent = Map.get(artifacts_by_id, parent_id)
+
+        children_total_size = Enum.reduce(children, 0, fn child, sum -> sum + child.size end)
+
+        children =
+          if !Enum.empty?(children) && children_total_size < parent.size do
+            missing_size = parent.size - children_total_size
+
+            unknown_child = %{
+              id: Ecto.UUID.generate(),
+              size: missing_size,
+              path: parent.path <> "/Unknown",
+              children: [],
+              artifact_type: "unknown",
+              shasum: Ecto.UUID.generate(),
+              artifact_id: parent.id
+            }
+
+            [unknown_child | children]
+          else
+            children
+          end
+
+        children = Enum.take(children, 100)
+        size_without_small_children = Enum.reduce(children, 0, fn child, sum -> sum + child.size end)
+
+        children =
+          if !Enum.empty?(children) && size_without_small_children < parent.size do
+            smaller_objects_child = %{
+              id: Ecto.UUID.generate(),
+              artifact_id: parent.id,
+              artifact_type: parent.artifact_type,
+              path: parent.path <> "/Smaller objects",
+              size: parent.size - size_without_small_children,
+              shasum: Ecto.UUID.generate(),
+              children: []
+            }
+
+            [smaller_objects_child | children]
+          else
+            children
+          end
+
+        # Recursively process each child
+        Enum.map(children, fn child ->
+          child_children = build_tree.(build_tree, child.id)
+          Map.put(child, :children, child_children)
+        end)
+    end
+
+    # Process each top-level artifact
+    Enum.map(top_level_artifacts, fn artifact ->
+      children = build_tree.(build_tree, artifact.id)
+      Map.put(artifact, :children, children)
+    end)
+  end
+
+  def install_size_deviation(%Bundle{} = bundle) do
+    project = Repo.preload(bundle, :project).project
+    last_bundle = last_project_bundle(project, bundle: bundle)
+
+    if is_nil(last_bundle) do
+      0.0
+    else
+      bundle.install_size / last_bundle.install_size - 1
+    end
+  end
+
+  def distinct_project_app_bundles(%Project{} = project) do
+    from(b in Bundle)
+    |> where([b], b.project_id == ^project.id)
+    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day))
+    |> order_by([b], desc: b.inserted_at)
+    |> distinct([b], b.name)
+    |> Repo.all()
+    |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
+  end
+
+  def last_project_bundle(%Project{} = project, opts \\ []) do
+    query = where(from(b in Bundle), [b], b.project_id == ^project.id)
+
+    bundle = Keyword.get(opts, :bundle)
+
+    query =
+      if is_nil(bundle) do
+        query
+      else
+        where(
+          query,
+          [b],
+          b.id != ^bundle.id and b.app_bundle_id == ^bundle.app_bundle_id and
+            b.inserted_at < ^bundle.inserted_at
+        )
+      end
+
+    name = Keyword.get(opts, :name)
+
+    query =
+      if is_nil(name) do
+        query
+      else
+        where(query, [b], b.name == ^name)
+      end
+
+    inserted_before = Keyword.get(opts, :inserted_before)
+
+    query =
+      if is_nil(inserted_before) do
+        query
+      else
+        where(query, [b], b.inserted_at < ^DateTime.new!(inserted_before, ~T[00:00:00]))
+      end
+
+    last_bundle =
+      query
+      |> where([b], b.git_branch == ^project.default_branch)
+      |> order_by([b], desc: b.inserted_at)
+      |> limit(1)
+      |> Repo.one()
+
+    if is_nil(last_bundle) do
+      query |> order_by([b], desc: b.inserted_at) |> limit(1) |> Repo.one()
+    else
+      last_bundle
+    end
+  end
+
+  def list_bundles(attrs, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    Bundle
+    |> preload(^preload)
+    |> Flop.validate_and_run!(attrs, for: Bundle)
+  end
+
+  def project_bundle_install_size_analytics(%Project{} = project, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    # Group bundles by date
+    bundle_install_sizes =
+      project
+      |> project_bundles_by_date(opts)
+      |> Enum.map(fn {date, bundles} ->
+        # Find the latest bundle for each day
+        latest_bundle =
+          bundles
+          |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
+          |> List.first()
+
+        # Return analytics data point
+        %{
+          date: date,
+          install_size: latest_bundle.install_size,
+          bundle_id: latest_bundle.id
+        }
+      end)
+      |> Enum.sort_by(fn %{date: date} -> date end)
+      |> Map.new(fn %{date: date, install_size: install_size} -> {date, install_size} end)
+
+    date_period
+    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      average = Map.get(bundle_install_sizes, date)
+
+      %{
+        date: date,
+        bundle_install_size:
+          if is_nil(average) do
+            0
+          else
+            average
+          end
+      }
+    end)
+  end
+
+  def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    # Group bundles by date
+    bundle_download_sizes =
+      project
+      |> project_bundles_by_date(opts)
+      |> Enum.map(fn {date, bundles} ->
+        # Find the latest bundle for each day
+        latest_bundle =
+          bundles
+          |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
+          |> List.first()
+
+        # Return analytics data point
+        %{
+          date: date,
+          download_size: latest_bundle.download_size,
+          bundle_id: latest_bundle.id
+        }
+      end)
+      |> Enum.sort_by(fn %{date: date} -> date end)
+      |> Map.new(fn %{date: date, download_size: download_size} -> {date, download_size} end)
+
+    date_period
+    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      average = Map.get(bundle_download_sizes, date)
+
+      %{
+        date: date,
+        bundle_download_size:
+          if is_nil(average) do
+            0
+          else
+            average
+          end
+      }
+    end)
+  end
+
+  defp project_bundles_by_date(%Project{} = project, opts) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    date_period = date_period(start_date: start_date, end_date: end_date)
+    # Get all bundles for the project with date truncated to day
+    query =
+      from b in Bundle,
+        where: b.project_id == ^project.id and b.git_branch == ^project.default_branch,
+        select: %{
+          id: b.id,
+          date: fragment("DATE(?) as date", b.inserted_at),
+          install_size: b.install_size,
+          download_size: b.download_size,
+          inserted_at: b.inserted_at
+        }
+
+    query
+    |> Repo.all()
+    |> Enum.map(fn bundle ->
+      case date_period do
+        :day -> bundle
+        :month -> Map.put(bundle, :date, Timex.beginning_of_month(bundle.date))
+      end
+    end)
+    |> Enum.group_by(fn bundle -> bundle.date end)
+  end
+
+  defp date_period(opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+    days_delta = Date.diff(end_date, start_date)
+
+    if days_delta >= 60 do
+      :month
+    else
+      :day
+    end
+  end
+
+  defp date_range_for_date_period(date_period, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+
+    start_date
+    |> Date.range(end_date)
+    |> Enum.filter(fn date ->
+      case date_period do
+        :month ->
+          date.day == 1
+
+        :day ->
+          true
+      end
+    end)
+  end
+
+  def format_bytes(bytes) when is_integer(bytes) do
+    cond do
+      bytes >= 1_000_000_000 -> "#{Float.round(bytes / 1_000_000_000, 1)} GB"
+      bytes >= 1_000_000 -> "#{Float.round(bytes / 1_000_000, 1)} MB"
+      bytes >= 1_000 -> "#{Float.round(bytes / 1_000, 1)} KB"
+      true -> "#{bytes} B"
+    end
+  end
+
+  def default_app(%Project{} = project) do
+    apps = distinct_project_app_bundles(project)
+
+    if Enum.empty?(apps) do
+      nil
+    else
+      (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() || List.first(apps)).name
+    end
+  end
+end

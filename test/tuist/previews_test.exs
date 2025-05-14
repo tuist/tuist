@@ -37,7 +37,7 @@ defmodule Tuist.PreviewsTest do
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
+          bundle_identifier: "dev.tuist.app"
         )
 
       # Then

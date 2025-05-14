@@ -19,6 +19,7 @@ defmodule TuistWeb.AppComponents do
   use TuistWeb.Noora
 
   import TuistWeb.Components.EmptyStateBackground
+  import TuistWeb.Components.TrendBadge
 
   alias Phoenix.LiveView.JS
 
@@ -95,26 +96,7 @@ defmodule TuistWeb.AppComponents do
       </div>
       <span data-part="value">{@value}</span>
       <div :if={@trend_value} data-part="trend">
-        <% trend_value =
-          @trend_value
-          |> Float.round(1)
-
-        trend_badge_label = if trend_value > 0, do: "+#{trend_value}%", else: "#{trend_value}%"
-
-        color =
-          cond do
-            trend_value < 0 and not @trend_inverse -> "destructive"
-            trend_value < 0 and @trend_inverse -> "success"
-            trend_value > 0 and not @trend_inverse -> "success"
-            trend_value > 0 and @trend_inverse -> "destructive"
-            true -> "neutral"
-          end %>
-        <.badge label={trend_badge_label} color={color} style="light-fill">
-          <:icon :if={trend_value != 0}>
-            <.trending_up :if={trend_value > 0} />
-            <.trending_down :if={trend_value < 0} />
-          </:icon>
-        </.badge>
+        <.trend_badge trend_value={@trend_value} trend_inverse={@trend_inverse} />
         <span data-part="label">{@trend_label}</span>
       </div>
     </.card_section>

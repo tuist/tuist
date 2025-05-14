@@ -53,6 +53,33 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :project_bundle do
+    action :create do
+      desc "Allows users of a project to create a bundle."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to create a bundle."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to create the bundle if it matches the project for which the bundle is being created."
+      allow [:authenticated_as_project, :projects_match]
+    end
+
+    action :read do
+      desc "Allows the authenticated subject to read a project's bundle if the project is public."
+      allow :public_project
+
+      desc "Allows users of a project to read a bundle."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to read a bundle."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to read the bundle if it matches the project whose bundle is being read."
+      allow [:authenticated_as_project, :projects_match]
+    end
+  end
+
   object :project_cache do
     action :read do
       desc "Allows the authenticated subject to read a project's cache if the project is public."

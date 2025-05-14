@@ -380,6 +380,15 @@
   --noora-chart-legend-primary: light-dark(var(--noora-purple-500), var(--noora-purple-400));
   --noora-chart-legend-secondary: light-dark(var(--noora-blue-500), var(--noora-blue-400));
   --noora-chart-lines: light-dark(var(--noora-neutral-light-300), var(--noora-neutral-gray-16));
+  --noora-sunburst-binaries: var(--noora-purple-500);
+  --noora-sunburst-localizations: var(--noora-orange-500);
+  --noora-sunburst-fonts: var(--noora-yellow-500);
+  --noora-sunburst-assets: var(--noora-green-500);
+  --noora-sunburst-videos: var(--noora-azure-500);
+  --noora-sunburst-duplicates: var(--noora-red-500);
+  --noora-sunburst-unknown: var(--noora-pink-500);
+  --noora-sunburst-directory: var(--noora-neutral-light-500);
+  --noora-sunburst-files: var(--noora-azure-500);
 
   /* Icons */
   --noora-icon-destructive-background: light-dark(var(--noora-red-50), var(--noora-alpha-red));

@@ -10,6 +10,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   alias TuistWeb.Authentication
 
   def init(:run), do: :run
+  def init(:bundle), do: :bundle
   def init(:cache), do: :cache
   def init(:preview), do: :preview
   def init(:registry), do: :registry
@@ -22,6 +23,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     case category do
       :run ->
         authorize_project(conn, :run)
+
+      :bundle ->
+        authorize_project(conn, :bundle)
 
       :cache ->
         authorize_project(conn, :cache)
@@ -110,6 +114,14 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def authorize(subject, :read, project, :cache) do
     Authorization.can?(:project_cache_read, subject, project)
+  end
+
+  def authorize(subject, :create, project, :bundle) do
+    Authorization.can?(:project_bundle_create, subject, project)
+  end
+
+  def authorize(subject, :read, project, :bundle) do
+    Authorization.can?(:project_bundle_read, subject, project)
   end
 
   def authorize(subject, :read, account, :registry) do

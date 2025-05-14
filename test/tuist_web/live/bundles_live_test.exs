@@ -1,0 +1,51 @@
+defmodule TuistWeb.BundlesLiveTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.StubCase, dashboard_project: true
+  use Mimic
+
+  import Phoenix.LiveViewTest
+
+  alias TuistTestSupport.Fixtures.BundlesFixtures
+
+  setup do
+    stub(FunWithFlags, :enabled?, fn _ -> true end)
+    :ok
+  end
+
+  test "renders empty view when no bundles are available", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    # Then
+    assert has_element?(lv, ".tuist-empty-state")
+  end
+
+  test "lists latest bundles", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      name: "AppOne"
+    )
+
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      name: "AppTwo"
+    )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    # Then
+    assert has_element?(lv, "span", "AppOne")
+    assert has_element?(lv, "span", "AppTwo")
+  end
+end

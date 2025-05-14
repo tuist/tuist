@@ -1,11 +1,30 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
 
+function formatBytes(bytes) {
+  if (bytes >= 1_000_000_000) {
+    return `${(bytes / 1_000_000_000).toFixed(0)} GB`;
+  } else if (bytes >= 1_000_000) {
+    return `${(bytes / 1_000_000).toFixed(0)} MB`;
+  } else if (bytes >= 1_000) {
+    return `${(bytes / 1_000).toFixed(0)} KB`;
+  } else {
+    return `${bytes} MB`;
+  }
+}
+
 const formatters = {
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(locale(), { day: "numeric", month: "short" });
   },
+  formatBytes: (el) => (value, _) => {
+    return formatBytes(value);
+  },
+};
+
+const tooltipFormatters = {
+  formatBytes,
 };
 
 function locale() {
@@ -173,18 +192,36 @@ function processSeriesColors(series) {
         seriesItem[styleProp].color = processColor(seriesItem[styleProp].color);
       }
     });
+    if (seriesItem.itemStyle && seriesItem.itemStyle.borderColor) {
+      seriesItem.itemStyle.borderColor = processColor(seriesItem.itemStyle.borderColor);
+    }
 
     // Process colors in data items
     if (seriesItem.data && Array.isArray(seriesItem.data)) {
       seriesItem.data.forEach((dataItem) => {
-        if (dataItem && typeof dataItem === "object" && dataItem.itemStyle && dataItem.itemStyle.color) {
-          dataItem.itemStyle.color = processColor(dataItem.itemStyle.color);
-        }
+        processItemColor(dataItem);
       });
     }
 
     return seriesItem;
   });
+}
+
+function processItemColor(dataItem) {
+  if (dataItem && typeof dataItem === "object" && dataItem.itemStyle) {
+    if (dataItem.itemStyle.color) {
+      dataItem.itemStyle.color = processColor(dataItem.itemStyle.color);
+    }
+    if (dataItem.itemStyle.borderColor) {
+      dataItem.itemStyle.borderColor = processColor(dataItem.itemStyle.borderColor);
+    }
+
+    if (dataItem.children) {
+      dataItem.children.forEach((child) => {
+        processItemColor(child);
+      });
+    }
+  }
 }
 
 function transformColorProperty(colorProp) {
@@ -247,7 +284,20 @@ function tooltipSeries({ color, seriesName, value }, options = {}) {
     value = value.value;
   }
 
-  const formattedValue = options.valueFormat ? options.valueFormat.replace("{value}", value) : value;
+  let formattedValue;
+  if (options.valueFormat && typeof options.valueFormat === "string") {
+    if (options.valueFormat.startsWith("fn:")) {
+      const functionName = options.valueFormat.substring(3);
+      tooltipFormatters[functionName]();
+      if (functionName in tooltipFormatters) {
+        formattedValue = tooltipFormatters[functionName](value);
+      }
+    } else {
+      formattedValue = options.valueFormat.replace("{value}", value);
+    }
+  } else {
+    formattedValue = value;
+  }
 
   return `
   <div data-part="series-item">

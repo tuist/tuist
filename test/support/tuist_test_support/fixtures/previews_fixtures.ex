@@ -14,7 +14,7 @@ defmodule TuistTestSupport.Fixtures.PreviewsFixtures do
 
     type = Keyword.get(opts, :type, :app_bundle)
     display_name = Keyword.get(opts, :display_name, "App")
-    bundle_identifier = Keyword.get(opts, :bundle_identifier, "com.tuist.app")
+    bundle_identifier = Keyword.get(opts, :bundle_identifier, "dev.tuist.app")
     version = Keyword.get(opts, :version, "1.0.0")
     supported_platforms = Keyword.get(opts, :supported_platforms, [:ios])
     git_branch = Keyword.get(opts, :git_branch, "main")

@@ -1,5 +1,5 @@
 import * as collapsible from "@zag-js/collapsible";
-import { getBooleanOption, normalizeProps, renderPart } from "./util.js";
+import { getBooleanOption, normalizeProps, renderPart, getPartSelector, spreadProps } from "./util.js";
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
@@ -35,7 +35,6 @@ export default {
   context() {
     return {
       id: this.el.id,
-      open: getBooleanOption(this.el, "open"),
       onOpenChange: (details) => {
         if (this.el.dataset.onOpenChange) {
           this.pushEvent(this.el.dataset.onOpenChange, details);

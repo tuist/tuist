@@ -23,6 +23,8 @@ defmodule Tuist do
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
       # among them. They must only depend on core and utility modules.
+      Bundles,
+      Bundles.Bundle,
       CacheActionItems,
       CommandEvents,
       CommandEvents.Event,

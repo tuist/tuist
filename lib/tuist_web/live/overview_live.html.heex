@@ -345,6 +345,119 @@
       </:image>
     </.empty_card_section>
   </.card>
+  <.card
+    :if={FunWithFlags.enabled?(:bundle_size_analysis)}
+    title={gettext("Bundles")}
+    icon="chart_donut_4"
+    data-part="bundle-size-card"
+  >
+    <:actions>
+      <.dropdown
+        id="bundle-size-app-dropdown"
+        label={@bundle_size_selected_app}
+        secondary_text={gettext("App:")}
+      >
+        <%= for app <- @bundle_size_apps do %>
+          <.dropdown_item
+            value={app}
+            label={app}
+            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-app", app))}"}
+            data-selected={@bundle_size_selected_app == app}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.button_group size="large">
+        <.button_group_item
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-7-days"))}"}
+          label={gettext("7 days")}
+          data-selected={@bundle_size_date_range == "last-7-days"}
+        />
+        <.button_group_item
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-30-days"))}"}
+          label={gettext("30 days")}
+          data-selected={@bundle_size_date_range == "last-30-days"}
+        />
+        <.button_group_item
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-12-months"))}"}
+          label={gettext("12 months")}
+          data-selected={@bundle_size_date_range == "last-12-months"}
+        />
+      </.button_group>
+    </:actions>
+    <.card_section
+      :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
+      data-part="bundle-size-chart-card-section"
+    >
+      <span data-part="legend">{gettext("Install size")}</span>
+      <.chart
+        id="average-bundle-size-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "93%",
+              left: "0.2%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @bundle_size_analytics |> List.first() |> List.first(),
+                  @bundle_size_analytics |> List.last() |> List.first()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatBytes"
+              }
+            },
+            tooltip: %{
+              valueFormat: "fn:formatBytes"
+            },
+            legend: %{
+              show: false
+            }
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-primary",
+            data: @bundle_size_analytics,
+            name: gettext("Bundle install size"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={Enum.all?(@bundle_size_analytics, fn [_date, value] -> value == 0 end)}
+      title={gettext("No bundles yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
   <.card title={gettext("Builds")} icon="subtask" data-part="builds-card-section">
     <:actions>
       <.dropdown

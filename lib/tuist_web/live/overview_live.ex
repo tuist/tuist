@@ -6,6 +6,7 @@ defmodule TuistWeb.OverviewLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.AppPreview
 
+  alias Tuist.Bundles
   alias Tuist.CommandEvents
   alias Tuist.Previews
   alias Tuist.Projects
@@ -44,6 +45,7 @@ defmodule TuistWeb.OverviewLive do
       socket
       |> assign_analytics(params)
       |> assign_builds(params)
+      |> assign_bundles(params)
       |> assign(
         :uri,
         uri
@@ -93,6 +95,38 @@ defmodule TuistWeb.OverviewLive do
       :passed_test_runs_count,
       passed_test_runs_count
     )
+  end
+
+  defp assign_bundles(%{assigns: %{selected_project: project}} = socket, params) do
+    bundle_size_apps = Bundles.distinct_project_app_bundles(project)
+    bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
+    bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
+
+    bundle_size_analytics =
+      project
+      |> Bundles.project_bundle_install_size_analytics(
+        project_id: project.id,
+        start_date: start_date(bundle_size_date_range)
+      )
+      |> Enum.map(
+        &[
+          &1.date,
+          &1.bundle_install_size
+        ]
+      )
+
+    socket
+    |> assign(:bundle_size_selected_app, bundle_size_selected_app)
+    |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
+    |> assign(
+      :bundle_size_date_range,
+      bundle_size_date_range
+    )
+    |> assign(:bundle_size_analytics, bundle_size_analytics)
+  end
+
+  defp format_bytes(bytes) when is_integer(bytes) do
+    Bundles.format_bytes(bytes)
   end
 
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
@@ -280,4 +314,8 @@ defmodule TuistWeb.OverviewLive do
       analytics_environment
     end
   end
+
+  defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)
+  defp start_date("last-30-days"), do: Date.add(DateTime.utc_now(), -30)
+  defp start_date("last-7-days"), do: Date.add(DateTime.utc_now(), -7)
 end

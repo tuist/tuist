@@ -11,10 +11,11 @@ defmodule TuistWeb.Noora.Breadcrumbs do
 
   attr :style, :string, values: ~w(slash arrow), default: "slash"
   slot :inner_block
+  attr :rest, :global
 
   def breadcrumbs(assigns) do
     ~H"""
-    <div class="noora-breadcrumbs" data-style={@style}>
+    <div class="noora-breadcrumbs" data-style={@style} {@rest}>
       {render_slot(@inner_block)}
     </div>
     """
@@ -56,6 +57,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
 
   slot :icon, doc: "Breadcrumb icon"
   slot :inner_block, doc: "Content to be rendered inside the breadcrumb menu"
+  attr :rest, :global
 
   def breadcrumb(assigns) do
     ~H"""
@@ -74,6 +76,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
       data-positioning-offset-main-axis={6}
+      {@rest}
     >
       <button data-part="trigger">
         <.avatar
@@ -88,11 +91,11 @@ defmodule TuistWeb.Noora.Breadcrumbs do
           {render_slot(@icon)}
         </div>
         <span data-part="label">{@label}</span>
-        <div data-part="selector">
+        <div :if={has_slot_content?(@inner_block, assigns)} data-part="selector">
           <.selector />
         </div>
       </button>
-      <div data-part="positioner">
+      <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
           {render_slot(@inner_block)}
         </div>

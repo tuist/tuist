@@ -240,6 +240,10 @@ defmodule TuistWeb.Router do
         get "/", ProjectsController, :show
         put "/", ProjectsController, :update
 
+        scope "/bundles" do
+          post "/", BundlesController, :create
+        end
+
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
@@ -536,6 +540,8 @@ defmodule TuistWeb.Router do
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
+      live "/bundles", BundlesLive
+      live "/bundles/:bundle_id", BundleLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

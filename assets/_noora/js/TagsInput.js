@@ -20,7 +20,6 @@ class TagsInput extends Component {
 
   renderItems() {
     for (const item of this.el.querySelectorAll(getPartSelector("root:item"))) {
-      console.log(item);
       const value = item.dataset.value;
       if (!value) {
         console.error("Missing `data-value` attribute on item.");

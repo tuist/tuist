@@ -165,7 +165,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           display_name: "preview-name",
           type: "ipa",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app",
+          bundle_identifier: "dev.tuist.app",
           git_branch: "main",
           git_commit_sha: "commit-sha"
         )
@@ -189,7 +189,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                display_name: "preview-name",
                type: :ipa,
                version: "1.0.0",
-               bundle_identifier: "com.tuist.app",
+               bundle_identifier: "dev.tuist.app",
                git_branch: "main",
                git_commit_sha: "commit-sha",
                ran_by_account_id: account.id
@@ -393,7 +393,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
-               "bundle_identifier" => "com.tuist.app",
+               "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "preview-commit-sha",
                "git_branch" => "main"
@@ -637,7 +637,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "App",
-          bundle_identifier: "com.tuist.app",
+          bundle_identifier: "dev.tuist.app",
           git_branch: "main",
           git_commit_sha: "commit-sha-two",
           inserted_at: ~U[2021-01-01 01:00:00Z]
@@ -678,7 +678,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
                  "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
-                 "bundle_identifier" => "com.tuist.app",
+                 "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main"
@@ -713,7 +713,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "App",
-          bundle_identifier: "com.tuist.app",
+          bundle_identifier: "dev.tuist.app",
           supported_platforms: [:watchos, :macos]
         )
 

@@ -148,7 +148,7 @@ defmodule TuistWeb.PreviewControllerTest do
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
+          bundle_identifier: "dev.tuist.app"
         )
 
       # When
@@ -157,7 +157,7 @@ defmodule TuistWeb.PreviewControllerTest do
       # Then
       plist_response = response(conn, 200)
 
-      assert plist_response =~ "<string>com.tuist.app</string>"
+      assert plist_response =~ "<string>dev.tuist.app</string>"
       assert plist_response =~ "<string>1.0.0</string>"
     end
 
@@ -178,7 +178,7 @@ defmodule TuistWeb.PreviewControllerTest do
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
+          bundle_identifier: "dev.tuist.app"
         )
 
       stub(Storage, :object_exists?, fn _ -> true end)
@@ -199,7 +199,7 @@ defmodule TuistWeb.PreviewControllerTest do
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
+          bundle_identifier: "dev.tuist.app"
         )
 
       stub(Storage, :object_exists?, fn _ -> false end)
