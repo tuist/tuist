@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.50.1 - 2025-05-15
+
+### CLI
+
+#### Fixed
+
+- Fix `--verbose` not working [#7573](https://github.com/tuist/tuist/pull/7573) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.50.0 - 2025-05-15
 
 ### CLI
