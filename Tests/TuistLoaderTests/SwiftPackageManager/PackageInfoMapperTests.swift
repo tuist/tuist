@@ -1041,6 +1041,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
+                    .test("Target2", basePath: basePath, product: .unitTests),
                 ]
             )
         )
