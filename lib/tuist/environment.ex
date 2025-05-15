@@ -18,7 +18,7 @@ defmodule Tuist.Environment do
 
   defimpl String.Chars, for: Version do
     def to_string(version) do
-      "#{version.major}.#{Timex.format!(version.date, "{0D}.{0M}.{YY}")}"
+      "#{version.major}.#{Timex.format!(version.date, "{YY}.{0M}.{0D}")}"
     end
   end
 
@@ -142,7 +142,7 @@ defmodule Tuist.Environment do
 
         date =
           "#{yy}-#{mm}-#{dd}"
-          |> Date.from_iso8601()
+          |> Timex.parse("%y-%m-%d", :strftime)
           |> case do
             {:ok, date} -> date
             # Fallback in case of error
