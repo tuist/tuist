@@ -1426,9 +1426,9 @@ msgid "Most popular"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:41
-#: lib/tuist_web/live/bundle_live.html.heex:561
-#: lib/tuist_web/live/bundle_live.html.heex:568
-#: lib/tuist_web/live/bundle_live.html.heex:587
+#: lib/tuist_web/live/bundle_live.html.heex:565
+#: lib/tuist_web/live/bundle_live.html.heex:572
+#: lib/tuist_web/live/bundle_live.html.heex:591
 #: lib/tuist_web/live/bundles_live.html.heex:231
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
@@ -2113,7 +2113,7 @@ msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:441
-#: lib/tuist_web/live/bundle_live.html.heex:564
+#: lib/tuist_web/live/bundle_live.html.heex:568
 #: lib/tuist_web/live/bundles_live.html.heex:200
 #: lib/tuist_web/live/cache_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
@@ -3134,8 +3134,8 @@ msgstr ""
 msgid "Revoke invite"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:521
-#: lib/tuist_web/live/bundle_live.html.heex:620
+#: lib/tuist_web/live/bundle_live.html.heex:525
+#: lib/tuist_web/live/bundle_live.html.heex:624
 #: lib/tuist_web/live/members_live.ex:107
 #: lib/tuist_web/live/run_detail_live.html.heex:250
 #: lib/tuist_web/live/run_detail_live.html.heex:339
@@ -3243,7 +3243,7 @@ msgstr ""
 msgid "Supercharge your Swift app development"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:619
+#: lib/tuist_web/live/bundle_live.html.heex:623
 #: lib/tuist_web/live/run_detail_live.html.heex:249
 #: lib/tuist_web/live/run_detail_live.html.heex:338
 #, elixir-autogen, elixir-format
@@ -3251,7 +3251,7 @@ msgid "No modules found"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:427
-#: lib/tuist_web/live/bundle_live.html.heex:550
+#: lib/tuist_web/live/bundle_live.html.heex:554
 #: lib/tuist_web/live/run_detail_live.html.heex:215
 #: lib/tuist_web/live/run_detail_live.html.heex:304
 #, elixir-autogen, elixir-format
@@ -3369,6 +3369,7 @@ msgid "Created at"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:170
+#: lib/tuist_web/live/bundle_live.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "Directory"
 msgstr ""
@@ -3425,7 +3426,7 @@ msgid "Localizations"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:154
-#: lib/tuist_web/live/bundle_live.html.heex:539
+#: lib/tuist_web/live/bundle_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
 msgstr ""
@@ -3436,7 +3437,7 @@ msgstr ""
 msgid "No bundles yet"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:520
+#: lib/tuist_web/live/bundle_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "No files found"
 msgstr ""
@@ -3451,7 +3452,7 @@ msgstr ""
 msgid "Not available"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:486
+#: lib/tuist_web/live/bundle_live.html.heex:488
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr ""
@@ -3490,16 +3491,16 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:437
 #: lib/tuist_web/live/bundle_live.html.heex:453
-#: lib/tuist_web/live/bundle_live.html.heex:502
-#: lib/tuist_web/live/bundle_live.html.heex:560
-#: lib/tuist_web/live/bundle_live.html.heex:576
-#: lib/tuist_web/live/bundle_live.html.heex:601
+#: lib/tuist_web/live/bundle_live.html.heex:506
+#: lib/tuist_web/live/bundle_live.html.heex:564
+#: lib/tuist_web/live/bundle_live.html.heex:580
+#: lib/tuist_web/live/bundle_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:514
-#: lib/tuist_web/live/bundle_live.html.heex:613
+#: lib/tuist_web/live/bundle_live.html.heex:518
+#: lib/tuist_web/live/bundle_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Space usage"
 msgstr ""
@@ -3536,6 +3537,7 @@ msgid "Download Size"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:194
+#: lib/tuist_web/live/bundle_live.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr ""

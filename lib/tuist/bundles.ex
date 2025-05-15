@@ -91,7 +91,7 @@ defmodule Tuist.Bundles do
               size: missing_size,
               path: parent.path <> "/Unknown",
               children: [],
-              artifact_type: "unknown",
+              artifact_type: :unknown,
               shasum: Ecto.UUID.generate(),
               artifact_id: parent.id
             }

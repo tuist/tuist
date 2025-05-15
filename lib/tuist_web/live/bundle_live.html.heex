@@ -478,21 +478,25 @@
         <:col :let={artifact} label={gettext("Type")}>
           <.tag_cell
             label={
-              case artifact.artifact_type do
-                "binary" -> gettext("Binary")
-                "localization" -> gettext("Localization")
-                "asset" -> gettext("Asset")
-                "font" -> gettext("Font")
-                _ -> gettext("Other")
+              case artifact.artifact_type |> dbg do
+                :binary -> gettext("Binary")
+                :localization -> gettext("Localization")
+                :asset -> gettext("Asset")
+                :font -> gettext("Font")
+                :file -> gettext("File")
+                :directory -> gettext("Directory")
+                :unknown -> gettext("Other")
               end
             }
             icon={
               case artifact.artifact_type do
-                "binary" -> "database"
-                "localization" -> "language"
-                "asset" -> "asset"
-                "font" -> "layout_grid"
-                _ -> "stack_2"
+                :binary -> "database"
+                :localization -> "language"
+                :asset -> "asset"
+                :font -> "layout_grid"
+                :file -> "file"
+                :directory -> "directory"
+                :unknown -> "stack_2"
               end
             }
           />
