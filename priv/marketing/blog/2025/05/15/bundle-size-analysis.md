@@ -4,6 +4,7 @@ category: "product"
 tags: ["product"] 
 excerpt: "Use Tuist's new bundle analysis to minimize your app's install and download size"
 author: fortmarek
+og_image_path: /marketing/images/blog/2025/05/15/bundle-size-analysis/og.jpg
 highlighted: true
 ---
 
