@@ -22,6 +22,8 @@ struct IgnoreOutputPipeline: StandardPipelining {
 
 extension ServiceContext {
     public static func tuist(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
+        try await setupEnv()
+
         var context = ServiceContext.topLevel
 
         let (logger, logFilePath) = try await setupLogger()
