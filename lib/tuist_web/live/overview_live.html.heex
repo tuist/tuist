@@ -345,12 +345,7 @@
       </:image>
     </.empty_card_section>
   </.card>
-  <.card
-    :if={FunWithFlags.enabled?(:bundle_size_analysis)}
-    title={gettext("Bundles")}
-    icon="chart_donut_4"
-    data-part="bundle-size-card"
-  >
+  <.card title={gettext("Bundles")} icon="chart_donut_4" data-part="bundle-size-card">
     <:actions>
       <.dropdown
         id="bundle-size-app-dropdown"

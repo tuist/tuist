@@ -9,11 +9,6 @@ defmodule TuistWeb.BundleLiveTest do
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
-  setup do
-    stub(FunWithFlags, :enabled?, fn _ -> true end)
-    :ok
-  end
-
   test "it shows bundle metadata", %{
     conn: conn,
     organization: organization,

@@ -68,7 +68,6 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={FunWithFlags.enabled?(:bundle_size_analysis)}
         label="Bundles"
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}

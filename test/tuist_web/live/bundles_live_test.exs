@@ -8,11 +8,6 @@ defmodule TuistWeb.BundlesLiveTest do
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
 
-  setup do
-    stub(FunWithFlags, :enabled?, fn _ -> true end)
-    :ok
-  end
-
   test "renders empty view when no bundles are available", %{
     conn: conn,
     organization: organization,
