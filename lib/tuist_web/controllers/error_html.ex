@@ -11,6 +11,18 @@ defmodule TuistWeb.ErrorHTML do
   #
   # embed_templates "error_html/*"
 
+  def render("400.html", %{reason: %TuistWeb.Errors.BadRequestError{message: error_message}} = assigns) do
+    assigns
+    |> Map.put(:head_title, gettext("Bad request"))
+    |> Map.put(:title, error_message)
+    |> Map.put(
+      :message,
+      error_message
+    )
+    |> Map.put(:error_name, gettext("400"))
+    |> render_error_page()
+  end
+
   def render("401.html", assigns) do
     assigns
     |> Map.put(:head_title, gettext("Unauthorized"))

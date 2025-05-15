@@ -8,6 +8,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Plugs.LoaderPlug
 
@@ -127,6 +128,45 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
         |> assign(:cache, cache)
         |> LoaderPlug.call(plug_opts)
       end
+    end
+
+    test "raises an error when the project full handle is invalid", %{conn: conn, cache: cache} do
+      # Given
+      slug = "invalid"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      # When/then
+      assert_raise BadRequestError,
+                   "The project full handle #{slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
+                   fn ->
+                     %{
+                       conn
+                       | query_params: %{"project_id" => slug}
+                     }
+                     |> assign(:cache, cache)
+                     |> LoaderPlug.call(plug_opts)
+                   end
+    end
+
+    test "raises an error when the project full handle has more than two components", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      slug = "tuist/foo/bar"
+      plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
+
+      # When/then
+      assert_raise BadRequestError,
+                   "The project full handle #{slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
+                   fn ->
+                     %{
+                       conn
+                       | query_params: %{"project_id" => slug}
+                     }
+                     |> assign(:cache, cache)
+                     |> LoaderPlug.call(plug_opts)
+                   end
     end
   end
 

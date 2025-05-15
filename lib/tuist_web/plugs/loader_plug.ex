@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
 
   def init(opts), do: opts
@@ -77,6 +78,15 @@ defmodule TuistWeb.Plugs.LoaderPlug do
       {:error, :not_found} ->
         raise NotFoundError,
               gettext("The project %{project_slug} was not found.", %{project_slug: project_slug})
+
+      {:error, :invalid} ->
+        raise BadRequestError,
+              gettext(
+                "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'.",
+                %{
+                  project_slug: project_slug
+                }
+              )
     end
   end
 

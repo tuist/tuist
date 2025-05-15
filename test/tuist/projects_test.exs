@@ -101,7 +101,7 @@ defmodule Tuist.ProjectsTest do
   end
 
   test "returns missing handle or project name" do
-    assert {:error, :missing_handle_or_project_name} == Projects.get_project_by_slug("tuist")
+    assert {:error, :invalid} == Projects.get_project_by_slug("tuist")
   end
 
   describe "get_project_account_by_project_id/1" do
@@ -200,7 +200,11 @@ defmodule Tuist.ProjectsTest do
       # Then
       assert Enum.sort_by(
                [
-                 %ProjectAccount{handle: "#{account.name}/#{project_one.name}", account: account, project: project_one},
+                 %ProjectAccount{
+                   handle: "#{account.name}/#{project_one.name}",
+                   account: account,
+                   project: project_one
+                 },
                  %ProjectAccount{
                    handle: "#{user_account.name}/#{project_two.name}",
                    account: user_account,

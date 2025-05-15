@@ -90,18 +90,20 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_slug(slug, opts \\ []) do
-    if String.contains?(slug, "/") do
-      [account_name, project_name] = String.split(slug, "/")
+    components = String.split(slug, "/")
 
-      project = get_project_by_account_and_project_handles(account_name, project_name, opts)
+    case components do
+      [account_name, project_name] ->
+        project = get_project_by_account_and_project_handles(account_name, project_name, opts)
 
-      if is_nil(project) do
-        {:error, :not_found}
-      else
-        {:ok, project}
-      end
-    else
-      {:error, :missing_handle_or_project_name}
+        if is_nil(project) do
+          {:error, :not_found}
+        else
+          {:ok, project}
+        end
+
+      _ ->
+        {:error, :invalid}
     end
   end
 
