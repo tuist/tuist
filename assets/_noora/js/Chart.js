@@ -1,6 +1,39 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
 
+/**
+ * Formats elapsed time into a human readable string
+ * @param {number} milliseconds - The elapsed time in milliseconds
+ * @returns {string} Formatted time string
+ */
+function formatElapsedTime(seconds) {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  } else if (seconds == 60) {
+    return "1m";
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    if (remainingSeconds == 0) {
+      return `${minutes}m`;
+    } else {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+  } else if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (minutes == 0) {
+      return `${hours}h`;
+    } else {
+      return `${hours}h ${minutes}m`;
+    }
+  } else {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    return `${days}d ${hours}h`;
+  }
+}
+
 function formatBytes(bytes) {
   if (bytes >= 1_000_000_000) {
     return `${(bytes / 1_000_000_000).toFixed(0)} GB`;
@@ -21,10 +54,14 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
+  formatElapsedTime: (el) => (value, _) => {
+    return formatElapsedTime(value);
+  },
 };
 
 const tooltipFormatters = {
   formatBytes,
+  formatElapsedTime,
 };
 
 function locale() {

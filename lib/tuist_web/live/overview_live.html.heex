@@ -263,13 +263,13 @@
             %{
               grid: %{
                 width: "93%",
-                left: "0.2%",
+                left: "0.4%",
                 right: "7%",
                 height: "88%",
                 top: "5%"
               },
               tooltip: %{
-                valueFormat: "{value}s",
+                valueFormat: "fn:formatElapsedTime",
                 dateFormat: "minute"
               },
               xAxis: %{
@@ -282,7 +282,10 @@
                     color: "var:noora-chart-lines"
                   }
                 },
-                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}s"}
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatElapsedTime"
+                }
               },
               legend: %{
                 show: false
@@ -393,7 +396,7 @@
           %{
             grid: %{
               width: "93%",
-              left: "0.2%",
+              left: "0.4%",
               height: "88%",
               top: "5%"
             },
@@ -525,12 +528,12 @@
               %{
                 grid: %{
                   width: "100%",
-                  left: "0.2%",
+                  left: "0.4%",
                   height: "88%",
                   top: "5%"
                 },
                 tooltip: %{
-                  valueFormat: "{value}s",
+                  valueFormat: "fn:formatElapsedTime",
                   dateFormat: "minute"
                 },
                 xAxis: %{
@@ -543,7 +546,10 @@
                       color: "var:noora-chart-lines"
                     }
                   },
-                  axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}s"}
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatElapsedTime"
+                  }
                 },
                 legend: %{
                   show: false
@@ -598,7 +604,7 @@
               %{
                 grid: %{
                   width: "95%",
-                  left: "0.2%",
+                  left: "0.4%",
                   height: "88%",
                   top: "5%"
                 },
@@ -622,10 +628,13 @@
                       color: "var:noora-chart-lines"
                     }
                   },
-                  axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}s"}
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatElapsedTime"
+                  }
                 },
                 tooltip: %{
-                  valueFormat: "{value}s"
+                  valueFormat: "fn:formatElapsedTime"
                 },
                 legend: %{
                   show: false

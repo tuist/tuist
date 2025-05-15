@@ -192,7 +192,7 @@ defmodule TuistWeb.Storybook.Chart do
             },
             yAxis: %{
               axisLabel: %{
-                formatter: "{value}s"
+                formatter: "fn:formatElapsedTime"
               }
             }
           }
