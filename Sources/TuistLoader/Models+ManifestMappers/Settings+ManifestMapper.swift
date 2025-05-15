@@ -21,7 +21,8 @@ extension XcodeGraph.Settings {
         return XcodeGraph.Settings(
             base: base,
             configurations: configurations,
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            defaultConfiguration: manifest.defaultConfiguration
         )
     }
 }
