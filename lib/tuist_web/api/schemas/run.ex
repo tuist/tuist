@@ -22,7 +22,8 @@ defmodule TuistWeb.API.Schemas.Run do
       :git_commit_sha,
       :git_ref,
       :git_branch,
-      :url
+      :url,
+      :ran_at
     ],
     properties: %{
       id: %Schema{
@@ -112,6 +113,23 @@ defmodule TuistWeb.API.Schemas.Run do
       url: %Schema{
         type: :string,
         description: "URL to the run"
+      },
+      ran_at: %Schema{
+        type: :integer,
+        format: :int64,
+        description: "Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)",
+        example: 1_715_606_400
+      },
+      ran_by: %Schema{
+        type: :string,
+        description: "The account triggered the run.",
+        required: [:handle],
+        properties: %{
+          handle: %Schema{
+            type: :string,
+            description: "The handle of the account that triggered the run."
+          }
+        }
       }
     }
   })

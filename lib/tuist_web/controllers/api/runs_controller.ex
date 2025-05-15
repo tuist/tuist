@@ -138,7 +138,18 @@ defmodule TuistWeb.API.RunsController do
             :remote_test_target_hits,
             :preview_id
           ])
-          |> Map.put(:url, ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}")
+          |> Map.put(
+            :url,
+            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
+          )
+          |> Map.put(
+            :ran_at,
+            event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
+          )
+          |> Map.put(
+            :ran_by,
+            if(is_nil(event.user), do: nil, else: %{handle: event.user.account.name})
+          )
         end)
     })
   end

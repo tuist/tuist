@@ -40,6 +40,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "lists second page", %{conn: conn, user: user, project: project} do
       # Given
+      date = DateTime.utc_now()
+
       run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
@@ -49,15 +51,21 @@ defmodule TuistWeb.API.RunsControllerTest do
           remote_test_target_hits: ["CTests"],
           cacheable_targets: ["A", "B", "C"],
           local_cache_target_hits: ["A", "B"],
-          remote_cache_target_hits: ["C"]
+          remote_cache_target_hits: ["C"],
+          created_at: date
         )
 
-      _run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      _run_three = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-      _run_four = CommandEventsFixtures.command_event_fixture()
+      _run_two =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+
+      _run_three =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+
+      _run_four = CommandEventsFixtures.command_event_fixture(created_at: date)
 
       # When
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
+      conn =
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
 
       # Then
       response = json_response(conn, :ok)
@@ -83,7 +91,9 @@ defmodule TuistWeb.API.RunsControllerTest do
                  "swift_version" => "5.2",
                  "test_targets" => ["ATests", "BTests", "CTests"],
                  "tuist_version" => "4.1.0",
-                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}"
+                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}",
+                 "ran_at" => DateTime.to_unix(date),
+                 "ran_by" => nil
                }
              ]
     end
@@ -103,29 +113,41 @@ defmodule TuistWeb.API.RunsControllerTest do
 
     test "filters runs based on git_ref and name", %{conn: conn, user: user, project: project} do
       # Given
+      date = DateTime.utc_now()
+
       run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           git_ref: "refs/heads/main",
-          name: "test"
+          name: "test",
+          created_at: date,
+          user_id: user.id
         )
 
       _run_two =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           git_ref: "refs/heads/feature",
-          name: "test"
+          name: "test",
+          created_at: date,
+          user_id: user.id
         )
 
       _run_three =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           git_ref: "refs/heads/main",
-          name: "build"
+          name: "build",
+          created_at: date,
+          user_id: user.id
         )
 
       # When
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?git_ref=refs/heads/main&name=test")
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/runs?git_ref=refs/heads/main&name=test"
+        )
 
       # Then
       response = json_response(conn, :ok)
@@ -151,7 +173,9 @@ defmodule TuistWeb.API.RunsControllerTest do
                  "swift_version" => "5.2",
                  "test_targets" => [],
                  "tuist_version" => "4.1.0",
-                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}"
+                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}",
+                 "ran_at" => DateTime.to_unix(date),
+                 "ran_by" => %{"handle" => user.account.name}
                }
              ]
     end
@@ -371,7 +395,9 @@ defmodule TuistWeb.API.RunsControllerTest do
       # When
       {404, _, response_json_string} =
         assert_error_sent :not_found, fn ->
-          post(conn, ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+          post(
+            conn,
+            ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
             id: UUIDv7.generate(),
             duration: 1000,
             is_ci: false
