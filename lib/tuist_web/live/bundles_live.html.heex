@@ -86,7 +86,10 @@
               "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
             )
           }
-          value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.download_size)}
+          value={
+            (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
+               format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
+          }
           id="widget-bundle-size"
           patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-selected-widget", "download-size"))}"}
           selected={@bundle_size_selected_widget == "download-size"}
@@ -160,7 +163,11 @@
             %{
               color: "var:noora-chart-primary",
               data: @bundle_size_analytics,
-              name: gettext("Bundle install size"),
+              name:
+                case @bundles_sort_by do
+                  "install-size" -> gettext("Install size")
+                  _ -> gettext("Donwload size")
+                end,
               type: "line",
               smooth: 0.1,
               symbol: "none"

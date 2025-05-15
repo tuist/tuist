@@ -43,4 +43,24 @@ defmodule TuistWeb.BundlesLiveTest do
     assert has_element?(lv, "span", "AppOne")
     assert has_element?(lv, "span", "AppTwo")
   end
+
+  test "defaults download size to 0 MB when last bundle has only install size", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      name: "AppOne",
+      install_size: 1000,
+      download_size: nil
+    )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    # Then
+    assert has_element?(lv, "span", "0 MB")
+  end
 end

@@ -423,7 +423,7 @@ msgid "Blog posts by the Tuist team."
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:57
-#: lib/tuist_web/live/bundles_live.html.heex:227
+#: lib/tuist_web/live/bundles_live.html.heex:234
 #: lib/tuist_web/live/cache_runs_live.html.heex:70
 #: lib/tuist_web/live/generate_runs_live.html.heex:70
 #: lib/tuist_web/live/preview_live.html.heex:112
@@ -553,7 +553,7 @@ msgid "Command"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:131
-#: lib/tuist_web/live/bundles_live.html.heex:243
+#: lib/tuist_web/live/bundles_live.html.heex:250
 #: lib/tuist_web/live/preview_live.html.heex:119
 #: lib/tuist_web/live/previews_live.html.heex:59
 #: lib/tuist_web/live/test_runs_live.html.heex:227
@@ -1429,7 +1429,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:561
 #: lib/tuist_web/live/bundle_live.html.heex:568
 #: lib/tuist_web/live/bundle_live.html.heex:587
-#: lib/tuist_web/live/bundles_live.html.heex:224
+#: lib/tuist_web/live/bundles_live.html.heex:231
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
@@ -1670,7 +1670,7 @@ msgid "Pedro Piñera"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:53
-#: lib/tuist_web/live/bundles_live.html.heex:249
+#: lib/tuist_web/live/bundles_live.html.heex:256
 #: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Platform"
@@ -2114,7 +2114,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:441
 #: lib/tuist_web/live/bundle_live.html.heex:564
-#: lib/tuist_web/live/bundles_live.html.heex:193
+#: lib/tuist_web/live/bundles_live.html.heex:200
 #: lib/tuist_web/live/cache_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #, elixir-autogen, elixir-format
@@ -3343,7 +3343,6 @@ msgstr ""
 msgid "Bundle Size Analysis"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:163
 #: lib/tuist_web/live/overview_live.html.heex:440
 #, elixir-autogen, elixir-format
 msgid "Bundle install size"
@@ -3355,16 +3354,16 @@ msgid "Bundle not found."
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.ex:19
-#: lib/tuist_web/live/bundles_live.html.heex:182
+#: lib/tuist_web/live/bundles_live.html.heex:189
 #: lib/tuist_web/live/overview_live.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:63
-#: lib/tuist_web/live/bundles_live.html.heex:190
 #: lib/tuist_web/live/bundles_live.html.heex:197
-#: lib/tuist_web/live/bundles_live.html.heex:257
+#: lib/tuist_web/live/bundles_live.html.heex:204
+#: lib/tuist_web/live/bundles_live.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Created at"
 msgstr ""
@@ -3376,7 +3375,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:78
 #: lib/tuist_web/live/bundle_live.html.heex:81
-#: lib/tuist_web/live/bundles_live.html.heex:111
+#: lib/tuist_web/live/bundles_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Download size"
 msgstr ""
@@ -3409,6 +3408,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:104
 #: lib/tuist_web/live/bundle_live.html.heex:107
+#: lib/tuist_web/live/bundles_live.html.heex:168
 #: lib/tuist_web/live/overview_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Install size"
@@ -3430,7 +3430,7 @@ msgstr ""
 msgid "Module Breakdown"
 msgstr ""
 
-#: lib/tuist_web/live/bundles_live.html.heex:174
+#: lib/tuist_web/live/bundles_live.html.heex:181
 #: lib/tuist_web/live/overview_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
@@ -3541,10 +3541,10 @@ msgid "File"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.html.heex:60
-#: lib/tuist_web/live/bundles_live.html.heex:112
-#: lib/tuist_web/live/bundles_live.html.heex:189
-#: lib/tuist_web/live/bundles_live.html.heex:205
-#: lib/tuist_web/live/bundles_live.html.heex:232
+#: lib/tuist_web/live/bundles_live.html.heex:115
+#: lib/tuist_web/live/bundles_live.html.heex:196
+#: lib/tuist_web/live/bundles_live.html.heex:212
+#: lib/tuist_web/live/bundles_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Install Size"
 msgstr ""
@@ -3582,4 +3582,14 @@ msgstr ""
 #: lib/tuist_web/plugs/loader_plug.ex:84
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
+msgstr ""
+
+#: lib/tuist_web/live/bundles_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "0 MB"
+msgstr ""
+
+#: lib/tuist_web/live/bundles_live.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "Donwload size"
 msgstr ""
