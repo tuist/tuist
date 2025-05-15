@@ -166,6 +166,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     env: env,
     active: true,
     ignore_errors: [
+      "TuistWeb.Errors.BadRequestError",
       "TuistWeb.Errors.NotFoundError",
       "TuistWeb.Errors.TooManyRequestsError",
       "TuistWeb.Errors.UnauthorizedError"
