@@ -379,8 +379,12 @@ defmodule Tuist.StorageTest do
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
       list_operation = %S3{body: UUIDv7.generate()}
 
-      expect(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: 1000] ->
+      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: max_keys] ->
         list_operation
+      end)
+
+      stub(ExAws, :request!, fn ^list_operation ->
+        %S3{body: %{contents: [%{}]}}
       end)
 
       stub(ExAws, :stream!, fn ^list_operation ->
@@ -394,6 +398,38 @@ defmodule Tuist.StorageTest do
       end)
 
       expect(ExAws, :request, fn ^delete_operation -> {:ok, %{}} end)
+
+      # When
+      assert Storage.delete_all_objects(project_slug) == :ok
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
+
+      assert is_number(duration)
+    end
+
+    test "skips deletion if no objects with a given prefix exist" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_delete_all_objects()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      project_slug = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      list_operation = %S3{body: UUIDv7.generate()}
+
+      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: max_keys] ->
+        list_operation
+      end)
+
+      stub(ExAws, :request!, fn ^list_operation ->
+        %S3{body: %{contents: []}}
+      end)
 
       # When
       assert Storage.delete_all_objects(project_slug) == :ok

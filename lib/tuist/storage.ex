@@ -191,14 +191,27 @@ defmodule Tuist.Storage do
   def delete_all_objects(prefix) do
     {time, _} =
       Performance.measure_time_in_milliseconds(fn ->
-        stream =
+        # Check if there are any objects with the given prefix
+        any_objects? =
           Environment.s3_bucket_name()
-          |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
-          |> ExAws.stream!()
-          |> Stream.map(& &1.key)
+          |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
+          |> ExAws.request!()
+          |> Map.get(:body)
+          |> Map.get(:contents)
+          |> Enum.any?()
 
-        {:ok, _} =
-          Environment.s3_bucket_name() |> ExAws.S3.delete_all_objects(stream) |> ExAws.request()
+        if any_objects? do
+          stream =
+            Environment.s3_bucket_name()
+            |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
+            |> ExAws.stream!()
+            |> Stream.map(& &1.key)
+
+          {:ok, _} =
+            Environment.s3_bucket_name() |> ExAws.S3.delete_all_objects(stream) |> ExAws.request()
+        else
+          :ok
+        end
       end)
 
     :telemetry.execute(
