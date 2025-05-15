@@ -50,12 +50,7 @@ defmodule TuistWeb.Previews.AppPreview do
                 <.history />
               </div>
               <span data-part="label">
-                <% relative_date =
-                  case Timex.from_now(@preview.inserted_at) |> String.split(" ") do
-                    [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
-                    _ -> Timex.from_now(@preview.inserted_at)
-                  end %>
-                {relative_date}
+                {TuistWeb.Utilities.DateFormatter.from_now(@preview.inserted_at)}
               </span>
             </div>
           </div>

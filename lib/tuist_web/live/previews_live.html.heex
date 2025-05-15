@@ -67,12 +67,7 @@
             <.preview_ran_by_badge_cell preview={preview} />
           </:col>
           <:col :let={preview} label={gettext("Built at")}>
-            <% relative_date =
-              case Timex.from_now(preview.inserted_at) |> String.split(" ") do
-                [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
-                _ -> Timex.from_now(preview.inserted_at)
-              end %>
-            <.text_cell sublabel={relative_date} />
+            <.text_cell sublabel={TuistWeb.Utilities.DateFormatter.from_now(preview.inserted_at)} />
           </:col>
           <:col :let={preview}>
             <.button_cell>

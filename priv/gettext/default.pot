@@ -1484,10 +1484,10 @@ msgid "No credit card required"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:66
-#: lib/tuist_web/live/cache_runs_live.html.heex:122
-#: lib/tuist_web/live/generate_runs_live.html.heex:122
+#: lib/tuist_web/live/cache_runs_live.html.heex:117
+#: lib/tuist_web/live/generate_runs_live.html.heex:117
 #: lib/tuist_web/live/test_runs_live.html.heex:172
-#: lib/tuist_web/live/test_runs_live.html.heex:256
+#: lib/tuist_web/live/test_runs_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""

@@ -101,12 +101,7 @@
               sort_icon(@cache_runs_sort_order)
           }
         >
-          <% relative_date =
-            case Timex.from_now(cache_run.ran_at) |> String.split(" ") do
-              [number, unit, relative] -> number <> (unit |> String.at(0)) <> " " <> relative
-              _ -> Timex.from_now(cache_run.ran_at)
-            end %>
-          <.text_cell sublabel={relative_date} />
+          <.text_cell sublabel={TuistWeb.Utilities.DateFormatter.from_now(cache_run.ran_at)} />
         </:col>
       </.table>
       <.pagination
