@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -68,30 +69,29 @@ struct InspectBundleCommandServiceTests {
             )
     }
 
-    @Test func analyzeAppBundle() async throws {
+    @Test(.inTemporaryDirectory) func analyzeAppBundle() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-                // Given
-                let bundlePath = temporaryDirectory.appending(component: "App.ipa")
+            // Given
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let bundlePath = temporaryDirectory.appending(component: "App.ipa")
 
-                // When
-                try await subject.run(
-                    path: temporaryDirectory.pathString,
-                    bundle: bundlePath.pathString,
-                    json: false
+            // When
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                bundle: bundlePath.pathString,
+                json: false
+            )
+
+            // Then
+            verify(createBundleService)
+                .createBundle(
+                    fullHandle: .any,
+                    serverURL: .any,
+                    appBundleReport: .any,
+                    gitCommitSHA: .any,
+                    gitBranch: .any
                 )
-
-                // Then
-                verify(createBundleService)
-                    .createBundle(
-                        fullHandle: .any,
-                        serverURL: .any,
-                        appBundleReport: .any,
-                        gitCommitSHA: .any,
-                        gitBranch: .any
-                    )
-                    .called(1)
-            }
+                .called(1)
         }
     }
 }
