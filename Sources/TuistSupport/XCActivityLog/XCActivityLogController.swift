@@ -8,6 +8,7 @@ import XCLogParser
 public protocol XCActivityLogControlling {
     func mostRecentActivityLogPath(projectDerivedDataDirectory: AbsolutePath, after: Date) async throws -> AbsolutePath?
     func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [String: Double]
+    func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws -> [String: Double]
     func parse(_ path: AbsolutePath) throws -> XCActivityLog
 }
 
@@ -29,7 +30,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logStoreManifest: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(at: logStoreManifestPlistPath)
 
         let activityLogPaths = logStoreManifest.logs.keys.map { buildLogsPath.appending(components: ["\($0).xcactivitylog"]) }
+        return try await buildTimesByTarget(activityLogPaths: activityLogPaths)
+    }
 
+    public func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws -> [String: Double] {
         var buildTimes: [String: Double] = [:]
         for activityLogPath in activityLogPaths {
             let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
