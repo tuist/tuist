@@ -58,3 +58,11 @@ jobs:
 Once set up, you will be able to see how your bundle size evolves over time:
 
 ![Bundle size graph](/images/guides/develop/bundle-size/bundle-size-graph.png)
+
+## Pull/merge request 의견 {#pullmerge-request-comments}
+
+> [!IMPORTANT] GIT 플랫폼 연동 필요\
+> 자동으로 pull/merge request 의견을 받으려면, <0>Tuist 프로젝트</0>를 <1>Git 플랫폼</1>과 연동해야 합니다.
+
+Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
+![GitHub app comment with inspected bundles](/images/guides/develop/bundle-size/github-app-with-bundles.png)
