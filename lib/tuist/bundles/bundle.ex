@@ -24,6 +24,7 @@ defmodule Tuist.Bundles.Bundle do
     field :download_size, :integer
     field :git_branch
     field :git_commit_sha
+    field :git_ref
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [
@@ -61,6 +62,7 @@ defmodule Tuist.Bundles.Bundle do
       :uploaded_by_account_id,
       :git_commit_sha,
       :git_branch,
+      :git_ref,
       :inserted_at
     ])
     |> validate_required([

@@ -28,6 +28,8 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
           ]),
         version: "1.0.0",
         git_branch: Keyword.get(opts, :git_branch, "main"),
+        git_commit_sha: Keyword.get(opts, :git_commit_sha),
+        git_ref: Keyword.get(opts, :git_ref),
         project_id: Keyword.get(opts, :project, ProjectsFixtures.project_fixture()).id,
         inserted_at: Keyword.get(opts, :inserted_at, DateTime.utc_now())
       })

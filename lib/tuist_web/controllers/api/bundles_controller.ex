@@ -64,6 +64,11 @@ defmodule TuistWeb.API.BundlesController do
                  type: :string,
                  description: "The git commit SHA associated with the bundle."
                },
+               git_ref: %Schema{
+                 type: :string,
+                 description:
+                   "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
+               },
                artifacts: %Schema{
                  type: :array,
                  description: "The artifacts in this bundle",
@@ -118,6 +123,7 @@ defmodule TuistWeb.API.BundlesController do
            artifacts: Enum.map(bundle["artifacts"], &map_artifact(&1, id)),
            git_branch: bundle["git_branch"],
            git_commit_sha: bundle["git_commit_sha"],
+           git_ref: bundle["git_ref"],
            uploaded_by_account_id: account_id
          }) do
       {:ok, %Bundle{} = bundle} ->

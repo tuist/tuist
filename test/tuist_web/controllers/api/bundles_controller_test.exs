@@ -53,10 +53,43 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert bundle.app_bundle_id == "com.example.app"
       assert bundle.project_id == project.id
       assert bundle.supported_platforms == [:ios, :ios_simulator]
-      # assert bundle.install_size = 1024
-      # assert bundle.download_size = 2048
+      assert bundle.install_size == 1024
+      assert bundle.download_size == 2048
 
       assert Enum.map(bundle.artifacts, & &1.size) == [1024]
+    end
+
+    test "creates a bundle with git metadata", %{conn: conn, user: user, project: project} do
+      # Given
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle",
+          "install_size" => 1024,
+          "download_size" => 2048,
+          "supported_platforms" => ["ios", "ios_simulator"],
+          "version" => "1.0.0",
+          "git_branch" => "feat/my-feature",
+          "git_commit_sha" => "commit-sha",
+          "git_ref" => "refs/pull/14/merge",
+          "artifacts" => []
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then
+      assert %{"id" => id} = json_response(conn, :ok)
+
+      {:ok, bundle} = Bundles.get_bundle(id)
+      assert bundle.git_branch == "feat/my-feature"
+      assert bundle.git_commit_sha == "commit-sha"
+      assert bundle.git_ref == "refs/pull/14/merge"
     end
 
     test "returns error when params are invalid", %{conn: conn, project: project, user: user} do

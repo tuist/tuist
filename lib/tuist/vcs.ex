@@ -3,6 +3,10 @@ defmodule Tuist.VCS do
   A module that provides functions to interact with VCS repositories.
   """
 
+  import Ecto.Query
+
+  alias Tuist.Bundles
+  alias Tuist.Bundles.Bundle
   alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.GitHub
@@ -10,7 +14,7 @@ defmodule Tuist.VCS do
   alias Tuist.Repo
   alias Tuist.VCS
 
-  @reportable_commands ["test", "share"]
+  @reportable_commands ["test", "share", "bundle"]
 
   def supported_vcs_hosts do
     ["GitHub"]
@@ -151,7 +155,8 @@ defmodule Tuist.VCS do
         project: project,
         preview_url: preview_url,
         preview_qr_code_url: preview_qr_code_url,
-        command_run_url: command_run_url
+        command_run_url: command_run_url,
+        bundle_url: bundle_url
       }) do
     repository_full_handle =
       if is_nil(git_remote_url_origin) do
@@ -190,6 +195,7 @@ defmodule Tuist.VCS do
           preview_url: preview_url,
           preview_qr_code_url: preview_qr_code_url,
           command_run_url: command_run_url,
+          bundle_url: bundle_url,
           project: project
         })
 
@@ -246,6 +252,7 @@ defmodule Tuist.VCS do
          preview_url: preview_url,
          preview_qr_code_url: preview_qr_code_url,
          command_run_url: command_run_url,
+         bundle_url: bundle_url,
          project: project
        }) do
     preview_command_events =
@@ -284,14 +291,82 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    if is_nil(previews_body) and is_nil(test_body) do
+    bundles_body =
+      bundles_body(%{
+        project: project,
+        git_ref: git_ref,
+        git_remote_url_origin: git_remote_url_origin,
+        bundle_url: bundle_url
+      })
+
+    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) do
       nil
     else
       """
       ### 🛠️ Tuist Run Report 🛠️
-      """ <>
-        (previews_body || "") <>
-        (test_body || "")
+      """ <> (previews_body || "") <> (test_body || "") <> (bundles_body || "")
+    end
+  end
+
+  defp bundles_body(%{
+         project: project,
+         git_ref: git_ref,
+         git_remote_url_origin: git_remote_url_origin,
+         bundle_url: bundle_url
+       }) do
+    bundles =
+      from(b in Bundle)
+      |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+      |> order_by([b], desc: b.inserted_at)
+      |> distinct([b], b.name)
+      |> Repo.all()
+
+    if Enum.empty?(bundles) do
+      nil
+    else
+      """
+
+      #### Bundles 🧰
+
+      | Bundle | Commit | Install size | Download size |
+      | - | - | - | - |
+      #{Enum.map(bundles, fn bundle ->
+        {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
+        """
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{Bundles.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{Bundles.format_bytes(bundle.download_size)}#{download_size_deviation}</div> |
+        """
+      end)}
+      """
+    end
+  end
+
+  defp project_bundle_size_deviations(project, bundle) do
+    last_bundle = Bundles.last_project_bundle(project, bundle: bundle)
+
+    if is_nil(last_bundle) do
+      {"", ""}
+    else
+      download_size_deviation =
+        if is_nil(bundle.download_size) or is_nil(last_bundle.download_size) do
+          ""
+        else
+          format_bundle_size_deviation(bundle.download_size, last_bundle.download_size)
+        end
+
+      {format_bundle_size_deviation(bundle.install_size, last_bundle.install_size), download_size_deviation}
+    end
+  end
+
+  defp format_bundle_size_deviation(size, last_size) do
+    deviation_percentage =
+      ((size / last_size - 1) * 100) |> Decimal.from_float() |> Decimal.round(2)
+
+    absolute_delta = abs(size - last_size)
+
+    cond do
+      size < last_size -> "<br/>`Δ -#{Bundles.format_bytes(absolute_delta)} (#{deviation_percentage}%)`"
+      size > last_size -> "<br/>`Δ +#{Bundles.format_bytes(absolute_delta)} (+#{deviation_percentage}%)`"
+      true -> ""
     end
   end
 
@@ -347,7 +422,7 @@ defmodule Tuist.VCS do
 
       """
 
-      #### Tuist Previews 📦
+      #### Previews 📦
 
       | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
       | - | - |#{if contains_ipas, do: " - |", else: ""}
@@ -390,7 +465,7 @@ defmodule Tuist.VCS do
     else
       """
 
-      #### Tuist Tests 🧪
+      #### Tests 🧪
 
       | Command | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
       |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
