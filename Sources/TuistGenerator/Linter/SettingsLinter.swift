@@ -24,6 +24,7 @@ final class SettingsLinter: SettingsLinting {
     func lint(project: Project) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         try await issues.append(contentsOf: lintConfigFilesExist(settings: project.settings))
+        issues.append(contentsOf: lintValidDefaultConfigurationName(settings: project.settings))
         issues.append(contentsOf: lintNonEmptyConfig(project: project))
         return issues
     }
@@ -32,6 +33,7 @@ final class SettingsLinter: SettingsLinting {
         var issues: [LintingIssue] = []
         if let settings = target.settings {
             try await issues.append(contentsOf: lintConfigFilesExist(settings: settings))
+            issues.append(contentsOf: lintValidDefaultConfigurationName(settings: settings))
         }
 
         issues.append(contentsOf: lintDestinations(for: target.supportedPlatforms, and: target.deploymentTargets))
@@ -40,6 +42,21 @@ final class SettingsLinter: SettingsLinting {
     }
 
     // MARK: - Fileprivate
+
+    private func lintValidDefaultConfigurationName(settings: Settings) -> [LintingIssue] {
+        guard let defaultConfigurationName = settings.defaultConfiguration else { return [] }
+
+        guard settings.configurations.keys.first(where: { config in config.name == defaultConfigurationName }) != nil else {
+            return [
+                LintingIssue(
+                    reason: "We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                    severity: .error
+                )
+            ]
+        }
+
+        return []
+    }
 
     private func lintConfigFilesExist(settings: Settings) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []

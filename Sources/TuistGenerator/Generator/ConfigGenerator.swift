@@ -47,25 +47,11 @@ final class ConfigGenerator: ConfigGenerating {
         fileElements: ProjectFileElements
     ) async throws -> XCConfigurationList {
         /// Configuration list
-        let userProvidedDefaultConfiguration: BuildConfiguration?
-
-        if let defaultConfigurationName = project.settings.defaultConfiguration {
-            userProvidedDefaultConfiguration = project.settings.configurations.keys.first(where: { config in
-                config.name == defaultConfigurationName
-            })
-
-            if userProvidedDefaultConfiguration == nil {
-                ServiceContext.current?.logger?.warning("We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(project.settings.configurations.keys.map(\.name).joined(separator: ", "))")
-            }
-        } else {
-            userProvidedDefaultConfiguration = nil
-        }
-
-        let defaultConfiguration = userProvidedDefaultConfiguration ?? project.settings.defaultReleaseBuildConfiguration()
+        let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: project.settings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
 
