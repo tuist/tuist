@@ -30,7 +30,7 @@ struct InspectBundleCommandServiceTests {
             configLoader: configLoader,
             serverURLService: serverURLService,
             gitController: gitController,
-            environment: ["GIT_REF": "refs/pull/1/merge"]
+            environment: [:]
         )
 
         given(configLoader)
@@ -40,6 +40,10 @@ struct InspectBundleCommandServiceTests {
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn("refs/pull/1/merge")
 
         given(serverURLService)
             .url(configServerURL: .any)
