@@ -29,7 +29,8 @@ struct InspectBundleCommandServiceTests {
             createBundleService: createBundleService,
             configLoader: configLoader,
             serverURLService: serverURLService,
-            gitController: gitController
+            gitController: gitController,
+            environment: [:]
         )
 
         given(configLoader)
@@ -39,6 +40,10 @@ struct InspectBundleCommandServiceTests {
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn("refs/pull/1/merge")
 
         given(serverURLService)
             .url(configServerURL: .any)
@@ -50,7 +55,8 @@ struct InspectBundleCommandServiceTests {
                 serverURL: .any,
                 appBundleReport: .any,
                 gitCommitSHA: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                gitRef: .any
             )
             .willReturn(.test())
 
@@ -89,7 +95,8 @@ struct InspectBundleCommandServiceTests {
                     serverURL: .any,
                     appBundleReport: .any,
                     gitCommitSHA: .any,
-                    gitBranch: .any
+                    gitBranch: .any,
+                    gitRef: .value("refs/pull/1/merge")
                 )
                 .called(1)
 

@@ -12,7 +12,8 @@ public protocol CreateBundleServicing {
         serverURL: URL,
         appBundleReport: AppBundleReport,
         gitCommitSHA: String?,
-        gitBranch: String?
+        gitBranch: String?,
+        gitRef: String?
     ) async throws -> ServerBundle
 }
 
@@ -53,7 +54,8 @@ public final class CreateBundleService: CreateBundleServicing {
         serverURL: URL,
         appBundleReport: AppBundleReport,
         gitCommitSHA: String?,
-        gitBranch: String?
+        gitBranch: String?,
+        gitRef: String?
     ) async throws -> ServerBundle {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -87,6 +89,7 @@ public final class CreateBundleService: CreateBundleServicing {
                             download_size: appBundleReport.downloadSize,
                             git_branch: gitBranch,
                             git_commit_sha: gitCommitSHA,
+                            git_ref: gitRef,
                             install_size: appBundleReport.installSize,
                             name: appBundleReport.name,
                             supported_platforms: supportedPlatforms,
