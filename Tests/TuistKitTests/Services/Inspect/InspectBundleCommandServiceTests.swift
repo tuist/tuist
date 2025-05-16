@@ -92,6 +92,10 @@ struct InspectBundleCommandServiceTests {
                     gitBranch: .any
                 )
                 .called(1)
+
+            verify(gitController)
+                .isInGitRepository(workingDirectory: .value(temporaryDirectory))
+                .called(1)
         }
     }
 }

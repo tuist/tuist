@@ -70,14 +70,14 @@ struct InspectBundleCommandService {
 
         let gitCommitSHA: String?
         let gitBranch: String?
-        if gitController.isInGitRepository(workingDirectory: path.parentDirectory) {
-            if gitController.hasCurrentBranchCommits(workingDirectory: path.parentDirectory) {
-                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path.parentDirectory)
+        if gitController.isInGitRepository(workingDirectory: path) {
+            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
+                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
             } else {
                 gitCommitSHA = nil
             }
 
-            gitBranch = try gitController.currentBranch(workingDirectory: path.parentDirectory)
+            gitBranch = try gitController.currentBranch(workingDirectory: path)
         } else {
             gitCommitSHA = nil
             gitBranch = nil
