@@ -43,21 +43,6 @@ final class SettingsLinter: SettingsLinting {
 
     // MARK: - Fileprivate
 
-    private func lintValidDefaultConfigurationName(settings: Settings) -> [LintingIssue] {
-        guard let defaultConfigurationName = settings.defaultConfiguration else { return [] }
-
-        guard settings.configurations.keys.first(where: { config in config.name == defaultConfigurationName }) != nil else {
-            return [
-                LintingIssue(
-                    reason: "We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
-                    severity: .error
-                )
-            ]
-        }
-
-        return []
-    }
-
     private func lintConfigFilesExist(settings: Settings) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
@@ -105,5 +90,20 @@ final class SettingsLinter: SettingsLinting {
         } else {
             return []
         }
+    }
+
+    private func lintValidDefaultConfigurationName(settings: Settings) -> [LintingIssue] {
+        guard let defaultConfigurationName = settings.defaultConfiguration else { return [] }
+
+        guard settings.configurations.keys.first(where: { config in config.name == defaultConfigurationName }) != nil else {
+            return [
+                LintingIssue(
+                    reason: "We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                    severity: .error
+                )
+            ]
+        }
+
+        return []
     }
 }

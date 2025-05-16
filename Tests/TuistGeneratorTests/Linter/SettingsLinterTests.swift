@@ -124,4 +124,96 @@ final class SettingsLinterTests: TuistUnitTestCase {
             )]
         )
     }
+
+    func test_lint_project_when_default_config_name_is_valid() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("Debug Development"): Configuration(),
+                .release("Release Development"): Configuration(),
+                .debug("Debug Production"): Configuration(),
+                .release("Release Production"): Configuration()
+            ],
+            defaultConfiguration: "Debug Development"
+        )
+        let project = Project.test(settings: settings)
+
+        // When
+        let got = try await subject.lint(project: project)
+
+        // Then
+        XCTAssertEqual(got, [])
+    }
+
+    func test_lint_project_when_default_config_name_is_not_valid() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("Debug Development"): Configuration(),
+                .release("Release Development"): Configuration(),
+                .debug("Debug Production"): Configuration(),
+                .release("Release Production"): Configuration()
+            ],
+            defaultConfiguration: "Wrong Config Name"
+        )
+        let project = Project.test(settings: settings)
+
+        // When
+        let got = try await subject.lint(project: project)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [LintingIssue(
+                reason: "We couldn't find the default configuration '\(settings.defaultConfiguration ?? "")'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                severity: .error
+            )]
+        )
+    }
+
+    func test_lint_target_when_default_config_name_is_valid() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("Debug Development"): Configuration(),
+                .release("Release Development"): Configuration(),
+                .debug("Debug Production"): Configuration(),
+                .release("Release Production"): Configuration()
+            ],
+            defaultConfiguration: "Debug Development"
+        )
+        let target = Target.test(settings: settings)
+
+        // When
+        let got = try await subject.lint(target: target)
+
+        // Then
+        XCTAssertEqual(got, [])
+    }
+
+    func test_lint_target_when_default_config_name_is_not_valid() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("Debug Development"): Configuration(),
+                .release("Release Development"): Configuration(),
+                .debug("Debug Production"): Configuration(),
+                .release("Release Production"): Configuration()
+            ],
+            defaultConfiguration: "Wrong Config Name"
+        )
+        let target = Target.test(settings: settings)
+
+        // When
+        let got = try await subject.lint(target: target)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [LintingIssue(
+                reason: "We couldn't find the default configuration '\(settings.defaultConfiguration ?? "")'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                severity: .error
+            )]
+        )
+    }
 }
