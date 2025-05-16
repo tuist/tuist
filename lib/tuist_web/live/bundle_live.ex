@@ -459,7 +459,15 @@ defmodule TuistWeb.BundleLive do
     all_artifacts
     |> Enum.group_by(& &1.shasum)
     |> Enum.filter(fn {_shasum, artifacts} -> length(artifacts) > 1 end)
-    |> MapSet.new(fn {shasum, artifacts} -> %{shasum: shasum, artifacts: artifacts} end)
+    |> MapSet.new(fn {shasum, artifacts} ->
+      %{
+        shasum: shasum,
+        artifacts: artifacts,
+        size: Enum.reduce(artifacts, 0, fn duplicate, acc -> acc + duplicate.size end)
+      }
+    end)
+    |> Enum.sort_by(& &1.size)
+    |> Enum.reverse()
   end
 
   # Helper function to flatten the artifact tree

@@ -310,7 +310,6 @@
                     savings:
                       Decimal.from_float(
                         (@duplicates
-                         |> Enum.flat_map(& &1.artifacts)
                          |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)) /
                           @bundle.install_size * 100
                       )
@@ -354,12 +353,7 @@
                         {"/" <> List.last(String.split(hd(duplicate.artifacts).path, "/"))}
                       </h3>
                       <.badge
-                        label={
-                          format_bytes(
-                            duplicate.artifacts
-                            |> Enum.reduce(0, fn artifact, acc -> acc + artifact.size end)
-                          )
-                        }
+                        label={format_bytes(duplicate.size)}
                         color="information"
                         style="light-fill"
                         size="small"
