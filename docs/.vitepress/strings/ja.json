@@ -329,6 +329,9 @@
             },
             "insights": {
               "text": "Insights"
+            },
+            "bundle-size": {
+              "text": "Bundle size"
             }
           }
         },
