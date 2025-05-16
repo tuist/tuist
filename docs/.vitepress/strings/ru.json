@@ -329,6 +329,9 @@
             },
             "insights": {
               "text": "Аналитика"
+            },
+            "bundle-size": {
+              "text": "Bundle size"
             }
           }
         },
