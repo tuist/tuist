@@ -538,7 +538,7 @@ let package = Package(
             .upToNextMajor(from: "0.2.2")
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
-        .package(url: "https://github.com/tuist/XCLogParser", .upToNextMajor(from: "0.2.41")),
+        .package(url: "https://github.com/tuist/XCLogParser", revision: "38225d865f21d4c2874bf55b79bda160f2f1d2e6"),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
         .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.38.0")),
         .package(

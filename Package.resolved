@@ -1,5 +1,5 @@
 {
-  "originHash" : "28f76bcaea2c4c8b8431f759abd9def4d93a6e2cb1aaf4550a14d70e1a09697c",
+  "originHash" : "6d2084d711d44b65b3154859146325fb3bde6ce64c53e35ab7fa101ff7860afd",
   "pins" : [
     {
       "identity" : "aexml",
@@ -465,8 +465,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XCLogParser",
       "state" : {
-        "revision" : "7cf8c50e1b84effcda573bbf8b26bdd0a6b4614f",
-        "version" : "0.2.41"
+        "revision" : "38225d865f21d4c2874bf55b79bda160f2f1d2e6"
       }
     },
     {
