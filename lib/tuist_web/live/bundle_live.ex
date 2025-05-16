@@ -28,11 +28,19 @@ defmodule TuistWeb.BundleLive do
       end)
 
     artifacts_by_path =
-      all_artifacts
-      |> Enum.reduce(%{}, fn artifact, acc ->
+      Enum.reduce(all_artifacts, %{}, fn artifact, acc ->
         Map.put(acc, artifact.path, artifact)
       end)
-      |> Map.put(bundle.name <> ".app", bundle)
+
+    base_path =
+      if Enum.empty?(all_artifacts) do
+        bundle.name <> ".app"
+      else
+        hd(all_artifacts).path |> String.split("/") |> hd()
+      end
+
+    artifacts_by_path =
+      Map.put(artifacts_by_path, base_path, bundle)
 
     socket =
       socket
@@ -45,6 +53,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(:all_artifacts, all_artifacts)
       |> assign(:artifacts_by_id, artifacts_by_id)
       |> assign(:artifacts_by_path, artifacts_by_path)
+      |> assign(:base_path, base_path)
 
     {:ok, socket}
   end
@@ -52,14 +61,8 @@ defmodule TuistWeb.BundleLive do
   def handle_params(
         params,
         _url,
-        %{
-          assigns: %{
-            bundle: bundle,
-            duplicates: duplicates,
-            all_artifacts: all_artifacts,
-            selected_project: selected_project
-          }
-        } = socket
+        %{assigns: %{bundle: bundle, duplicates: duplicates, selected_project: selected_project, base_path: base_path}} =
+          socket
       ) do
     uri =
       URI.new!(
@@ -81,7 +84,7 @@ defmodule TuistWeb.BundleLive do
     series = to_chart_series(bundle, filter, duplicates)
 
     table_artifact = %{
-      path: bundle.name <> ".app",
+      path: base_path,
       name: bundle.name,
       value: bundle.install_size,
       artifact_type: :directory,
@@ -256,10 +259,10 @@ defmodule TuistWeb.BundleLive do
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-selected-root",
         params,
-        %{assigns: %{bundle: bundle}} = socket
+        %{assigns: %{bundle: bundle, base_path: base_path}} = socket
       ) do
     table_artifact = %{
-      path: bundle.name <> ".app",
+      path: base_path,
       name: bundle.name,
       value: bundle.install_size,
       id: bundle.id,
@@ -290,7 +293,8 @@ defmodule TuistWeb.BundleLive do
           assigns: %{
             bundle: bundle,
             bundle_size_analysis_sunburst_chart_selected_artifact: bundle_size_analysis_sunburst_chart_selected_artifact,
-            artifacts_by_id: artifacts_by_id
+            artifacts_by_id: artifacts_by_id,
+            base_path: base_path
           }
         } = socket
       ) do
@@ -300,7 +304,7 @@ defmodule TuistWeb.BundleLive do
     table_artifact =
       if is_nil(artifact) do
         %{
-          path: bundle.name <> ".app",
+          path: base_path,
           name: bundle.name,
           value: bundle.install_size,
           id: bundle.id,
