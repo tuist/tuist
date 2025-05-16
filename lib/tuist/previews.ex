@@ -44,7 +44,7 @@ defmodule Tuist.Previews do
       not is_nil(preview.git_commit_sha) ->
         String.slice(preview.git_commit_sha, 0, 7)
 
-      not is_nil(preview.command_event) ->
+      not is_nil(preview.command_event) and not is_nil(preview.command_event.git_commit_sha) ->
         String.slice(preview.command_event.git_commit_sha, 0, 7)
 
       true ->

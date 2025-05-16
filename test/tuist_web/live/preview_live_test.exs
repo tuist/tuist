@@ -5,6 +5,7 @@ defmodule TuistWeb.PreviewLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
@@ -28,6 +29,34 @@ defmodule TuistWeb.PreviewLiveTest do
         supported_platforms: [:ios, :macos],
         git_commit_sha: nil
       )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "div[data-part='metadata'] span[data-part='label']", "None")
+  end
+
+  test "renders none as a commit when git_commit_sha is absent but command_event exists",
+       %{
+         conn: conn,
+         organization: organization,
+         project: project
+       } do
+    # Given
+    preview =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        supported_platforms: [:ios, :macos],
+        git_commit_sha: nil
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      preview_id: preview.id,
+      git_commit_sha: nil
+    )
 
     # When
     {:ok, lv, _html} =
