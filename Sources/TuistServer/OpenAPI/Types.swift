@@ -1099,6 +1099,10 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_commit_sha`.
                 internal var git_commit_sha: Swift.String?
+                /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_ref`.
+                internal var git_ref: Swift.String?
                 /// The bundle install size in bytes
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/install_size`.
@@ -1123,6 +1127,7 @@ internal enum Components {
                 ///   - download_size: The bundle download size in bytes
                 ///   - git_branch: The git branch associated with the bundle.
                 ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
                 ///   - install_size: The bundle install size in bytes
                 ///   - name: The name of the bundle
                 ///   - supported_platforms: List of supported platforms
@@ -1133,6 +1138,7 @@ internal enum Components {
                     download_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
+                    git_ref: Swift.String? = nil,
                     install_size: Swift.Int,
                     name: Swift.String,
                     supported_platforms: [Components.Schemas.BundleSupportedPlatform],
@@ -1143,6 +1149,7 @@ internal enum Components {
                     self.download_size = download_size
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
+                    self.git_ref = git_ref
                     self.install_size = install_size
                     self.name = name
                     self.supported_platforms = supported_platforms
@@ -1154,6 +1161,7 @@ internal enum Components {
                     case download_size
                     case git_branch
                     case git_commit_sha
+                    case git_ref
                     case install_size
                     case name
                     case supported_platforms
@@ -2558,6 +2566,14 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/preview_id`.
             internal var preview_id: Swift.String?
+            /// Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/ran_at`.
+            internal var ran_at: Swift.Int64
+            /// The account triggered the run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/ran_by`.
+            internal var ran_by: Swift.String?
             /// Remote cache target hits of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/remote_cache_target_hits`.
@@ -2605,6 +2621,8 @@ internal enum Components {
             ///   - macos_version: Version of macOS used
             ///   - name: Command name of the run
             ///   - preview_id: ID of the associated preview
+            ///   - ran_at: Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+            ///   - ran_by: The account triggered the run.
             ///   - remote_cache_target_hits: Remote cache target hits of the run
             ///   - remote_test_target_hits: Remote test target hits of the run
             ///   - status: Status of the command event
@@ -2626,6 +2644,8 @@ internal enum Components {
                 macos_version: Swift.String,
                 name: Swift.String,
                 preview_id: Swift.String? = nil,
+                ran_at: Swift.Int64,
+                ran_by: Swift.String? = nil,
                 remote_cache_target_hits: [Swift.String]? = nil,
                 remote_test_target_hits: [Swift.String]? = nil,
                 status: Swift.String,
@@ -2647,6 +2667,8 @@ internal enum Components {
                 self.macos_version = macos_version
                 self.name = name
                 self.preview_id = preview_id
+                self.ran_at = ran_at
+                self.ran_by = ran_by
                 self.remote_cache_target_hits = remote_cache_target_hits
                 self.remote_test_target_hits = remote_test_target_hits
                 self.status = status
@@ -2669,6 +2691,8 @@ internal enum Components {
                 case macos_version
                 case name
                 case preview_id
+                case ran_at
+                case ran_by
                 case remote_cache_target_hits
                 case remote_test_target_hits
                 case status
@@ -5059,6 +5083,10 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_commit_sha`.
                         internal var git_commit_sha: Swift.String?
+                        /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_ref`.
+                        internal var git_ref: Swift.String?
                         /// The bundle install size in bytes
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/install_size`.
@@ -5083,6 +5111,7 @@ internal enum Operations {
                         ///   - download_size: The bundle download size in bytes
                         ///   - git_branch: The git branch associated with the bundle.
                         ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                        ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
                         ///   - install_size: The bundle install size in bytes
                         ///   - name: The name of the bundle
                         ///   - supported_platforms: List of supported platforms
@@ -5093,6 +5122,7 @@ internal enum Operations {
                             download_size: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
                             install_size: Swift.Int,
                             name: Swift.String,
                             supported_platforms: [Components.Schemas.BundleSupportedPlatform],
@@ -5103,6 +5133,7 @@ internal enum Operations {
                             self.download_size = download_size
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
                             self.install_size = install_size
                             self.name = name
                             self.supported_platforms = supported_platforms
@@ -5114,6 +5145,7 @@ internal enum Operations {
                             case download_size
                             case git_branch
                             case git_commit_sha
+                            case git_ref
                             case install_size
                             case name
                             case supported_platforms

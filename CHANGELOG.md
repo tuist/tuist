@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.50.1 - 2025-05-15
+
+### CLI
+
+#### Fixed
+
+- Fix `--verbose` not working [#7573](https://github.com/tuist/tuist/pull/7573) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.0 - 2025-05-15
+
+### CLI
+
+#### Added
+
+- Add bundle analysis [#7436](https://github.com/tuist/tuist/pull/7436) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix implicit import detection when target points to absent files [#7558](https://github.com/tuist/tuist/pull/7558) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.49.1 - 2025-05-06
 
 ### CLI

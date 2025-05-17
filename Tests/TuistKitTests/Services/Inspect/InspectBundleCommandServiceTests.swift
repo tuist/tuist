@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -28,7 +29,8 @@ struct InspectBundleCommandServiceTests {
             createBundleService: createBundleService,
             configLoader: configLoader,
             serverURLService: serverURLService,
-            gitController: gitController
+            gitController: gitController,
+            environment: [:]
         )
 
         given(configLoader)
@@ -38,6 +40,10 @@ struct InspectBundleCommandServiceTests {
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
+
+        given(gitController)
+            .ref(environment: .any)
+            .willReturn("refs/pull/1/merge")
 
         given(serverURLService)
             .url(configServerURL: .any)
@@ -49,7 +55,8 @@ struct InspectBundleCommandServiceTests {
                 serverURL: .any,
                 appBundleReport: .any,
                 gitCommitSHA: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                gitRef: .any
             )
             .willReturn(.test())
 
@@ -68,30 +75,34 @@ struct InspectBundleCommandServiceTests {
             )
     }
 
-    @Test func analyzeAppBundle() async throws {
+    @Test(.inTemporaryDirectory) func analyzeAppBundle() async throws {
         try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-                // Given
-                let bundlePath = temporaryDirectory.appending(component: "App.ipa")
+            // Given
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let bundlePath = temporaryDirectory.appending(component: "App.ipa")
 
-                // When
-                try await subject.run(
-                    path: temporaryDirectory.pathString,
-                    bundle: bundlePath.pathString,
-                    json: false
+            // When
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                bundle: bundlePath.pathString,
+                json: false
+            )
+
+            // Then
+            verify(createBundleService)
+                .createBundle(
+                    fullHandle: .any,
+                    serverURL: .any,
+                    appBundleReport: .any,
+                    gitCommitSHA: .any,
+                    gitBranch: .any,
+                    gitRef: .value("refs/pull/1/merge")
                 )
+                .called(1)
 
-                // Then
-                verify(createBundleService)
-                    .createBundle(
-                        fullHandle: .any,
-                        serverURL: .any,
-                        appBundleReport: .any,
-                        gitCommitSHA: .any,
-                        gitBranch: .any
-                    )
-                    .called(1)
-            }
+            verify(gitController)
+                .isInGitRepository(workingDirectory: .value(temporaryDirectory))
+                .called(1)
         }
     }
 }

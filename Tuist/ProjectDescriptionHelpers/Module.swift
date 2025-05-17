@@ -509,6 +509,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .core:
                 [

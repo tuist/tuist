@@ -63,6 +63,11 @@ components:
               type: string
               x-struct:
               x-validate:
+            git_ref:
+              description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+              type: string
+              x-struct:
+              x-validate:
             install_size:
               description: The bundle install size in bytes
               type: integer
@@ -1038,6 +1043,26 @@ components:
           type: string
           x-struct:
           x-validate:
+        ran_at:
+          description: Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+          example: 1715606400
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        ran_by:
+          description: The account triggered the run.
+          properties:
+            handle:
+              description: The handle of the account that triggered the run.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - handle
+          type: string
+          x-struct:
+          x-validate:
         remote_cache_target_hits:
           description: Remote cache target hits of the run
           items:
@@ -1104,6 +1129,7 @@ components:
         - git_ref
         - git_branch
         - url
+        - ran_at
       title: Run
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
@@ -2053,6 +2079,11 @@ paths:
                       x-validate:
                     git_commit_sha:
                       description: The git commit SHA associated with the bundle.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_ref:
+                      description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
                       type: string
                       x-struct:
                       x-validate:
