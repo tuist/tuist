@@ -574,6 +574,13 @@ export function guidesSidebar(locale) {
           ),
           link: `/${locale}/guides/develop/insights`,
         },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.bundle-size.text",
+          ),
+          link: `/${locale}/guides/develop/bundle-size`,
+        },
       ],
     },
     {

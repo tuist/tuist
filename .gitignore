@@ -87,6 +87,7 @@ tmp/
 /build/
 
 .env
+.env.json
 .idea/
 /Carthage/Checkouts
 *.profraw
@@ -110,7 +111,3 @@ Tuist/Dependencies/graph.json
 
 # Release artifacts
 .bundle
-
-# Tuist Cloud
-TuistCloud
-!make/tasks/cloud

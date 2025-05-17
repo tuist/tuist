@@ -52,7 +52,7 @@ extension Logger {
     }
 
     public static func defaultLoggerHandler(
-        config: LoggingConfig = .default,
+        config: LoggingConfig,
         logFilePath: AbsolutePath
     ) throws -> @Sendable (String) -> any LogHandler {
         let handler: VerboseLogHandler.Type
@@ -103,7 +103,7 @@ extension Logger {
 }
 
 extension LoggingConfig {
-    public static var `default`: LoggingConfig {
+    public static func `default`() -> LoggingConfig {
         let env = ProcessInfo.processInfo.environment
 
         let quiet = env[Constants.EnvironmentVariables.quiet] != nil
