@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -50,7 +51,7 @@ final class ConfigGenerator: ConfigGenerating {
             ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: project.settings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
 
