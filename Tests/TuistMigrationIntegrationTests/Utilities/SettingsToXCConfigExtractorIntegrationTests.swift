@@ -54,7 +54,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
 
-            let output = ServiceContext.current?.recordedUI()
+            let output = ui()
             let expectedOutput = """
             ✔ Success
               Build settings successfully extracted into \(xcconfigPath.pathString)
@@ -144,7 +144,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
 
-            let output = ServiceContext.current?.recordedUI()
+            let output = ui()
             let expectedOutput = """
             ✔ Success
               Build settings successfully extracted into \(xcconfigPath.pathString)

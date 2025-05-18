@@ -120,7 +120,7 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -177,7 +177,7 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 }

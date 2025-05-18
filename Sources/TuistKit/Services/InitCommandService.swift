@@ -165,7 +165,7 @@ public struct InitCommandService {
 
     private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
         let projectDirectory = directory.appending(component: name)
-        try await ServiceContext.current?.ui?.progressStep(
+        try await Noora.current.progressStep(
             message: "Creating generated project",
             successMessage: "Generated project created",
             errorMessage: "Failed to create generated project",
@@ -194,7 +194,7 @@ public struct InitCommandService {
         if integrateWithServer {
             let serverURL = try serverURLService.url(configServerURL: Constants.URLs.production)
             if try await serverSessionController.whoami(serverURL: serverURL) == nil {
-                try await ServiceContext.current?.ui?.collapsibleStep(
+                try await Noora.current.collapsibleStep(
                     title: "Authentication",
                     successMessage: "Authenticated",
                     errorMessage: "Authentication failed",
@@ -228,7 +228,7 @@ public struct InitCommandService {
                 throw InitCommandServiceError.emptyProjectHandle
             }
 
-            try await ServiceContext.current?.ui?.progressStep(
+            try await Noora.current.progressStep(
                 message: "Creating Tuist project",
                 successMessage: "Project connected",
                 errorMessage: "Project connection failed",

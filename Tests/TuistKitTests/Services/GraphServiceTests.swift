@@ -197,13 +197,10 @@ final class GraphServiceTests: TuistUnitTestCase {
             // Then
             XCTAssertEqual(result, .test())
 
-            let output = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
+            XCTAssertEqual(ui(), """
             ✔ Success
               Graph exported to \(graphPath.pathString)
-            """
-
-            XCTAssertEqual(output, expectedOutput)
+            """)
         }
     }
 }

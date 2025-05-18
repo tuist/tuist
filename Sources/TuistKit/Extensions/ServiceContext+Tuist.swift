@@ -28,11 +28,12 @@ extension ServiceContext {
 
         let (logger, logFilePath) = try await setupLogger()
         context.logger = logger
-        context.ui = setupNoora()
         context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
 
-        try await ServiceContext.withValue(context) {
-            try await action(logFilePath)
+        try await Noora.$current.withValue(setupNoora()) {
+            try await ServiceContext.withValue(context) {
+                try await action(logFilePath)
+            }
         }
     }
 

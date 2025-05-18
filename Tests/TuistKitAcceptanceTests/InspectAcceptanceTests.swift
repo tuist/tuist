@@ -2,6 +2,7 @@ import Foundation
 import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistCore
+import TuistSupportTesting
 import XCTest
 @testable import TuistKit
 
@@ -37,12 +38,10 @@ final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
             ]
             try await run(XcodeBuildBuildCommand.self, arguments)
             try await run(InspectBuildCommand.self)
-            let got = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
+            XCTAssertEqual(ui(), """
             ✔ Success
               Uploaded a build to the server.
-            """
-            XCTAssertEqual(got, expectedOutput)
+            """)
         }
     }
 }
@@ -62,8 +61,7 @@ final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
                 InspectBundleCommand.self,
                 fixturePath.appending(components: "App", "Build", "Products", "Debug-iphonesimulator", "App.app").pathString
             )
-            let got = ServiceContext.current?.recordedUI()
-            XCTAssertTrue(got?.contains("✔︎ Bundle analyzed") == true)
+            XCTAssertTrue(ui().contains("✔︎ Bundle analyzed") == true)
         }
     }
 }

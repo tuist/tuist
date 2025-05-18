@@ -81,10 +81,10 @@ public final class AlertController: @unchecked Sendable {
 
     public func print() {
         for warning in warnings() {
-            ServiceContext.current?.ui?.warning(warning)
+            Noora.current.warning(warning)
         }
         for success in success() {
-            ServiceContext.current?.ui?.success(success)
+            Noora.current.success(success)
         }
     }
 }

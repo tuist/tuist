@@ -215,7 +215,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
         if !warningAlerts.isEmpty {
             print("\n")
-            ServiceContext.current?.ui?.warning(warningAlerts)
+            Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
@@ -225,7 +225,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
+            Noora.current.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
             var successAlertNextSteps = successAlert.takeaways
             successAlertNextSteps.append(contentsOf: takeaways)
@@ -233,7 +233,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 successAlertNextSteps.append(logsNextStep)
             }
             print("\n")
-            ServiceContext.current?.ui?.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
+            Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
 

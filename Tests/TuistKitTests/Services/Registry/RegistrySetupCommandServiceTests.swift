@@ -6,6 +6,7 @@ import Testing
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistSupportTesting
 
 @testable import TuistKit
 
@@ -143,9 +144,9 @@ struct RegistrySetupCommandServiceTests {
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(1)
-                #expect(ServiceContext.current?.recordedUI().contains("Logged in to the tuist registry") == true)
+                #expect(ui().contains("Logged in to the tuist registry") == true)
                 #expect(
-                    ServiceContext.current?.recordedUI()
+                    ui()
                         .contains(
                             "Generated the tuist registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
                         ) ==

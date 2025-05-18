@@ -34,7 +34,7 @@ struct MCPSetupClaudeCommandServiceTests {
             try await subject.run()
 
             // Then
-            #expect(ServiceContext.current?.recordedUI() == """
+            #expect(ui() == """
             ✔ Success
               Claude configured to point to the Tuist's MCP server.
 

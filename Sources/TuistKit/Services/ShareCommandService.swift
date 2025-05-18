@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
 import ServiceContextModule
 import TuistAutomation
@@ -421,7 +422,7 @@ struct ShareCommandService {
         serverURL: URL,
         json: Bool
     ) async throws {
-        let preview = try await ServiceContext.current!.ui!.progressBarStep(
+        let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(displayName)",
             successMessage: "\(displayName) uploaded",
             errorMessage: "Failed to load manifests"

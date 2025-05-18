@@ -253,7 +253,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -448,7 +448,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -623,7 +623,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -798,7 +798,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     updateProgress: .any
                 )
                 .called(1)
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -933,7 +933,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -1004,7 +1004,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 

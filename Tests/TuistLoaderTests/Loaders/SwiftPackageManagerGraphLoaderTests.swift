@@ -106,7 +106,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                     ]
                 )
                 #expect(
-                    ServiceContext.current?.recordedUI()
+                    ui()
                         .contains("We detected outdated dependencies.") == false
                 )
             }
@@ -241,7 +241,7 @@ struct SwiftPackageManagerGraphLoaderTests {
 
                 // Then
                 #expect(
-                    ServiceContext.current?.recordedUI()
+                    ui()
                         .contains("We detected outdated dependencies") == true
                 )
             }

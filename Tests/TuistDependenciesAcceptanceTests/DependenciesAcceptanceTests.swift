@@ -125,15 +125,15 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
             try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
             try await run(GenerateCommand.self)
             XCTAssertEqual(
-                ServiceContext.current?.recordedUI()
+                ui()
                     .contains("We detected outdated dependencies"), true
             )
-            ServiceContext.current?.resetRecordedUI()
+            resetUI()
 
             try await run(InstallCommand.self)
             try await run(GenerateCommand.self)
             XCTAssertEqual(
-                ServiceContext.current?.recordedUI()
+                ui()
                     .contains("We detected outdated dependencies"), false
             )
         }

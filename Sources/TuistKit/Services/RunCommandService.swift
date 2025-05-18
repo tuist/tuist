@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
 import ServiceContextModule
 import struct TSCUtility.Version
@@ -190,7 +191,7 @@ struct RunCommandService {
               previewLink.pathComponents.count > 4 // We expect at least four path components
         else { throw RunCommandServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
-        let archivePath = try await ServiceContext.current?.ui?.progressStep(message: "Downloading preview...") { _ in
+        let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
             let preview = try await getPreviewService.getPreview(
                 previewLink.lastPathComponent,
                 fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",

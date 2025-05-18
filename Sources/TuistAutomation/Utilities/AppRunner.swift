@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import Noora
 import ServiceContextModule
 import struct TSCUtility.Version
 import TuistCore
@@ -140,7 +141,7 @@ public struct AppRunner: AppRunning {
         if bootedDevices.count == 1, let bootedDevice = bootedDevices.first {
             simulator = bootedDevice
         } else {
-            simulator = ServiceContext.current!.ui!.singleChoicePrompt(
+            simulator = Noora.current.singleChoicePrompt(
                 title: nil,
                 question: "Select a simulator device",
                 options: devices.sorted(by: {
@@ -171,7 +172,7 @@ public struct AppRunner: AppRunning {
         })
         else { throw AppRunnerError.selectedPlatformNotFound(simulatorPlatform.caseValue) }
 
-        try await ServiceContext.current?.ui?.progressStep(
+        try await Noora.current.progressStep(
             message: "Installing \(appBundle.infoPlist.name) on \(simulator.device.name)",
             successMessage: "\(appBundle.infoPlist.name) was successfully launched 📲",
             errorMessage: nil,

@@ -14,7 +14,7 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(AccountUpdateCommand.self, "--handle", "tuistrocks")
 
-            let got = ServiceContext.current?.recordedUI()
+            let got = ui()
             let expectedOutput = """
             ✔ Success
               The account tuistrocks was successfully updated.
@@ -30,7 +30,7 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
             let newHandle = String(UUID().uuidString.prefix(12).lowercased())
             try await run(AccountUpdateCommand.self, organizationHandle, "--handle", newHandle)
 
-            let got = ServiceContext.current?.recordedUI()
+            let got = ui()
             let expectedOutput = """
             ✔ Success
               The account \(newHandle) was successfully updated.

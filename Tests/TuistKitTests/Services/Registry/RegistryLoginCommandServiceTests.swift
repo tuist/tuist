@@ -6,6 +6,7 @@ import Testing
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistSupportTesting
 
 @testable import TuistKit
 
@@ -69,7 +70,7 @@ struct RegistryLoginCommandServiceTests {
             try await subject.run(path: nil)
 
             // Then
-            #expect(ServiceContext.current?.recordedUI().contains("Logged in to the tuist registry") == true)
+            #expect(ui().contains("Logged in to the tuist registry") == true)
             verify(swiftPackageManagerController)
                 .packageRegistryLogin(token: .value("token"), registryURL: .any)
                 .called(1)
