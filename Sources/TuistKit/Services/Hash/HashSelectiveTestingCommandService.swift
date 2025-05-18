@@ -85,7 +85,7 @@ final class HashSelectiveTestingCommandService {
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
 
         if sortedHashes.isEmpty {
-            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets for selective testing."))
+            AlertController.current.warning(.alert("The project contains no hasheable targets for selective testing."))
         } else {
             for (target, hash) in sortedHashes {
                 ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")

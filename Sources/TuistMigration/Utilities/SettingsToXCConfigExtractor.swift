@@ -101,7 +101,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
 
-        ServiceContext.current?.alerts?
+        AlertController.current
             .success(.alert("Build settings successfully extracted into \(xcconfigPath.pathString)"))
     }
 

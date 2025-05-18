@@ -1,6 +1,6 @@
+import Path
 import Testing
 import TuistSupport
-import Path
 
 public final class MockDeveloperEnvironment: DeveloperEnvironmenting {
     public var invokedDerivedDataDirectoryGetter = false

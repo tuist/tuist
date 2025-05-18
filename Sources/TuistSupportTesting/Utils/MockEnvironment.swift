@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import Testing
 import TuistSupport
 import XCTest
-import Testing
 
 public final class MockEnvironment: Environmenting {
     fileprivate let directory: TemporaryDirectory

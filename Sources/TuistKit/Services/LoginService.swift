@@ -140,7 +140,7 @@ extension LoginServicing {
     private static func defaultOnEvent(event: LoginServiceEvent) {
         switch event {
         case .completed:
-            ServiceContext.current?.alerts?.success(.alert("\(event.description)"))
+            AlertController.current.success(.alert("\(event.description)"))
         default:
             ServiceContext.current?.logger?.notice("\(event.description)")
         }

@@ -458,7 +458,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 "built"
             }
 
-        ServiceContext.current?.alerts?.success(.alert("The project tests \(verb) successfully"))
+        AlertController.current.success(.alert("The project tests \(verb) successfully"))
     }
 
     private func updateTestServiceAnalytics(

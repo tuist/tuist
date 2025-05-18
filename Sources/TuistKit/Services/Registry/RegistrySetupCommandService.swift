@@ -116,7 +116,7 @@ struct RegistrySetupCommandService {
             at: configurationJSONPath
         )
 
-        ServiceContext.current?.alerts?.success(
+        AlertController.current.success(
             .alert(
                 "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
                 takeaways: [

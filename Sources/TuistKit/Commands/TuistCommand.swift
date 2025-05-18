@@ -209,9 +209,9 @@ public struct TuistCommand: AsyncParsableCommand {
         } else {
             nil
         }
-        let successAlerts = ServiceContext.current?.alerts?.success() ?? []
-        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
-        let takeaways = ServiceContext.current?.alerts?.takeaways() ?? []
+        let successAlerts = AlertController.current.success()
+        let warningAlerts = AlertController.current.warnings()
+        let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
             print("\n")

@@ -18,12 +18,12 @@ extension ServiceContext {
 #if DEBUG
     extension ServiceContext {
         public func resetRecordedUI() {
-            alerts?.reset()
+            AlertController.current.reset()
             (ui as? NooraMock)?.reset()
         }
 
         public func recordedUI() -> String! {
-            alerts?.print()
+            AlertController.current.print()
             return (ui as? NooraMock)?.description as? String
         }
     }

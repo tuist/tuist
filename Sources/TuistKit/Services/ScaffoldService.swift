@@ -106,7 +106,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        ServiceContext.current?.alerts?.success(.alert("Template \(templateName) was successfully generated"))
+        AlertController.current.success(.alert("Template \(templateName) was successfully generated"))
     }
 
     // MARK: - Helpers

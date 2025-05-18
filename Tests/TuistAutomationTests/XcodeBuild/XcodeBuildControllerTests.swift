@@ -1,12 +1,12 @@
 import Command
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
 import TSCBasic
 import TuistCore
 import TuistSupport
-import FileSystemTesting
 
 @testable import TuistAutomation
 @testable import TuistSupportTesting

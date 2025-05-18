@@ -61,7 +61,7 @@ final class GenerateService {
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        ServiceContext.current?.alerts?.success(.alert("Project generated."))
+        AlertController.current.success(.alert("Project generated."))
         ServiceContext.current?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 

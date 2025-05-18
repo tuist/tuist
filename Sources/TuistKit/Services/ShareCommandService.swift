@@ -440,7 +440,7 @@ struct ShareCommandService {
             )
         }
 
-        ServiceContext.current?.alerts?
+        AlertController.current
             .success(
                 .alert(
                     "Share \(displayName) with others using the following link: \(preview.url.absoluteString)"

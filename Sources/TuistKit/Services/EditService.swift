@@ -75,7 +75,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            ServiceContext.current?.alerts?.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
+            AlertController.current.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
         }
     }
 

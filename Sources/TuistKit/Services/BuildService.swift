@@ -184,6 +184,6 @@ public final class BuildService {
             }
         }
 
-        ServiceContext.current?.alerts?.success(.alert("The project built successfully"))
+        AlertController.current.success(.alert("The project built successfully"))
     }
 }

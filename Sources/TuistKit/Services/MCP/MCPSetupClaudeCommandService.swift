@@ -25,7 +25,7 @@ struct MCPSetupClaudeCommandService {
             "Claude",
             "claude_desktop_config.json",
         ]))
-        ServiceContext.current?.alerts?.success(.alert("Claude configured to point to the Tuist's MCP server.", takeaways: [
+        AlertController.current.success(.alert("Claude configured to point to the Tuist's MCP server.", takeaways: [
             "Restart the Claude app if it was opened",
             "Check out Claude's \(.link(title: "documentation", href: "https://modelcontextprotocol.io/quickstart/user"))",
         ]))

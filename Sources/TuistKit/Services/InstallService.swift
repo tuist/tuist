@@ -62,7 +62,7 @@ final class InstallService {
             _ = try await pluginService.loadPlugins(using: generatedProjectOptions)
         }
 
-        ServiceContext.current?.alerts?.success(.alert("Plugins resolved and fetched successfully."))
+        AlertController.current.success(.alert("Plugins resolved and fetched successfully."))
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {
