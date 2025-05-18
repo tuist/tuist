@@ -113,7 +113,7 @@ public struct TuistCommand: AsyncParsableCommand {
             let command = try parseAsRoot(processedArguments)
 
             if command is RecentPathRememberableCommand {
-                try await ServiceContext.current?.recentPaths?.remember(path: path)
+                try await RecentPathsStore.current.remember(path: path)
             }
 
             executeCommand = {

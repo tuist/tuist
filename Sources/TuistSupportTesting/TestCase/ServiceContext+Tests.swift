@@ -34,12 +34,12 @@ extension ServiceContext {
             return testingLogHandler
         })
 
-        context.recentPaths = MockRecentPathsStoring()
-
         try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
-            try await AlertController.$current.withValue(AlertController()) {
-                try await ServiceContext.withValue(context) {
-                    try await closure()
+            try await RecentPathsStore.$current.withValue(MockRecentPathsStoring()) {
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await ServiceContext.withValue(context) {
+                        try await closure()
+                    }
                 }
             }
         }

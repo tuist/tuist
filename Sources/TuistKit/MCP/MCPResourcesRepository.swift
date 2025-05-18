@@ -57,21 +57,18 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
     }
 
     func list() async throws -> ListResources.Result {
-        let resources = try await Array(
-            (ServiceContext.current?.recentPaths?.read() ?? [:])
-                .keys
-        )
-        .concurrentFilter {
-            try await fileSystem.exists($0)
-        }
-        .concurrentMap {
-            Resource(
-                name: "\($0.basename) graph",
-                uri: "tuist://\($0.pathString)",
-                description: "A graph representing the project \($0.basename)",
-                mimeType: "application/json"
-            )
-        }
+        let resources = try await Array(RecentPathsStore.current.read().keys)
+            .concurrentFilter {
+                try await fileSystem.exists($0)
+            }
+            .concurrentMap {
+                Resource(
+                    name: "\($0.basename) graph",
+                    uri: "tuist://\($0.pathString)",
+                    description: "A graph representing the project \($0.basename)",
+                    mimeType: "application/json"
+                )
+            }
         return ListResources.Result(resources: resources)
     }
 

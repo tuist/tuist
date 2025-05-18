@@ -35,8 +35,8 @@ struct MCPResourcesRepositoryTests {
         try await ServiceContext.withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
 
                 // When
                 let got = try await subject.list()
@@ -72,8 +72,8 @@ struct MCPResourcesRepositoryTests {
         try await ServiceContext.withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
                 let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
                     .test(name: "Test"),
                 ])])
