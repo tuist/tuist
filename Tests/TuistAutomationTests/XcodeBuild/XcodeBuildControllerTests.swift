@@ -6,6 +6,7 @@ import Testing
 import TSCBasic
 import TuistCore
 import TuistSupport
+import FileSystemTesting
 
 @testable import TuistAutomation
 @testable import TuistSupportTesting
