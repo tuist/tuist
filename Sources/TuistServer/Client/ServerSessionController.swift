@@ -1,7 +1,9 @@
 import Foundation
 import Mockable
 import ServiceContextModule
-import TuistSupport
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
 /// Type of device code used for authentication.
 public enum DeviceCodeType {
@@ -18,16 +20,10 @@ public enum DeviceCodeType {
     }
 }
 
-public enum ServerSessionControllerError: Equatable, FatalError {
+public enum ServerSessionControllerError: Equatable, LocalizedError {
     case unauthenticated
 
-    public var type: TuistSupport.ErrorType {
-        switch self {
-        case .unauthenticated: .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case .unauthenticated:
             "You are not logged in. Run 'tuist auth login'."
@@ -65,76 +61,94 @@ public final class ServerSessionController: ServerSessionControlling {
     static let port: UInt16 = 4545
 
     private let credentialsStore: ServerCredentialsStoring
-    private let ciChecker: CIChecking
-    private let opener: Opening
     private let getAuthTokenService: GetAuthTokenServicing
-    private let uniqueIDGenerator: UniqueIDGenerating
     private let serverAuthenticationController: ServerAuthenticationControlling
 
-    public convenience init() {
-        let credentialsStore = ServerCredentialsStore()
-        self.init(
-            credentialsStore: credentialsStore,
-            ciChecker: CIChecker(),
-            opener: Opener(),
-            getAuthTokenService: GetAuthTokenService(),
-            uniqueIDGenerator: UniqueIDGenerator(),
-            serverAuthenticationController: ServerAuthenticationController(credentialsStore: credentialsStore)
-        )
-    }
+    #if canImport(TuistSupport)
+        private let ciChecker: CIChecking
+        private let opener: Opening
+        private let uniqueIDGenerator: UniqueIDGenerating
 
-    init(
-        credentialsStore: ServerCredentialsStoring,
-        ciChecker: CIChecking,
-        opener: Opening,
-        getAuthTokenService: GetAuthTokenServicing,
-        uniqueIDGenerator: UniqueIDGenerating,
-        serverAuthenticationController: ServerAuthenticationControlling
-    ) {
-        self.credentialsStore = credentialsStore
-        self.ciChecker = ciChecker
-        self.opener = opener
-        self.getAuthTokenService = getAuthTokenService
-        self.uniqueIDGenerator = uniqueIDGenerator
-        self.serverAuthenticationController = serverAuthenticationController
-    }
+        public convenience init() {
+            let credentialsStore = ServerCredentialsStore()
+            self.init(
+                credentialsStore: credentialsStore,
+                ciChecker: CIChecker(),
+                opener: Opener(),
+                getAuthTokenService: GetAuthTokenService(),
+                uniqueIDGenerator: UniqueIDGenerator(),
+                serverAuthenticationController: ServerAuthenticationController(credentialsStore: credentialsStore)
+            )
+        }
+
+        init(
+            credentialsStore: ServerCredentialsStoring,
+            ciChecker: CIChecking,
+            opener: Opening,
+            getAuthTokenService: GetAuthTokenServicing,
+            uniqueIDGenerator: UniqueIDGenerating,
+            serverAuthenticationController: ServerAuthenticationControlling
+        ) {
+            self.credentialsStore = credentialsStore
+            self.ciChecker = ciChecker
+            self.opener = opener
+            self.getAuthTokenService = getAuthTokenService
+            self.uniqueIDGenerator = uniqueIDGenerator
+            self.serverAuthenticationController = serverAuthenticationController
+        }
+    #else
+        public init() {
+            credentialsStore = ServerCredentialsStore()
+            getAuthTokenService = GetAuthTokenService()
+            serverAuthenticationController = ServerAuthenticationController()
+        }
+    #endif
 
     // MARK: - ServerSessionControlling
 
-    public func authenticate(
-        serverURL: URL,
-        deviceCodeType: DeviceCodeType,
-        onOpeningBrowser: @escaping (URL) async -> Void,
-        onAuthWaitBegin: () async -> Void
-    ) async throws {
-        var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
-        let deviceCode = uniqueIDGenerator.uniqueID()
-        components.path = "/auth/device_codes/\(deviceCode)"
-        components.queryItems = [
-            URLQueryItem(
-                name: "type",
-                value: deviceCodeType.apiValue
-            ),
-        ]
-        let authURL = components.url!
+    #if canImport(TuistSupport)
+        public func authenticate(
+            serverURL: URL,
+            deviceCodeType: DeviceCodeType,
+            onOpeningBrowser: @escaping (URL) async -> Void,
+            onAuthWaitBegin: () async -> Void
+        ) async throws {
+            var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
+            let deviceCode = uniqueIDGenerator.uniqueID()
+            components.path = "/auth/device_codes/\(deviceCode)"
+            components.queryItems = [
+                URLQueryItem(
+                    name: "type",
+                    value: deviceCodeType.apiValue
+                ),
+            ]
+            let authURL = components.url!
 
-        await onOpeningBrowser(authURL)
+            await onOpeningBrowser(authURL)
 
-        try opener.open(url: authURL)
+            try opener.open(url: authURL)
 
-        await onAuthWaitBegin()
+            await onAuthWaitBegin()
 
-        let tokens = try await getAuthTokens(
-            serverURL: serverURL,
-            deviceCode: deviceCode
-        )
-        let credentials = ServerCredentials(
-            token: nil,
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken
-        )
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-    }
+            let tokens = try await getAuthTokens(
+                serverURL: serverURL,
+                deviceCode: deviceCode
+            )
+            let credentials = ServerCredentials(
+                token: nil,
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken
+            )
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        }
+    #else
+        public func authenticate(
+            serverURL _: URL,
+            deviceCodeType _: DeviceCodeType,
+            onOpeningBrowser _: @escaping (URL) async -> Void,
+            onAuthWaitBegin _: @escaping () async -> Void
+        ) async throws {}
+    #endif
 
     public func whoami(serverURL: URL) async throws -> String? {
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else { return nil }
@@ -163,7 +177,9 @@ public final class ServerSessionController: ServerSessionControlling {
 
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
-        ServiceContext.current?.alerts?.success(.alert("Successfully logged out."))
+        #if canImport(TuistSupport)
+            ServiceContext.current?.alerts?.success(.alert("Successfully logged out."))
+        #endif
     }
 
     private func getAuthTokens(

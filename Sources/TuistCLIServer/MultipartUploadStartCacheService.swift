@@ -1,88 +1,80 @@
 import Foundation
 import Mockable
 import TuistCore
-import TuistSupport
+import TuistServer
 
 @Mockable
-public protocol GetCacheServicing {
-    func getCache(
+public protocol MultipartUploadStartCacheServicing {
+    func uploadCache(
         serverURL: URL,
         projectId: String,
         hash: String,
         name: String,
         cacheCategory: RemoteCacheCategory
-    ) async throws -> ServerCacheArtifact
+    ) async throws -> String
 }
 
-public enum GetCacheServiceError: FatalError, Equatable {
+public enum MultipartUploadStartCacheServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .paymentRequired, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
+            return "The remote cache artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
 }
 
-public final class GetCacheService: GetCacheServicing {
+public final class MultipartUploadStartCacheService: MultipartUploadStartCacheServicing {
     public init() {}
 
-    public func getCache(
+    public func uploadCache(
         serverURL: URL,
         projectId: String,
         hash: String,
         name: String,
         cacheCategory: RemoteCacheCategory
-    ) async throws -> ServerCacheArtifact {
+    ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
-
-        let response = try await client.downloadCacheArtifact(
-            .init(query: .init(cache_category: .init(cacheCategory), project_id: projectId, hash: hash, name: name))
-        )
-
+        let response = try await client.startCacheArtifactMultipartUpload(.init(query: .init(
+            cache_category: .init(cacheCategory),
+            project_id: projectId,
+            hash: hash,
+            name: name
+        )))
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(cacheArtifact):
-                return try ServerCacheArtifact(cacheArtifact)
+                return cacheArtifact.data.upload_id
             }
         case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
-                throw GetCacheServiceError.paymentRequired(error.message)
+                throw MultipartUploadStartCacheServiceError.paymentRequired(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw GetCacheServiceError.unknownError(statusCode)
+            throw MultipartUploadStartCacheServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw GetCacheServiceError.forbidden(error.message)
+                throw MultipartUploadStartCacheServiceError.forbidden(error.message)
             }
-        case let .notFound(notFound):
-            switch notFound.body {
+        case let .notFound(notFoundResponse):
+            switch notFoundResponse.body {
             case let .json(error):
-                throw GetCacheServiceError.notFound(error.message)
+                throw MultipartUploadStartCacheServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw MultipartUploadStartCacheServiceError.unauthorized(error.message)
             }
         }
     }

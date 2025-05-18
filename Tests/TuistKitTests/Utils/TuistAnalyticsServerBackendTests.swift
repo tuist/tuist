@@ -2,6 +2,7 @@ import FileSystem
 import Mockable
 import ServiceContextModule
 import TuistAnalytics
+import TuistCLIServer
 import TuistCore
 import TuistCoreTesting
 import TuistServer

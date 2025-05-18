@@ -31,11 +31,13 @@ import SwiftUI
         }
     }
 #else
+    import TuistPreviews
+
     @main
     struct TuistApp: App {
         var body: some Scene {
             WindowGroup {
-                Text("Tuist app")
+                PreviewsView()
             }
         }
     }

@@ -2,11 +2,12 @@ import FileSystem
 import Foundation
 import Mockable
 import TuistCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistServer
+@testable import TuistCLIServer
 
 final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     private var subject: AnalyticsArtifactUploadService!

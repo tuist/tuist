@@ -1,4 +1,5 @@
 import TuistCore
+import TuistServer
 
 extension Components.Schemas.CacheCategory {
     init(_ cacheCategory: RemoteCacheCategory) {

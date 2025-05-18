@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistCLIServer
 import TuistCore
 import TuistServer
 import TuistSupport

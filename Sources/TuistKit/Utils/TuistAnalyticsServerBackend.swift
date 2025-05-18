@@ -3,6 +3,7 @@ import Foundation
 import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
+import TuistCLIServer
 import TuistCore
 import TuistServer
 import TuistSupport

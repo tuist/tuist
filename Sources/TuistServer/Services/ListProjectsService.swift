@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol ListProjectsServicing {
@@ -16,20 +15,11 @@ public protocol ListProjectsServicing {
     ) async throws -> [ServerProject]
 }
 
-enum ListProjectsServiceError: FatalError {
+enum ListProjectsServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be listed due to an unknown Tuist response of \(statusCode)."

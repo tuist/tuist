@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 import ServiceContextModule
+import TuistCLIServer
 import TuistCore
 import TuistServer
 import TuistSupport

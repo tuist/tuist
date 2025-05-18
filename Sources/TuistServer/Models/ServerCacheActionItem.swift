@@ -1,6 +1,4 @@
 import Foundation
-import TuistCore
-import TuistSupport
 
 /// Server cache action item
 public struct ServerCacheActionItem: Equatable {
@@ -14,7 +12,7 @@ public struct ServerCacheActionItem: Equatable {
 }
 
 extension ServerCacheActionItem {
-    init(_ cacheActionItem: Components.Schemas.CacheActionItem) {
+    public init(_ cacheActionItem: Components.Schemas.CacheActionItem) {
         hash = cacheActionItem.hash
     }
 }

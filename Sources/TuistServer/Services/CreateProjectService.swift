@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol CreateProjectServicing {
@@ -11,22 +10,13 @@ public protocol CreateProjectServicing {
     ) async throws -> ServerProject
 }
 
-enum CreateProjectServiceError: FatalError {
+enum CreateProjectServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
     case badRequest(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .badRequest, .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The project could not be created due to an unknown Cloud response of \(statusCode)."

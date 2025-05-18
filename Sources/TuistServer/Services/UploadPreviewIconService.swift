@@ -3,7 +3,6 @@ import Foundation
 import Mockable
 import OpenAPIURLSession
 import Path
-import TuistSupport
 
 @Mockable
 public protocol UploadPreviewIconServicing {
@@ -15,23 +14,14 @@ public protocol UploadPreviewIconServicing {
     ) async throws
 }
 
-enum UploadPreviewIconServiceError: FatalError {
+enum UploadPreviewIconServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
     case uploadFailed
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .unauthorized, .forbidden, .notFound, .uploadFailed:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The preview icon could not be uploaded due to an unknown Tuist response of \(statusCode)."

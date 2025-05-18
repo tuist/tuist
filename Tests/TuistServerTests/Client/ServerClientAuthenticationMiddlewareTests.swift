@@ -13,7 +13,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var serverCredentialsStore: MockServerCredentialsStoring!
     private var refreshAuthTokenService: MockRefreshAuthTokenServicing!
-    private var dateService: MockDateServicing!
+    private var dateService: TuistServer.MockDateServicing!
     private var cachedValueStore: MockCachedValueStoring!
 
     override func setUp() {

@@ -4,7 +4,7 @@ import struct TSCUtility.Version
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistServer
+@testable import TuistSupport
 
 final class XCResultControllerTests: TuistUnitTestCase {
     private var subject: XCResultToolController!

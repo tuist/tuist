@@ -3,6 +3,7 @@ import Mockable
 import ServiceContextModule
 import SnapshotTesting
 import TuistAutomation
+import TuistCLIServer
 import TuistCore
 import TuistLoader
 import TuistServer

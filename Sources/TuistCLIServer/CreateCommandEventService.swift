@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIURLSession
 import TuistCore
-import TuistSupport
+import TuistServer
 
 @Mockable
 public protocol CreateCommandEventServicing {
@@ -13,21 +13,12 @@ public protocol CreateCommandEventServicing {
     ) async throws -> ServerCommandEvent
 }
 
-enum CreateCommandEventServiceError: FatalError {
+enum CreateCommandEventServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The organization could not be created due to an unknown Tuist response of \(statusCode)."
@@ -102,7 +93,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CreateCommandEventServiceError.unauthorized(error.message)
             }
         }
     }

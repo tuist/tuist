@@ -1,19 +1,11 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TuistSupport
 
-public enum ServerClientAuthenticationError: FatalError, Equatable {
+public enum ServerClientAuthenticationError: LocalizedError, Equatable {
     case notAuthenticated
 
-    public var type: ErrorType {
-        switch self {
-        case .notAuthenticated:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case .notAuthenticated:
             return "You must be logged in to do this. To log in, run 'tuist auth login'."
@@ -67,7 +59,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         var request = request
 
         /// Cirrus environments don't require authentication so we skip in these cases
-        if envVariables[Constants.EnvironmentVariables.cirrusTuistCacheURL] != nil {
+        if envVariables["CIRRUS_TUIST_CACHE_URL"] != nil {
             return try await next(request, body, baseURL)
         }
 
@@ -83,12 +75,13 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
             if let legacyToken {
                 tokenValue = legacyToken
-            } else if let accessToken, let refreshToken {
+            } else if let accessToken {
                 // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
                 let isExpired = accessToken.expiryDate
                     .timeIntervalSince(dateService.now()) < 30
 
                 if isExpired {
+                    guard let refreshToken else { throw ServerClientAuthenticationError.notAuthenticated }
                     tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
                         try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
                     }

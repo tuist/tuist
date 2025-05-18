@@ -7,6 +7,7 @@ import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 

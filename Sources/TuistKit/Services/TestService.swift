@@ -4,6 +4,7 @@ import Path
 import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
+import TuistCLIServer
 import TuistCore
 import TuistLoader
 import TuistServer

@@ -2,6 +2,7 @@ import Foundation
 import Path
 import ServiceContextModule
 import TuistAutomation
+import TuistCLIServer
 import TuistCore
 import TuistLoader
 import TuistServer

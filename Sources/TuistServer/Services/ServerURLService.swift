@@ -1,23 +1,16 @@
 import Foundation
 import Mockable
-import TuistSupport
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
-enum ServerURLServiceError: FatalError, Equatable {
+enum ServerURLServiceError: LocalizedError, Equatable {
     case invalidEnvVariableServerURL(envVariable: String, value: String)
 
-    /// Error description.
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .invalidEnvVariableServerURL(envVariable, value):
             return "The server environment variable '\(envVariable)' has an invalid URL value '\(value)'"
-        }
-    }
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .invalidEnvVariableServerURL:
-            return .bug
         }
     }
 }
@@ -37,7 +30,7 @@ public final class ServerURLService: ServerURLServicing {
     public func url(configServerURL: URL, envVariables: [String: String]) throws -> URL {
         return try (
             envVariableURL("TUIST_URL", envVariables: envVariables) ??
-                envVariableURL(Constants.EnvironmentVariables.cirrusTuistCacheURL, envVariables: envVariables) ?? configServerURL
+                envVariableURL("CIRRUS_TUIST_CACHE_URL", envVariables: envVariables) ?? configServerURL
         )
     }
 

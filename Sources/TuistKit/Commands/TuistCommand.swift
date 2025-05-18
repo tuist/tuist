@@ -166,8 +166,9 @@ public struct TuistCommand: AsyncParsableCommand {
         } else if let clientError = error as? ClientError,
                   let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
         {
-            // swiftlint:disable:next force_cast
-            errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
+            errorAlertMessage =
+                // swiftlint:disable:next force_cast
+                "\((clientError.underlyingError as! ServerClientAuthenticationError).errorDescription ?? "Unknown error")"
         } else if let fatalError = error as? FatalError {
             let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
             if !fatalError.description.isEmpty, !isSilent {

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol GetOrganizationUsageServicing {
@@ -11,22 +10,13 @@ public protocol GetOrganizationUsageServicing {
     ) async throws -> ServerOrganizationUsage
 }
 
-enum GetOrganizationUsageServiceError: FatalError {
+enum GetOrganizationUsageServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .notFound, .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not get the OrganizationUsage due to an unknown Tuist response of \(statusCode)."

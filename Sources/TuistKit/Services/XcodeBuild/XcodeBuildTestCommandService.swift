@@ -4,6 +4,7 @@ import Path
 import ServiceContextModule
 import TuistAutomation
 import TuistCache
+import TuistCLIServer
 import TuistCore
 import TuistHasher
 import TuistLoader

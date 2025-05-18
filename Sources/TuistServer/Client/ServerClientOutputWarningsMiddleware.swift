@@ -2,19 +2,9 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 import ServiceContextModule
-import TuistSupport
 
-enum CloudClientOutputWarningsMiddlewareError: FatalError {
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .couldntConvertToData:
-            return .bug
-        case .invalidSchema:
-            return .bug
-        }
-    }
-
-    var description: String {
+enum CloudClientOutputWarningsMiddlewareError: LocalizedError {
+    var errorDescription: String? {
         switch self {
         case .couldntConvertToData:
             "We couldn't convert Tuist warnings into a data instance"
@@ -52,8 +42,10 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
-        let logger = ServiceContext.$current.get()?.logger
-        json.forEach { logger?.warning("\($0)") }
+        #if canImport(TuistSupport)
+            let logger = ServiceContext.$current.get()?.logger
+            json.forEach { logger?.warning("\($0)") }
+        #endif
 
         return (response, body)
     }

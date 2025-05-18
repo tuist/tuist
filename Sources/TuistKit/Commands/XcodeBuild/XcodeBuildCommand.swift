@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistCache
+import TuistCLIServer
 import TuistCore
 import TuistHasher
 import TuistServer

@@ -1,7 +1,6 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TuistSupport
 
 /// A middleware that gets any warning returned in a "x-cloud-warning" header
 /// and outputs it to the user.

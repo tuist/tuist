@@ -6,6 +6,7 @@ import Path
 import ServiceContextModule
 import Testing
 import TuistCache
+import TuistCLIServer
 import TuistCore
 import TuistHasher
 import TuistLoader

@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TuistSupport
 
 @Mockable
 public protocol MultipartUploadGenerateURLAnalyticsServicing {
@@ -14,22 +13,13 @@ public protocol MultipartUploadGenerateURLAnalyticsServicing {
     ) async throws -> String
 }
 
-public enum MultipartUploadGenerateURLAnalyticsServiceError: FatalError, Equatable {
+public enum MultipartUploadGenerateURLAnalyticsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The generation of a multi-part upload URL failed due to an unknown Tuist response of \(statusCode)."

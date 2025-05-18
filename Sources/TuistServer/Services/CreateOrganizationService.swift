@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol CreateOrganizationServicing {
@@ -11,20 +10,11 @@ public protocol CreateOrganizationServicing {
     ) async throws -> ServerOrganization
 }
 
-enum CreateOrganizationServiceError: FatalError {
+enum CreateOrganizationServiceError: LocalizedError {
     case unknownError(Int)
     case badRequest(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .badRequest:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The organization could not be created due to an unknown Tuist response of \(statusCode)."

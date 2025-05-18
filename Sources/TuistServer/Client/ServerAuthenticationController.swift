@@ -1,7 +1,9 @@
 import Foundation
 import Mockable
 import ServiceContextModule
-import TuistSupport
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
@@ -42,75 +44,93 @@ public enum AuthenticationToken: CustomStringConvertible, Equatable {
     }
 }
 
-enum ServerAuthenticationControllerError: FatalError {
+enum ServerAuthenticationControllerError: LocalizedError {
     case invalidJWT(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .invalidJWT(token):
             return "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .invalidJWT:
-            return .bug
         }
     }
 }
 
 public final class ServerAuthenticationController: ServerAuthenticationControlling {
     private let credentialsStore: ServerCredentialsStoring
-    private let ciChecker: CIChecking
-    private let environment: Environmenting
+    #if canImport(TuistSupport)
+        private let ciChecker: CIChecking
+        private let environment: Environmenting
+    #endif
 
-    public init(
-        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
-        ciChecker: CIChecking = CIChecker(),
-        environment: Environmenting = Environment.shared
-    ) {
-        self.credentialsStore = credentialsStore
-        self.ciChecker = ciChecker
-        self.environment = environment
-    }
+    #if canImport(TuistSupport)
+        public init(
+            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
+            ciChecker: CIChecking = CIChecker(),
+            environment: Environmenting = Environment.shared
+        ) {
+            self.credentialsStore = credentialsStore
+            self.ciChecker = ciChecker
+            self.environment = environment
+        }
+    #else
+        public init(
+            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
+        ) {
+            self.credentialsStore = credentialsStore
+        }
+    #endif
 
     public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
-        if ciChecker.isCI() {
-            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
-                return .project(configToken)
-            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-                ServiceContext.current?.logger?
-                    .warning(
-                        "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
-                    )
-                return .project(deprecatedToken)
-            } else {
-                return nil
-            }
-        } else {
-            var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
-            if isTuistDevURL(serverURL), credentials == nil {
-                credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
-            }
-            return try credentials.map {
-                if let refreshToken = $0.refreshToken {
-                    return .user(
-                        legacyToken: nil,
-                        accessToken: try $0.accessToken.map(parseJWT),
-                        refreshToken: try parseJWT(refreshToken)
-                    )
-                } else {
+        #if canImport(TuistSupport)
+            if ciChecker.isCI() {
+                if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+                    return .project(configToken)
+                } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
                     ServiceContext.current?.logger?
-                        .warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
-                    return .user(
-                        legacyToken: $0.token,
-                        accessToken: nil,
-                        refreshToken: nil
-                    )
+                        .warning(
+                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                        )
+                    return .project(deprecatedToken)
+                } else {
+                    return nil
+                }
+            } else {
+                var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
+                if isTuistDevURL(serverURL), credentials == nil {
+                    credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
+                }
+                return try credentials.map {
+                    if let refreshToken = $0.refreshToken {
+                        return .user(
+                            legacyToken: nil,
+                            accessToken: try $0.accessToken.map(parseJWT),
+                            refreshToken: try parseJWT(refreshToken)
+                        )
+                    } else {
+                        ServiceContext.current?.logger?
+                            .warning(
+                                "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
+                            )
+                        return .user(
+                            legacyToken: $0.token,
+                            accessToken: nil,
+                            refreshToken: nil
+                        )
+                    }
                 }
             }
-        }
+        #else
+            return .user(
+                legacyToken: nil,
+                accessToken: JWT(
+                    token: "INSERT_HERE",
+                    expiryDate: Date(timeIntervalSinceNow: 10000),
+                    email: nil,
+                    preferredUsername: nil
+                ),
+                refreshToken: nil
+            )
+        #endif
     }
 
     func isTuistDevURL(_ serverURL: URL) -> Bool {

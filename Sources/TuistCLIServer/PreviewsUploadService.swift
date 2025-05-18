@@ -3,6 +3,8 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistServer
+import TuistSimulator
 import TuistSupport
 
 public enum PreviewUploadType: Equatable {

@@ -1,27 +1,21 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistSupport
 
 public struct MultipartUploadArtifactPart {
     public let number: Int
     public let contentLength: Int
 }
 
-enum MultipartUploadArtifactServiceError: FatalError {
+enum MultipartUploadArtifactServiceError: LocalizedError {
     case cannotCreateInputStream(AbsolutePath)
     case noURLResponse(URL?)
     case missingEtag(URL?)
     case invalidMultipartUploadURL(String)
 
-    var type: ErrorType {
-        switch self {
-        case .cannotCreateInputStream, .noURLResponse, .missingEtag, .invalidMultipartUploadURL: return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .cannotCreateInputStream(path):
             return "Couldn't create the file stream to multi-part upload file at path \(path.pathString)"

@@ -6,6 +6,7 @@ import ProjectDescription
 import ServiceContextModule
 import TSCUtility
 import TuistCore
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 

@@ -6,6 +6,7 @@ import Path
 import Rosalind
 import ServiceContextModule
 import Testing
+import TuistCLIServer
 import TuistLoader
 import TuistServer
 import TuistSupport

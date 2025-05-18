@@ -1,44 +1,36 @@
 import Foundation
 import Mockable
-import TuistCore
-import TuistSupport
+import TuistServer
 
 @Mockable
-public protocol GetCacheActionItemServicing {
-    func getCacheActionItem(
+public protocol UploadCacheActionItemServicing {
+    func uploadCacheActionItem(
         serverURL: URL,
         fullHandle: String,
         hash: String
     ) async throws -> ServerCacheActionItem
 }
 
-public enum GetCacheActionItemServiceError: FatalError, Equatable {
+public enum UploadCacheActionItemServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
     case unauthorized(String)
+    case badRequest(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .paymentRequired, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The cache item could not be fetched due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
+            return "The cache item could not be uploaded due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message),
+             let .badRequest(message):
             return message
         }
     }
 }
 
-public final class GetCacheActionItemService: GetCacheActionItemServicing {
+public final class UploadCacheActionItemService: UploadCacheActionItemServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -51,7 +43,7 @@ public final class GetCacheActionItemService: GetCacheActionItemServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func getCacheActionItem(
+    public func uploadCacheActionItem(
         serverURL: URL,
         fullHandle: String,
         hash: String
@@ -60,18 +52,27 @@ public final class GetCacheActionItemService: GetCacheActionItemServicing {
 
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.getCacheActionItem(
+        let response = try await client.uploadCacheActionItem(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle:
-                    handles.projectHandle,
-                    hash: hash
+                    handles.projectHandle
+                ),
+                body: .json(
+                    .init(
+                        hash: hash
+                    )
                 )
             )
         )
 
         switch response {
+        case let .created(createdResponse):
+            switch createdResponse.body {
+            case let .json(cacheActionItem):
+                return ServerCacheActionItem(cacheActionItem)
+            }
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(cacheActionItem):
@@ -80,24 +81,29 @@ public final class GetCacheActionItemService: GetCacheActionItemServicing {
         case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
-                throw GetCacheActionItemServiceError.paymentRequired(error.message)
+                throw UploadCacheActionItemServiceError.paymentRequired(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw GetCacheActionItemServiceError.unknownError(statusCode)
+            throw UploadCacheActionItemServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw GetCacheActionItemServiceError.forbidden(error.message)
+                throw UploadCacheActionItemServiceError.forbidden(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw GetCacheActionItemServiceError.notFound(error.message)
+                throw UploadCacheActionItemServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw UploadCacheActionItemServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw UploadCacheActionItemServiceError.badRequest(error.message)
             }
         }
     }

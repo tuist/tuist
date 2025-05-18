@@ -10,7 +10,7 @@ extension Client {
     ]
 
     /// Tuist client for authenticated sessions
-    static func authenticated(serverURL: URL) -> Client {
+    public static func authenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
@@ -25,7 +25,7 @@ extension Client {
     }
 
     /// Tuist client for unauthenticated sessions
-    static func unauthenticated(serverURL: URL) -> Client {
+    public static func unauthenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),

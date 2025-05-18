@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TuistSupport
 
 @Mockable
 public protocol GetPreviewServicing {

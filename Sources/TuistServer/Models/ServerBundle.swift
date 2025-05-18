@@ -9,7 +9,7 @@ public struct ServerBundle {
         self.url = url
     }
 
-    init?(_ bundle: Components.Schemas.Bundle) {
+    public init?(_ bundle: Components.Schemas.Bundle) {
         guard let url = URL(string: bundle.url)
         else { return nil }
         self.url = url

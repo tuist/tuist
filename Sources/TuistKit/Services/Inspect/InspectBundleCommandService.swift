@@ -3,6 +3,7 @@ import Foundation
 import Path
 import Rosalind
 import ServiceContextModule
+import TuistCLIServer
 import TuistLoader
 import TuistServer
 import TuistSupport

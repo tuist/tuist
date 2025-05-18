@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIURLSession
 import Path
 import Rosalind
-import TuistSupport
+import TuistServer
 
 @Mockable
 public protocol CreateBundleServicing {

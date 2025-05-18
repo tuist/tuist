@@ -2,10 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 
-@testable import TuistServer
+@testable import TuistCLIServer
 
 struct PreviewsUploadServiceTests {
     private var subject: PreviewsUploadService!

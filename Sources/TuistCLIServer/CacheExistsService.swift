@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistCore
-import TuistSupport
+import TuistServer
 
 @Mockable
 public protocol CacheExistsServicing {
@@ -14,22 +14,13 @@ public protocol CacheExistsServicing {
     ) async throws -> Bool
 }
 
-public enum CacheExistsServiceError: FatalError, Equatable {
+public enum CacheExistsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case paymentRequired(String)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .paymentRequired, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
@@ -75,7 +66,7 @@ public final class CacheExistsService: CacheExistsServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CacheExistsServiceError.unauthorized(error.message)
             }
         }
     }

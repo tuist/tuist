@@ -1,7 +1,9 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TuistSupport
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
 /// This middleware includes the release date of the CLI in the headers so that we can show
 /// warnings if the on-premise installation is too old.
@@ -22,7 +24,9 @@ struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
         else { return try await next(request, body, baseURL) }
 
         request.headerFields.append(.init(name: cliReleaseDateName, value: releaseDate))
-        request.headerFields.append(.init(name: cliVersionName, value: Constants.version))
+        #if canImport(TuistSupport)
+            request.headerFields.append(.init(name: cliVersionName, value: Constants.version))
+        #endif
         return try await next(request, body, baseURL)
     }
 }
