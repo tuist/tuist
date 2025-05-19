@@ -702,6 +702,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
             .release("CustomRelease"): nil,
+            .release("AnotherRelease"): nil,
         ])
         let project = Project.test(settings: settings)
 
@@ -713,7 +714,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(result.defaultConfigurationName, "CustomRelease")
+        XCTAssertEqual(result.defaultConfigurationName, "AnotherRelease")
     }
 
     func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
@@ -735,12 +736,37 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result.defaultConfigurationName, "AnotherDebug")
     }
 
+    func test_generateProjectConfig_defaultConfigurationName_whenDefaultConfigurationNameIsProvided() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("CustomDebug"): nil,
+                .debug("AnotherDebug"): nil,
+                .release("CustomRelease"): nil,
+                .release("AnotherRelease"): nil,
+            ],
+            defaultConfiguration: "CustomDebug"
+        )
+        let project = Project.test(settings: settings)
+
+        // When
+        let result = try await subject.generateProjectConfig(
+            project: project,
+            pbxproj: pbxproj,
+            fileElements: ProjectFileElements()
+        )
+
+        // Then
+        XCTAssertEqual(result.defaultConfigurationName, "CustomDebug")
+    }
+
     func test_generateTargetConfig_defaultConfigurationName() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
             .release("CustomRelease"): nil,
+            .release("AnotherRelease"): nil,
         ])
         let project = Project.test()
         let target = Target.test()
@@ -761,7 +787,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         // Then
         let result = pbxTarget.buildConfigurationList
-        XCTAssertEqual(result?.defaultConfigurationName, "CustomRelease")
+        XCTAssertEqual(result?.defaultConfigurationName, "AnotherRelease")
     }
 
     func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
@@ -790,6 +816,39 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Then
         let result = pbxTarget.buildConfigurationList
         XCTAssertEqual(result?.defaultConfigurationName, "AnotherDebug")
+    }
+
+    func test_generateTargetConfig_defaultConfigurationName_whenDefaultConfigurationNameIsProvided() async throws {
+        // Given
+        let projectSettings = Settings(
+            configurations: [
+                .debug("CustomDebug"): nil,
+                .debug("AnotherDebug"): nil,
+                .release("CustomRelease"): nil,
+                .release("AnotherRelease"): nil,
+            ],
+            defaultConfiguration: "CustomDebug"
+        )
+        let project = Project.test()
+        let target = Target.test()
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+        XCTAssertEqual(result?.defaultConfigurationName, "CustomDebug")
     }
 
     func test_generateTargetConfigWithDuplicateValues() async throws {
