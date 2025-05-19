@@ -21,7 +21,7 @@ final class GitControllerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.succeedCommand(["git", "-C \(path.pathString)", "clone \(url)"])
+        system.succeedCommand(["git", "-C", "\(path.pathString)", "clone", "\(url)"])
 
         XCTAssertNoThrow(try subject.clone(url: url, into: path))
         XCTAssertTrue(system.called(["git", "-C", path.pathString, "clone", url]))
@@ -30,7 +30,7 @@ final class GitControllerTests: TuistUnitTestCase {
     func test_cloneTo() throws {
         let url = "https://some/url/to/repo.git"
 
-        system.succeedCommand(["git", "clone \(url)"])
+        system.succeedCommand(["git", "clone", "\(url)"])
 
         XCTAssertNoThrow(try subject.clone(url: url))
         XCTAssertTrue(system.called(["git", "clone", url]))
@@ -40,7 +40,7 @@ final class GitControllerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.succeedCommand(["git", "clone \(url)", path.pathString])
+        system.succeedCommand(["git", "clone", "\(url)", path.pathString])
 
         XCTAssertNoThrow(try subject.clone(url: url, to: path))
         XCTAssertTrue(system.called(["git", "clone", url, path.pathString]))
@@ -49,7 +49,7 @@ final class GitControllerTests: TuistUnitTestCase {
     func test_checkout() throws {
         let id = "main"
 
-        system.succeedCommand(["git", "checkout \(id)"])
+        system.succeedCommand(["git", "checkout", "\(id)"])
 
         XCTAssertNoThrow(try subject.checkout(id: id, in: nil))
     }
