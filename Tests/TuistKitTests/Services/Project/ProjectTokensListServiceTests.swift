@@ -48,6 +48,9 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
     func test_list_project_tokens() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
+            let projectTokenOneInsertedAt = Date(timeIntervalSince1970: 0)
+            let projectTokenTwoInsertedAt = Date(timeIntervalSince1970: 10)
+
             given(listProjectTokensService)
                 .listProjectTokens(
                     fullHandle: .value("tuist-org/tuist"),
@@ -57,11 +60,11 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
                     [
                         .test(
                             id: "project-token-one",
-                            insertedAt: Date(timeIntervalSince1970: 0)
+                            insertedAt: projectTokenOneInsertedAt
                         ),
                         .test(
                             id: "project-token-two",
-                            insertedAt: Date(timeIntervalSince1970: 10)
+                            insertedAt: projectTokenTwoInsertedAt
                         ),
                     ]
                 )
@@ -70,12 +73,21 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
             try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
             // Then
+            let formatter = DateFormatter()
+            formatter.timeZone = TimeZone.gmt
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+            let formattedDateForProjectTokenOne = formatter.string(from: projectTokenOneInsertedAt)
+            let formattedDateForProjectTokenTwo = formatter.string(from: projectTokenTwoInsertedAt)
+            let divider = String(repeating: "─", count: formattedDateForProjectTokenOne.count)
+            let createdAtHeading = "Created at"
+            let trailingSpace = String(repeating: " ", count: formattedDateForProjectTokenOne.count - createdAtHeading.count)
+
             XCTAssertStandardOutput(
                 pattern: """
-                ID                 Created at               
-                ─────────────────  ─────────────────────────
-                project-token-one  1970-01-01 00:00:00 +0000
-                project-token-two  1970-01-01 00:00:10 +0000
+                ID                 \(createdAtHeading)\(trailingSpace)
+                ─────────────────  \(divider)
+                project-token-one  \(formattedDateForProjectTokenOne)
+                project-token-two  \(formattedDateForProjectTokenTwo)
                 """
             )
         }
