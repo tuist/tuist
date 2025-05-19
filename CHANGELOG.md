@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.50.2 - 2025-05-19
+
+### CLI
+
+#### Changed
+
+- Send git reference when inspecting bundle [#7580](https://github.com/tuist/tuist/pull/7580) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Support .apinotes files [#7572](https://github.com/tuist/tuist/pull/7572) by [@rw-garmin](https://github.com/rw-garmin)
+
+#### Fixed
+
+- Fix missing bundle git metadata [#7578](https://github.com/tuist/tuist/pull/7578) by [@fortmarek](https://github.com/fortmarek)
+- Reorder enable directives so SwiftFormat runs before SwiftLint [#7583](https://github.com/tuist/tuist/pull/7583) by [@rakuyoMo](https://github.com/rakuyoMo)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.50.1 - 2025-05-15
 
 ### CLI
