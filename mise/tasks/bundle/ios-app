@@ -17,6 +17,7 @@ if [ "${CI:-}" = "true" ]; then
 fi
 
 echo $BASE_64_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
+mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
 echo $BASE_64_PROVISIONING_PROFILE | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
 
 EXPORT_OPTIONS_PLIST_PATH=$TMP_DIR/ExportOptions.plist
