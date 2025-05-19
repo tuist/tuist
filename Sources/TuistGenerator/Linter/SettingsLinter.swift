@@ -100,7 +100,7 @@ final class SettingsLinter: SettingsLinting {
                 LintingIssue(
                     reason: "We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
                     severity: .error
-                )
+                ),
             ]
         }
 

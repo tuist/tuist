@@ -132,7 +132,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
                 .debug("Debug Development"): Configuration(),
                 .release("Release Development"): Configuration(),
                 .debug("Debug Production"): Configuration(),
-                .release("Release Production"): Configuration()
+                .release("Release Production"): Configuration(),
             ],
             defaultConfiguration: "Debug Development"
         )
@@ -152,7 +152,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
                 .debug("Debug Development"): Configuration(),
                 .release("Release Development"): Configuration(),
                 .debug("Debug Production"): Configuration(),
-                .release("Release Production"): Configuration()
+                .release("Release Production"): Configuration(),
             ],
             defaultConfiguration: "Wrong Config Name"
         )
@@ -178,7 +178,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
                 .debug("Debug Development"): Configuration(),
                 .release("Release Development"): Configuration(),
                 .debug("Debug Production"): Configuration(),
-                .release("Release Production"): Configuration()
+                .release("Release Production"): Configuration(),
             ],
             defaultConfiguration: "Debug Development"
         )
@@ -198,7 +198,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
                 .debug("Debug Development"): Configuration(),
                 .release("Release Development"): Configuration(),
                 .debug("Debug Production"): Configuration(),
-                .release("Release Production"): Configuration()
+                .release("Release Production"): Configuration(),
             ],
             defaultConfiguration: "Wrong Config Name"
         )
