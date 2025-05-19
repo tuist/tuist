@@ -126,6 +126,7 @@ public struct Settings: Equatable, Codable, Sendable {
     ///   - debug: The debug configuration settings.
     ///   - release: The release configuration settings.
     ///   - defaultSettings: An enum specifying the set of default settings.
+    ///   - defaultConfiguration: The default configuration to be used when building the project from command-line.
     ///
     /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the
     /// alternate static method
@@ -157,6 +158,7 @@ public struct Settings: Equatable, Codable, Sendable {
     ///   - base: A dictionary with build settings that are inherited from all the configurations.
     ///   - configurations: A list of configurations.
     ///   - defaultSettings: An enum specifying the set of default settings.
+    ///   - defaultConfiguration: The default configuration to be used when building the project from command-line.
     ///
     /// - Note: Configurations shouldn't be empty, please use the alternate static method
     ///         `.settings(base:debug:release:defaultSettings:)` to leverage the default configurations
