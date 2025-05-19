@@ -125,8 +125,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No fonts found
     {% endif %}
-    // swiftlint:enable all
     // swiftformat:enable all
+    // swiftlint:enable all
 
     """
 }
