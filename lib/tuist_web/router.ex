@@ -485,6 +485,7 @@ defmodule TuistWeb.Router do
     ]
 
     live_session :preview_detail,
+      layout: {TuistWeb.Layouts, :project},
       on_mount: [
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.LayoutLive, :optional_project}
