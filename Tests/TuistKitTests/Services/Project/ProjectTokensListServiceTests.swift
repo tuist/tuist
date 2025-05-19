@@ -73,21 +73,18 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
             try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
             // Then
-            let formatter = DateFormatter()
-            formatter.timeZone = TimeZone.gmt
-            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
-            let formattedDateForProjectTokenOne = formatter.string(from: projectTokenOneInsertedAt)
-            let formattedDateForProjectTokenTwo = formatter.string(from: projectTokenTwoInsertedAt)
-            let divider = String(repeating: "─", count: formattedDateForProjectTokenOne.count)
+            let projectTokenOneInsertedAtAsText = "\(projectTokenOneInsertedAt)"
+            let projectTokenTwoInsertedAtAsText = "\(projectTokenTwoInsertedAt)"
+            let divider = String(repeating: "─", count: projectTokenOneInsertedAtAsText.count)
             let createdAtHeading = "Created at"
-            let trailingSpace = String(repeating: " ", count: formattedDateForProjectTokenOne.count - createdAtHeading.count)
+            let trailingSpace = String(repeating: " ", count: projectTokenOneInsertedAtAsText.count - createdAtHeading.count)
 
             XCTAssertStandardOutput(
                 pattern: """
                 ID                 \(createdAtHeading)\(trailingSpace)
                 ─────────────────  \(divider)
-                project-token-one  \(formattedDateForProjectTokenOne)
-                project-token-two  \(formattedDateForProjectTokenTwo)
+                project-token-one  \(projectTokenOneInsertedAtAsText)
+                project-token-two  \(projectTokenTwoInsertedAtAsText)
                 """
             )
         }
