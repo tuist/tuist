@@ -4,10 +4,4 @@
 set -euo pipefail
 
 pnpm install -C $MISE_PROJECT_ROOT/docs/
-swift package --package-path $MISE_PROJECT_ROOT resolve
-swift package --package-path $MISE_PROJECT_ROOT/app resolve
-
-if [ "${CI:-}" = "true" ]; then
-    # Mise doesn't have a way to make secrets optional, so we copy it to the file that does get loaded as part of mise install
-    cp .optional.env.json .env.json
-fi
+tuist install --path $MISE_PROJECT_ROOT
