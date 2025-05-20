@@ -3,6 +3,8 @@ import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
+import ServiceContextModule
 
 enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
@@ -34,17 +36,17 @@ public protocol XCFrameworkLoading {
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
     /// xcframework metadata provider.
-    fileprivate let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
+    fileprivate let xcframeworkMetadataProvider: () -> XCFrameworkMetadataProviding
     private let fileSystem: FileSysteming
 
     public convenience init() {
-        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider())
+        self.init(xcframeworkMetadataProvider: { XCFrameworkMetadataProvider(logger: ServiceContext.current?.logger) })
     }
 
     /// Initializes the loader with its attributes.
     /// - Parameter xcframeworkMetadataProvider: xcframework metadata provider.
     init(
-        xcframeworkMetadataProvider: XCFrameworkMetadataProviding,
+        xcframeworkMetadataProvider: @escaping () -> XCFrameworkMetadataProviding,
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
@@ -59,7 +61,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         guard try await fileSystem.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }
-        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider().loadMetadata(
             at: path,
             expectedSignature: expectedSignature,
             status: status

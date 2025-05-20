@@ -1,5 +1,8 @@
 import Path
 import XcodeGraph
+import XcodeMetadata
+import ServiceContextModule
+import TuistSupport
 
 // MARK: - GraphLoading
 
@@ -11,14 +14,15 @@ public protocol GraphLoading {
 public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
-    private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
+    private let xcframeworkMetadataProvider: () -> XCFrameworkMetadataProviding
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
 
     public convenience init() {
+        let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: ServiceContext.current?.logger)
         self.init(
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
-            xcframeworkMetadataProvider: XCFrameworkMetadataProvider(),
+            xcframeworkMetadataProvider: { xcframeworkMetadataProvider  },
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
     }
@@ -26,7 +30,7 @@ public final class GraphLoader: GraphLoading {
     public init(
         frameworkMetadataProvider: FrameworkMetadataProviding,
         libraryMetadataProvider: LibraryMetadataProviding,
-        xcframeworkMetadataProvider: XCFrameworkMetadataProviding,
+        xcframeworkMetadataProvider: @escaping () -> XCFrameworkMetadataProviding,
         systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
     ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
@@ -259,7 +263,7 @@ public final class GraphLoader: GraphLoading {
             return loaded
         }
 
-        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider().loadMetadata(
             at: path,
             expectedSignature: expectedSignature,
             status: status
