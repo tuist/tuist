@@ -48,9 +48,6 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
     func test_list_project_tokens() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
-            let projectTokenOneInsertedAt = Date(timeIntervalSince1970: 0)
-            let projectTokenTwoInsertedAt = Date(timeIntervalSince1970: 10)
-
             given(listProjectTokensService)
                 .listProjectTokens(
                     fullHandle: .value("tuist-org/tuist"),
@@ -60,11 +57,11 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
                     [
                         .test(
                             id: "project-token-one",
-                            insertedAt: projectTokenOneInsertedAt
+                            insertedAt: Date(timeIntervalSince1970: 0)
                         ),
                         .test(
                             id: "project-token-two",
-                            insertedAt: projectTokenTwoInsertedAt
+                            insertedAt: Date(timeIntervalSince1970: 10)
                         ),
                     ]
                 )
@@ -73,19 +70,13 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
             try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
             // Then
-            let projectTokenOneInsertedAtAsText = "\(projectTokenOneInsertedAt)"
-            let projectTokenTwoInsertedAtAsText = "\(projectTokenTwoInsertedAt)"
-            let divider = String(repeating: "─", count: projectTokenOneInsertedAtAsText.count)
-            let createdAtHeading = "Created at"
-            let trailingSpace = String(repeating: " ", count: projectTokenOneInsertedAtAsText.count - createdAtHeading.count)
-
             XCTAssertStandardOutput(
                 pattern: """
-                ID                 \(createdAtHeading)\(trailingSpace)
-                ─────────────────  \(divider)
-                project-token-one  \(projectTokenOneInsertedAtAsText)
-                project-token-two  \(projectTokenTwoInsertedAtAsText)
-                """
+                         ID                 Created at               
+                         ─────────────────  ─────────────────────────
+                         project-token-one  1970-01-01 00:00:00 +0000
+                         project-token-two  1970-01-01 00:00:10 +0000
+                         """
             )
         }
     }
