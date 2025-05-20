@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import SnapshotTesting
 import Testing
 import TuistCache
@@ -56,7 +55,7 @@ struct HashSelectiveTestingCommandServiceTests {
     }
 
     @Test func run_outputsTheHashes_when_generatedProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -86,12 +85,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try ServiceContext.expectLogs("Target - hash")
+            try expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_generatedProject_and_noHashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -125,7 +124,7 @@ struct HashSelectiveTestingCommandServiceTests {
     }
 
     @Test func run_outputsTheHashes_when_xcodeProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -149,12 +148,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try ServiceContext.expectLogs("Target - hash")
+            try expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_xcodeProject_and_noHashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]

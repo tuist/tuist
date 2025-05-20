@@ -1,5 +1,4 @@
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -27,12 +26,12 @@ final class InspectRedundantImportsService {
         let graph = try await generator.load(path: path)
         let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .redundant)
         if !issues.isEmpty {
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 "The following redundant dependencies were found:"
             )
             try issues.printAndThrowErrorsIfNeeded()
         }
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .info,
             "We did not find any redundant dependencies in your project."
         )

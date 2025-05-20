@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -224,13 +223,13 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
         }
         if retryCount > 0 {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning(
                     "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )

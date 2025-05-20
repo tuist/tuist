@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistHasher
@@ -88,7 +87,7 @@ final class HashSelectiveTestingCommandService {
             AlertController.current.warning(.alert("The project contains no hasheable targets for selective testing."))
         } else {
             for (target, hash) in sortedHashes {
-                ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+                Logger.current.info("\(target.target.name) - \(hash)")
             }
         }
     }

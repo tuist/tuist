@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import ServiceContextModule
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.

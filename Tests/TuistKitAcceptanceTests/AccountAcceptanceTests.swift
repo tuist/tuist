@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistServer
 import TuistSupport

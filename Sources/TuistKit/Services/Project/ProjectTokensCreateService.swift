@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -53,6 +52,6 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info(.init(stringLiteral: token))
+        Logger.current.info(.init(stringLiteral: token))
     }
 }

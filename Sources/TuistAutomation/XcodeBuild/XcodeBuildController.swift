@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import ServiceContextModule
 import Command
 import XcodeGraph
 
@@ -317,8 +316,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     public func run(arguments: [String]) async throws {
-        let logger = ServiceContext.current?.logger
-        
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if Environment.current.isVerbose == true {
@@ -332,16 +329,16 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    logger?.error("\(line)")
+                    Logger.current.error("\(line)")
                 } else {
-                    logger?.info("\(line)")
+                    Logger.current.info("\(line)")
                 }
             }
         }
         
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
-        logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        Logger.current.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,

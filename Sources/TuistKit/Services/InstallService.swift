@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -55,7 +54,7 @@ final class InstallService {
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws {
-        ServiceContext.current?.logger?.notice("Resolving and fetching plugins.", metadata: .section)
+        Logger.current.notice("Resolving and fetching plugins.", metadata: .section)
 
         let config = try await configLoader.loadConfig(path: path)
         if let generatedProjectOptions = config.project.generatedProject {
@@ -74,7 +73,7 @@ final class InstallService {
         let config = try await configLoader.loadConfig(path: path)
 
         if update {
-            ServiceContext.current?.logger?.notice("Updating dependencies.", metadata: .section)
+            Logger.current.notice("Updating dependencies.", metadata: .section)
 
             if let generatedProjectOptions = config.project.generatedProject {
                 try swiftPackageManagerController.update(
@@ -84,7 +83,7 @@ final class InstallService {
                 )
             }
         } else {
-            ServiceContext.current?.logger?.notice("Resolving and fetching dependencies.", metadata: .section)
+            Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
 
             try swiftPackageManagerController.resolve(
                 at: packageManifestPath.parentDirectory,

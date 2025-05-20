@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistSupport
 
 /// Type of device code used for authentication.

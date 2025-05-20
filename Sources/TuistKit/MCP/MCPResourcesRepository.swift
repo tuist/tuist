@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import MCP
 import Path
-import ServiceContextModule
 import SwiftyJSON
 import TuistCore
 import TuistGenerator

@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 
 public struct RecentPathMetadata: Hashable, Equatable, Codable {
     let lastUpdated: Date

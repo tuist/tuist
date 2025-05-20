@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import MCP
 import Mockable
-import ServiceContextModule
 import SwiftyJSON
 import Testing
 import TuistCore
@@ -53,7 +52,7 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func listTemplates() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // When
             let got = try await subject.listTemplates()
 

@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
-import ServiceContextModule
 import TuistSupport
 import XcodeProj
 
@@ -58,7 +57,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
-            ServiceContext.current?.logger?.notice("The list of configurations is empty. Exiting...")
+            Logger.current.notice("The list of configurations is empty. Exiting...")
             return
         }
 

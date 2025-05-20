@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Noora
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -452,7 +451,7 @@ struct ShareCommandService {
 
         if json {
             let previewJSON = try preview.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(
                     stringLiteral: previewJSON.toString(prettyPrint: true)
                 ),

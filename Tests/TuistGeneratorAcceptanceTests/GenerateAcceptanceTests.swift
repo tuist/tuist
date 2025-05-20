@@ -1,5 +1,4 @@
 import Path
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting

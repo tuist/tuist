@@ -3,7 +3,6 @@ import Foundation
 import Noora
 import OpenAPIRuntime
 import Path
-import ServiceContextModule
 import TuistAnalytics
 import TuistCore
 import TuistLoader
@@ -125,7 +124,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     commandArguments: processedArguments
                 )
                 if command is NooraReadyCommand {
-                    try await ServiceContext.current?.withLoggerForNoora(logFilePath: logFilePath) {
+                    try await withLoggerForNoora(logFilePath: logFilePath) {
                         try await trackableCommand.run(
                             backend: backend
                         )

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Noora
-import ServiceContextModule
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport

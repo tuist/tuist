@@ -1,5 +1,5 @@
 import Foundation
-import ServiceContextModule
+import Logging
 
 public protocol CacheServicing {
     func run(
@@ -19,7 +19,7 @@ final class EmptyCacheService: CacheServicing {
         externalOnly _: Bool,
         generateOnly _: Bool
     ) async throws {
-        ServiceContext.current?.logger?
+        Logger.current
             .notice(
                 "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."
             )

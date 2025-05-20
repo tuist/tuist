@@ -2,7 +2,6 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader

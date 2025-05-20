@@ -1,7 +1,6 @@
 import Foundation
 import Logging
 import Noora
-import ServiceContextModule
 
 public struct StandardLogHandler: LogHandler {
     public var logLevel: Logger.Level

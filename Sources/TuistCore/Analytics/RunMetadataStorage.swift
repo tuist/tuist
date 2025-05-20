@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import XcodeGraph
 
 /// Storage for run metadata, such as binary cache.

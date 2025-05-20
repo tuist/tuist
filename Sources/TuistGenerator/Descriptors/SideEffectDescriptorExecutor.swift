@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -22,7 +21,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     public func execute(sideEffects: [SideEffectDescriptor]) async throws {
         for sideEffect in sideEffects {
-            ServiceContext.current?.logger?.debug("Side effect: \(sideEffect)")
+            Logger.current.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
                 try perform(command: commandDescriptor)

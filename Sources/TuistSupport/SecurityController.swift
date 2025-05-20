@@ -1,6 +1,5 @@
 import Command
 import Mockable
-import ServiceContextModule
 
 @Mockable
 public protocol SecurityControlling {

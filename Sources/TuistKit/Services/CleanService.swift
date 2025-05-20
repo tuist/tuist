@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -128,7 +127,7 @@ final class CleanService {
                 AlertController.current
                     .success(.alert("Successfully cleaned artifacts at path \(directory.pathString)"))
             } else {
-                ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
+                Logger.current.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
         }
 
@@ -141,7 +140,7 @@ final class CleanService {
                 fullHandle: fullHandle
             )
 
-            ServiceContext.current?.logger?.notice("Successfully cleaned the remote storage.")
+            Logger.current.notice("Successfully cleaned the remote storage.")
         }
     }
 }

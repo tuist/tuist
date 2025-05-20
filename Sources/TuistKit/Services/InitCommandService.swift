@@ -3,7 +3,6 @@ import FileSystem
 import Foundation
 import Noora
 import Path
-import ServiceContextModule
 import TuistServer
 import TuistSupport
 

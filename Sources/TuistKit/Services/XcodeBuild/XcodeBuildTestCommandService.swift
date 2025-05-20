@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCache
 import TuistCore
@@ -134,7 +133,7 @@ struct XcodeBuildTestCommandService {
             .filter({ testableTarget in !skipTestTargets.contains(where: { $0.target == testableTarget.target.name }) })
             .isEmpty
         {
-            ServiceContext.current?.logger?.info("There are no tests to run, exiting early...")
+            Logger.current.info("There are no tests to run, exiting early...")
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
                 selectiveTestingHashes: selectiveTestingHashes,
@@ -144,7 +143,7 @@ struct XcodeBuildTestCommandService {
         }
 
         if !skipTestTargets.isEmpty {
-            ServiceContext.current?.logger?
+            Logger.current
                 .info(
                     "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).sorted().joined(separator: ", "))"
                 )

@@ -1,5 +1,5 @@
 import Foundation
-import ServiceContextModule
+import Logging
 
 public protocol RetryProviding {
     func runWithRetries<T>(
@@ -25,7 +25,7 @@ public struct RetryProvider: RetryProviding {
                 do {
                     return try await operation()
                 } catch {
-                    ServiceContext.current?.logger?.debug("""
+                    Logger.current.debug("""
                     The following error happened for retry \(retry): \(error.localizedDescription).
                     Retrying...
                     """)

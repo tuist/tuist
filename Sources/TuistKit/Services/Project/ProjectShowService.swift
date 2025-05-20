@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -75,7 +74,7 @@ struct ProjectShowService {
             projectInfo.append("Default branch: \(project.defaultBranch)")
             projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
-            ServiceContext.current?.logger?.info("\(projectInfo.joined(separator: "\n"))")
+            Logger.current.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

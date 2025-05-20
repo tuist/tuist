@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import SnapshotTesting
 import TuistAcceptanceTesting
 import TuistCore
@@ -11,7 +10,7 @@ import XCTest
 
 final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             try await setUpFixture(.iosAppWithFrameworks)
 
             // When: Build
@@ -37,7 +36,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     }
 
     func test_share_ios_app_with_appclip() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             try await setUpFixture(.iosAppWithAppClip)
 
             // When: Build
@@ -80,7 +79,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     }
 
     func test_share_xcode_app() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             try await setUpFixture(.xcodeApp)
             try System.shared.runAndPrint(
                 [
@@ -115,7 +114,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     }
 
     func test_share_xcode_app_files() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             try await setUpFixture(.xcodeApp)
             let buildDirectory = fixturePath.appending(component: "Build")
             try System.shared.runAndPrint(

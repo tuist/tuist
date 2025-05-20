@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import struct TSCUtility.Version
 import TuistCore

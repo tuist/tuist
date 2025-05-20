@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistSupport
 import TuistSupportTesting
 import XCTest

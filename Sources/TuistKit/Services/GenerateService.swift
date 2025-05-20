@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistGenerator
@@ -62,7 +61,7 @@ final class GenerateService {
             try await opener.open(path: workspacePath)
         }
         AlertController.current.success(.alert("Project generated."))
-        ServiceContext.current?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        Logger.current.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

@@ -2,7 +2,6 @@ import Difference
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import XCTest
 
 @testable import TuistSupport

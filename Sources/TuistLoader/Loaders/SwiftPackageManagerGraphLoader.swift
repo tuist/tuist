@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport

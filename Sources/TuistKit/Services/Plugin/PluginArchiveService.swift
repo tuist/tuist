@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistDependencies
 import TuistLoader
 import TuistSupport
@@ -45,7 +44,7 @@ final class PluginArchiveService {
             .filter { $0.hasPrefix("tuist-") }
 
         if taskProducts.isEmpty {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
             return
         }
@@ -80,7 +79,7 @@ final class PluginArchiveService {
     ) async throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
-            ServiceContext.current?.logger?.notice("Building \(product)...")
+            Logger.current.notice("Building \(product)...")
             try await swiftPackageManagerController.buildFatReleaseBinary(
                 packagePath: path,
                 product: product,

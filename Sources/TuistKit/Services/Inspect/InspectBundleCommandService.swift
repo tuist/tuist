@@ -3,7 +3,6 @@ import Foundation
 import Noora
 import Path
 import Rosalind
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -63,7 +62,7 @@ struct InspectBundleCommandService {
         if json {
             let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
             let json = try appBundleReport.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(stringLiteral: json.toString(prettyPrint: true)),
                 metadata: .json
             )

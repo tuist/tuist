@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -142,7 +141,7 @@ extension LoginServicing {
         case .completed:
             AlertController.current.success(.alert("\(event.description)"))
         default:
-            ServiceContext.current?.logger?.notice("\(event.description)")
+            Logger.current.notice("\(event.description)")
         }
     }
 }

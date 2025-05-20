@@ -3,7 +3,6 @@ import Foundation
 import NIOFileSystem
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -149,7 +148,7 @@ public class CachedManifestLoader: ManifestLoading {
         )
 
         guard let hashes = calculatedHashes else {
-            ServiceContext.current?.logger?.warning("Unable to calculate manifest hash at path: \(path)")
+            Logger.current.warning("Unable to calculate manifest hash at path: \(path)")
             return try await loader()
         }
 
@@ -287,7 +286,7 @@ public class CachedManifestLoader: ManifestLoading {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
         } catch let error as NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
-                ServiceContext.current?.logger?.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
+                Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {
                 throw error
             }

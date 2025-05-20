@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -42,7 +41,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test()

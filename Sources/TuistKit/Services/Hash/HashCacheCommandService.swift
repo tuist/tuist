@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistHasher
@@ -106,7 +105,7 @@ final class HashCacheCommandService {
             AlertController.current.warning(.alert("The project contains no hasheable targets."))
         } else {
             for (target, hash) in sortedHashes {
-                ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+                Logger.current.info("\(target.target.name) - \(hash)")
             }
         }
     }

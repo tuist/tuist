@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -54,13 +53,13 @@ final class InspectImplicitImportsService {
         let graph = try await generator.load(path: path)
         let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .implicit)
         if !issues.isEmpty {
-            ServiceContext.current?.logger?.log(
+            Logger.current.log(
                 level: .info,
                 "The following implicit dependencies were found:"
             )
             try issues.printAndThrowErrorsIfNeeded()
         }
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .info,
             "We did not find any implicit dependencies in your project."
         )

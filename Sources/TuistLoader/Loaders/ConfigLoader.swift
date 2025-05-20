@@ -3,7 +3,6 @@ import Foundation
 import Mockable
 import Path
 import struct ProjectDescription.Config
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 
