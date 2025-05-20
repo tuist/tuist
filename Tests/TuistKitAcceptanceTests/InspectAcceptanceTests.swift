@@ -25,8 +25,6 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     }
 }
 
-import ServiceContextModule
-
 final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
     func test_xcode_project_with_inspect_build() async throws {
         try await ServiceContext.withTestingDependencies {
@@ -45,6 +43,27 @@ final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
               Uploaded a build to the server.
             """
             XCTAssertEqual(got, expectedOutput)
+        }
+    }
+}
+
+final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
+    func test_xcode_project_with_inspect_build() async throws {
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.xcodeProjectWithInspectBuild)
+            let arguments = [
+                "-scheme", "App",
+                "-destination", "generic/platform=iOS Simulator",
+                "-project", fixturePath.appending(component: "App.xcodeproj").pathString,
+                "-derivedDataPath", fixturePath.appending(component: "App").pathString,
+            ]
+            try await run(XcodeBuildBuildCommand.self, arguments)
+            try await run(
+                InspectBundleCommand.self,
+                fixturePath.appending(components: "App", "Build", "Products", "Debug-iphonesimulator", "App.app").pathString
+            )
+            let got = ServiceContext.current?.recordedUI()
+            XCTAssertTrue(got?.contains("✔︎ Bundle analyzed") == true)
         }
     }
 }

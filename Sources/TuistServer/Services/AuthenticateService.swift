@@ -12,24 +12,16 @@ public protocol AuthenticateServicing {
     ) async throws -> ServerAuthenticationTokens
 }
 
-enum AuthenticateServiceError: FatalError {
+enum AuthenticateServiceError: LocalizedError {
     case unknownError(Int)
     case unauthorized(String)
+    case tooManyRequests(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We failed to authenticate you due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message):
+        case let .unauthorized(message), let .tooManyRequests(message):
             return message
         }
     }
@@ -71,6 +63,11 @@ public final class AuthenticateService: AuthenticateServicing {
             }
         case let .undocumented(statusCode: statusCode, _):
             throw AuthenticateServiceError.unknownError(statusCode)
+        case let .tooManyRequests(tooManyRequestsResponse):
+            switch tooManyRequestsResponse.body {
+            case let .json(error):
+                throw AuthenticateServiceError.tooManyRequests(error.message)
+            }
         }
     }
 }

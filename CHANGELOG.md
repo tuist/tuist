@@ -1,5 +1,87 @@
 # Changelog
 
+## 4.50.2 - 2025-05-19
+
+### CLI
+
+#### Changed
+
+- Send git reference when inspecting bundle [#7580](https://github.com/tuist/tuist/pull/7580) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Support .apinotes files [#7572](https://github.com/tuist/tuist/pull/7572) by [@rw-garmin](https://github.com/rw-garmin)
+
+#### Fixed
+
+- Fix missing bundle git metadata [#7578](https://github.com/tuist/tuist/pull/7578) by [@fortmarek](https://github.com/fortmarek)
+- Reorder enable directives so SwiftFormat runs before SwiftLint [#7583](https://github.com/tuist/tuist/pull/7583) by [@rakuyoMo](https://github.com/rakuyoMo)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.1 - 2025-05-15
+
+### CLI
+
+#### Fixed
+
+- Fix `--verbose` not working [#7573](https://github.com/tuist/tuist/pull/7573) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.0 - 2025-05-15
+
+### CLI
+
+#### Added
+
+- Add bundle analysis [#7436](https://github.com/tuist/tuist/pull/7436) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix implicit import detection when target points to absent files [#7558](https://github.com/tuist/tuist/pull/7558) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.49.1 - 2025-05-06
+
+### CLI
+
+#### Fixed
+
+- Fix compilation error in synthesised code when the feature "InternalImportsByDefault" is enabled [#7550](https://github.com/tuist/tuist/pull/7550) by [@chrisjrex](https://github.com/chrisjrex)
+- Fix wrong hash of external targets when their transitive dependencies change  [#7556](https://github.com/tuist/tuist/pull/7556) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.49.0 - 2025-05-05
+
+### CLI
+
+#### Changed
+
+- Include available organizations in tuist init [#7530](https://github.com/tuist/tuist/pull/7530) by [@vkondrashkov](https://github.com/vkondrashkov)
+
+#### Added
+
+- Embed and sign dynamic frameworks for bundle targets [#7465](https://github.com/tuist/tuist/pull/7465) by [@ianhlavats](https://github.com/ianhlavats)
+
+#### Fixed
+
+- Enable testing search paths for IssueReportingTestSupport [#7524](https://github.com/tuist/tuist/pull/7524) by [@fdzsergio](https://github.com/fdzsergio)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.48.2 - 2025-04-23
 
 ### CLI

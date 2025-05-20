@@ -79,8 +79,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No files found
     {% endif %}
-    // swiftlint:enable all
     // swiftformat:enable all
+    // swiftlint:enable all
 
     """
 }

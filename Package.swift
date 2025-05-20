@@ -91,6 +91,7 @@ let targets: [Target] = [
             .product(name: "XCResultKit", package: "XCResultKit"),
             .product(name: "MCP", package: "mcp-swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -348,6 +349,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
@@ -509,7 +511,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", exact: "0.4.2"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.3.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.4.0")),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.20.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.3.1")),
@@ -538,7 +540,7 @@ let package = Package(
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(url: "https://github.com/tuist/XCLogParser", .upToNextMajor(from: "0.2.41")),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.37.1")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.38.0")),
         .package(
             url: "https://github.com/frazer-rbsn/OrderedSet.git", .upToNextMajor(from: "2.0.0")
         ),
@@ -546,8 +548,14 @@ let package = Package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
             .upToNextMajor(from: "1.18.1")
         ),
-        .package(url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")),
+        .package(
+            url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")
+        ),
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
+        .package(
+            url: "https://github.com/tuist/Rosalind",
+            .upToNextMajor(from: "0.5.13")
+        ),
     ],
     targets: targets
 )

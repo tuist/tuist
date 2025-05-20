@@ -19,7 +19,7 @@ If you don’t have any experience with Swift, we recommend [Apple’s official 
 To contribute to Tuist, minimum requirements are:
 
 - macOS 14.0+
-- Xcode 16.0+
+- Xcode 16.3+
 
 ## Set up the project locally {#set-up-the-project-locally}
 

@@ -22,9 +22,12 @@ struct IgnoreOutputPipeline: StandardPipelining {
 
 extension ServiceContext {
     public static func tuist(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
+        try await setupEnv()
+
         var context = ServiceContext.topLevel
 
         let (logger, logFilePath) = try await setupLogger()
+        context.logger = logger
         context.ui = setupNoora()
         context.alerts = AlertController()
         context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
