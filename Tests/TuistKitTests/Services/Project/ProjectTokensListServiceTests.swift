@@ -72,11 +72,11 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
             // Then
             XCTAssertStandardOutput(
                 pattern: """
-                         ID                 Created at               
-                         ─────────────────  ─────────────────────────
-                         project-token-one  1970-01-01 00:00:00 +0000
-                         project-token-two  1970-01-01 00:00:10 +0000
-                         """
+                ID                 Created at               
+                ─────────────────  ─────────────────────────
+                project-token-one  1970-01-01 00:00:00 +0000
+                project-token-two  1970-01-01 00:00:10 +0000
+                """
             )
         }
     }
