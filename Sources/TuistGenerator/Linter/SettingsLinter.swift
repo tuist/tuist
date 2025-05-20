@@ -24,7 +24,11 @@ final class SettingsLinter: SettingsLinting {
     func lint(project: Project) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         try await issues.append(contentsOf: lintConfigFilesExist(settings: project.settings))
-        issues.append(contentsOf: lintValidDefaultConfigurationName(settings: project.settings))
+        issues.append(contentsOf: lintValidDefaultConfigurationName(
+            type: "project",
+            name: project.name,
+            settings: project.settings
+        ))
         issues.append(contentsOf: lintNonEmptyConfig(project: project))
         return issues
     }
@@ -33,7 +37,8 @@ final class SettingsLinter: SettingsLinting {
         var issues: [LintingIssue] = []
         if let settings = target.settings {
             try await issues.append(contentsOf: lintConfigFilesExist(settings: settings))
-            issues.append(contentsOf: lintValidDefaultConfigurationName(settings: settings))
+            issues.append(contentsOf: lintValidDefaultConfigurationName(type: "target", name: target.name, settings: settings))
+            issues.append(contentsOf: lintUnusedDefaultConfigurationName(targetName: target.name, settings: settings))
         }
 
         issues.append(contentsOf: lintDestinations(for: target.supportedPlatforms, and: target.deploymentTargets))
@@ -92,18 +97,29 @@ final class SettingsLinter: SettingsLinting {
         }
     }
 
-    private func lintValidDefaultConfigurationName(settings: Settings) -> [LintingIssue] {
+    private func lintValidDefaultConfigurationName(type: String, name: String, settings: Settings) -> [LintingIssue] {
         guard let defaultConfigurationName = settings.defaultConfiguration else { return [] }
 
         guard settings.configurations.keys.first(where: { config in config.name == defaultConfigurationName }) != nil else {
             return [
                 LintingIssue(
-                    reason: "We couldn't find the default configuration '\(defaultConfigurationName)'. The configurations available are: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                    reason: "The \(type) '\(name)' specifies a default configuration '\(defaultConfigurationName)', which is not included in its available configurations: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
                     severity: .error
                 ),
             ]
         }
 
         return []
+    }
+
+    private func lintUnusedDefaultConfigurationName(targetName: String, settings: Settings) -> [LintingIssue] {
+        guard let defaultConfigurationName = settings.defaultConfiguration else { return [] }
+
+        return [
+            LintingIssue(
+                reason: "The default configuration '\(defaultConfigurationName)' for target '\(targetName)' will be overridden by the project’s default configuration.",
+                severity: .warning
+            ),
+        ]
     }
 }
