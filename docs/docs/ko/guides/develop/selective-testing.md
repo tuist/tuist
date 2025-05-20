@@ -18,8 +18,8 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 > [!WARNING] 모듈 VS 파일 단위 세분화\
 > 테스트와 소스 코드 간의 의존성을 코드 내에서 파악할 수 없으므로 선택적 테스트의 세분화는 파일 단위에서만 가능합니다. 따라서 선택적 테스트의 이점을 극대화 하려면 파일을 작고 집중적으로 유지하길 권장합니다.
 
-> [!WARNING] TEST COVERAGE
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+> [!WARNING] 테스트 커버리지\
+> 테스트 커버리지 도구는 전체 테스트 스위트가 한 번에 실행된다는 전제를 기반으로 하기 때문에, 선택적 테스트 수행과는 호환되지 않습니다. 이는 커버리지 데이터가 실제 상황을 반영하지 않을 수 있다는 것을 의미합니다. 이것은 이미 알려진 문제이며, 잘못된 사용은 아닙니다. 커버리지가 유의미한 인사이트를 제공하는지 고민해 보길 바랍니다. 만약 그렇다면, 선택적 수행에서도 커버리지가 제대로 동작할 수 있도록 개선하는 방안을 이미 고민하고 있다는 점에서 안심해도 됩니다.
 
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
