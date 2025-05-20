@@ -21,10 +21,12 @@ defmodule TuistWeb.Previews.AppPreview do
     >
       <div data-part="card">
         <img
-          src={
-            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+          src={~p"/app/images/app-icon-placeholder.svg"}
+          data-image-src={
+            url(
+              ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+            )
           }
-          onerror={"this.src='#{url(~p"/app/images/app-icon-placeholder.svg")}';"}
           alt={
             gettext("%{app_name} icon",
               app_name: @preview.display_name
@@ -33,7 +35,6 @@ defmodule TuistWeb.Previews.AppPreview do
           data-part="icon"
           id={"tuist-app-preview-#{@preview.id}"}
           phx-hook="ImageFallback"
-          data-fallback-src={url(~p"/app/images/app-icon-placeholder.svg")}
         />
         <div data-part="metadata">
           <%= if assigns[:app_name] do %>

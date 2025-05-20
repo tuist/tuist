@@ -38,12 +38,18 @@
       </div>
       <img
         id="preview-header-icon"
-        src={
-          ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+          )
         }
         phx-hook="ImageFallback"
-        data-fallback-src={url(~p"/app/images/app-icon-placeholder.svg")}
-        alt={gettext("Preview icon")}
+        alt={
+          gettext("%{app_name} icon",
+            app_name: @preview.display_name
+          )
+        }
         data-part="icon"
       />
     </div>
