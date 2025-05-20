@@ -11,12 +11,12 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.Previews
   alias TuistWeb.Errors.NotFoundError
 
-  def mount(%{"id" => preview_id} = _params, _session, socket) do
+  def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     preview =
       get_current_preview(preview_id)
 
     layout =
-      if TuistWeb.Authentication.authenticated?(socket.assigns) do
+      if TuistWeb.Authentication.authenticated?(socket.assigns) or selected_project.visibility == :public do
         {TuistWeb.Layouts, :project}
       else
         false

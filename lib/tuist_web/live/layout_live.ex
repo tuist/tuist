@@ -15,8 +15,18 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
 
-  def on_mount(:optional_project, params, session, socket) do
-    if TuistWeb.Authentication.authenticated?(socket.assigns) do
+  def on_mount(
+        :optional_project,
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = params,
+        session,
+        socket
+      ) do
+    selected_project =
+      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
+
+    socket = assign(socket, :selected_project, selected_project)
+
+    if TuistWeb.Authentication.authenticated?(socket.assigns) or selected_project.visibility == :public do
       on_mount(:project, params, session, socket)
     else
       {:cont, socket}
@@ -39,7 +49,11 @@ defmodule TuistWeb.LayoutLive do
     })
 
     selected_project =
-      Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
+      Map.get(
+        socket.assigns,
+        :selected_project,
+        Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
+      )
 
     if is_nil(selected_project) do
       raise NotFoundError,

@@ -2321,7 +2321,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:118
+#: lib/tuist_web/live/layout_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -2363,12 +2363,12 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:46
+#: lib/tuist_web/live/layout_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:196
+#: lib/tuist_web/live/layout_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""

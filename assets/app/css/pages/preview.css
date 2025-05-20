@@ -5,6 +5,10 @@
   gap: var(--noora-spacing-6);
   margin: var(--noora-spacing-7) var(--noora-spacing-0);
 
+  &:not(.layout__main &) {
+    margin: var(--noora-spacing-7);
+  }
+
   & > [data-part="back-button"] {
     align-self: flex-start;
   }
