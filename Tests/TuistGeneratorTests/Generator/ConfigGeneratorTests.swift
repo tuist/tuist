@@ -552,7 +552,6 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2,6",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
             "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
