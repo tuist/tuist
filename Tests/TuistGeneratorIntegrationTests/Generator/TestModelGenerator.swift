@@ -4,6 +4,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoaderTesting
 import XcodeGraph
+import XcodeMetadata
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -34,7 +35,7 @@ final class TestModelGenerator {
         let graphLoader = GraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
             libraryMetadataProvider: MockLibraryMetadataProvider(),
-            xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider(),
+            xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding(),
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
 
