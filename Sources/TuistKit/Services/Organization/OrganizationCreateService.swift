@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -45,6 +44,6 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("Tuist organization \(organization.name) was successfully created 🎉")
+        Logger.current.info("Tuist organization \(organization.name) was successfully created 🎉")
     }
 }

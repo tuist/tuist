@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import SnapshotTesting
 import TuistAutomation
 import TuistCore
@@ -131,7 +130,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -151,7 +150,9 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 ]
             )
             let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
-            let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
+            let graphAppTargetTwo = GraphTarget(
+                path: projectPath, target: appTargetTwo, project: project
+            )
 
             given(manifestGraphLoader)
                 .load(path: .any)
@@ -253,7 +254,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -342,7 +343,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_app() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -360,7 +361,9 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     appTargetTwo,
                 ]
             )
-            let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
+            let graphAppTargetTwo = GraphTarget(
+                path: projectPath, target: appTargetTwo, project: project
+            )
 
             given(manifestGraphLoader)
                 .load(path: .any)
@@ -448,12 +451,12 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
     func test_share_tuist_project_with_a_specified_app_and_json_flag() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let projectPath = try temporaryPath()
             let appTarget: Target = .test(
@@ -542,7 +545,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_appclip() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -560,7 +563,9 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     appTarget,
                 ]
             )
-            let graphAppClipTarget = GraphTarget(path: projectPath, target: appClipTarget, project: project)
+            let graphAppClipTarget = GraphTarget(
+                path: projectPath, target: appClipTarget, project: project
+            )
 
             given(manifestGraphLoader)
                 .load(path: .any)
@@ -623,7 +628,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -734,7 +739,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_xcode_app() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -798,7 +803,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     updateProgress: .any
                 )
                 .called(1)
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -869,7 +874,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_app_bundles() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -933,12 +938,12 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
     func test_share_ipa() async throws {
-        try await ServiceContext.withTestingDependencies { @MainActor in
+        try await withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -1004,7 +1009,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
@@ -1062,7 +1067,9 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareCommandServiceError.multipleAppsSpecified([ipaPath.pathString, watchOSIpaPath.pathString])
+            ShareCommandServiceError.multipleAppsSpecified([
+                ipaPath.pathString, watchOSIpaPath.pathString,
+            ])
         )
     }
 }

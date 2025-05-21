@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -74,7 +73,9 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         XCTAssertNil(got)
     }
 
-    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing() async throws {
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing()
+        async throws
+    {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.token
@@ -91,13 +92,17 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(credentials)
 
         // When
-        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+        let got = try await subject.authenticationToken(
+            serverURL: URL(string: "https://tuist.dev")!
+        )
 
         // Then
         XCTAssertEqual(got?.value, credentials.token)
     }
 
-    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present() async throws {
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present()
+        async throws
+    {
         // Given
         environment.tuistVariables[
             Constants.EnvironmentVariables.token
@@ -111,14 +116,16 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .willReturn(credentials)
 
         // When
-        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+        let got = try await subject.authenticationToken(
+            serverURL: URL(string: "https://tuist.dev")!
+        )
 
         // Then
         XCTAssertEqual(got?.value, credentials.token)
     }
 
     func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             environment.tuistVariables[
                 Constants.EnvironmentVariables.deprecatedToken
@@ -136,13 +143,14 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
                 .project("project-token")
             )
             XCTAssertStandardOutput(
-                pattern: "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                pattern:
+                "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
             )
         }
     }
 
     func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             environment.tuistVariables[
                 Constants.EnvironmentVariables.deprecatedToken
@@ -169,7 +177,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
     }
 
     func test_when_credentials_store_returns_legacy_token() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(ciChecker)
                 .isCI()
@@ -177,7 +185,9 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
 
             given(credentialsStore)
                 .read(serverURL: .any)
-                .willReturn(ServerCredentials(token: "legacy-token", accessToken: nil, refreshToken: nil))
+                .willReturn(
+                    ServerCredentials(token: "legacy-token", accessToken: nil, refreshToken: nil)
+                )
 
             // When
             let got = try await subject.authenticationToken(serverURL: .test())
@@ -188,13 +198,14 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
                 .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
             )
             XCTAssertStandardOutput(
-                pattern: "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
+                pattern:
+                "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
             )
         }
     }
 
     func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(ciChecker)
                 .isCI()

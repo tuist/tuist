@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -74,7 +74,7 @@ struct RegistryLoginCommandService {
         guard let fullHandle = config.fullHandle else { throw RegistryLoginCommandServiceError.missingFullHandle }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        try await ServiceContext.current?.ui?.progressStep(
+        try await Noora.current.progressStep(
             message: "Logging into the registry...",
             successMessage: "Logged in to the \(accountHandle) registry",
             errorMessage: nil,

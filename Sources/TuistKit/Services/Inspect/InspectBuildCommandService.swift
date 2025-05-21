@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -129,11 +128,7 @@ struct InspectBuildCommandService {
             xcodeVersion: try await xcodeBuildController.version()?.description,
             status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
-        ServiceContext.current?.ui?.success(
-            .alert(
-                "Uploaded a build to the server."
-            )
-        )
+        AlertController.current.success(.alert("Uploaded a build to the server."))
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {

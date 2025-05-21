@@ -1,13 +1,13 @@
 import Foundation
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistCore
+import TuistSupportTesting
 import XCTest
 @testable import TuistKit
 
 final class LintAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_headers() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithHeaders)
             try await run(InspectImplicitImportsCommand.self)
             XCTAssertStandardOutput(pattern: "We did not find any implicit dependencies in your project.")
@@ -15,7 +15,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_implicit_dependencies() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithImplicitDependencies)
             await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
             XCTAssertStandardOutput(pattern: """
@@ -27,7 +27,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
 
 final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
     func test_xcode_project_with_inspect_build() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.xcodeProjectWithInspectBuild)
             let arguments = [
                 "-scheme", "App",
@@ -37,19 +37,17 @@ final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
             ]
             try await run(XcodeBuildBuildCommand.self, arguments)
             try await run(InspectBuildCommand.self)
-            let got = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
+            XCTAssertEqual(ui(), """
             ✔ Success
               Uploaded a build to the server.
-            """
-            XCTAssertEqual(got, expectedOutput)
+            """)
         }
     }
 }
 
 final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
     func test_xcode_project_with_inspect_build() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.xcodeProjectWithInspectBuild)
             let arguments = [
                 "-scheme", "App",
@@ -62,8 +60,7 @@ final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
                 InspectBundleCommand.self,
                 fixturePath.appending(components: "App", "Build", "Products", "Debug-iphonesimulator", "App.app").pathString
             )
-            let got = ServiceContext.current?.recordedUI()
-            XCTAssertTrue(got?.contains("✔︎ Bundle analyzed") == true)
+            XCTAssertTrue(ui().contains("✔︎ Bundle analyzed") == true)
         }
     }
 }

@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistKit
 
 final class OrganizationShowServiceTests: TuistUnitTestCase {
@@ -40,7 +40,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_show() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)
@@ -81,28 +81,30 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
-            Name: test-one
-            Plan: Air
+            XCTAssertPrinterOutputContains(
+                """
+                \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
+                Name: test-one
+                Plan: Air
 
-            \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
-            Remote cache hits: 210
+                \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
+                Remote cache hits: 210
 
-            \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
-            username  email              role
-            name-one  name-one@email.io  user
-            name-two  name-two@email.io  admin
+                \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
+                username  email              role
+                name-one  name-one@email.io  user
+                name-two  name-two@email.io  admin
 
-            \(TerminalStyle.bold.open)Invitations\(TerminalStyle.reset.open) (total number: 1)
-            inviter       invitee email
-            some-inviter  invitee@email.io
-            """)
+                \(TerminalStyle.bold.open)Invitations\(TerminalStyle.reset.open) (total number: 1)
+                inviter       invitee email
+                some-inviter  invitee@email.io
+                """
+            )
         }
     }
 
     func test_organization_show_when_has_google_as_sso_provider() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)
@@ -137,7 +139,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_show_when_has_okta_as_sso_provider() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)

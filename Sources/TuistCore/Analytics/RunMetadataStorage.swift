@@ -1,10 +1,11 @@
 import Foundation
 import Path
-import ServiceContextModule
 import XcodeGraph
 
 /// Storage for run metadata, such as binary cache.
 public actor RunMetadataStorage {
+    @TaskLocal public static var current: RunMetadataStorage = .init()
+
     public init() {}
 
     /// A unique ID associated with a specific run
@@ -37,19 +38,5 @@ public actor RunMetadataStorage {
     public private(set) var resultBundlePath: AbsolutePath?
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
-    }
-}
-
-private enum RunMetadataStorageContextKey: ServiceContextKey {
-    typealias Value = RunMetadataStorage
-}
-
-extension ServiceContext {
-    public var runMetadataStorage: RunMetadataStorage? {
-        get {
-            self[RunMetadataStorageContextKey.self]
-        } set {
-            self[RunMetadataStorageContextKey.self] = newValue
-        }
     }
 }

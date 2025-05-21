@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -25,22 +24,28 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
         let xcodeprojPath = try AbsolutePath(validating: "/invalid/path.xcodeproj")
 
         // Then
-        await XCTAssertThrowsSpecific(try await subject.check(
-            xcodeprojPath: xcodeprojPath,
-            targetName: nil
-        ), EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath))
+        await XCTAssertThrowsSpecific(
+            try await subject.check(
+                xcodeprojPath: xcodeprojPath,
+                targetName: nil
+            ), EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath)
+        )
     }
 
     func test_check_when_non_empty_target_build_settings() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
-            let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
+            let xcodeprojPath = fixturePath(
+                path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
+            )
 
             // Then
-            await XCTAssertThrowsSpecific(try await subject.check(
-                xcodeprojPath: xcodeprojPath,
-                targetName: "iOS"
-            ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
+            await XCTAssertThrowsSpecific(
+                try await subject.check(
+                    xcodeprojPath: xcodeprojPath,
+                    targetName: "iOS"
+                ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"])
+            )
             XCTAssertPrinterOutputContains(
                 "The build setting 'DYLIB_CURRENT_VERSION' of build configuration 'Debug' is not empty."
             )
@@ -48,15 +53,19 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
     }
 
     func test_check_when_non_empty_project_build_settings() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
-            let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
+            let xcodeprojPath = fixturePath(
+                path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
+            )
 
             // Then
-            await XCTAssertThrowsSpecific(try await subject.check(
-                xcodeprojPath: xcodeprojPath,
-                targetName: nil
-            ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
+            await XCTAssertThrowsSpecific(
+                try await subject.check(
+                    xcodeprojPath: xcodeprojPath,
+                    targetName: nil
+                ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"])
+            )
             XCTAssertPrinterOutputContains(
                 "The build setting 'GCC_WARN_UNUSED_VARIABLE' of build configuration 'Debug' is not empty."
             )

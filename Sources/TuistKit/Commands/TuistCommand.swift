@@ -3,7 +3,6 @@ import Foundation
 import Noora
 import OpenAPIRuntime
 import Path
-import ServiceContextModule
 import TuistAnalytics
 import TuistCore
 import TuistLoader
@@ -113,7 +112,7 @@ public struct TuistCommand: AsyncParsableCommand {
             let command = try parseAsRoot(processedArguments)
 
             if command is RecentPathRememberableCommand {
-                try await ServiceContext.current?.recentPaths?.remember(path: path)
+                try await RecentPathsStore.current.remember(path: path)
             }
 
             executeCommand = {
@@ -125,7 +124,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     commandArguments: processedArguments
                 )
                 if command is NooraReadyCommand {
-                    try await ServiceContext.current?.withLoggerForNoora(logFilePath: logFilePath) {
+                    try await withLoggerForNoora(logFilePath: logFilePath) {
                         try await trackableCommand.run(
                             backend: backend
                         )
@@ -209,13 +208,13 @@ public struct TuistCommand: AsyncParsableCommand {
         } else {
             nil
         }
-        let successAlerts = ServiceContext.current?.alerts?.success() ?? []
-        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
-        let takeaways = ServiceContext.current?.alerts?.takeaways() ?? []
+        let successAlerts = AlertController.current.success()
+        let warningAlerts = AlertController.current.warnings()
+        let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
             print("\n")
-            ServiceContext.current?.ui?.warning(warningAlerts)
+            Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
@@ -225,7 +224,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
+            Noora.current.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
             var successAlertNextSteps = successAlert.takeaways
             successAlertNextSteps.append(contentsOf: takeaways)
@@ -233,7 +232,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 successAlertNextSteps.append(logsNextStep)
             }
             print("\n")
-            ServiceContext.current?.ui?.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
+            Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
 

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -298,13 +297,18 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: temporaryPath.appending(try RelativePath(validating: "Documentation"))),
-        ])
+        XCTAssertEqual(
+            model.additionalFiles,
+            [
+                .folderReference(
+                    path: temporaryPath.appending(try RelativePath(validating: "Documentation"))
+                ),
+            ]
+        )
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath

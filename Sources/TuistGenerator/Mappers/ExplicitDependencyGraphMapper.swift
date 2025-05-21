@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -19,7 +18,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 environment
             )
         }
-        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
+        Logger.current.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
 
         let graphTraverser = GraphTraverser(graph: graph)
 

@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -111,7 +110,7 @@ public final class BuildService {
             )
         }
 
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
@@ -184,6 +183,6 @@ public final class BuildService {
             }
         }
 
-        ServiceContext.current?.alerts?.success(.alert("The project built successfully"))
+        AlertController.current.success(.alert("The project built successfully"))
     }
 }

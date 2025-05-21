@@ -3,7 +3,6 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -403,13 +402,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .test, .executable:
             switch packageType {
             case .external:
-                ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
+                Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             case .local:
                 break
             }
         default:
-            ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
+            Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
 
@@ -422,7 +421,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             productTypes: productTypes
         )
         else {
-            ServiceContext.current?.logger?.debug("Target \(target.name) ignored by product type")
+            Logger.current.debug("Target \(target.name) ignored by product type")
             return nil
         }
 

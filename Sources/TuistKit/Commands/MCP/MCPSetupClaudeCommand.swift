@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import ServiceContextModule
 import TuistSupport
 
 struct MCPSetupClaudeCommand: AsyncParsableCommand {

@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -85,7 +84,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
-        ServiceContext.current?.logger?.notice("Generating project \(project.name)")
+        Logger.current.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)

@@ -1,5 +1,4 @@
 import Mockable
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistLoaderTesting
@@ -37,7 +36,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_table_format() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
             let expectedOutput = """
@@ -66,7 +65,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_json_format() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
             let expectedOutput = """
@@ -101,7 +100,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_with_plugins() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
             let expectedOutput = """

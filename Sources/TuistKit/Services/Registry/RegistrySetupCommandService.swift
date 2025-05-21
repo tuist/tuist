@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -67,7 +67,7 @@ struct RegistrySetupCommandService {
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        try await ServiceContext.current?.ui?.progressStep(
+        try await Noora.current.progressStep(
             message: "Logging into the registry...",
             successMessage: "Logged in to the \(accountHandle) registry",
             errorMessage: nil,
@@ -116,7 +116,7 @@ struct RegistrySetupCommandService {
             at: configurationJSONPath
         )
 
-        ServiceContext.current?.alerts?.success(
+        AlertController.current.success(
             .alert(
                 "Generated the \(accountHandle) registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
                 takeaways: [

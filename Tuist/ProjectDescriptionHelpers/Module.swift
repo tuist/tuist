@@ -115,7 +115,6 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
-            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -478,7 +477,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                 ]
             case .projectAutomation:
-                []
+                [
+                ]
             case .kit:
                 [
                     .target(name: Module.support.targetName),
@@ -601,6 +601,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .server:
                 [
@@ -634,7 +635,8 @@ public enum Module: String, CaseIterable {
             }
         dependencies =
             dependencies + sharedDependencies + [
-                .target(name: targetName), .external(name: "Mockable"), .external(name: "SnapshotTesting"),
+                .target(name: targetName), .external(name: "Mockable"),
+                .external(name: "SnapshotTesting"),
             ]
         if let testingTargetName {
             dependencies.append(.target(name: testingTargetName))

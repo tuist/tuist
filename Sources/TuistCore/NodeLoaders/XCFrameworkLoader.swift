@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
@@ -31,7 +30,8 @@ public protocol XCFrameworkLoading {
     /// - Parameter path: Path to the .xcframework.
     /// - Parameter expectedSignature: expected signature if the xcframework is signed, `nil` otherwise.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus) async throws -> GraphDependency
+    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus)
+        async throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -40,7 +40,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
     private let fileSystem: FileSysteming
 
     public convenience init() {
-        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider(logger: ServiceContext.current?.logger))
+        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider(logger: Logger.current))
     }
 
     /// Initializes the loader with its attributes.

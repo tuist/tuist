@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -30,14 +29,14 @@ final class RegistryLogoutService {
         let path = try await self.path(path)
         let config = try await configLoader.loadConfig(path: path)
 
-        ServiceContext.current?.logger?.info("Logging out of the registry...")
+        Logger.current.info("Logging out of the registry...")
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await swiftPackageManagerController.packageRegistryLogout(
             registryURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("Successfully logged out of the registry.")
+        Logger.current.info("Successfully logged out of the registry.")
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {

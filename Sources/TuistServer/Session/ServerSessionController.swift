@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistSupport
 
 /// Type of device code used for authentication.
@@ -163,7 +162,7 @@ public final class ServerSessionController: ServerSessionControlling {
 
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
-        ServiceContext.current?.alerts?.success(.alert("Successfully logged out."))
+        AlertController.current.success(.alert("Successfully logged out."))
     }
 
     private func getAuthTokens(

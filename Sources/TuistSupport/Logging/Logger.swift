@@ -2,23 +2,11 @@ import FileLogging
 @_exported import Logging
 import LoggingOSLog
 import Path
-import ServiceContextModule
 
 import class Foundation.ProcessInfo
 
-private enum LoggerServiceContextKey: ServiceContextKey {
-    typealias Value = Logger
-}
-
-extension ServiceContext {
-    public var logger: Logger? {
-        get {
-            self[LoggerServiceContextKey.self]
-        }
-        set {
-            self[LoggerServiceContextKey.self] = newValue
-        }
-    }
+extension Logger {
+    @TaskLocal public static var current: Logger = .init(label: "dev.tuist.logger")
 }
 
 public struct LoggingConfig {

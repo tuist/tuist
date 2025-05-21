@@ -1,5 +1,4 @@
 import Command
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -55,7 +54,7 @@ final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.appWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -71,7 +70,7 @@ final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceT
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -117,7 +116,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithSpmDependencies)
             try await run(InstallCommand.self)
             let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
@@ -125,15 +124,15 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDepen
             try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
             try await run(GenerateCommand.self)
             XCTAssertEqual(
-                ServiceContext.current?.recordedUI()
+                ui()
                     .contains("We detected outdated dependencies"), true
             )
-            ServiceContext.current?.resetRecordedUI()
+            resetUI()
 
             try await run(InstallCommand.self)
             try await run(GenerateCommand.self)
             XCTAssertEqual(
-                ServiceContext.current?.recordedUI()
+                ui()
                     .contains("We detected outdated dependencies"), false
             )
         }
@@ -178,7 +177,7 @@ final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase
 
 final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.packageWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -205,7 +204,7 @@ final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcc
 
 final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_xcode_project_with_registry_and_alamofire() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)

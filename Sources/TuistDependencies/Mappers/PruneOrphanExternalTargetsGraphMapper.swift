@@ -1,5 +1,5 @@
 import Foundation
-import ServiceContextModule
+import Logging
 import TuistCore
 import XcodeGraph
 
@@ -15,7 +15,7 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
         graph: XcodeGraph.Graph,
         environment: MapperEnvironment
     ) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.current?.logger?
+        Logger.current
             .debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)

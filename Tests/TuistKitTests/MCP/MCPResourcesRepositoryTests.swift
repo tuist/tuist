@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import MCP
 import Mockable
-import ServiceContextModule
 import SwiftyJSON
 import Testing
 import TuistCore
@@ -32,11 +31,11 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func list() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
 
                 // When
                 let got = try await subject.list()
@@ -53,7 +52,7 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func listTemplates() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // When
             let got = try await subject.listTemplates()
 
@@ -69,11 +68,11 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func read_when_tuistProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
                 let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
                     .test(name: "Test"),
                 ])])

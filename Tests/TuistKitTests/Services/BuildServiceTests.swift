@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
 import TSCUtility
 import TuistAutomation
@@ -21,16 +20,16 @@ import XCTest
 struct BuildServiceErrorTests {
     @Test func test_description() {
         #expect(
-            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).description ==
-                "Couldn't find scheme A. The available schemes are: B, C."
+            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).description
+                == "Couldn't find scheme A. The available schemes are: B, C."
         )
         #expect(
-            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").description ==
-                "The scheme MyScheme cannot be built because it contains no buildable targets."
+            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").description
+                == "The scheme MyScheme cannot be built because it contains no buildable targets."
         )
         #expect(
-            BuildServiceError.workspaceNotFound(path: "/path/to/workspace").description ==
-                "Workspace not found expected xcworkspace at /path/to/workspace"
+            BuildServiceError.workspaceNotFound(path: "/path/to/workspace").description
+                == "Workspace not found expected xcworkspace at /path/to/workspace"
         )
     }
 
@@ -84,16 +83,21 @@ struct BuildServiceTests {
 
     @Test func test_throws_an_error_if_the_project_is_not_generated() async throws {
         // Given
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let scheme = Scheme.test()
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(project: .testXcodeProject()))
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testXcodeProject())
+            )
 
             // When/Then
             await #expect(
-                throws: TuistConfigError
+                throws:
+                TuistConfigError
                     .notAGeneratedProjectNorSwiftPackage(
-                        errorMessageOverride: "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
+                        errorMessageOverride:
+                        "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
                     ),
                 performing: {
                     try await subject.testRun(
@@ -106,7 +110,8 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_when_the_project_should_be_generated() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let graph = Graph.test()
@@ -116,7 +121,9 @@ struct BuildServiceTests {
             let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
             let skipSigning = false
 
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(project: .testGeneratedProject()))
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
             given(generator)
                 .load(path: .value(temporaryDirectory))
                 .willReturn(graph)
@@ -138,7 +145,8 @@ struct BuildServiceTests {
                 )
                 .willReturn(buildArguments)
             targetBuilder
-                .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
+                .buildTargetStub = {
+                    _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                     XCTAssertEqual(_workspacePath, workspacePath)
                     XCTAssertEqual(_scheme, scheme)
                     XCTAssertTrue(_clean)
@@ -155,7 +163,8 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_when_the_project_is_already_generated() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let graph = Graph.test()
@@ -165,7 +174,9 @@ struct BuildServiceTests {
             let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
             let skipSigning = false
 
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(project: .testGeneratedProject()))
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
             given(generator)
                 .load(path: .value(temporaryDirectory))
                 .willReturn(graph)
@@ -190,7 +201,8 @@ struct BuildServiceTests {
                     skipSigning: .value(skipSigning)
                 )
                 .willReturn(buildArguments)
-            targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
+            targetBuilder.buildTargetStub = {
+                _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_scheme, scheme)
                 XCTAssertTrue(_clean)
@@ -205,7 +217,8 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_only_cleans_the_first_time() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let graph = Graph.test()
@@ -217,7 +230,9 @@ struct BuildServiceTests {
             let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
             let skipSigning = false
 
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(project: .testGeneratedProject()))
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
             given(generator)
                 .load(path: .value(temporaryDirectory))
                 .willReturn(graph)
@@ -225,24 +240,34 @@ struct BuildServiceTests {
                 .buildableSchemes(graphTraverser: .any)
                 .willReturn([schemeA, schemeB])
             given(buildGraphInspector)
-                .buildableTarget(scheme: .matching {
-                    $0 == schemeA || $0 == schemeB
-                }, graphTraverser: .any)
+                .buildableTarget(
+                    scheme: .matching {
+                        $0 == schemeA || $0 == schemeB
+                    }, graphTraverser: .any
+                )
                 .willProduce { scheme, _ in
                     if scheme == schemeA {
-                        return GraphTarget.test(path: project.path, target: targetA, project: project)
+                        return GraphTarget.test(
+                            path: project.path, target: targetA, project: project
+                        )
                     } else {
-                        return GraphTarget.test(path: project.path, target: targetB, project: project)
+                        return GraphTarget.test(
+                            path: project.path, target: targetB, project: project
+                        )
                     }
                 }
             given(buildGraphInspector)
                 .workspacePath(directory: .value(temporaryDirectory))
                 .willReturn(workspacePath)
             given(buildGraphInspector)
-                .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .value(skipSigning))
+                .buildArguments(
+                    project: .any, target: .any, configuration: .any,
+                    skipSigning: .value(skipSigning)
+                )
                 .willReturn(buildArguments)
             targetBuilder
-                .buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
+                .buildTargetStub = {
+                    _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
                     XCTAssertEqual(_workspacePath, workspacePath)
                     XCTAssertNil(_device)
                     XCTAssertNil(_osVersion)
@@ -267,7 +292,8 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_only_builds_the_given_scheme_when_passed() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let graph = Graph.test()
@@ -279,7 +305,9 @@ struct BuildServiceTests {
             let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
             let skipSigning = false
 
-            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(project: .testGeneratedProject()))
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
             given(generator)
                 .load(path: .value(temporaryDirectory))
                 .willReturn(graph)
@@ -292,23 +320,33 @@ struct BuildServiceTests {
                     ]
                 )
             given(buildGraphInspector)
-                .buildableTarget(scheme: .matching {
-                    $0 == schemeA || $0 == schemeB
-                }, graphTraverser: .any)
+                .buildableTarget(
+                    scheme: .matching {
+                        $0 == schemeA || $0 == schemeB
+                    }, graphTraverser: .any
+                )
                 .willProduce { scheme, _ in
                     if scheme == schemeA {
-                        return GraphTarget.test(path: project.path, target: targetA, project: project)
+                        return GraphTarget.test(
+                            path: project.path, target: targetA, project: project
+                        )
                     } else {
-                        return GraphTarget.test(path: project.path, target: targetB, project: project)
+                        return GraphTarget.test(
+                            path: project.path, target: targetB, project: project
+                        )
                     }
                 }
             given(buildGraphInspector)
                 .workspacePath(directory: .value(temporaryDirectory))
                 .willReturn(workspacePath)
             given(buildGraphInspector)
-                .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .value(skipSigning))
+                .buildArguments(
+                    project: .any, target: .any, configuration: .any,
+                    skipSigning: .value(skipSigning)
+                )
                 .willReturn(buildArguments)
-            targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
+            targetBuilder.buildTargetStub = {
+                _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
                 XCTAssertEqual(_workspacePath, workspacePath)
                 if _scheme.name == "A" {
                     XCTAssertEqual(_scheme, schemeA)
@@ -327,8 +365,9 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_lists_schemes() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
                 let graph = Graph.test()
@@ -358,7 +397,7 @@ struct BuildServiceTests {
                 )
 
                 // Then
-                try ServiceContext.expectLogs("Found the following buildable schemes: A, B", at: .debug, ==)
+                try expectLogs("Found the following buildable schemes: A, B", at: .debug, ==)
             }
         }
     }

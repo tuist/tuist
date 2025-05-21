@@ -4,7 +4,6 @@ import Foundation
 import Mockable
 import Path
 import Rosalind
-import ServiceContextModule
 import Testing
 import TuistLoader
 import TuistServer
@@ -76,7 +75,7 @@ struct InspectBundleCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory) func analyzeAppBundle() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let bundlePath = temporaryDirectory.appending(component: "App.ipa")
