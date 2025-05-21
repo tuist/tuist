@@ -147,9 +147,9 @@ extension LoginServicing {
 
     private static func defaultOnEvent(event: LoginServiceEvent) {
         switch event {
-        case .completed:
+        case .alreadyLoggedIn, .completed:
             ServiceContext.current?.alerts?.success(.alert("\(event.description)"))
-        default:
+        case .openingBrowser, .waitForAuthentication:
             ServiceContext.current?.logger?.notice("\(event.description)")
         }
     }
