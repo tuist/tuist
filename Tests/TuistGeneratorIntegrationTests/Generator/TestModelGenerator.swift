@@ -35,7 +35,7 @@ final class TestModelGenerator {
         let graphLoader = GraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
             libraryMetadataProvider: MockLibraryMetadataProvider(),
-            xcframeworkMetadataProvider: { MockXCFrameworkMetadataProviding() },
+            xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding(),
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
 

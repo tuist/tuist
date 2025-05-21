@@ -33,7 +33,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
-        subject = XCFrameworkLoader(xcframeworkMetadataProvider: { self.xcframeworkMetadataProvider })
+        subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
     }
 
     override func tearDown() {
