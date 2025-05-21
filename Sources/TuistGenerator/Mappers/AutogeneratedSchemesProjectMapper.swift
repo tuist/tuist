@@ -384,7 +384,7 @@ extension Product {
              .extensionKitExtension:
             return true
         case .staticFramework, .app, .appClip, .staticLibrary, .dynamicLibrary, .framework, .unitTests, .uiTests, .bundle,
-            .commandLineTool, .watch2App, .xpc, .macro, .loginItem:
+             .commandLineTool, .watch2App, .xpc, .macro, .loginItem:
             return false
         }
     }

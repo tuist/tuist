@@ -149,7 +149,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             fileElements: fileElements,
             pbxproj: pbxproj
         )
-        
+
         if target.canEmbedPlugins() {
             try generateEmbedPluginsBuildPhase(
                 path: path,
@@ -160,7 +160,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 pbxproj: pbxproj
             )
         }
-        
+
         try generateLoginItemBuildPhase(
             path: path,
             target: target,
@@ -322,7 +322,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         // such as `.framework`
         switch target.product {
         case .app, .appClip, .appExtension, .watch2App, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
-                .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension, .loginItem:
+             .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension, .loginItem:
             if pbxBuildFiles.isEmpty { return }
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
@@ -760,7 +760,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedPluginsBuildPhase.files = pbxBuildFiles
     }
-    
+
     func generateLoginItemBuildPhase(
         path: AbsolutePath,
         target: Target,
