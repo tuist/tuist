@@ -471,7 +471,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration
         )
 
-        await ServiceContext.current?.runMetadataStorage?.update(
+        await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
                 guard let hash = mapperEnvironment.targetTestHashes[element.path]?[element.target.name] else { return }
                 let cacheItem = mapperEnvironment.targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(

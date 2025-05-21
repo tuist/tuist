@@ -35,7 +35,7 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test func update_modifiesAnExistingConfiguration_when_itExists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp"]))
@@ -56,7 +56,7 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test func update_overridesAnExistingTuistServerConfiguration_when_itExists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp"]))

@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import TuistLoader
 import TuistServer
@@ -45,7 +44,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -75,13 +74,15 @@ struct RegistryLoginCommandServiceTests {
                 .packageRegistryLogin(token: .value("token"), registryURL: .any)
                 .called(1)
             verify(defaultsController)
-                .setPackageDendencySCMToRegistryTransformation(.value(.useRegistryIdentityAndSources))
+                .setPackageDendencySCMToRegistryTransformation(
+                    .value(.useRegistryIdentityAndSources)
+                )
                 .called(1)
         }
     }
 
     @Test func test_login_when_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
                 // Given
                 given(configLoader)
@@ -118,7 +119,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login_when_ci_and_xcode_project() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

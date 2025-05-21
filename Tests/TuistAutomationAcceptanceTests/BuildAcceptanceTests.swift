@@ -2,6 +2,7 @@ import FileSystem
 import Path
 import TuistAcceptanceTesting
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
@@ -9,7 +10,7 @@ import XCTest
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,
@@ -40,7 +41,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
     func test_with_invalid_arguments() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,

@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import TuistCore
 import TuistSupport
@@ -45,12 +44,15 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 let packageSettings = PackageSettings.test()
 
-                let workspacePath = temporaryDirectory.appending(components: [".build", "workspace-state.json"])
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
                     """
@@ -79,9 +81,17 @@ struct SwiftPackageManagerGraphLoaderTests {
                     at: workspacePath
                 )
 
-                try await fileSystem.makeDirectory(at: temporaryDirectory.appending(components: [".build", "Derived"]))
-                try await fileSystem.touch(temporaryDirectory.appending(components: [".build", "Derived", "Package.resolved"]))
-                try await fileSystem.touch(temporaryDirectory.appending(component: "Package.resolved"))
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
 
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
@@ -115,12 +125,15 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load_when_dependency_via_scm_and_registry() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 let packageSettings = PackageSettings.test()
 
-                let workspacePath = temporaryDirectory.appending(components: [".build", "workspace-state.json"])
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
                     """
@@ -166,9 +179,17 @@ struct SwiftPackageManagerGraphLoaderTests {
                     at: workspacePath
                 )
 
-                try await fileSystem.makeDirectory(at: temporaryDirectory.appending(components: [".build", "Derived"]))
-                try await fileSystem.touch(temporaryDirectory.appending(components: [".build", "Derived", "Package.resolved"]))
-                try await fileSystem.touch(temporaryDirectory.appending(component: "Package.resolved"))
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
 
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
@@ -198,12 +219,15 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load_warnOutdatedDependencies() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 let packageSettings = PackageSettings.test()
 
-                let workspacePath = temporaryDirectory.appending(components: [".build", "workspace-state.json"])
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
                     """
@@ -217,9 +241,15 @@ struct SwiftPackageManagerGraphLoaderTests {
                     at: workspacePath
                 )
 
-                try await fileSystem.makeDirectory(at: temporaryDirectory.appending(components: [".build", "Derived"]))
-                let savedPackageResolvedPath = temporaryDirectory.appending(components: [".build", "Derived", "Package.resolved"])
-                let currentPackageResolvedPath = temporaryDirectory.appending(component: "Package.resolved")
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                let savedPackageResolvedPath = temporaryDirectory.appending(components: [
+                    ".build", "Derived", "Package.resolved",
+                ])
+                let currentPackageResolvedPath = temporaryDirectory.appending(
+                    component: "Package.resolved"
+                )
                 try await fileSystem.writeText("outdated", at: savedPackageResolvedPath)
                 try await fileSystem.touch(currentPackageResolvedPath)
 

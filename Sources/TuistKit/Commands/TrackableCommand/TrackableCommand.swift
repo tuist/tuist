@@ -67,9 +67,7 @@ public class TrackableCommand {
             path = fileHandler.currentPath
         }
         let runMetadataStorage = RunMetadataStorage()
-        var context = ServiceContext.current ?? ServiceContext.topLevel
-        context.runMetadataStorage = runMetadataStorage
-        try await ServiceContext.withValue(context) {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             do {
                 if var asyncCommand = command as? AsyncParsableCommand {
                     try await asyncCommand.run()

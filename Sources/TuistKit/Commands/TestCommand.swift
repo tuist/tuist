@@ -253,7 +253,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
         ).run(
-            runId: ServiceContext.current?.runMetadataStorage?.runId ?? UUID().uuidString,
+            runId: RunMetadataStorage.current.runId,
             schemeName: scheme,
             clean: clean,
             noUpload: noUpload,

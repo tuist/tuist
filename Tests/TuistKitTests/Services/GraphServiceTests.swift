@@ -3,7 +3,6 @@ import Foundation
 import GraphViz
 import Mockable
 import ProjectAutomation
-import ServiceContextModule
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
@@ -49,7 +48,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_whenDot() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.dot")
@@ -87,7 +86,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_legacyJSON() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")
@@ -118,14 +117,16 @@ final class GraphServiceTests: TuistUnitTestCase {
             )
             let got = try await fileSystem.readTextFile(at: graphPath)
 
-            let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
+            let result = try JSONDecoder().decode(
+                ProjectAutomation.Graph.self, from: got.data(using: .utf8)!
+            )
             // Then
             XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
         }
     }
 
     func test_run_when_json() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")
@@ -156,14 +157,16 @@ final class GraphServiceTests: TuistUnitTestCase {
             )
             let got = try await fileSystem.readTextFile(at: graphPath)
 
-            let result = try JSONDecoder().decode(XcodeGraph.Graph.self, from: got.data(using: .utf8)!)
+            let result = try JSONDecoder().decode(
+                XcodeGraph.Graph.self, from: got.data(using: .utf8)!
+            )
             // Then
             XCTAssertEqual(result, .test())
         }
     }
 
     func test_run_when_json_and_has_no_root_manifest() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")
@@ -192,15 +195,20 @@ final class GraphServiceTests: TuistUnitTestCase {
             )
             let got = try await fileSystem.readTextFile(at: graphPath)
 
-            let result = try JSONDecoder().decode(XcodeGraph.Graph.self, from: got.data(using: .utf8)!)
+            let result = try JSONDecoder().decode(
+                XcodeGraph.Graph.self, from: got.data(using: .utf8)!
+            )
 
             // Then
             XCTAssertEqual(result, .test())
 
-            XCTAssertEqual(ui(), """
-            ✔ Success
-              Graph exported to \(graphPath.pathString)
-            """)
+            XCTAssertEqual(
+                ui(),
+                """
+                ✔ Success
+                  Graph exported to \(graphPath.pathString)
+                """
+            )
         }
     }
 }

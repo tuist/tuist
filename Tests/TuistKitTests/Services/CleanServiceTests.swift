@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
@@ -57,7 +56,9 @@ final class CleanServiceTests: TuistUnitTestCase {
     func test_run_with_category_cleans_category() async throws {
         // Given
         let rootDirectory = try temporaryPath()
-        let cachePaths = try await createFiles(["tuist/Manifests/manifest.json", "tuist/ProjectDescriptionHelpers/File.swift"])
+        let cachePaths = try await createFiles([
+            "tuist/Manifests/manifest.json", "tuist/ProjectDescriptionHelpers/File.swift",
+        ])
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.manifests))
@@ -80,7 +81,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        let cachePathsExists = try await cachePaths.concurrentMap { try await self.fileSystem.exists($0) }
+        let cachePathsExists = try await cachePaths.concurrentMap {
+            try await self.fileSystem.exists($0)
+        }
         XCTAssertFalse(cachePathsExists[0])
         XCTAssertTrue(cachePathsExists[1])
     }
@@ -88,7 +91,9 @@ final class CleanServiceTests: TuistUnitTestCase {
     func test_run_with_dependencies_cleans_dependencies() async throws {
         // Given
         let rootDirectory = try temporaryPath()
-        let localPaths = try await createFiles(["Tuist/.build/file", "Tuist/ProjectDescriptionHelpers/File.swift"])
+        let localPaths = try await createFiles([
+            "Tuist/.build/file", "Tuist/ProjectDescriptionHelpers/File.swift",
+        ])
 
         given(rootDirectoryLocator)
             .locate(from: .any)
@@ -113,7 +118,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        let localPathsExists = try await localPaths.concurrentMap { try await self.fileSystem.exists($0) }
+        let localPathsExists = try await localPaths.concurrentMap {
+            try await self.fileSystem.exists($0)
+        }
         XCTAssertFalse(localPathsExists[0])
         XCTAssertTrue(localPathsExists[1])
     }
@@ -121,7 +128,9 @@ final class CleanServiceTests: TuistUnitTestCase {
     func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
         let rootDirectory = try temporaryPath()
-        let localPaths = try await createFiles([".build/file", "Tuist/ProjectDescriptionHelpers/file"])
+        let localPaths = try await createFiles([
+            ".build/file", "Tuist/ProjectDescriptionHelpers/file",
+        ])
 
         given(rootDirectoryLocator)
             .locate(from: .any)
@@ -146,7 +155,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        let localPathsExists = try await localPaths.concurrentMap { try await self.fileSystem.exists($0) }
+        let localPathsExists = try await localPaths.concurrentMap {
+            try await self.fileSystem.exists($0)
+        }
         XCTAssertFalse(localPathsExists[0])
         XCTAssertTrue(localPathsExists[1])
     }
@@ -186,12 +197,14 @@ final class CleanServiceTests: TuistUnitTestCase {
         // Then
         let cachePathExists = try await fileSystem.exists(cachePaths[0])
         XCTAssertFalse(cachePathExists)
-        let swiftPackageManagerBuildFileExists = try await fileSystem.exists(swiftPackageManagerBuildFile)
+        let swiftPackageManagerBuildFileExists = try await fileSystem.exists(
+            swiftPackageManagerBuildFile
+        )
         XCTAssertFalse(swiftPackageManagerBuildFileExists)
     }
 
     func test_run_with_remote() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let url = URL(string: "https://cloud.com")!
 

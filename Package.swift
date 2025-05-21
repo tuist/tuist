@@ -43,7 +43,7 @@ let targets: [Target] = [
             .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -94,7 +94,7 @@ let targets: [Target] = [
             .product(name: "Rosalind", package: "Rosalind"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .executableTarget(
@@ -131,12 +131,11 @@ let targets: [Target] = [
             .product(name: "Noora", package: "Noora"),
             .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
-            .product(name: "ServiceContextModule", package: "swift-service-context"),
             .product(name: "XCLogParser", package: "XCLogParser"),
             .product(name: "OrderedSet", package: "OrderedSet"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -181,7 +180,7 @@ let targets: [Target] = [
             "Stencil",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -209,7 +208,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -226,7 +225,7 @@ let targets: [Target] = [
             "Command",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -241,7 +240,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -256,7 +255,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -272,7 +271,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -288,7 +287,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -317,7 +316,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -333,7 +332,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -353,7 +352,7 @@ let targets: [Target] = [
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -367,7 +366,7 @@ let targets: [Target] = [
             "Mockable",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -382,7 +381,7 @@ let targets: [Target] = [
             "TuistHasher",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
 ]

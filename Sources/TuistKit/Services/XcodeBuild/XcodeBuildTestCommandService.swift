@@ -85,7 +85,7 @@ struct XcodeBuildTestCommandService {
             throw XcodeBuildTestCommandServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
-        await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        await RunMetadataStorage.current.update(graph: graph)
         let graphTraverser = GraphTraverser(graph: graph)
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
@@ -213,7 +213,7 @@ struct XcodeBuildTestCommandService {
         ) {
             let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return []
@@ -221,7 +221,7 @@ struct XcodeBuildTestCommandService {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return ["-resultBundlePath", resultBundlePath.pathString]
@@ -233,7 +233,7 @@ struct XcodeBuildTestCommandService {
         selectiveTestingHashes: [GraphTarget: String],
         targetTestCacheItems: [AbsolutePath: [String: CacheItem]]
     ) async {
-        await ServiceContext.current?.runMetadataStorage?.update(
+        await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: testableGraphTargets.reduce(into: [:]) { result, element in
                 guard let hash = selectiveTestingHashes[element] else { return }
                 let cacheItem = targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(

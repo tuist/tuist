@@ -4,7 +4,7 @@ import Path
 import TSCBasic
 import TuistSupport
 
-private enum TuistServiceContextError: LocalizedError {
+private enum DependenciesError: LocalizedError {
     case exclusiveOptionError(String, String)
 
     var errorDescription: String? {
@@ -22,27 +22,25 @@ struct IgnoreOutputPipeline: StandardPipelining {
 public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
     try await initEnv()
 
-    var context = ServiceContext.topLevel
-
     let (logger, logFilePath) = try await initLogger()
 
     try await Noora.$current.withValue(initNoora()) {
-        try await RecentPathsStore.$current
-            .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                try await ServiceContext.withValue(context) {
+        try await Logger.$current.withValue(logger) {
+            try await RecentPathsStore.$current
+                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
                     try await action(logFilePath)
                 }
-            }
+        }
     }
 }
 
 private func initEnv() async throws {
     if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
-        throw TuistServiceContextError.exclusiveOptionError("quiet", "verbose")
+        throw DependenciesError.exclusiveOptionError("quiet", "verbose")
     }
 
     if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--json") {
-        throw TuistServiceContextError.exclusiveOptionError("quiet", "json")
+        throw DependenciesError.exclusiveOptionError("quiet", "json")
     }
 
     if CommandLine.arguments.contains("--verbose") {

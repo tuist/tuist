@@ -1,5 +1,4 @@
 import Path
-import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
@@ -18,7 +17,7 @@ public final class GraphLoader: GraphLoading {
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
 
     public convenience init() {
-        let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: ServiceContext.current?.logger)
+        let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: Logger.current)
         self.init(
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
@@ -106,13 +105,15 @@ public final class GraphLoader: GraphLoading {
 
         cache.add(target: target, path: path)
         let targetDependency = GraphDependency.target(name: name, path: path)
-        let dependencies: [GraphDependency] = try await target.dependencies.serialCompactMap { dependency in
+        let dependencies: [GraphDependency] = try await target.dependencies.serialCompactMap {
+            dependency in
             guard let graphDep = try await self.loadDependency(
                 path: path,
                 forPlatforms: target.supportedPlatforms,
                 dependency: dependency,
                 cache: cache
-            ) else { return nil }
+            )
+            else { return nil }
             cache.dependencyConditions[(targetDependency, graphDep)] = dependency.condition
             return graphDep
         }
@@ -268,17 +269,19 @@ public final class GraphLoader: GraphLoading {
             expectedSignature: expectedSignature,
             status: status
         )
-        let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
-            path: metadata.path,
-            infoPlist: metadata.infoPlist,
-            linking: metadata.linking,
-            mergeable: metadata.mergeable,
-            status: metadata.status,
-            macroPath: metadata.macroPath,
-            swiftModules: metadata.swiftModules,
-            moduleMaps: metadata.moduleMaps,
-            expectedSignature: metadata.expectedSignature?.signatureString()
-        ))
+        let xcframework: GraphDependency = .xcframework(
+            GraphDependency.XCFramework(
+                path: metadata.path,
+                infoPlist: metadata.infoPlist,
+                linking: metadata.linking,
+                mergeable: metadata.mergeable,
+                status: metadata.status,
+                macroPath: metadata.macroPath,
+                swiftModules: metadata.swiftModules,
+                moduleMaps: metadata.moduleMaps,
+                expectedSignature: metadata.expectedSignature?.signatureString()
+            )
+        )
         cache.add(xcframework: xcframework, at: path)
         return xcframework
     }
@@ -295,12 +298,18 @@ public final class GraphLoader: GraphLoading {
             platform: platform,
             source: source
         )
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+        return .sdk(
+            name: metadata.name, path: metadata.path, status: metadata.status,
+            source: metadata.source
+        )
     }
 
     private func loadXCTestSDK(platform: Platform) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadXCTestMetadata(platform: platform)
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+        return .sdk(
+            name: metadata.name, path: metadata.path, status: metadata.status,
+            source: metadata.source
+        )
     }
 
     private func loadPackage(

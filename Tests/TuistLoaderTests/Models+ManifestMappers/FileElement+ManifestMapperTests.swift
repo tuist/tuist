@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -12,7 +11,7 @@ import XCTest
 
 final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -71,7 +70,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -93,13 +92,15 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
+            XCTAssertPrinterOutputContains(
+                "README.md is not a directory - folder reference paths need to point to directories"
+            )
             XCTAssertEqual(model, [])
         }
     }
 
     func test_fileElement_warning_withMissingFolderReference() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -132,7 +133,8 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         )
         let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
-            pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
+            pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*"))
+                .pathString,
             nonExistentPath: temporaryPath.appending(try RelativePath(validating: "invalid/path/"))
         )
         let error = GlobError.nonExistentDirectory(invalidGlob)

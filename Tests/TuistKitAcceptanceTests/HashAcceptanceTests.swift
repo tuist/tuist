@@ -1,7 +1,7 @@
 import Foundation
 import TuistAcceptanceTesting
-import XCTest
 import TuistSupportTesting
+import XCTest
 @testable import TuistKit
 
 final class HashAcceptanceTestXcodeProjectiOSFramework: TuistAcceptanceTestCase {

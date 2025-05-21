@@ -447,7 +447,7 @@ struct ShareCommandService {
                 )
             )
 
-        await ServiceContext.current?.runMetadataStorage?.update(previewId: preview.id)
+        await RunMetadataStorage.current.update(previewId: preview.id)
 
         if json {
             let previewJSON = try preview.toJSON()

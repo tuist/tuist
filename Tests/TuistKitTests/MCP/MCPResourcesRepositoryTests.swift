@@ -31,7 +31,7 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func list() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
@@ -68,7 +68,7 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func read_when_tuistProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
