@@ -1,10 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
-import ServiceContextModule
 
 enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)

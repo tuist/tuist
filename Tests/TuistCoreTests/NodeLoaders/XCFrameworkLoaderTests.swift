@@ -1,6 +1,7 @@
 import Mockable
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 import XCTest
 
 @testable import TuistCore
@@ -32,7 +33,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
-        subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
+        subject = XCFrameworkLoader(xcframeworkMetadataProvider: { self.xcframeworkMetadataProvider })
     }
 
     override func tearDown() {

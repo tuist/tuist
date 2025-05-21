@@ -1,8 +1,8 @@
 import Path
-import XcodeGraph
-import XcodeMetadata
 import ServiceContextModule
 import TuistSupport
+import XcodeGraph
+import XcodeMetadata
 
 // MARK: - GraphLoading
 
@@ -22,7 +22,7 @@ public final class GraphLoader: GraphLoading {
         self.init(
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
-            xcframeworkMetadataProvider: { xcframeworkMetadataProvider  },
+            xcframeworkMetadataProvider: { xcframeworkMetadataProvider },
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
     }
