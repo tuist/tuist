@@ -6,14 +6,14 @@ description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아�
 
 # 로깅 {#logging}
 
-CLI의 로깅은 [swift-log](https://github.com/apple/swift-log)의 인터페이스를 차용하고 있습니다. 이 패키지는 로깅의 세부 구현 사항을 추상화하여 CLI가 로깅 백엔드에 종속되지 않도록 합니다. 로거는 [swift-service-context](https://github.com/apple/swift-service-context)를 사용하여 의존성 주입되고 다음을 사용하여 어디서든 접근 가능합니다:
+CLI의 로깅은 [swift-log](https://github.com/apple/swift-log)의 인터페이스를 차용하고 있습니다. 이 패키지는 로깅의 세부 구현 사항을 추상화하여 CLI가 로깅 백엔드에 종속되지 않도록 합니다. The logger is dependency-injected using task locals and can be accessed anywhere using:
 
 ```bash
-ServiceContext.current?.logger
+Logger.current
 ```
 
-> [!NOTE]\
-> `swift-service-context`는 `Dispatch`를 사용할 때 값을 전파하지 않는 [task locals](https://developer.apple.com/documentation/swift/tasklocal)를 사용하여 인스턴스를 전달하므로, `Dispatch`를 사용하여 비동기 코드를 실행할 때는 컨텍스트에서 인스턴스를 가져와 비동기 작업에 전달해야 합니다.
+> [!NOTE]
+> Task locals don't propagate the value when using `Dispatch` or detached tasks, so if you use them, you'll need to get it and pass it to the asynchronous operation.
 
 ## 무엇을 로깅하는 것이 좋을까요? {#what-to-log}
 
