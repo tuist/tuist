@@ -477,7 +477,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                 ]
             case .projectAutomation:
-                []
+                [
+                ]
             case .kit:
                 [
                     .target(name: Module.support.targetName),
@@ -600,6 +601,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .server:
                 [
