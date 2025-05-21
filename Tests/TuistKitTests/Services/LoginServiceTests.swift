@@ -63,6 +63,9 @@ final class LoginServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         // Given
         given(serverSessionController)
+            .whoami(serverURL: .value(serverURL))
+            .willReturn(nil)
+        given(serverSessionController)
             .authenticate(
                 serverURL: .value(serverURL),
                 deviceCodeType: .any,
@@ -70,6 +73,20 @@ final class LoginServiceTests: TuistUnitTestCase {
                 onAuthWaitBegin: .any
             )
             .willReturn(())
+
+        // When / Then
+        try await subject.run(
+            email: nil,
+            password: nil,
+            directory: nil
+        )
+    }
+
+    func test_run_already_logged_in() async throws {
+        // Given
+        given(serverSessionController)
+            .whoami(serverURL: .value(serverURL))
+            .willReturn("username")
 
         // When / Then
         try await subject.run(

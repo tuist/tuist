@@ -147,18 +147,10 @@ public final class ServerSessionController: ServerSessionControlling {
     }
 
     public func authenticatedHandle(serverURL: URL) async throws -> String {
-        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
+        guard let whoamiResult = try await whoami(serverURL: serverURL) else {
             throw ServerSessionControllerError.unauthenticated
         }
-        switch token {
-        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
-            guard let username = accessToken?.preferredUsername else {
-                throw ServerSessionControllerError.unauthenticated
-            }
-            return username
-        case .project:
-            throw ServerSessionControllerError.unauthenticated
-        }
+        return whoamiResult
     }
 
     public func logout(serverURL: URL) async throws {

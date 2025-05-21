@@ -18,12 +18,15 @@ protocol LoginServicing: AnyObject {
 }
 
 enum LoginServiceEvent: CustomStringConvertible {
+    case alreadyLoggedIn
     case openingBrowser(URL)
     case waitForAuthentication
     case completed
 
     var description: String {
         switch self {
+        case .alreadyLoggedIn:
+            "Already logged in."
         case let .openingBrowser(url):
             "Opening \(url.absoluteString) to start the authentication flow"
         case .waitForAuthentication:
@@ -81,10 +84,15 @@ final class LoginService: LoginServicing {
                 password: password,
                 serverURL: serverURL
             )
+            await onEvent(.completed)
         } else {
-            try await authenticateWithBrowserLogin(serverURL: serverURL, onEvent: onEvent)
+            if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
+                await onEvent(.alreadyLoggedIn)
+            } else {
+                try await authenticateWithBrowserLogin(serverURL: serverURL, onEvent: onEvent)
+                await onEvent(.completed)
+            }
         }
-        await onEvent(.completed)
     }
 
     private func authenticateWithEmailAndPassword(
