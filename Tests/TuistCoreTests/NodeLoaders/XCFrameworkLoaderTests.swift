@@ -1,6 +1,7 @@
 import Mockable
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 import XCTest
 
 @testable import TuistCore

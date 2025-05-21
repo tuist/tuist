@@ -1,8 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 
 enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
@@ -38,7 +40,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
     private let fileSystem: FileSysteming
 
     public convenience init() {
-        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider())
+        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider(logger: ServiceContext.current?.logger))
     }
 
     /// Initializes the loader with its attributes.

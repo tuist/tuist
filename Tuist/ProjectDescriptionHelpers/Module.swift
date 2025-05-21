@@ -331,6 +331,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "AnyCodable"),
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
+                    .external(name: "XcodeMetadata"),
                 ]
             case .generator:
                 [
