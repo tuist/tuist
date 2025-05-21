@@ -14,7 +14,7 @@ public protocol GraphLoading {
 public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
-    private let xcframeworkMetadataProvider: () -> XCFrameworkMetadataProviding
+    private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
 
     public convenience init() {
@@ -22,7 +22,7 @@ public final class GraphLoader: GraphLoading {
         self.init(
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
-            xcframeworkMetadataProvider: { xcframeworkMetadataProvider },
+            xcframeworkMetadataProvider: xcframeworkMetadataProvider,
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
     }
@@ -30,7 +30,7 @@ public final class GraphLoader: GraphLoading {
     public init(
         frameworkMetadataProvider: FrameworkMetadataProviding,
         libraryMetadataProvider: LibraryMetadataProviding,
-        xcframeworkMetadataProvider: @escaping () -> XCFrameworkMetadataProviding,
+        xcframeworkMetadataProvider: XCFrameworkMetadataProviding,
         systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding
     ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
@@ -263,7 +263,7 @@ public final class GraphLoader: GraphLoading {
             return loaded
         }
 
-        let metadata = try await xcframeworkMetadataProvider().loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
             expectedSignature: expectedSignature,
             status: status

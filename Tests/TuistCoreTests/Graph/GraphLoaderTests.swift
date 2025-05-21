@@ -694,7 +694,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         GraphLoader(
             frameworkMetadataProvider: frameworkMetadataProvider,
             libraryMetadataProvider: libraryMetadataProvider,
-            xcframeworkMetadataProvider: { self.xcframeworkMetadataProvider },
+            xcframeworkMetadataProvider: xcframeworkMetadataProvider,
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
     }
