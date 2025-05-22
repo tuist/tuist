@@ -6,7 +6,7 @@ import Path
 import TuistAnalytics
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -78,7 +78,9 @@ public struct TuistCommand: AsyncParsableCommand {
     ) async throws {
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-            path = try AbsolutePath(validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
+            path = try AbsolutePath(
+                validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current
+            )
         } else {
             path = .current
         }
@@ -116,8 +118,9 @@ public struct TuistCommand: AsyncParsableCommand {
             }
 
             executeCommand = {
-                logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
-                    .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
+                logFilePathDisplayStrategy =
+                    (command as? LogConfigurableCommand)?
+                        .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
 
                 let trackableCommand = TrackableCommand(
                     command: command,
@@ -144,9 +147,14 @@ public struct TuistCommand: AsyncParsableCommand {
 
         do {
             try await executeCommand()
-            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
+            outputCompletion(
+                logFilePath: logFilePath,
+                shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
+            )
         } catch {
-            onError(parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath)
+            onError(
+                parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
+            )
         }
     }
 
@@ -163,10 +171,12 @@ public struct TuistCommand: AsyncParsableCommand {
             // Let argument parser handle the error
             exit(withError: error)
         } else if let clientError = error as? ClientError,
-                  let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+                  let underlyingServerClientError = clientError.underlyingError
+                  as? ServerClientAuthenticationError
         {
-            // swiftlint:disable:next force_cast
-            errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
+            errorAlertMessage =
+                // swiftlint:disable:next force_cast
+                "\((clientError.underlyingError as! ServerClientAuthenticationError).errorDescription ?? "Unknown error")"
         } else if let fatalError = error as? FatalError {
             let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
             if !fatalError.description.isEmpty, !isSilent {
@@ -183,7 +193,8 @@ public struct TuistCommand: AsyncParsableCommand {
             // Let argument parser handle the error
             exit(withError: error)
         } else if let localizedError = error as? LocalizedError {
-            errorAlertMessage = "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+            errorAlertMessage =
+                "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
         } else {
             errorAlertMessage = "\((error as CustomStringConvertible).description)"
         }
@@ -203,11 +214,12 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        let errorAlert: ErrorAlert? = if let errorAlertMessage {
-            .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
-        } else {
-            nil
-        }
+        let errorAlert: ErrorAlert? =
+            if let errorAlertMessage {
+                .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
+            } else {
+                nil
+            }
         let successAlerts = AlertController.current.success()
         let warningAlerts = AlertController.current.warnings()
         let takeaways = AlertController.current.takeaways()

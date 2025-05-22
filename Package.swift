@@ -80,7 +80,9 @@ let targets: [Target] = [
             "TuistPlugin",
             "XcodeGraph",
             "Mockable",
-            "TuistServer",
+            "TuistServerCore",
+            "TuistServerCLI",
+            "TuistSimulator",
             "FileSystem",
             "TuistCache",
             .product(name: "Noora", package: "Noora"),
@@ -336,7 +338,7 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistServer",
+        name: "TuistServerCore",
         dependencies: [
             "TuistCore",
             "TuistSupport",
@@ -348,9 +350,29 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-            .product(name: "Rosalind", package: "Rosalind"),
         ],
         exclude: ["OpenAPI/server.yml"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistServerCLI",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "TuistCache",
+            "TuistServerCore",
+            "TuistSimulator",
+            "FileSystem",
+            "XcodeGraph",
+            "Mockable",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "swift-http-types"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "Rosalind", package: "Rosalind"),
+        ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -379,6 +401,17 @@ let targets: [Target] = [
             pathDependency,
             "XcodeGraph",
             "TuistHasher",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistSimulator",
+        dependencies: [
+            "XcodeGraph",
+            "Mockable",
+            pathDependency,
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -471,8 +504,8 @@ let package = Package(
             targets: ["TuistAcceptanceTesting"]
         ),
         .library(
-            name: "TuistServer",
-            targets: ["TuistServer"]
+            name: "TuistServerCore",
+            targets: ["TuistServerCore"]
         ),
         .library(
             name: "TuistHasher",

@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-swift-openapi-generator generate --mode types --mode client --output-directory $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI $MISE_PROJECT_ROOT/Sources/TuistServer/OpenAPI/server.yml
+swift-openapi-generator generate --mode types --mode client --output-directory $MISE_PROJECT_ROOT/Sources/TuistServerCore/OpenAPI $MISE_PROJECT_ROOT/Sources/TuistServerCore/OpenAPI/server.yml --access-modifier public

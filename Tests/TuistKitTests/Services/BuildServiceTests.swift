@@ -7,7 +7,8 @@ import TSCUtility
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 import XCTest

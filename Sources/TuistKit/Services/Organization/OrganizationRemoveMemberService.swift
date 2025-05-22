@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationRemoveMemberServicing {
@@ -18,7 +18,8 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
     private let configLoader: ConfigLoading
 
     init(
-        removeOrganizationMemberService: RemoveOrganizationMemberServicing = RemoveOrganizationMemberService(),
+        removeOrganizationMemberService: RemoveOrganizationMemberServicing =
+            RemoveOrganizationMemberService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
@@ -34,7 +35,9 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -48,6 +51,8 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
         )
 
         Logger.current
-            .info("The member \(username) was successfully removed from the \(organizationName) organization.")
+            .info(
+                "The member \(username) was successfully removed from the \(organizationName) organization."
+            )
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationShowServicing {
@@ -37,7 +37,9 @@ final class OrganizationShowService: OrganizationShowServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -56,7 +58,9 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         if json {
             let json = try organization.toJSON()
-            Logger.current.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            Logger.current.info(
+                .init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json
+            )
             return
         }
 
@@ -71,7 +75,8 @@ final class OrganizationShowService: OrganizationShowServicing {
         } else {
             let invitationsHeaders = ["inviter", "invitee email"]
             let invitationsTable = formatDataToTable(
-                [invitationsHeaders] + organization.invitations.map { [$0.inviter.name, $0.inviteeEmail] }
+                [invitationsHeaders]
+                    + organization.invitations.map { [$0.inviter.name, $0.inviteeEmail] }
             )
             invitationsString = """
             \("Invitations".bold()) (total number: \(organization.invitations.count))
@@ -94,17 +99,19 @@ final class OrganizationShowService: OrganizationShowServicing {
             }
         }
 
-        Logger.current.info("""
-        \(baseInfo.joined(separator: "\n"))
+        Logger.current.info(
+            """
+            \(baseInfo.joined(separator: "\n"))
 
-        \("Usage".bold()) (current calendar month)
-        Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
+            \("Usage".bold()) (current calendar month)
+            Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
 
-        \("Organization members".bold()) (total number: \(organization.members.count))
-        \(membersTable)
+            \("Organization members".bold()) (total number: \(organization.members.count))
+            \(membersTable)
 
-        \(invitationsString)
-        """)
+            \(invitationsString)
+            """
+        )
     }
 
     private func formatDataToTable(_ data: [[String]]) -> String {
@@ -116,9 +123,7 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         // Calculate the maximum width of each column
         let columnWidths = data[0].indices.map { colIndex -> Int in
-            (
-                data.map { $0[colIndex].count }.max() ?? 0
-            ) + 2
+            (data.map { $0[colIndex].count }.max() ?? 0) + 2
         }
 
         // Format the data into the `tableString`

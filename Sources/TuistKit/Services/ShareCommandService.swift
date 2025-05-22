@@ -5,7 +5,9 @@ import Path
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 

@@ -5,7 +5,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .external(name: "Path", condition: .when([.macos])),
         .project(target: "TuistSupport", path: "../", condition: .when([.macos])),
         .project(target: "TuistCore", path: "../", condition: .when([.macos])),
-        .project(target: "TuistServer", path: "../", condition: .when([.macos])),
+        .project(target: "TuistServerCore", path: "../", condition: .when([.macos])),
         .project(target: "TuistAutomation", path: "../", condition: .when([.macos])),
         .external(name: "XcodeGraph", condition: .when([.macos])),
         .external(name: "Command", condition: .when([.macos])),
@@ -50,12 +50,17 @@ let project = Project(
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
                     "CFBundleShortVersionString": "0.9.0",
                     "CFBundleVersion": "0.9.0",
+                    "UILaunchScreen": [
+                        "UIColorName": "",
+                        "UIImageName": "",
+                    ],
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
             dependencies: [
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
+                .target(name: "TuistPreviews", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -71,8 +76,20 @@ let project = Project(
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
                     "PRODUCT_NAME": "Tuist",
+                    "PROVISIONING_PROFILE_SPECIFIER": "Tuist Ad hoc",
                 ]
             )
+        ),
+        .target(
+            name: "TuistPreviews",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.previews",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistPreviews/**"],
+            dependencies: [
+                .project(target: "TuistServerCore", path: "../"),
+            ]
         ),
         .target(
             name: "TuistMenuBar",

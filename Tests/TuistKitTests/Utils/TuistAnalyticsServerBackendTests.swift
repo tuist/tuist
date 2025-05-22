@@ -3,7 +3,8 @@ import Mockable
 import TuistAnalytics
 import TuistCore
 import TuistCoreTesting
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XCTest
 

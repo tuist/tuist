@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TuistServer: App {
+struct TuistServerCore: App {
     var body: some Scene {
         WindowGroup {
             Text("Tuist is great")

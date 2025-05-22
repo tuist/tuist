@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 enum ProjectShowServiceError: Equatable, FatalError {
@@ -17,7 +17,8 @@ enum ProjectShowServiceError: Equatable, FatalError {
     var description: String {
         switch self {
         case .missingFullHandle:
-            return "We couldn't show the project because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return
+                "We couldn't show the project because the full handle is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
@@ -48,7 +49,9 @@ struct ProjectShowService {
         let path = try self.path(path)
 
         let config = try await configLoader.loadConfig(path: path)
-        guard let fullHandle = fullHandle ?? config.fullHandle else { throw ProjectShowServiceError.missingFullHandle }
+        guard let fullHandle = fullHandle ?? config.fullHandle else {
+            throw ProjectShowServiceError.missingFullHandle
+        }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
 

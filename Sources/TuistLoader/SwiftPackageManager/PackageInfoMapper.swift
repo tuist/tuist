@@ -5,6 +5,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 

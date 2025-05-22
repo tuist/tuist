@@ -3,7 +3,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 public enum InitCommandServiceError: LocalizedError {

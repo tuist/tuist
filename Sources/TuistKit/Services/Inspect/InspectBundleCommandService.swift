@@ -4,7 +4,8 @@ import Noora
 import Path
 import Rosalind
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 enum InspectBundleCommandServiceError: LocalizedError {
@@ -56,8 +57,9 @@ struct InspectBundleCommandService {
         )
         let path = try await self.path(path)
 
-        let config = try await configLoader
-            .loadConfig(path: path)
+        let config =
+            try await configLoader
+                .loadConfig(path: path)
 
         if json {
             let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
@@ -69,7 +71,9 @@ struct InspectBundleCommandService {
             return
         }
 
-        guard let fullHandle = config.fullHandle else { throw InspectBundleCommandServiceError.missingFullHandle }
+        guard let fullHandle = config.fullHandle else {
+            throw InspectBundleCommandServiceError.missingFullHandle
+        }
 
         let gitCommitSHA: String?
         let gitBranch: String?
@@ -105,12 +109,16 @@ struct InspectBundleCommandService {
                 gitRef: gitRef
             )
         }
-        AlertController.current.success(.alert("View the bundle analysis at \(serverBundle.url.absoluteString)"))
+        AlertController.current.success(
+            .alert("View the bundle analysis at \(serverBundle.url.absoluteString)")
+        )
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
         if let path {
-            return try await AbsolutePath(validating: path, relativeTo: fileSystem.currentWorkingDirectory())
+            return try await AbsolutePath(
+                validating: path, relativeTo: fileSystem.currentWorkingDirectory()
+            )
         } else {
             return try await fileSystem.currentWorkingDirectory()
         }

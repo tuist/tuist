@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationInviteServicing {
@@ -18,7 +18,8 @@ final class OrganizationInviteService: OrganizationInviteServicing {
     private let configLoader: ConfigLoading
 
     init(
-        createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
+        createOrganizationInviteService: CreateOrganizationInviteServicing =
+            CreateOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
@@ -34,7 +35,9 @@ final class OrganizationInviteService: OrganizationInviteServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -47,15 +50,18 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             serverURL: serverURL
         )
 
-        let invitationURL = serverURL
-            .appendingPathComponent("auth")
-            .appendingPathComponent("invitations")
-            .appendingPathComponent(invitation.token)
+        let invitationURL =
+            serverURL
+                .appendingPathComponent("auth")
+                .appendingPathComponent("invitations")
+                .appendingPathComponent(invitation.token)
 
-        Logger.current.info("""
-        \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
+        Logger.current.info(
+            """
+            \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
-        You can also share with them the invite link directly: \(invitationURL.absoluteString)
-        """)
+            You can also share with them the invite link directly: \(invitationURL.absoluteString)
+            """
+        )
     }
 }

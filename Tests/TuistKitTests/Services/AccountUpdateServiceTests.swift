@@ -3,7 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 @testable import TuistKit
@@ -79,8 +79,10 @@ struct AccountUpdateServiceTests {
         )
 
         // Then
-        verify(updateAccountService).updateAccount(serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle"))
-            .called(1)
+        verify(updateAccountService).updateAccount(
+            serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle")
+        )
+        .called(1)
 
         verify(authTokenRefreshService).refreshTokens(
             serverURL: .any

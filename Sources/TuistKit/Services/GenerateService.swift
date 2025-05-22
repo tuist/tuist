@@ -5,7 +5,8 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 final class GenerateService {
@@ -46,7 +47,8 @@ final class GenerateService {
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
-                errorMessageOverride: "The 'tuist generate' command is only available for generated projects and Swift packages."
+                errorMessageOverride:
+                "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
