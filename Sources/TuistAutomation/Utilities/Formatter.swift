@@ -8,7 +8,7 @@ protocol Formatting {
 final class Formatter: Formatting {
     private let formatter: XCBeautifier
 
-    init(environment: Environmenting = Environment.shared) {
+    init(environment: Environmenting = Environment.current) {
         formatter = XCBeautifier(
             colored: environment.shouldOutputBeColoured,
             renderer: Self.renderer(for: environment),

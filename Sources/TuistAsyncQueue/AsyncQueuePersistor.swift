@@ -35,7 +35,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Init
 
     init(
-        directory: AbsolutePath = Environment.shared.queueDirectory,
+        directory: AbsolutePath = Environment.current.queueDirectory,
         fileSystem: FileSystem = FileSystem(),
         dateService: DateServicing = DateService()
     ) {

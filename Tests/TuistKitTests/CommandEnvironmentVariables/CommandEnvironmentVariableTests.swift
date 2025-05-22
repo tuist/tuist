@@ -2,38 +2,27 @@ import ArgumentParser
 import Difference
 import Foundation
 import TSCUtility
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class CommandEnvironmentVariableTests: XCTestCase {
-    private var mockEnvironment: MockEnvironment!
+@Suite(.withMockedEnvironment)
+struct CommandEnvironmentVariableTests {
 
-    override func setUp() {
-        super.setUp()
-        mockEnvironment = try! MockEnvironment()
-        Environment._shared.mutate { $0 = mockEnvironment }
-    }
-
-    override func tearDown() {
-        mockEnvironment = nil
-        Environment._shared.mutate { $0 = Environment() }
-        super.tearDown()
-    }
 
     private var tuistVariables: [String: String] {
         get {
-            return mockEnvironment.tuistVariables
+            return Environment.mocked?.tuistVariables ?? [:]
         }
         set {
-            mockEnvironment.tuistVariables = newValue
+            Environment.mocked?.tuistVariables = newValue
         }
     }
 
     private func setVariable(_ key: EnvKey, value: String) {
-        mockEnvironment.tuistVariables[key.rawValue] = value
+        Environment.mocked?.tuistVariables[key.rawValue] = value
     }
 
     func testBuildCommandUsesEnvVars() throws {
@@ -52,20 +41,20 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
 
         let buildCommandWithEnvVars = try BuildCommand.parse([])
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.scheme, "Scheme1")
-        XCTAssertTrue(buildCommandWithEnvVars.buildOptions.generate)
-        XCTAssertTrue(buildCommandWithEnvVars.buildOptions.clean)
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.path, "/path/to/project")
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.device, "iPhone")
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.platform, .iOS)
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.os, "14.5.0")
-        XCTAssertTrue(buildCommandWithEnvVars.buildOptions.rosetta)
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.configuration, "Debug")
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.buildOutputPath, "/path/to/output")
-        XCTAssertEqual(buildCommandWithEnvVars.buildOptions.derivedDataPath, "/path/to/derivedData")
-        XCTAssertTrue(buildCommandWithEnvVars.buildOptions.generateOnly)
-        XCTAssertEqual(
-            buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments,
+        #expect(buildCommandWithEnvVars.buildOptions.scheme ==  "Scheme1")
+        #expect(buildCommandWithEnvVars.buildOptions.generate == true)
+        #expect(buildCommandWithEnvVars.buildOptions.clean == true)
+        #expect(buildCommandWithEnvVars.buildOptions.path ==  "/path/to/project")
+        #expect(buildCommandWithEnvVars.buildOptions.device ==  "iPhone")
+        #expect(buildCommandWithEnvVars.buildOptions.platform ==  .iOS)
+        #expect(buildCommandWithEnvVars.buildOptions.os ==  "14.5.0")
+        #expect(buildCommandWithEnvVars.buildOptions.rosetta == true)
+        #expect(buildCommandWithEnvVars.buildOptions.configuration ==  "Debug")
+        #expect(buildCommandWithEnvVars.buildOptions.buildOutputPath ==  "/path/to/output")
+        #expect(buildCommandWithEnvVars.buildOptions.derivedDataPath ==  "/path/to/derivedData")
+        #expect(buildCommandWithEnvVars.buildOptions.generateOnly == true)
+        #expect(
+            buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments ==
             ["clean", "-configuration", "Release"]
         )
 
@@ -84,18 +73,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--",
             "-configuration", "Debug",
         ])
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.scheme, "Scheme2")
-        XCTAssertTrue(buildCommandWithArgs.buildOptions.generate)
-        XCTAssertFalse(buildCommandWithArgs.buildOptions.clean)
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.path, "/new/path")
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.device, "iPad")
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.platform, .tvOS)
-        XCTAssertFalse(buildCommandWithArgs.buildOptions.rosetta)
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.configuration, "Release")
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.buildOutputPath, "/new/output")
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.derivedDataPath, "/new/derivedData")
-        XCTAssertFalse(buildCommandWithArgs.buildOptions.generateOnly)
-        XCTAssertEqual(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments, ["-configuration", "Debug"])
+        #expect(buildCommandWithArgs.buildOptions.scheme ==  "Scheme2")
+        #expect(buildCommandWithArgs.buildOptions.generate == true)
+        #expect(buildCommandWithArgs.buildOptions.clean == false)
+        #expect(buildCommandWithArgs.buildOptions.path ==  "/new/path")
+        #expect(buildCommandWithArgs.buildOptions.device ==  "iPad")
+        #expect(buildCommandWithArgs.buildOptions.platform ==  .tvOS)
+        #expect(buildCommandWithArgs.buildOptions.rosetta == false)
+        #expect(buildCommandWithArgs.buildOptions.configuration ==  "Release")
+        #expect(buildCommandWithArgs.buildOptions.buildOutputPath ==  "/new/output")
+        #expect(buildCommandWithArgs.buildOptions.derivedDataPath ==  "/new/derivedData")
+        #expect(buildCommandWithArgs.buildOptions.generateOnly == false)
+        #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration",  "Debug"])
     }
 
     func testCleanCommandUsesEnvVars() throws {
@@ -103,15 +92,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.cleanPath, value: "/path/to/clean")
 
         let cleanCommandWithEnvVars = try CleanCommand.parse([])
-        XCTAssertEqual(cleanCommandWithEnvVars.cleanCategories, [TuistCleanCategory.dependencies])
-        XCTAssertEqual(cleanCommandWithEnvVars.path, "/path/to/clean")
+        #expect(cleanCommandWithEnvVars.cleanCategories ==  [TuistCleanCategory.dependencies])
+        #expect(cleanCommandWithEnvVars.path ==  "/path/to/clean")
 
         let cleanCommandWithArgs = try CleanCommand.parse([
             "manifests",
             "--path", "/new/clean/path",
         ])
-        XCTAssertEqual(cleanCommandWithArgs.cleanCategories, [TuistCleanCategory.global(.manifests)])
-        XCTAssertEqual(cleanCommandWithArgs.path, "/new/clean/path")
+        #expect(cleanCommandWithArgs.cleanCategories ==  [TuistCleanCategory.global(.manifests)])
+        #expect(cleanCommandWithArgs.path ==  "/new/clean/path")
     }
 
     func testDumpCommandUsesEnvVars() throws {
@@ -119,15 +108,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.dumpManifest, value: "Project")
 
         let dumpCommandWithEnvVars = try DumpCommand.parse([])
-        XCTAssertEqual(dumpCommandWithEnvVars.path, "/path/to/dump")
-        XCTAssertEqual(dumpCommandWithEnvVars.manifest, .project)
+        #expect(dumpCommandWithEnvVars.path ==  "/path/to/dump")
+        #expect(dumpCommandWithEnvVars.manifest ==  .project)
 
         let dumpCommandWithArgs = try DumpCommand.parse([
             "workspace",
             "--path", "/new/dump/path",
         ])
-        XCTAssertEqual(dumpCommandWithArgs.path, "/new/dump/path")
-        XCTAssertEqual(dumpCommandWithArgs.manifest, .workspace)
+        #expect(dumpCommandWithArgs.path ==  "/new/dump/path")
+        #expect(dumpCommandWithArgs.manifest ==  .workspace)
     }
 
     func testEditCommandUsesEnvVars() throws {
@@ -136,18 +125,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.editOnlyCurrentDirectory, value: "true")
 
         let editCommandWithEnvVars = try EditCommand.parse([])
-        XCTAssertEqual(editCommandWithEnvVars.path, "/path/to/edit")
-        XCTAssertTrue(editCommandWithEnvVars.permanent)
-        XCTAssertTrue(editCommandWithEnvVars.onlyCurrentDirectory)
+        #expect(editCommandWithEnvVars.path ==  "/path/to/edit")
+        #expect(editCommandWithEnvVars.permanent == true)
+        #expect(editCommandWithEnvVars.onlyCurrentDirectory == true)
 
         let editCommandWithArgs = try EditCommand.parse([
             "--path", "/new/edit/path",
             "--no-permanent",
             "--no-only-current-directory",
         ])
-        XCTAssertEqual(editCommandWithArgs.path, "/new/edit/path")
-        XCTAssertFalse(editCommandWithArgs.permanent)
-        XCTAssertFalse(editCommandWithArgs.onlyCurrentDirectory)
+        #expect(editCommandWithArgs.path ==  "/new/edit/path")
+        #expect(editCommandWithArgs.permanent == false)
+        #expect(editCommandWithArgs.onlyCurrentDirectory == false)
     }
 
     func testGenerateCommandUsesEnvVars() throws {
@@ -156,18 +145,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.generateBinaryCache, value: "false")
 
         let generateCommandWithEnvVars = try GenerateCommand.parse([])
-        XCTAssertEqual(generateCommandWithEnvVars.path, "/path/to/generate")
-        XCTAssertFalse(generateCommandWithEnvVars.open)
-        XCTAssertFalse(generateCommandWithEnvVars.binaryCache)
+        #expect(generateCommandWithEnvVars.path ==  "/path/to/generate")
+        #expect(generateCommandWithEnvVars.open == false)
+        #expect(generateCommandWithEnvVars.binaryCache == false)
 
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",
             "--open",
             "--binary-cache",
         ])
-        XCTAssertEqual(generateCommandWithArgs.path, "/new/generate/path")
-        XCTAssertTrue(generateCommandWithArgs.open)
-        XCTAssertTrue(generateCommandWithArgs.binaryCache)
+        #expect(generateCommandWithArgs.path ==  "/new/generate/path")
+        #expect(generateCommandWithArgs.open == true)
+        #expect(generateCommandWithArgs.binaryCache == true)
     }
 
     func testGraphCommandUsesEnvVars() throws {
@@ -182,15 +171,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.graphOutputPath, value: "/path/to/output")
 
         let graphCommandWithEnvVars = try GraphCommand.parse([])
-        XCTAssertTrue(graphCommandWithEnvVars.skipTestTargets)
-        XCTAssertTrue(graphCommandWithEnvVars.skipExternalDependencies)
-        XCTAssertEqual(graphCommandWithEnvVars.platform, .iOS)
-        XCTAssertEqual(graphCommandWithEnvVars.format, .svg)
-        XCTAssertFalse(graphCommandWithEnvVars.open)
-        XCTAssertEqual(graphCommandWithEnvVars.layoutAlgorithm, .circo)
-        XCTAssertEqual(graphCommandWithEnvVars.targets, ["Target1", "Target2"])
-        XCTAssertEqual(graphCommandWithEnvVars.path, "/path/to/graph")
-        XCTAssertEqual(graphCommandWithEnvVars.outputPath, "/path/to/output")
+        #expect(graphCommandWithEnvVars.skipTestTargets == true)
+        #expect(graphCommandWithEnvVars.skipExternalDependencies == true)
+        #expect(graphCommandWithEnvVars.platform ==  .iOS)
+        #expect(graphCommandWithEnvVars.format ==  .svg)
+        #expect(graphCommandWithEnvVars.open == false)
+        #expect(graphCommandWithEnvVars.layoutAlgorithm ==  .circo)
+        #expect(graphCommandWithEnvVars.targets == ["Target1",  "Target2"])
+        #expect(graphCommandWithEnvVars.path ==  "/path/to/graph")
+        #expect(graphCommandWithEnvVars.outputPath ==  "/path/to/output")
 
         let graphCommandWithArgs = try GraphCommand.parse([
             "--no-skip-test-targets",
@@ -203,15 +192,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--path", "/new/graph/path",
             "--output-path", "/new/graph/output",
         ])
-        XCTAssertFalse(graphCommandWithArgs.skipTestTargets)
-        XCTAssertFalse(graphCommandWithArgs.skipExternalDependencies)
-        XCTAssertEqual(graphCommandWithArgs.platform, .macOS)
-        XCTAssertEqual(graphCommandWithArgs.format, .json)
-        XCTAssertTrue(graphCommandWithArgs.open)
-        XCTAssertEqual(graphCommandWithArgs.layoutAlgorithm, .fdp)
-        XCTAssertEqual(graphCommandWithArgs.targets, ["Target3", "Target4"])
-        XCTAssertEqual(graphCommandWithArgs.path, "/new/graph/path")
-        XCTAssertEqual(graphCommandWithArgs.outputPath, "/new/graph/output")
+        #expect(graphCommandWithArgs.skipTestTargets == false)
+        #expect(graphCommandWithArgs.skipExternalDependencies == false)
+        #expect(graphCommandWithArgs.platform ==  .macOS)
+        #expect(graphCommandWithArgs.format ==  .json)
+        #expect(graphCommandWithArgs.open == true)
+        #expect(graphCommandWithArgs.layoutAlgorithm ==  .fdp)
+        #expect(graphCommandWithArgs.targets == ["Target3",  "Target4"])
+        #expect(graphCommandWithArgs.path ==  "/new/graph/path")
+        #expect(graphCommandWithArgs.outputPath ==  "/new/graph/output")
     }
 
     func testInstallCommandUsesEnvVars() throws {
@@ -219,15 +208,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.installUpdate, value: "true")
 
         let installCommandWithEnvVars = try InstallCommand.parse([])
-        XCTAssertEqual(installCommandWithEnvVars.path, "/path/to/install")
-        XCTAssertTrue(installCommandWithEnvVars.update)
+        #expect(installCommandWithEnvVars.path ==  "/path/to/install")
+        #expect(installCommandWithEnvVars.update == true)
 
         let installCommandWithArgs = try InstallCommand.parse([
             "--path", "/new/install/path",
             "--no-update",
         ])
-        XCTAssertEqual(installCommandWithArgs.path, "/new/install/path")
-        XCTAssertFalse(installCommandWithArgs.update)
+        #expect(installCommandWithArgs.path ==  "/new/install/path")
+        #expect(installCommandWithArgs.update == false)
     }
 
     func testListCommandUsesEnvVars() throws {
@@ -235,15 +224,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.scaffoldListPath, value: "/path/to/list")
 
         let listCommandWithEnvVars = try ListCommand.parse([])
-        XCTAssertTrue(listCommandWithEnvVars.json)
-        XCTAssertEqual(listCommandWithEnvVars.path, "/path/to/list")
+        #expect(listCommandWithEnvVars.json == true)
+        #expect(listCommandWithEnvVars.path ==  "/path/to/list")
 
         let listCommandWithArgs = try ListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
-        XCTAssertFalse(listCommandWithArgs.json)
-        XCTAssertEqual(listCommandWithArgs.path, "/new/list/path")
+        #expect(listCommandWithArgs.json == false)
+        #expect(listCommandWithArgs.path ==  "/new/list/path")
     }
 
     func testMigrationCheckEmptyBuildSettingsCommandUsesEnvVars() throws {
@@ -251,15 +240,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.migrationCheckEmptySettingsTarget, value: "MyTarget")
 
         let migrationCommandWithEnvVars = try MigrationCheckEmptyBuildSettingsCommand.parse([])
-        XCTAssertEqual(migrationCommandWithEnvVars.xcodeprojPath, "/path/to/xcodeproj")
-        XCTAssertEqual(migrationCommandWithEnvVars.target, "MyTarget")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.target ==  "MyTarget")
 
         let migrationCommandWithArgs = try MigrationCheckEmptyBuildSettingsCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
             "--target", "NewTarget",
         ])
-        XCTAssertEqual(migrationCommandWithArgs.xcodeprojPath, "/new/xcodeproj/path")
-        XCTAssertEqual(migrationCommandWithArgs.target, "NewTarget")
+        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.target ==  "NewTarget")
     }
 
     func testMigrationSettingsToXCConfigCommandUsesEnvVars() throws {
@@ -268,42 +257,42 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.migrationSettingsToXcconfigTarget, value: "MyTarget")
 
         let migrationCommandWithEnvVars = try MigrationSettingsToXCConfigCommand.parse([])
-        XCTAssertEqual(migrationCommandWithEnvVars.xcodeprojPath, "/path/to/xcodeproj")
-        XCTAssertEqual(migrationCommandWithEnvVars.xcconfigPath, "/path/to/xcconfig")
-        XCTAssertEqual(migrationCommandWithEnvVars.target, "MyTarget")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.xcconfigPath ==  "/path/to/xcconfig")
+        #expect(migrationCommandWithEnvVars.target ==  "MyTarget")
 
         let migrationCommandWithArgs = try MigrationSettingsToXCConfigCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
             "--xcconfig-path", "/new/xcconfig/path",
             "--target", "NewTarget",
         ])
-        XCTAssertEqual(migrationCommandWithArgs.xcodeprojPath, "/new/xcodeproj/path")
-        XCTAssertEqual(migrationCommandWithArgs.xcconfigPath, "/new/xcconfig/path")
-        XCTAssertEqual(migrationCommandWithArgs.target, "NewTarget")
+        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.xcconfigPath ==  "/new/xcconfig/path")
+        #expect(migrationCommandWithArgs.target ==  "NewTarget")
     }
 
     func testMigrationTargetsByDependenciesCommandUsesEnvVars() throws {
         setVariable(.migrationListTargetsXcodeprojPath, value: "/path/to/xcodeproj")
 
         let migrationCommandWithEnvVars = try MigrationTargetsByDependenciesCommand.parse([])
-        XCTAssertEqual(migrationCommandWithEnvVars.xcodeprojPath, "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
 
         let migrationCommandWithArgs = try MigrationTargetsByDependenciesCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
         ])
-        XCTAssertEqual(migrationCommandWithArgs.xcodeprojPath, "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
     }
 
     func testPluginArchiveCommandUsesEnvVars() throws {
         setVariable(.pluginArchivePath, value: "/path/to/plugin")
 
         let pluginCommandWithEnvVars = try PluginArchiveCommand.parse([])
-        XCTAssertEqual(pluginCommandWithEnvVars.path, "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.path ==  "/path/to/plugin")
 
         let pluginCommandWithArgs = try PluginArchiveCommand.parse([
             "--path", "/new/plugin/path",
         ])
-        XCTAssertEqual(pluginCommandWithArgs.path, "/new/plugin/path")
+        #expect(pluginCommandWithArgs.path ==  "/new/plugin/path")
     }
 
     func testPluginBuildCommandUsesEnvVars() throws {
@@ -315,12 +304,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.pluginBuildProducts, value: "Product1,Product2")
 
         let pluginCommandWithEnvVars = try PluginBuildCommand.parse([])
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.path, "/path/to/plugin")
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.configuration, .debug)
-        XCTAssertTrue(pluginCommandWithEnvVars.buildTests)
-        XCTAssertTrue(pluginCommandWithEnvVars.showBinPath)
-        XCTAssertEqual(pluginCommandWithEnvVars.targets, ["Target1", "Target2"])
-        XCTAssertEqual(pluginCommandWithEnvVars.products, ["Product1", "Product2"])
+        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.buildTests == true)
+        #expect(pluginCommandWithEnvVars.showBinPath == true)
+        #expect(pluginCommandWithEnvVars.targets == ["Target1", "Target2"])
+        #expect(pluginCommandWithEnvVars.products == ["Product1", "Product2"])
 
         let pluginCommandWithArgs = try PluginBuildCommand.parse([
             "--path", "/new/plugin/path",
@@ -330,12 +319,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--targets", "Target3", "--targets", "Target4",
             "--products", "Product3", "--products", "Product4",
         ])
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.path, "/new/plugin/path")
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.configuration, .release)
-        XCTAssertFalse(pluginCommandWithArgs.buildTests)
-        XCTAssertFalse(pluginCommandWithArgs.showBinPath)
-        XCTAssertEqual(pluginCommandWithArgs.targets, ["Target3", "Target4"])
-        XCTAssertEqual(pluginCommandWithArgs.products, ["Product3", "Product4"])
+        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.buildTests == false)
+        #expect(pluginCommandWithArgs.showBinPath == false)
+        #expect(pluginCommandWithArgs.targets == ["Target3", "Target4"])
+        #expect(pluginCommandWithArgs.products == ["Product3", "Product4"])
     }
 
     func testPluginRunCommandUsesEnvVars() throws {
@@ -347,12 +336,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.pluginRunArguments, value: "arg1,arg2,arg3")
 
         let pluginCommandWithEnvVars = try PluginRunCommand.parse([])
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.path, "/path/to/plugin")
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.configuration, .debug)
-        XCTAssertTrue(pluginCommandWithEnvVars.buildTests)
-        XCTAssertTrue(pluginCommandWithEnvVars.skipBuild)
-        XCTAssertEqual(pluginCommandWithEnvVars.task, "myTask")
-        XCTAssertEqual(pluginCommandWithEnvVars.arguments, ["arg1", "arg2", "arg3"])
+        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.buildTests == true)
+        #expect(pluginCommandWithEnvVars.skipBuild == true)
+        #expect(pluginCommandWithEnvVars.task ==  "myTask")
+        #expect(pluginCommandWithEnvVars.arguments == ["arg1", "arg2",  "arg3"])
 
         let pluginCommandWithArgs = try PluginRunCommand.parse([
             "--path", "/new/plugin/path",
@@ -362,12 +351,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "otherTask",
             "arg4", "arg5",
         ])
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.path, "/new/plugin/path")
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.configuration, .release)
-        XCTAssertFalse(pluginCommandWithArgs.buildTests)
-        XCTAssertFalse(pluginCommandWithArgs.skipBuild)
-        XCTAssertEqual(pluginCommandWithArgs.task, "otherTask")
-        XCTAssertEqual(pluginCommandWithArgs.arguments, ["arg4", "arg5"])
+        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.buildTests == false)
+        #expect(pluginCommandWithArgs.skipBuild == false)
+        #expect(pluginCommandWithArgs.task ==  "otherTask")
+        #expect(pluginCommandWithArgs.arguments == ["arg4",  "arg5"])
     }
 
     func testPluginTestCommandUsesEnvVars() throws {
@@ -377,10 +366,10 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.pluginTestTestProducts, value: "Product1,Product2")
 
         let pluginCommandWithEnvVars = try PluginTestCommand.parse([])
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.path, "/path/to/plugin")
-        XCTAssertEqual(pluginCommandWithEnvVars.pluginOptions.configuration, .debug)
-        XCTAssertTrue(pluginCommandWithEnvVars.buildTests)
-        XCTAssertEqual(pluginCommandWithEnvVars.testProducts, ["Product1", "Product2"])
+        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.buildTests == true)
+        #expect(pluginCommandWithEnvVars.testProducts == ["Product1",  "Product2"])
 
         let pluginCommandWithArgs = try PluginTestCommand.parse([
             "--path", "/new/plugin/path",
@@ -388,10 +377,10 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--no-build-tests",
             "--test-products", "Product3", "--test-products", "Product4",
         ])
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.path, "/new/plugin/path")
-        XCTAssertEqual(pluginCommandWithArgs.pluginOptions.configuration, .release)
-        XCTAssertFalse(pluginCommandWithArgs.buildTests)
-        XCTAssertEqual(pluginCommandWithArgs.testProducts, ["Product3", "Product4"])
+        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.buildTests == false)
+        #expect(pluginCommandWithArgs.testProducts == ["Product3",  "Product4"])
     }
 
     func testRunCommandUsesEnvVars() throws {
@@ -404,11 +393,11 @@ final class CommandEnvironmentVariableTests: XCTestCase {
 
         // Execute RunCommand without command line arguments
         let runCommandWithEnvVars = try RunCommand.parse([])
-        XCTAssertTrue(runCommandWithEnvVars.generate)
-        XCTAssertTrue(runCommandWithEnvVars.clean)
-        XCTAssertEqual(runCommandWithEnvVars.os, "14.5")
-        XCTAssertEqual(runCommandWithEnvVars.runnable, .scheme("MyScheme"))
-        XCTAssertEqual(runCommandWithEnvVars.arguments, ["arg1", "arg2", "arg3"])
+        #expect(runCommandWithEnvVars.generate == true)
+        #expect(runCommandWithEnvVars.clean == true)
+        #expect(runCommandWithEnvVars.os ==  "14.5")
+        #expect(runCommandWithEnvVars.runnable == .scheme("MyScheme"))
+        #expect(runCommandWithEnvVars.arguments == ["arg1", "arg2",  "arg3"])
 
         // Execute RunCommand with command line arguments
         let runCommandWithArgs = try RunCommand.parse([
@@ -422,15 +411,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "AnotherScheme",
             "arg4", "arg5",
         ])
-        XCTAssertFalse(runCommandWithArgs.generate)
-        XCTAssertFalse(runCommandWithArgs.clean)
-        XCTAssertEqual(runCommandWithArgs.path, "/new/run/path")
-        XCTAssertEqual(runCommandWithArgs.configuration, "Release")
-        XCTAssertEqual(runCommandWithArgs.device, "iPhone 12")
-        XCTAssertEqual(runCommandWithArgs.os, "15.0")
-        XCTAssertTrue(runCommandWithArgs.rosetta)
-        XCTAssertEqual(runCommandWithArgs.runnable, .scheme("AnotherScheme"))
-        XCTAssertEqual(runCommandWithArgs.arguments, ["arg4", "arg5"])
+        #expect(runCommandWithArgs.generate == false)
+        #expect(runCommandWithArgs.clean == false)
+        #expect(runCommandWithArgs.path ==  "/new/run/path")
+        #expect(runCommandWithArgs.configuration ==  "Release")
+        #expect(runCommandWithArgs.device ==  "iPhone 12")
+        #expect(runCommandWithArgs.os ==  "15.0")
+        #expect(runCommandWithArgs.rosetta == true)
+        #expect(runCommandWithArgs.runnable ==  .scheme("AnotherScheme"))
+        #expect(runCommandWithArgs.arguments == ["arg4",  "arg5"])
     }
 
     func testScaffoldCommandUsesEnvVars() throws {
@@ -441,9 +430,9 @@ final class CommandEnvironmentVariableTests: XCTestCase {
 
         // Execute ScaffoldCommand without command line arguments
         let scaffoldCommandWithEnvVars = try ScaffoldCommand.parse([])
-        XCTAssertTrue(scaffoldCommandWithEnvVars.json)
-        XCTAssertEqual(scaffoldCommandWithEnvVars.path, "/path/to/scaffold")
-        XCTAssertEqual(scaffoldCommandWithEnvVars.template, "MyTemplate")
+        #expect(scaffoldCommandWithEnvVars.json == true)
+        #expect(scaffoldCommandWithEnvVars.path ==  "/path/to/scaffold")
+        #expect(scaffoldCommandWithEnvVars.template ==  "MyTemplate")
 
         // Execute ScaffoldCommand with command line arguments
         let scaffoldCommandWithArgs = try ScaffoldCommand.parse([
@@ -451,9 +440,9 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--path", "/new/scaffold/path",
             "AnotherTemplate",
         ])
-        XCTAssertFalse(scaffoldCommandWithArgs.json)
-        XCTAssertEqual(scaffoldCommandWithArgs.path, "/new/scaffold/path")
-        XCTAssertEqual(scaffoldCommandWithArgs.template, "AnotherTemplate")
+        #expect(scaffoldCommandWithArgs.json == false)
+        #expect(scaffoldCommandWithArgs.path ==  "/new/scaffold/path")
+        #expect(scaffoldCommandWithArgs.template ==  "AnotherTemplate")
     }
 
     func testTestCommandWithEnvVars() throws {
@@ -481,30 +470,30 @@ final class CommandEnvironmentVariableTests: XCTestCase {
 
         // Execute TestCommand without command line arguments
         let testCommandWithEnvVars = try TestCommand.parse([])
-        XCTAssertEqual(testCommandWithEnvVars.scheme, "MyScheme")
-        XCTAssertTrue(testCommandWithEnvVars.clean)
-        XCTAssertTrue(testCommandWithEnvVars.noUpload)
-        XCTAssertEqual(testCommandWithEnvVars.path, "/path/to/test")
-        XCTAssertEqual(testCommandWithEnvVars.device, "iPhone")
-        XCTAssertEqual(testCommandWithEnvVars.platform, "iOS")
-        XCTAssertEqual(testCommandWithEnvVars.os, "14.5")
-        XCTAssertTrue(testCommandWithEnvVars.rosetta)
-        XCTAssertEqual(testCommandWithEnvVars.configuration, "Debug")
-        XCTAssertTrue(testCommandWithEnvVars.skipUITests)
-        XCTAssertEqual(testCommandWithEnvVars.resultBundlePath, "/path/to/resultBundle")
-        XCTAssertEqual(testCommandWithEnvVars.derivedDataPath, "/path/to/derivedData")
-        XCTAssertEqual(testCommandWithEnvVars.retryCount, 2)
-        XCTAssertEqual(testCommandWithEnvVars.testPlan, "MyTestPlan")
-        XCTAssertEqual(testCommandWithEnvVars.testTargets, [])
-        XCTAssertEqual(testCommandWithEnvVars.skipTestTargets, [
+        #expect(testCommandWithEnvVars.scheme ==  "MyScheme")
+        #expect(testCommandWithEnvVars.clean == true)
+        #expect(testCommandWithEnvVars.noUpload == true)
+        #expect(testCommandWithEnvVars.path ==  "/path/to/test")
+        #expect(testCommandWithEnvVars.device ==  "iPhone")
+        #expect(testCommandWithEnvVars.platform ==  "iOS")
+        #expect(testCommandWithEnvVars.os ==  "14.5")
+        #expect(testCommandWithEnvVars.rosetta == true)
+        #expect(testCommandWithEnvVars.configuration ==  "Debug")
+        #expect(testCommandWithEnvVars.skipUITests == true)
+        #expect(testCommandWithEnvVars.resultBundlePath ==  "/path/to/resultBundle")
+        #expect(testCommandWithEnvVars.derivedDataPath ==  "/path/to/derivedData")
+        #expect(testCommandWithEnvVars.retryCount ==  2)
+        #expect(testCommandWithEnvVars.testPlan ==  "MyTestPlan")
+        #expect(testCommandWithEnvVars.testTargets ==  [])
+        #expect(testCommandWithEnvVars.skipTestTargets == [
             try TestIdentifier(string: "SkipTarget1"),
             try TestIdentifier(string: "SkipTarget2"),
         ])
-        XCTAssertEqual(testCommandWithEnvVars.configurations, ["Config1", "Config2"])
-        XCTAssertEqual(testCommandWithEnvVars.skipConfigurations, ["SkipConfig1", "SkipConfig2"])
-        XCTAssertTrue(testCommandWithEnvVars.generateOnly)
-        XCTAssertFalse(testCommandWithEnvVars.binaryCache)
-        XCTAssertFalse(testCommandWithEnvVars.selectiveTesting)
+        #expect(testCommandWithEnvVars.configurations == ["Config1", "Config2"])
+        #expect(testCommandWithEnvVars.skipConfigurations == ["SkipConfig1", "SkipConfig2"])
+        #expect(testCommandWithEnvVars.generateOnly == true)
+        #expect(testCommandWithEnvVars.binaryCache == false)
+        #expect(testCommandWithEnvVars.selectiveTesting == false)
 
         // Execute TestCommand with command line arguments
         let testCommandWithArgs = try TestCommand.parse([
@@ -528,29 +517,29 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--no-binary-cache",
             "--no-selective-testing",
         ])
-        XCTAssertEqual(testCommandWithArgs.scheme, "NewScheme")
-        XCTAssertFalse(testCommandWithArgs.clean)
-        XCTAssertEqual(testCommandWithArgs.path, "/new/test/path")
-        XCTAssertEqual(testCommandWithArgs.device, "iPad")
-        XCTAssertEqual(testCommandWithArgs.platform, "macOS")
-        XCTAssertEqual(testCommandWithArgs.os, "15.0")
-        XCTAssertFalse(testCommandWithArgs.rosetta)
-        XCTAssertEqual(testCommandWithArgs.configuration, "Release")
-        XCTAssertFalse(testCommandWithArgs.skipUITests)
-        XCTAssertEqual(testCommandWithArgs.resultBundlePath, "/new/resultBundle/path")
-        XCTAssertEqual(testCommandWithArgs.derivedDataPath, "/new/derivedData/path")
-        XCTAssertEqual(testCommandWithArgs.retryCount, 3)
-        XCTAssertEqual(testCommandWithArgs.testPlan, "NewTestPlan")
-        XCTAssertEqual(testCommandWithArgs.testTargets, [])
-        XCTAssertEqual(testCommandWithArgs.skipTestTargets, [
+        #expect(testCommandWithArgs.scheme ==  "NewScheme")
+        #expect(testCommandWithArgs.clean == false)
+        #expect(testCommandWithArgs.path ==  "/new/test/path")
+        #expect(testCommandWithArgs.device ==  "iPad")
+        #expect(testCommandWithArgs.platform ==  "macOS")
+        #expect(testCommandWithArgs.os ==  "15.0")
+        #expect(testCommandWithArgs.rosetta == false)
+        #expect(testCommandWithArgs.configuration ==  "Release")
+        #expect(testCommandWithArgs.skipUITests == false)
+        #expect(testCommandWithArgs.resultBundlePath ==  "/new/resultBundle/path")
+        #expect(testCommandWithArgs.derivedDataPath ==  "/new/derivedData/path")
+        #expect(testCommandWithArgs.retryCount ==  3)
+        #expect(testCommandWithArgs.testPlan ==  "NewTestPlan")
+        #expect(testCommandWithArgs.testTargets ==  [])
+        #expect(testCommandWithArgs.skipTestTargets == [
             try TestIdentifier(string: "NewSkipTarget1"),
             try TestIdentifier(string: "NewSkipTarget2"),
         ])
-        XCTAssertEqual(testCommandWithArgs.configurations, ["NewConfig1", "NewConfig2"])
-        XCTAssertEqual(testCommandWithArgs.skipConfigurations, ["NewSkipConfig1", "NewSkipConfig2"])
-        XCTAssertFalse(testCommandWithArgs.generateOnly)
-        XCTAssertFalse(testCommandWithArgs.binaryCache)
-        XCTAssertFalse(testCommandWithArgs.selectiveTesting)
+        #expect(testCommandWithArgs.configurations == ["NewConfig1",  "NewConfig2"])
+        #expect(testCommandWithArgs.skipConfigurations == ["NewSkipConfig1",  "NewSkipConfig2"])
+        #expect(testCommandWithArgs.generateOnly == false)
+        #expect(testCommandWithArgs.binaryCache == false)
+        #expect(testCommandWithArgs.selectiveTesting == false)
     }
 
     func testOrganizationBillingCommandUsesEnvVars() throws {
@@ -558,15 +547,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationBillingPath, value: "/path/to/billing")
 
         let commandWithEnvVars = try OrganizationBillingCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/billing")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.path ==  "/path/to/billing")
 
         let commandWithArgs = try OrganizationBillingCommand.parse([
             "AnotherOrganization",
             "--path", "/new/billing/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "AnotherOrganization")
-        XCTAssertEqual(commandWithArgs.path, "/new/billing/path")
+        #expect(commandWithArgs.organizationName ==  "AnotherOrganization")
+        #expect(commandWithArgs.path ==  "/new/billing/path")
     }
 
     func testOrganizationCreateCommandUsesEnvVars() throws {
@@ -574,15 +563,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationCreatePath, value: "/path/to/create")
 
         let commandWithEnvVars = try OrganizationCreateCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyNewOrganization")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/create")
+        #expect(commandWithEnvVars.organizationName ==  "MyNewOrganization")
+        #expect(commandWithEnvVars.path ==  "/path/to/create")
 
         let commandWithArgs = try OrganizationCreateCommand.parse([
             "AnotherNewOrganization",
             "--path", "/new/create/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "AnotherNewOrganization")
-        XCTAssertEqual(commandWithArgs.path, "/new/create/path")
+        #expect(commandWithArgs.organizationName ==  "AnotherNewOrganization")
+        #expect(commandWithArgs.path ==  "/new/create/path")
     }
 
     func testOrganizationDeleteCommandUsesEnvVars() throws {
@@ -590,15 +579,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationDeletePath, value: "/path/to/delete")
 
         let commandWithEnvVars = try OrganizationDeleteCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "OrganizationToDelete")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/delete")
+        #expect(commandWithEnvVars.organizationName ==  "OrganizationToDelete")
+        #expect(commandWithEnvVars.path ==  "/path/to/delete")
 
         let commandWithArgs = try OrganizationDeleteCommand.parse([
             "AnotherOrganizationToDelete",
             "--path", "/new/delete/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "AnotherOrganizationToDelete")
-        XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
+        #expect(commandWithArgs.organizationName ==  "AnotherOrganizationToDelete")
+        #expect(commandWithArgs.path ==  "/new/delete/path")
     }
 
     func testProjectTokensCreateCommandUsesEnvVars() throws {
@@ -606,15 +595,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.projectTokenPath, value: "/path/to/token")
 
         let commandWithEnvVars = try ProjectTokensCreateCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/token")
+        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
+        #expect(commandWithEnvVars.path ==  "/path/to/token")
 
         let commandWithArgs = try ProjectTokensCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/token/path",
         ])
-        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
-        XCTAssertEqual(commandWithArgs.path, "/new/token/path")
+        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
+        #expect(commandWithArgs.path ==  "/new/token/path")
     }
 
     func testOrganizationListCommandUsesEnvVars() throws {
@@ -622,15 +611,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationListPath, value: "/path/to/list")
 
         let commandWithEnvVars = try OrganizationListCommand.parse([])
-        XCTAssertTrue(commandWithEnvVars.json)
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/list")
+        #expect(commandWithEnvVars.json == true)
+        #expect(commandWithEnvVars.path ==  "/path/to/list")
 
         let commandWithArgs = try OrganizationListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
-        XCTAssertFalse(commandWithArgs.json)
-        XCTAssertEqual(commandWithArgs.path, "/new/list/path")
+        #expect(commandWithArgs.json == false)
+        #expect(commandWithArgs.path ==  "/new/list/path")
     }
 
     func testOrganizationRemoveInviteCommandUsesEnvVars() throws {
@@ -639,18 +628,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationRemoveInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationRemoveInviteCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.email, "email@example.com")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/invite")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.email ==  "email@example.com")
+        #expect(commandWithEnvVars.path ==  "/path/to/invite")
 
         let commandWithArgs = try OrganizationRemoveInviteCommand.parse([
             "NewOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertEqual(commandWithArgs.email, "newemail@example.com")
-        XCTAssertEqual(commandWithArgs.path, "/new/invite/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.email ==  "newemail@example.com")
+        #expect(commandWithArgs.path ==  "/new/invite/path")
     }
 
     func testOrganizationRemoveMemberCommandUsesEnvVars() throws {
@@ -659,18 +648,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationRemoveMemberPath, value: "/path/to/member")
 
         let commandWithEnvVars = try OrganizationRemoveMemberCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.username, "username")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/member")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.username ==  "username")
+        #expect(commandWithEnvVars.path ==  "/path/to/member")
 
         let commandWithArgs = try OrganizationRemoveMemberCommand.parse([
             "NewOrganization",
             "newusername",
             "--path", "/new/member/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertEqual(commandWithArgs.username, "newusername")
-        XCTAssertEqual(commandWithArgs.path, "/new/member/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.username ==  "newusername")
+        #expect(commandWithArgs.path ==  "/new/member/path")
     }
 
     func testOrganizationRemoveSSOCommandUsesEnvVars() throws {
@@ -678,15 +667,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationRemoveSSOPath, value: "/path/to/sso")
 
         let commandWithEnvVars = try OrganizationRemoveSSOCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/sso")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.path ==  "/path/to/sso")
 
         let commandWithArgs = try OrganizationRemoveSSOCommand.parse([
             "NewOrganization",
             "--path", "/new/sso/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertEqual(commandWithArgs.path, "/new/sso/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.path ==  "/new/sso/path")
     }
 
     func testOrganizationUpdateSSOCommandUsesEnvVars() throws {
@@ -696,10 +685,10 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationUpdateSSOPath, value: "/path/to/update/sso")
 
         let commandWithEnvVars = try OrganizationUpdateSSOCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.provider, .google)
-        XCTAssertEqual(commandWithEnvVars.organizationId, "1234")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/update/sso")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.provider ==  .google)
+        #expect(commandWithEnvVars.organizationId ==  "1234")
+        #expect(commandWithEnvVars.path ==  "/path/to/update/sso")
 
         let commandWithArgs = try OrganizationUpdateSSOCommand.parse([
             "NewOrganization",
@@ -707,10 +696,10 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--organization-id", "5678",
             "--path", "/new/update/sso/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertEqual(commandWithArgs.provider, .google)
-        XCTAssertEqual(commandWithArgs.organizationId, "5678")
-        XCTAssertEqual(commandWithArgs.path, "/new/update/sso/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.provider ==  .google)
+        #expect(commandWithArgs.organizationId ==  "5678")
+        #expect(commandWithArgs.path ==  "/new/update/sso/path")
     }
 
     func testProjectDeleteCommandUsesEnvVars() throws {
@@ -718,15 +707,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.projectDeletePath, value: "/path/to/delete")
 
         let commandWithEnvVars = try ProjectDeleteCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/delete")
+        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
+        #expect(commandWithEnvVars.path ==  "/path/to/delete")
 
         let commandWithArgs = try ProjectDeleteCommand.parse([
             "new-org/new-project",
             "--path", "/new/delete/path",
         ])
-        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
-        XCTAssertEqual(commandWithArgs.path, "/new/delete/path")
+        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
+        #expect(commandWithArgs.path ==  "/new/delete/path")
     }
 
     func testProjectCreateCommandUsesEnvVars() throws {
@@ -734,15 +723,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.projectCreatePath, value: "/path/to/create")
 
         let commandWithEnvVars = try ProjectCreateCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.fullHandle, "tuist-org/tuist")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/create")
+        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
+        #expect(commandWithEnvVars.path ==  "/path/to/create")
 
         let commandWithArgs = try ProjectCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/create/path",
         ])
-        XCTAssertEqual(commandWithArgs.fullHandle, "new-org/new-project")
-        XCTAssertEqual(commandWithArgs.path, "/new/create/path")
+        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
+        #expect(commandWithArgs.path ==  "/new/create/path")
     }
 
     func testOrganizationInviteCommandUsesEnvVars() throws {
@@ -751,18 +740,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationInviteCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "InviteOrganization")
-        XCTAssertEqual(commandWithEnvVars.email, "email@example.com")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/invite")
+        #expect(commandWithEnvVars.organizationName ==  "InviteOrganization")
+        #expect(commandWithEnvVars.email ==  "email@example.com")
+        #expect(commandWithEnvVars.path ==  "/path/to/invite")
 
         let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewInviteOrganization")
-        XCTAssertEqual(commandWithArgs.email, "newemail@example.com")
-        XCTAssertEqual(commandWithArgs.path, "/new/invite/path")
+        #expect(commandWithArgs.organizationName ==  "NewInviteOrganization")
+        #expect(commandWithArgs.email ==  "newemail@example.com")
+        #expect(commandWithArgs.path ==  "/new/invite/path")
     }
 
     func testOrganizationShowCommandUsesEnvVars() throws {
@@ -771,18 +760,18 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationShowPath, value: "/path/to/show")
 
         let commandWithEnvVars = try OrganizationShowCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertTrue(commandWithEnvVars.json)
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/show")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.json == true)
+        #expect(commandWithEnvVars.path ==  "/path/to/show")
 
         let commandWithArgs = try OrganizationShowCommand.parse([
             "NewOrganization",
             "--no-json",
             "--path", "/new/show/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertFalse(commandWithArgs.json)
-        XCTAssertEqual(commandWithArgs.path, "/new/show/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.json == false)
+        #expect(commandWithArgs.path ==  "/new/show/path")
     }
 
     func testProjectListCommandUsesEnvVars() throws {
@@ -790,15 +779,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.projectListPath, value: "/path/to/list")
 
         let commandWithEnvVars = try ProjectListCommand.parse([])
-        XCTAssertTrue(commandWithEnvVars.json)
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/list")
+        #expect(commandWithEnvVars.json == true)
+        #expect(commandWithEnvVars.path ==  "/path/to/list")
 
         let commandWithArgs = try ProjectListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
-        XCTAssertFalse(commandWithArgs.json)
-        XCTAssertEqual(commandWithArgs.path, "/new/list/path")
+        #expect(commandWithArgs.json == false)
+        #expect(commandWithArgs.path ==  "/new/list/path")
     }
 
     func testOrganizationUpdateMemberCommandUsesEnvVars() throws {
@@ -808,10 +797,10 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.organizationUpdateMemberPath, value: "/path/to/member")
 
         let commandWithEnvVars = try OrganizationUpdateMemberCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.organizationName, "MyOrganization")
-        XCTAssertEqual(commandWithEnvVars.username, "username")
-        XCTAssertEqual(commandWithEnvVars.role, "admin")
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/member")
+        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.username ==  "username")
+        #expect(commandWithEnvVars.role ==  "admin")
+        #expect(commandWithEnvVars.path ==  "/path/to/member")
 
         let commandWithArgs = try OrganizationUpdateMemberCommand.parse([
             "NewOrganization",
@@ -819,46 +808,46 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--role", "user",
             "--path", "/new/member/path",
         ])
-        XCTAssertEqual(commandWithArgs.organizationName, "NewOrganization")
-        XCTAssertEqual(commandWithArgs.username, "newusername")
-        XCTAssertEqual(commandWithArgs.role, "user")
-        XCTAssertEqual(commandWithArgs.path, "/new/member/path")
+        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.username ==  "newusername")
+        #expect(commandWithArgs.role ==  "user")
+        #expect(commandWithArgs.path ==  "/new/member/path")
     }
 
     func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
         let commandWithEnvVars = try LoginCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/auth")
+        #expect(commandWithEnvVars.path ==  "/path/to/auth")
 
         let commandWithArgs = try LoginCommand.parse([
             "--path", "/new/auth/path",
         ])
-        XCTAssertEqual(commandWithArgs.path, "/new/auth/path")
+        #expect(commandWithArgs.path ==  "/new/auth/path")
     }
 
     func testWhoamiCommandUsesEnvVars() throws {
         setVariable(.whoamiPath, value: "/path/to/session")
 
         let commandWithEnvVars = try WhoamiCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/session")
+        #expect(commandWithEnvVars.path ==  "/path/to/session")
 
         let commandWithArgs = try WhoamiCommand.parse([
             "--path", "/new/session/path",
         ])
-        XCTAssertEqual(commandWithArgs.path, "/new/session/path")
+        #expect(commandWithArgs.path ==  "/new/session/path")
     }
 
     func testLogoutCommandUsesEnvVars() throws {
         setVariable(.logoutPath, value: "/path/to/logout")
 
         let commandWithEnvVars = try LogoutCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/logout")
+        #expect(commandWithEnvVars.path ==  "/path/to/logout")
 
         let commandWithArgs = try LogoutCommand.parse([
             "--path", "/new/logout/path",
         ])
-        XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
+        #expect(commandWithArgs.path ==  "/new/logout/path")
     }
 
     func testCacheCommandUsesEnvVars() throws {
@@ -870,12 +859,12 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.externalOnly, true)
-        XCTAssertEqual(commandWithEnvVars.generateOnly, true)
-        XCTAssertEqual(commandWithEnvVars.printHashes, true)
-        XCTAssertEqual(commandWithEnvVars.configuration, "CacheConfig")
-        XCTAssertEqual(commandWithEnvVars.path, "/cache/path")
-        XCTAssertEqual(commandWithEnvVars.targets, ["Fmk1", "Fmk2"])
+        #expect(commandWithEnvVars.externalOnly ==  true)
+        #expect(commandWithEnvVars.generateOnly ==  true)
+        #expect(commandWithEnvVars.printHashes ==  true)
+        #expect(commandWithEnvVars.configuration ==  "CacheConfig")
+        #expect(commandWithEnvVars.path ==  "/cache/path")
+        #expect(commandWithEnvVars.targets == ["Fmk1",  "Fmk2"])
 
         let commandWithArgs = try CacheCommand.parse([
             "--external-only",
@@ -886,11 +875,11 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--",
             "Fmk1", "Fmk2",
         ])
-        XCTAssertEqual(commandWithArgs.externalOnly, true)
-        XCTAssertEqual(commandWithArgs.generateOnly, true)
-        XCTAssertEqual(commandWithArgs.printHashes, true)
-        XCTAssertEqual(commandWithArgs.configuration, "CacheConfig")
-        XCTAssertEqual(commandWithArgs.path, "/cache/path")
-        XCTAssertEqual(commandWithArgs.targets, ["Fmk1", "Fmk2"])
+        #expect(commandWithArgs.externalOnly ==  true)
+        #expect(commandWithArgs.generateOnly ==  true)
+        #expect(commandWithArgs.printHashes ==  true)
+        #expect(commandWithArgs.configuration ==  "CacheConfig")
+        #expect(commandWithArgs.path ==  "/cache/path")
+        #expect(commandWithArgs.targets == ["Fmk1",  "Fmk2"])
     }
 }

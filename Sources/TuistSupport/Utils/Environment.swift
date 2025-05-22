@@ -55,14 +55,6 @@ public protocol Environmenting: AnyObject, Sendable {
 public final class Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
 
-    @available(*, deprecated, message: "Use Environment.current instead")
-    public static var shared: Environmenting {
-        _shared.value
-    }
-
-    // swiftlint:disable:next identifier_name
-    static let _shared: ThreadSafe<Environmenting> = ThreadSafe(Environment())
-
     // MARK: - Attributes
 
     /// File handler instance.

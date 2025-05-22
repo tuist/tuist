@@ -18,7 +18,7 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
     private let environment: Environmenting
 
     init(
-        environment: Environmenting = Environment.shared
+        environment: Environmenting = Environment.current
     ) {
         self.environment = environment
     }

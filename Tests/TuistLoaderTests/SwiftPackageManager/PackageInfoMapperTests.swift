@@ -6,33 +6,29 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
-
+import Testing
+import FileSystemTesting
 @testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class PackageInfoMapperTests: TuistUnitTestCase {
+@Suite(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
+struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
-
-    override func setUp() {
-        super.setUp()
-        fileSystem = FileSystem()
-        given(swiftVersionProvider)
+    private let fileSystem = FileSystem()
+    
+    init() throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.9")
         subject = PackageInfoMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+    @Test func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -56,8 +52,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product1": [
                     .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
@@ -67,10 +63,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+    @Test func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -94,8 +90,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product1": [
                     .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
@@ -105,10 +101,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+    @Test func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -135,8 +131,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product1": [
                     .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
@@ -146,10 +142,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
+    @Test func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -173,8 +169,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product1": [
                     .xcframework(path: "\(basePath.pathString)/Target_1/Target_1.xcframework"),
@@ -184,11 +180,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenPackageIDDifferentThanName() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
+    @Test func testResolveDependencies_whenPackageIDDifferentThanName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -237,8 +233,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product1": [
                     .project(
@@ -258,10 +254,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenHasModuleAliases() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
+    @Test func testResolveDependencies_whenHasModuleAliases() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -315,8 +311,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: ["Package2": ["Product": "Package2Product"]]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product": [
                     .project(
@@ -336,11 +332,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
-        try fileHandler
-            .createFolder(basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
+    @Test func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
+        
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -389,8 +385,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "com.example.dep-1": [
                     .project(
@@ -410,11 +406,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenTargetDependenciesOnTargetHaveConditions() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
+    @Test func testResolveDependencies_whenTargetDependenciesOnTargetHaveConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -447,8 +443,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product": [
                     .project(
@@ -461,11 +457,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
+    @Test func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2)))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -522,8 +518,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertBetterEqual(
-            resolvedDependencies,
+        #expect(
+            resolvedDependencies ==
             [
                 "Product_1": [
                     .project(

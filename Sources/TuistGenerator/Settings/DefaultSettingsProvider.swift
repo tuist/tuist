@@ -21,6 +21,7 @@ public protocol DefaultSettingsProviding {
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
+    
     private static let essentialProjectSettings: Set<String> = [
         "ALWAYS_SEARCH_USER_PATHS",
         "DEBUG_INFORMATION_FORMAT",
@@ -88,20 +89,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             "ENABLE_PREVIEWS",
         ],
     ]
-
-    private let xcodeController: XcodeControlling
-
-    public convenience init() {
-        self.init(
-            xcodeController: XcodeController.shared
-        )
-    }
-
-    public init(
-        xcodeController: XcodeControlling
-    ) {
-        self.xcodeController = xcodeController
-    }
+    
+    public init() {}
 
     // MARK: - DefaultSettingsProviding
 
@@ -248,7 +237,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
         case let .recommended(excludedKeys):
-            let xcodeVersion = try await xcodeController.selectedVersion()
+            let xcodeVersion = try await XcodeController.current.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys

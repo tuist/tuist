@@ -41,8 +41,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
@@ -70,7 +69,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
@@ -98,7 +97,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
@@ -127,7 +126,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
@@ -156,7 +155,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = [
             "/usr/bin/xcrun",
@@ -198,7 +197,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = [
             "/usr/bin/xcrun",
@@ -242,7 +241,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = [
             "/usr/bin/xcrun",
@@ -286,7 +285,7 @@ struct XcodeBuildControllerTests {
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
         let shouldOutputBeColoured = true
-        given(environment).shouldOutputBeColoured.willReturn(shouldOutputBeColoured)
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
 
         var command = [
             "/usr/bin/xcrun",

@@ -6,19 +6,18 @@ import TuistHasher
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCache
 
-final class CacheGraphContentHasherTests: TuistUnitTestCase {
+@Suite()
+struct CacheGraphContentHasherTests {
     private var graphContentHasher: MockGraphContentHashing!
     private var contentHasher: MockContentHashing!
     private var defaultConfigurationFetcher: MockDefaultConfigurationFetching!
     private var subject: CacheGraphContentHasher!
 
-    override func setUp() {
-        super.setUp()
-
+    init() throws {
         graphContentHasher = .init()
         contentHasher = .init()
         defaultConfigurationFetcher = MockDefaultConfigurationFetching()
@@ -27,25 +26,16 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             graphContentHasher: graphContentHasher,
             contentHasher: contentHasher,
             versionFetcher: CacheVersionFetcher(),
-            defaultConfigurationFetcher: defaultConfigurationFetcher,
-            xcodeController: xcodeController,
-            swiftVersionProvider: swiftVersionProvider
+            defaultConfigurationFetcher: defaultConfigurationFetcher
         )
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
     }
 
-    override func tearDown() {
-        graphContentHasher = nil
-        contentHasher = nil
-        defaultConfigurationFetcher = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
+    @Test func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
             path: "/Project/Path",
@@ -63,7 +53,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(defaultConfigurationFetcher)
             .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
-        given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
 
         // When
         _ = try await subject.contentHashes(
@@ -87,7 +78,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
+    @Test func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
         let excludedTarget = GraphTarget(
             path: "/Project/Path",
@@ -110,7 +101,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(defaultConfigurationFetcher)
             .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
-        given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
 
         // When
         _ = try await subject.contentHashes(
@@ -134,7 +126,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
+    @Test func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given
         let project = Project.test()
 
@@ -164,7 +156,8 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         given(defaultConfigurationFetcher)
             .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
-        given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
 
         // When
         _ = try await subject.contentHashes(

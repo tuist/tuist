@@ -124,16 +124,13 @@ public final class SimulatorController: SimulatorControlling {
     private let userInputReader: UserInputReading
 
     private let system: Systeming
-    private let xcodeController: XcodeControlling
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
-        system: Systeming = System.shared,
-        xcodeController: XcodeControlling = XcodeController.shared
+        system: Systeming = System.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
-        self.xcodeController = xcodeController
     }
 
     /// Returns the list of simulator devices that are available in the system.
@@ -317,7 +314,7 @@ public final class SimulatorController: SimulatorControlling {
         Logger.current
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        let simulator = try await xcodeController.selected().path.appending(
+        let simulator = try await XcodeController.current.selected().path.appending(
             components: "Contents",
             "Developer",
             "Applications",

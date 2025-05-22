@@ -20,15 +20,9 @@ public protocol XcodeControlling: Sendable {
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
+    @TaskLocal public static var current: XcodeControlling = XcodeController()
+    
     public init() {}
-
-    /// Shared instance.
-    public static var shared: XcodeControlling {
-        _shared.value
-    }
-
-    // swiftlint:disable:next identifier_name
-    static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command
     private let selectedXcode: ThreadSafe<Xcode?> = ThreadSafe(nil)

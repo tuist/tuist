@@ -23,7 +23,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     }
 
     func lintXcodeVersion(configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws -> [LintingIssue] {
-        let xcode = try await XcodeController.shared.selected()
+        let xcode = try await XcodeController.current.selected()
 
         let version = xcode.infoPlist.version
 

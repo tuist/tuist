@@ -17,13 +17,7 @@ public protocol SwiftVersionProviding {
 }
 
 public final class SwiftVersionProvider: SwiftVersionProviding {
-    public static var shared: SwiftVersionProviding {
-        _shared.value
-    }
-
-    // swiftlint:disable:next identifier_name
-    static let _shared: ThreadSafe<SwiftVersionProviding> = ThreadSafe(SwiftVersionProvider(System.shared))
-    // swiftlint:disable force_try
+    @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider(System())
 
     /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
     private static let swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])

@@ -28,7 +28,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
-        let environment = TuistSupport.Environment.shared
+        let environment = TuistSupport.Environment.current
         self.init(
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
