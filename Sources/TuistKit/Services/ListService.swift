@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
@@ -65,11 +64,11 @@ class ListService {
                 TextTable.Column(title: "Name", value: $0.name),
                 TextTable.Column(title: "Description", value: $0.description),
             ] }
-            ServiceContext.current?.logger?.notice("\(textTable.render(templates))")
+            Logger.current.notice("\(textTable.render(templates))")
 
         case .json:
             let json = try templates.toJSON()
-            ServiceContext.current?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+            Logger.current.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
     }
 

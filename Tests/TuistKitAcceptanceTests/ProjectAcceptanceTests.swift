@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -9,7 +8,7 @@ import XCTest
 
 final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectListCommand.self)
             XCTAssertStandardOutput(pattern: "Listing all your projects:")
@@ -20,12 +19,12 @@ final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectTokensCreateCommand.self, fullHandle)
             try await run(ProjectTokensListCommand.self, fullHandle)
             let id = try XCTUnwrap(
-                ServiceContext.current?.testingLogHandler?.collected[.notice, ==]
+                Logger.testingLogHandler.collected[.notice, ==]
                     .components(separatedBy: .newlines)
                     .dropLast().last?
                     .components(separatedBy: .whitespaces)
@@ -42,7 +41,7 @@ final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase {
     func test_update_default_branch() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(
@@ -65,7 +64,7 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
 
 final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
     func test_update_visibility() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(
@@ -86,7 +85,7 @@ final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectRepository: ServerAcceptanceTestCase {
     func test_update_repository() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(

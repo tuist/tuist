@@ -25,6 +25,8 @@ public final class PlistContentHasher: PlistContentHashing {
         switch plist {
         case let .infoPlist(infoPlist):
             switch infoPlist {
+            case let .variable(variable, configuration: _):
+                return try contentHasher.hash(variable)
             case let .file(path: path, configuration: _):
                 return try await contentHasher.hash(path: path)
             case let .dictionary(dictionary, configuration: _), let .extendingDefault(dictionary, configuration: _):

@@ -1,7 +1,7 @@
 import Foundation
+import Logging
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -41,7 +41,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             for path in dynamicPaths {
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.relative(to: sourceRootPath).pathString)
-                    ServiceContext.current?.logger?.notice(
+                    Logger.current.notice(
                         "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
                     )
                 } else {

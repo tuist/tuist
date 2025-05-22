@@ -18,7 +18,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         subject = SwiftPackageManagerController(
             system: system,
             fileSystem: fileSystem,
-            commandRunner: commandRunner
+            commandRunner: { self.commandRunner }
         )
     }
 

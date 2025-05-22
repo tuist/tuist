@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -177,9 +176,13 @@ public final class ServerSessionController: ServerSessionControlling {
 
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
+<<<<<<< HEAD:Sources/TuistServer/Client/ServerSessionController.swift
         #if canImport(TuistSupport)
             ServiceContext.current?.alerts?.success(.alert("Successfully logged out."))
         #endif
+=======
+        AlertController.current.success(.alert("Successfully logged out."))
+>>>>>>> origin/main:Sources/TuistServer/Session/ServerSessionController.swift
     }
 
     private func getAuthTokens(

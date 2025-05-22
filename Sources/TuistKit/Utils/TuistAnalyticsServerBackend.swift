@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCLIServer

@@ -1,7 +1,6 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import ServiceContextModule
 
 enum CloudClientOutputWarningsMiddlewareError: LocalizedError {
     var errorDescription: String? {
@@ -42,10 +41,14 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
+<<<<<<< HEAD
         #if canImport(TuistSupport)
             let logger = ServiceContext.$current.get()?.logger
             json.forEach { logger?.warning("\($0)") }
         #endif
+=======
+        json.forEach { AlertController.current.warning(.alert("\($0)")) }
+>>>>>>> origin/main
 
         return (response, body)
     }

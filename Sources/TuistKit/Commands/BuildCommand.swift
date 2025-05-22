@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCLIServer
 import TuistServer
 import TuistSupport
@@ -160,7 +159,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand, Recent
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath = buildOptions.derivedDataPath {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )

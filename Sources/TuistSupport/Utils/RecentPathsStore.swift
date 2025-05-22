@@ -2,21 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
-
-private enum RecentPathsContextKey: ServiceContextKey {
-    typealias Value = RecentPathsStoring
-}
-
-extension ServiceContext {
-    public var recentPaths: RecentPathsStoring? {
-        get {
-            self[RecentPathsContextKey.self]
-        } set {
-            self[RecentPathsContextKey.self] = newValue
-        }
-    }
-}
 
 public struct RecentPathMetadata: Hashable, Equatable, Codable {
     let lastUpdated: Date
@@ -44,6 +29,11 @@ public protocol RecentPathsStoring {
 }
 
 public struct RecentPathsStore: RecentPathsStoring {
+    @TaskLocal public static var current: RecentPathsStoring = RecentPathsStore(
+        storageDirectory: Environment.current
+            .stateDirectory
+    )
+
     private let fileSystem: FileSystem
     private let storageDirectory: AbsolutePath
 

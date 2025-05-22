@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -41,6 +40,6 @@ final class LogoutService: LogoutServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
         try await serverSessionController.logout(serverURL: serverURL)
-        ServiceContext.current?.alerts?.success("Successfully logged out")
+        AlertController.current.success("Successfully logged out")
     }
 }

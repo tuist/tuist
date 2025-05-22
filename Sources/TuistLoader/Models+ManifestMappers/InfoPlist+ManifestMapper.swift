@@ -21,6 +21,8 @@ extension XcodeGraph.InfoPlist {
                 with:
                 dictionary.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }
             )
+        case let .variable(setting):
+            return .variable(setting)
         case .none:
             return .none
         }

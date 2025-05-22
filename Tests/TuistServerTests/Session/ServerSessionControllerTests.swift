@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -55,12 +54,18 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         // Given
         given(getAuthTokenService)
             .getAuthToken(serverURL: .any, deviceCode: .any)
-            .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
+            .willReturn(
+                ServerAuthenticationTokens(
+                    accessToken: "access-token", refreshToken: "refresh-token"
+                )
+            )
         given(uniqueIDGenerator).uniqueID().willReturn("id")
         given(credentialsStore)
             .read(serverURL: .value(serverURL))
             .willReturn(
-                ServerCredentials(token: nil, accessToken: "access-token", refreshToken: "refresh-token")
+                ServerCredentials(
+                    token: nil, accessToken: "access-token", refreshToken: "refresh-token"
+                )
             )
         given(credentialsStore)
             .store(credentials: .any, serverURL: .value(serverURL))
@@ -174,7 +179,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesLegacyCredentials() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: "token",
@@ -196,7 +201,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesCredentials() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: nil,

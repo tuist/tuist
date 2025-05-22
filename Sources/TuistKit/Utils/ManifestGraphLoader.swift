@@ -2,7 +2,6 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -174,8 +173,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             projects: updatedModels.projects
         )
 
-        if await ServiceContext.current?.runMetadataStorage?.graph == nil {
-            await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        if await RunMetadataStorage.current.graph == nil {
+            await RunMetadataStorage.current.update(graph: graph)
         }
 
         // Apply graph mappers

@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -81,6 +80,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
     #endif
 
     public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
+<<<<<<< HEAD:Sources/TuistServer/Client/ServerAuthenticationController.swift
         #if canImport(TuistSupport)
             if ciChecker.isCI() {
                 if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
@@ -117,6 +117,40 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                             refreshToken: nil
                         )
                     }
+=======
+        if ciChecker.isCI() {
+            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+                return .project(configToken)
+            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+                Logger.current
+                    .warning(
+                        "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                    )
+                return .project(deprecatedToken)
+            } else {
+                return nil
+            }
+        } else {
+            var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
+            if isTuistDevURL(serverURL), credentials == nil {
+                credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
+            }
+            return try credentials.map {
+                if let refreshToken = $0.refreshToken {
+                    return .user(
+                        legacyToken: nil,
+                        accessToken: try $0.accessToken.map(parseJWT),
+                        refreshToken: try parseJWT(refreshToken)
+                    )
+                } else {
+                    Logger.current
+                        .warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
+                    return .user(
+                        legacyToken: $0.token,
+                        accessToken: nil,
+                        refreshToken: nil
+                    )
+>>>>>>> origin/main:Sources/TuistServer/Utilities/ServerAuthenticationController.swift
                 }
             }
         #else

@@ -3,7 +3,6 @@ import Foundation
 import Logging
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
 import TuistCache
 import TuistCLIServer
@@ -93,7 +92,8 @@ struct XcodeBuildTestCommandServiceTests {
     }
 
     @Test func throwsErrorWhenSchemeNotPassed() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") { _ in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
+            _ in
             // When / Then
             await #expect(throws: XcodeBuildTestCommandServiceError.schemeNotPassed) {
                 try await subject.run(passthroughXcodebuildArguments: ["test"])
@@ -104,10 +104,8 @@ struct XcodeBuildTestCommandServiceTests {
     @Test func existsEarlyIfAllTestsAreCached() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
-            var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
-            context.runMetadataStorage = runMetadataStorage
-            try await ServiceContext.withValue(context) {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 // Given
                 let aUnitTestsTarget: Target = .test(name: "AUnitTests")
                 let bUnitTestsTarget: Target = .test(name: "BUnitTests")
@@ -246,10 +244,8 @@ struct XcodeBuildTestCommandServiceTests {
     @Test func skipsCachedTests() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
-            var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
-            context.runMetadataStorage = runMetadataStorage
-            try await ServiceContext.withValue(context) {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 // Given
                 let aUnitTestsTarget: Target = .test(name: "AUnitTests")
                 let bUnitTestsTarget: Target = .test(name: "BUnitTests")
@@ -394,10 +390,8 @@ struct XcodeBuildTestCommandServiceTests {
     @Test func updatesAnalyicsWhenXcodeBuildFails() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
-            var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
-            context.runMetadataStorage = runMetadataStorage
-            try await ServiceContext.withValue(context) {
+            await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 // Given
                 let aUnitTestsTarget: Target = .test(name: "AUnitTests")
                 let project: Project = .test(
@@ -750,10 +744,8 @@ struct XcodeBuildTestCommandServiceTests {
     @Test func preservesResultBundlePathWhenPassed() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildTestCommandServiceTests") {
             temporaryPath in
-            var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
-            context.runMetadataStorage = runMetadataStorage
-            try await ServiceContext.withValue(context) {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 // Given
                 let aUnitTestsTarget: Target = .test(name: "AUnitTests")
                 let bUnitTestsTarget: Target = .test(name: "BUnitTests")

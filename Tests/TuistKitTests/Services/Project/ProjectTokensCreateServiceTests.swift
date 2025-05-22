@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistKit
 
 final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
@@ -45,7 +45,7 @@ final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
     }
 
     func test_create_project_token() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(createProjectTokenService)
                 .createProjectToken(

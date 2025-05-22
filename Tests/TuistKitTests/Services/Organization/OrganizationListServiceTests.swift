@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistKit
 
 final class OrganizationListServiceTests: TuistUnitTestCase {
@@ -35,7 +35,7 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_list() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(listOrganizationsService).listOrganizations(serverURL: .any)
                 .willReturn(
@@ -49,16 +49,18 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
             try await subject.run(json: false, directory: nil)
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            Listing all your organizations:
-              • test-one
-              • test-two
-            """)
+            XCTAssertPrinterOutputContains(
+                """
+                Listing all your organizations:
+                  • test-one
+                  • test-two
+                """
+            )
         }
     }
 
     func test_organization_list_when_none() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(listOrganizationsService).listOrganizations(serverURL: .any)
                 .willReturn([])

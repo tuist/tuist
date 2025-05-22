@@ -2,7 +2,6 @@ import ArgumentParser
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     public static var configuration: CommandConfiguration {

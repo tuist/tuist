@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import Mockable
-import ServiceContextModule
 
 @Mockable
 public protocol MachineEnvironmentRetrieving: Sendable {
@@ -79,7 +78,7 @@ public final class MachineEnvironment: MachineEnvironmentRetrieving {
 
         let modelRequestError = sysctl(hwName, 2, machine, len, nil, 0)
         if modelRequestError != 0 {
-            ServiceContext.current?.logger?
+            Logger.current
                 .debug("Failed to obtain model name due to #\(errno): \(String(describing: String(utf8String: strerror(errno))))")
 
             return nil

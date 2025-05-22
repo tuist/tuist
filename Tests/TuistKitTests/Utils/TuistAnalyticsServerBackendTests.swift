@@ -1,6 +1,5 @@
 import FileSystem
 import Mockable
-import ServiceContextModule
 import TuistAnalytics
 import TuistCLIServer
 import TuistCore
@@ -8,6 +7,7 @@ import TuistCoreTesting
 import TuistServer
 import TuistSupport
 import XCTest
+
 @testable import TuistKit
 @testable import TuistSupportTesting
 
@@ -48,7 +48,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_not_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.runs))
@@ -74,12 +74,14 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             let _: ServerCommandEvent = try await subject.send(commandEvent: event)
 
             // Then
-            XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+            XCTAssertPrinterOutputNotContains(
+                "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10"
+            )
         }
     }
 
     func test_send_when_is_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.runs))
@@ -106,7 +108,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(ciChecker)
                 .isCI()
@@ -125,9 +127,10 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
                 .cacheDirectory(for: .value(.runs))
                 .willReturn(try temporaryPath())
 
-            let resultBundle = try cacheDirectoriesProvider
-                .cacheDirectory(for: .runs)
-                .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
+            let resultBundle =
+                try cacheDirectoriesProvider
+                    .cacheDirectory(for: .runs)
+                    .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
             try fileHandler.createFolder(resultBundle)
 
             given(analyticsArtifactUploadService)

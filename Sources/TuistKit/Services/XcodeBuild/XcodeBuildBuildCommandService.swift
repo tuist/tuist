@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -47,7 +46,7 @@ struct XcodeBuildBuildCommandService {
         ) {
             let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return []
@@ -55,7 +54,7 @@ struct XcodeBuildBuildCommandService {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return ["-resultBundlePath", resultBundlePath.pathString]

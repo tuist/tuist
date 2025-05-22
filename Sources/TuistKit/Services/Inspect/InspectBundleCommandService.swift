@@ -1,8 +1,8 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
 import Rosalind
-import ServiceContextModule
 import TuistCLIServer
 import TuistLoader
 import TuistServer
@@ -63,7 +63,7 @@ struct InspectBundleCommandService {
         if json {
             let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
             let json = try appBundleReport.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(stringLiteral: json.toString(prettyPrint: true)),
                 metadata: .json
             )
@@ -89,7 +89,7 @@ struct InspectBundleCommandService {
         }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        let serverBundle = try await ServiceContext.current!.ui!.progressStep(
+        let serverBundle = try await Noora.current.progressStep(
             message: "Analyzing bundle...",
             successMessage: "Bundle analyzed",
             errorMessage: nil,
@@ -106,11 +106,7 @@ struct InspectBundleCommandService {
                 gitRef: gitRef
             )
         }
-        ServiceContext.current?.ui?.success(
-            .alert(
-                "View the bundle analysis at \(serverBundle.url.absoluteString)"
-            )
-        )
+        AlertController.current.success(.alert("View the bundle analysis at \(serverBundle.url.absoluteString)"))
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {

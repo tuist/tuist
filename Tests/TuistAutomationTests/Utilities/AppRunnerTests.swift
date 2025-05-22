@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import struct TSCUtility.Version
 import TuistCore
@@ -41,7 +40,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_single_app_bundle_with_one_currently_booted_device() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let appBundle: AppBundle = .test()
             let simulatorDeviceAndRuntime: SimulatorDeviceAndRuntime = .test(
@@ -88,7 +87,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_single_app_bundle_with_specific_device() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let appBundle: AppBundle = .test()
             let simulatorDeviceAndRuntime: SimulatorDeviceAndRuntime = .test(
@@ -135,7 +134,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_single_app_bundle_with_specific_version() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let appBundle: AppBundle = .test()
             let simulatorDeviceAndRuntime: SimulatorDeviceAndRuntime = .test(
@@ -184,7 +183,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_mutliple_app_bundles_with_one_currently_booted_device() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let appBundleOne: AppBundle = .test(
                 infoPlist: .test(
@@ -269,7 +268,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_mutliple_app_bundles_with_physical_device_when_no_matching_bundle_exists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let iosSimulatorAppBundle: AppBundle = .test(
                 infoPlist: .test(
@@ -318,7 +317,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_mutliple_app_bundles_with_physical_device() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let iosSimulatorAppBundle: AppBundle = .test(
                 infoPlist: .test(
@@ -393,7 +392,7 @@ struct AppRunnerTests {
 
     @Test
     func test_run_mutliple_app_bundles_with_no_booted_device() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let appBundleOne: AppBundle = .test(
                 infoPlist: .test(

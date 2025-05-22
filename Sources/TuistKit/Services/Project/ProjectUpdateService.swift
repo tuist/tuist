@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -63,7 +62,7 @@ struct ProjectUpdateService {
             visibility: visibility
         )
 
-        ServiceContext.current?.alerts?.success(.alert("The project \(fullHandle) was successfully updated 🎉"))
+        AlertController.current.success(.alert("The project \(fullHandle) was successfully updated 🎉"))
     }
 
     // MARK: - Helpers

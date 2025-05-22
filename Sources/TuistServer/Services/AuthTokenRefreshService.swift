@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 
 @Mockable
 public protocol AuthTokenRefreshServicing {
