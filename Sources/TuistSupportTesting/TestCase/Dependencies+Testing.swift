@@ -25,6 +25,18 @@ public func withTestingDependencies(forwardLogs _: Bool = false, _ closure: () a
     }
 }
 
+public func withMockedDeveloperEnvironment(_ closure: () async throws -> Void) async throws {
+    try await DeveloperEnvironment.$current.withValue(MockDeveloperEnvironment()) {
+        try await closure()
+    }
+}
+
+public func withMockedEnvironment(_ closure: () async throws -> Void) async throws {
+    try await Environment.$current.withValue(MockEnvironment()) {
+        try await closure()
+    }
+}
+
 public func expectLogs(
     _ expected: String,
     at level: Logger.Level = .warning,

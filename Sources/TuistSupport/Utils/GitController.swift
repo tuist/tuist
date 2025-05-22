@@ -69,7 +69,7 @@ public final class GitController: GitControlling {
 
     public init(
         system: Systeming = System.shared,
-        environment: Environmenting = Environment.shared
+        environment: Environmenting = Environment.current
     ) {
         self.system = system
         self.environment = environment

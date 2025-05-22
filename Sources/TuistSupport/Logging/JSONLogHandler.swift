@@ -29,13 +29,13 @@ public struct JSONLogHandler: LogHandler {
         default:
             switch level {
             case .critical:
-                if Environment.shared.shouldOutputBeColoured {
+                if Environment.current.shouldOutputBeColoured {
                     string = message.description.bold()
                 } else {
                     string = message.description
                 }
             case .error:
-                if Environment.shared.shouldOutputBeColoured {
+                if Environment.current.shouldOutputBeColoured {
                     string = message.description.red()
                 } else {
                     string = message.description

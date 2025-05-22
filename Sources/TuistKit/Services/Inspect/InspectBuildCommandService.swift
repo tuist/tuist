@@ -44,7 +44,7 @@ struct InspectBuildCommandService {
     private let serverURLService: ServerURLServicing
 
     init(
-        environment: Environmenting = Environment.shared,
+        environment: Environmenting = Environment.current,
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
         ciChecker: CIChecking = CIChecker(),

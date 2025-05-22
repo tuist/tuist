@@ -6,38 +6,34 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
+import FileSystem
+import FileSystemTesting
 
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class ProjectEditorMapperTests: TuistUnitTestCase {
+@Suite(.withMockedDeveloperEnvironment, .withMockedSwiftVersionProvider)
+struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
-    override func setUp() {
-        super.setUp()
-
-        given(swiftVersionProvider)
+    init() {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
 
-        developerEnvironment.stubbedArchitecture = .arm64
+        DeveloperEnvironment.mocked?.stubbedArchitecture = .arm64
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
         subject = ProjectEditorMapper(
             swiftPackageManagerController: swiftPackageManagerController
         )
     }
 
-    override func tearDown() {
-        swiftPackageManagerController = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
+    @Test func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
         // Given
-        let sourceRootPath = try temporaryPath()
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Package.swift")
@@ -57,7 +53,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         given(swiftPackageManagerController)
             .getToolsVersion(at: .any)
             .willReturn("5.5.0")
-        given(xcodeController)
+        
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test(path: AbsolutePath("/Applications/Xcode.app")))
 
@@ -80,131 +78,125 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first(where: { $0.name == projectName }))
+        let project = try #require(graph.projects.values.first(where: { $0.name == projectName }))
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        XCTAssertEqual(graph.name, "TestManifests")
+        #expect(graph.name ==  "TestManifests")
 
-        XCTAssertEqual(targets.count, 9)
+        #expect(targets.count ==  9)
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(
+        let manifestsTarget = try #require(
             project.targets.values.sorted()
                 .first(where: { $0.name == sourceRootPath.basename + projectName })
         )
-        XCTAssertEqual(targets.last, manifestsTarget)
+        #expect(targets.last ==  manifestsTarget)
 
-        XCTAssertEqual(manifestsTarget.destinations, .macOS)
-        XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(
-            manifestsTarget.settings,
+        #expect(manifestsTarget.destinations ==  .macOS)
+        #expect(manifestsTarget.product ==  .staticFramework)
+        #expect(            manifestsTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
-        XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(Set(manifestsTarget.dependencies), Set([
+        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
+        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(Set(manifestsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
             .target(name: "PluginTwo"),
             .target(name: "PluginThree"),
         ]))
 
         // Generated Helpers target
-        let helpersTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "ProjectDescriptionHelpers" }))
-        XCTAssertTrue(targets.contains(helpersTarget))
+        let helpersTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "ProjectDescriptionHelpers" }))
+        #expect(targets.contains(helpersTarget) == true)
 
-        XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
-        XCTAssertEqual(helpersTarget.destinations, .macOS)
-        XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(
-            helpersTarget.settings,
+        #expect(helpersTarget.name ==  "ProjectDescriptionHelpers")
+        #expect(helpersTarget.destinations ==  .macOS)
+        #expect(helpersTarget.product ==  .staticFramework)
+        #expect(            helpersTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(helpersTarget.sources.map(\.path), helperPaths)
-        XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(Set(manifestsTarget.dependencies), Set([
+        #expect(helpersTarget.sources.map(\.path) ==  helperPaths)
+        #expect(helpersTarget.filesGroup ==  projectsGroup)
+        #expect(Set(manifestsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
             .target(name: "PluginTwo"),
             .target(name: "PluginThree"),
         ]))
 
         // Generated Templates target
-        let templatesTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Templates" }))
-        XCTAssertTrue(targets.contains(templatesTarget))
+        let templatesTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Templates" }))
+        #expect(targets.contains(templatesTarget) == true)
 
-        XCTAssertEqual(templatesTarget.name, "Templates")
-        XCTAssertEqual(templatesTarget.destinations, .macOS)
-        XCTAssertEqual(templatesTarget.product, .staticFramework)
-        XCTAssertEqual(
-            templatesTarget.settings,
+        #expect(templatesTarget.name ==  "Templates")
+        #expect(templatesTarget.destinations ==  .macOS)
+        #expect(templatesTarget.product ==  .staticFramework)
+        #expect(            templatesTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
-        XCTAssertEqual(templatesTarget.additionalFiles.map(\.path), templateResource)
-        XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(Set(templatesTarget.dependencies), Set([
+        #expect(templatesTarget.sources.map(\.path) ==  templates)
+        #expect(templatesTarget.additionalFiles.map(\.path) ==  templateResource)
+        #expect(templatesTarget.filesGroup ==  projectsGroup)
+        #expect(Set(templatesTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
 
         // Generated ResourceSynthesizers target
-        let resourceSynthesizersTarget = try XCTUnwrap(
+        let resourceSynthesizersTarget = try #require(
             project.targets.values.sorted()
                 .last(where: { $0.name == "ResourceSynthesizers" })
         )
-        XCTAssertTrue(targets.contains(resourceSynthesizersTarget))
+        #expect(targets.contains(resourceSynthesizersTarget) == true)
 
-        XCTAssertEqual(resourceSynthesizersTarget.name, "ResourceSynthesizers")
-        XCTAssertEqual(resourceSynthesizersTarget.destinations, .macOS)
-        XCTAssertEqual(resourceSynthesizersTarget.product, .staticFramework)
-        XCTAssertEqual(
-            resourceSynthesizersTarget.settings,
+        #expect(resourceSynthesizersTarget.name ==  "ResourceSynthesizers")
+        #expect(resourceSynthesizersTarget.destinations ==  .macOS)
+        #expect(resourceSynthesizersTarget.product ==  .staticFramework)
+        #expect(            resourceSynthesizersTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(resourceSynthesizersTarget.additionalFiles.map(\.path), resourceSynthesizers)
-        XCTAssertEqual(resourceSynthesizersTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(Set(resourceSynthesizersTarget.dependencies), Set([
+        #expect(resourceSynthesizersTarget.additionalFiles.map(\.path) ==  resourceSynthesizers)
+        #expect(resourceSynthesizersTarget.filesGroup ==  projectsGroup)
+        #expect(Set(resourceSynthesizersTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
 
         // Generated Stencils target
-        let stencilsTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Stencils" }))
-        XCTAssertTrue(targets.contains(stencilsTarget))
+        let stencilsTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Stencils" }))
+        #expect(targets.contains(stencilsTarget) == true)
 
-        XCTAssertEqual(stencilsTarget.name, "Stencils")
-        XCTAssertEqual(stencilsTarget.destinations, .macOS)
-        XCTAssertEqual(stencilsTarget.product, .staticFramework)
-        XCTAssertEqual(
-            stencilsTarget.settings,
+        #expect(stencilsTarget.name ==  "Stencils")
+        #expect(stencilsTarget.destinations ==  .macOS)
+        #expect(stencilsTarget.product ==  .staticFramework)
+        #expect(            stencilsTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(stencilsTarget.sources.map(\.path), stencils)
-        XCTAssertEqual(stencilsTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(Set(stencilsTarget.dependencies), Set([
+        #expect(stencilsTarget.sources.map(\.path) ==  stencils)
+        #expect(stencilsTarget.filesGroup ==  projectsGroup)
+        #expect(Set(stencilsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
 
         // Generated Config target
-        let configTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Config" }))
-        XCTAssertTrue(targets.contains(configTarget))
+        let configTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Config" }))
+        #expect(targets.contains(configTarget) == true)
 
-        XCTAssertEqual(configTarget.name, "Config")
-        XCTAssertEqual(configTarget.destinations, .macOS)
-        XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(
-            configTarget.settings,
+        #expect(configTarget.name ==  "Config")
+        #expect(configTarget.destinations ==  .macOS)
+        #expect(configTarget.product ==  .staticFramework)
+        #expect(            configTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
-        XCTAssertEqual(configTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(configTarget.dependencies)
+        #expect(configTarget.sources.map(\.path) ==  [configPath])
+        #expect(configTarget.filesGroup ==  projectsGroup)
+        #expect(configTarget.dependencies.isEmpty == true)
 
         // Generated Packages target
-        let packagesTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Packages" }))
-        XCTAssertTrue(targets.contains(packagesTarget))
+        let packagesTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Packages" }))
+        #expect(targets.contains(packagesTarget) == true)
 
-        XCTAssertEqual(packagesTarget.name, "Packages")
-        XCTAssertEqual(packagesTarget.destinations, .macOS)
-        XCTAssertEqual(packagesTarget.product, .staticFramework)
+        #expect(packagesTarget.name ==  "Packages")
+        #expect(packagesTarget.destinations ==  .macOS)
+        #expect(packagesTarget.product ==  .staticFramework)
         var expectedPackagesSettings = expectedSettings(includePaths: [
             projectDescriptionPath,
             projectDescriptionPath.parentDirectory,
@@ -232,41 +224,40 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                 }
             )
         )
-        XCTAssertEqual(
-            packagesTarget.settings,
+        #expect(            packagesTarget.settings ==
             expectedPackagesSettings
         )
-        XCTAssertEqual(packagesTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
-        XCTAssertEqual(packagesTarget.sources.map(\.path), [packageManifestPath])
-        XCTAssertEqual(packagesTarget.filesGroup, projectsGroup)
+        #expect(packagesTarget.dependencies ==  [.target(name: "ProjectDescriptionHelpers")])
+        #expect(packagesTarget.sources.map(\.path) ==  [packageManifestPath])
+        #expect(packagesTarget.filesGroup ==  projectsGroup)
 
         // Generated Project
-        XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
-        XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
+        #expect(project.path ==  sourceRootPath.appending(component: projectName))
+        #expect(project.name ==  projectName)
+        #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(project.filesGroup, projectsGroup)
+        #expect(project.filesGroup ==  projectsGroup)
 
         // Generated Scheme
-        XCTAssertEqual(project.schemes.count, 1)
-        let scheme = try XCTUnwrap(project.schemes.first)
-        XCTAssertEqual(scheme.name, projectName)
+        #expect(project.schemes.count ==  1)
+        let scheme = try #require(project.schemes.first)
+        #expect(scheme.name ==  projectName)
 
-        let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), project.targets.values.map(\.name).sorted())
+        let buildAction = try #require(scheme.buildAction)
+        #expect(buildAction.targets.lazy.map(\.name).sorted() ==  project.targets.values.map(\.name).sorted())
 
-        let runAction = try XCTUnwrap(scheme.runAction)
-        XCTAssertEqual(runAction.filePath, tuistPath)
+        let runAction = try #require(scheme.runAction)
+        #expect(runAction.filePath ==  tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
     }
 
-    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
+    @Test func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
         // Given
-        let sourceRootPath = try temporaryPath()
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
@@ -296,56 +287,55 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first)
+        let project = try #require(graph.projects.values.first)
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        XCTAssertEqual(targets.count, 1)
-        XCTAssertEmpty(targets.flatMap(\.dependencies))
+        #expect(targets.count ==  1)
+        #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(
+        let manifestsTarget = try #require(
             project.targets.values.sorted()
                 .last(where: { $0.name == sourceRootPath.basename + projectName })
         )
 
-        XCTAssertEqual(manifestsTarget.destinations, .macOS)
-        XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(
-            manifestsTarget.settings,
+        #expect(manifestsTarget.destinations ==  .macOS)
+        #expect(manifestsTarget.product ==  .staticFramework)
+        #expect(            manifestsTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
-        XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(manifestsTarget.dependencies)
+        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
+        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(manifestsTarget.dependencies.isEmpty)
 
         // Generated Project
-        XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
-        XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
+        #expect(project.path ==  sourceRootPath.appending(component: projectName))
+        #expect(project.name ==  projectName)
+        #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(project.filesGroup, projectsGroup)
+        #expect(project.filesGroup ==  projectsGroup)
 
         // Generated Scheme
-        XCTAssertEqual(project.schemes.count, 1)
-        let scheme = try XCTUnwrap(project.schemes.first)
-        XCTAssertEqual(scheme.name, projectName)
+        #expect(project.schemes.count ==  1)
+        let scheme = try #require(project.schemes.first)
+        #expect(scheme.name ==  projectName)
 
-        let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map(\.name), targets.map(\.name))
+        let buildAction = try #require(scheme.buildAction)
+        #expect(buildAction.targets.map(\.name) ==  targets.map(\.name))
 
-        let runAction = try XCTUnwrap(scheme.runAction)
-        XCTAssertEqual(runAction.filePath, tuistPath)
+        let runAction = try #require(scheme.runAction)
+        #expect(runAction.filePath ==  tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
     }
 
-    func test_tuist_edit_with_more_than_one_manifest() async throws {
+    @Test func test_tuist_edit_with_more_than_one_manifest() async throws {
         // Given
-        let sourceRootPath = try temporaryPath()
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let otherProjectPath = "Module"
         let projectManifestPaths = [
@@ -379,84 +369,81 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first)
+        let project = try #require(graph.projects.values.first)
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
 
-        XCTAssertEqual(targets.count, 3)
-        XCTAssertEmpty(targets.flatMap(\.dependencies))
+        #expect(targets.count ==  3)
+        #expect(targets.flatMap(\.dependencies).isEmpty == true)
 
         // Generated Manifests target
-        let manifestOneTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "ModuleManifests" }))
+        let manifestOneTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "ModuleManifests" }))
 
-        XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
-        XCTAssertEqual(manifestOneTarget.destinations, .macOS)
-        XCTAssertEqual(manifestOneTarget.product, .staticFramework)
-        XCTAssertEqual(
-            manifestOneTarget.settings,
+        #expect(manifestOneTarget.name ==  "ModuleManifests")
+        #expect(manifestOneTarget.destinations ==  .macOS)
+        #expect(manifestOneTarget.product ==  .staticFramework)
+        #expect(            manifestOneTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(manifestOneTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.last)])
-        XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: projectName))
-        XCTAssertEmpty(manifestOneTarget.dependencies)
+        #expect(manifestOneTarget.sources.map(\.path) ==  [try #require(projectManifestPaths.last)])
+        #expect(manifestOneTarget.filesGroup ==  .group(name: projectName))
+        #expect(manifestOneTarget.dependencies.isEmpty == true)
 
         // Generated Manifests target
-        let manifestTwoTarget = try XCTUnwrap(
+        let manifestTwoTarget = try #require(
             project.targets.values.sorted()
                 .last(where: { $0.name == "\(sourceRootPath.basename)Manifests" })
         )
 
-        XCTAssertEqual(manifestTwoTarget.destinations, .macOS)
-        XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
-        XCTAssertEqual(
-            manifestTwoTarget.settings,
+        #expect(manifestTwoTarget.destinations ==  .macOS)
+        #expect(manifestTwoTarget.product ==  .staticFramework)
+        #expect(            manifestTwoTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.first)])
-        XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: projectName))
-        XCTAssertEmpty(manifestTwoTarget.dependencies)
+        #expect(manifestTwoTarget.sources.map(\.path) ==  [try #require(projectManifestPaths.first)])
+        #expect(manifestTwoTarget.filesGroup ==  .group(name: projectName))
+        #expect(manifestTwoTarget.dependencies.isEmpty == true)
 
         // Generated Config target
-        let configTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "Config" }))
+        let configTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Config" }))
 
-        XCTAssertEqual(configTarget.name, "Config")
-        XCTAssertEqual(configTarget.destinations, .macOS)
-        XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(
-            configTarget.settings,
+        #expect(configTarget.name ==  "Config")
+        #expect(configTarget.destinations ==  .macOS)
+        #expect(configTarget.product ==  .staticFramework)
+        #expect(            configTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
-        XCTAssertEqual(configTarget.filesGroup, .group(name: projectName))
-        XCTAssertEmpty(configTarget.dependencies)
+        #expect(configTarget.sources.map(\.path) ==  [configPath])
+        #expect(configTarget.filesGroup ==  .group(name: projectName))
+        #expect(configTarget.dependencies.isEmpty == true)
 
         // Generated Project
-        XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
-        XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
+        #expect(project.path ==  sourceRootPath.appending(component: projectName))
+        #expect(project.name ==  projectName)
+        #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(project.filesGroup, .group(name: projectName))
+        #expect(project.filesGroup ==  .group(name: projectName))
 
         // Generated Scheme
-        XCTAssertEqual(project.schemes.count, 1)
-        let scheme = try XCTUnwrap(project.schemes.first)
-        XCTAssertEqual(scheme.name, projectName)
+        #expect(project.schemes.count ==  1)
+        let scheme = try #require(project.schemes.first)
+        #expect(scheme.name ==  projectName)
 
-        let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
+        let buildAction = try #require(scheme.buildAction)
+        #expect(buildAction.targets.map(\.name).sorted() ==  targets.map(\.name).sorted())
 
-        let runAction = try XCTUnwrap(scheme.runAction)
-        XCTAssertEqual(runAction.filePath, tuistPath)
+        let runAction = try #require(scheme.runAction)
+        #expect(runAction.filePath ==  tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
     }
 
-    func test_tuist_edit_with_one_plugin_no_projects() async throws {
-        let sourceRootPath = try temporaryPath()
+    @Test func test_tuist_edit_with_one_plugin_no_projects() async throws {
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [sourceRootPath].map { $0.appending(component: "Plugin.swift") }
         let editablePluginManifests = pluginManifestPaths.map {
             EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory)
@@ -489,50 +476,49 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first)
+        let project = try #require(graph.projects.values.first)
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        XCTAssertEqual(targets.count, 1)
-        XCTAssertEmpty(targets.flatMap(\.dependencies))
+        #expect(targets.count ==  1)
+        #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated Plugin target
-        let pluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == sourceRootPath.basename }))
+        let pluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == sourceRootPath.basename }))
 
-        XCTAssertEqual(pluginTarget.destinations, .macOS)
-        XCTAssertEqual(pluginTarget.product, .staticFramework)
-        XCTAssertEqual(
-            pluginTarget.settings,
+        #expect(pluginTarget.destinations ==  .macOS)
+        #expect(pluginTarget.product ==  .staticFramework)
+        #expect(            pluginTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(pluginTarget.sources.map(\.path), pluginManifestPaths)
-        XCTAssertEqual(pluginTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(pluginTarget.dependencies)
+        #expect(pluginTarget.sources.map(\.path) ==  pluginManifestPaths)
+        #expect(pluginTarget.filesGroup ==  projectsGroup)
+        #expect(pluginTarget.dependencies.isEmpty)
 
         // Generated Project
-        XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
-        XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
+        #expect(project.path ==  sourceRootPath.appending(component: projectName))
+        #expect(project.name ==  projectName)
+        #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(project.filesGroup, projectsGroup)
+        #expect(project.filesGroup ==  projectsGroup)
 
         // Generated Schemes
-        XCTAssertEqual(project.schemes.count, 2)
+        #expect(project.schemes.count ==  2)
         let schemes = project.schemes
-        XCTAssertEqual(schemes.map(\.name).sorted(), [pluginTarget.name, "Plugins"].sorted())
+        #expect(schemes.map(\.name).sorted() == [pluginTarget.name,  "Plugins"].sorted())
 
-        let pluginBuildAction = try XCTUnwrap(schemes.first?.buildAction)
-        XCTAssertEqual(pluginBuildAction.targets.map(\.name), [pluginTarget.name])
+        let pluginBuildAction = try #require(schemes.first?.buildAction)
+        #expect(pluginBuildAction.targets.map(\.name) ==  [pluginTarget.name])
 
-        let allPluginsBuildAction = try XCTUnwrap(schemes.last?.buildAction)
-        XCTAssertEqual(allPluginsBuildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
+        let allPluginsBuildAction = try #require(schemes.last?.buildAction)
+        #expect(allPluginsBuildAction.targets.map(\.name).sorted() ==  targets.map(\.name).sorted())
     }
 
-    func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
-        let sourceRootPath = try temporaryPath()
+    @Test func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [
             sourceRootPath.appending(component: "A").appending(component: "Plugin.swift"),
             sourceRootPath.appending(component: "B").appending(component: "Plugin.swift"),
@@ -568,76 +554,71 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first)
+        let project = try #require(graph.projects.values.first)
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        XCTAssertEqual(targets.count, 2)
-        XCTAssertEmpty(targets.flatMap(\.dependencies))
+        #expect(targets.count ==  2)
+        #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated first plugin target
-        let firstPluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "A" }))
+        let firstPluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "A" }))
 
-        XCTAssertEqual(firstPluginTarget.destinations, .macOS)
-        XCTAssertEqual(firstPluginTarget.product, .staticFramework)
-        XCTAssertEqual(
-            firstPluginTarget.settings,
+        #expect(firstPluginTarget.destinations ==  .macOS)
+        #expect(firstPluginTarget.product ==  .staticFramework)
+        #expect(            firstPluginTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(firstPluginTarget.sources.map(\.path), [pluginManifestPaths[0]])
-        XCTAssertEqual(firstPluginTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(firstPluginTarget.dependencies)
+        #expect(firstPluginTarget.sources.map(\.path) ==  [pluginManifestPaths[0]])
+        #expect(firstPluginTarget.filesGroup ==  projectsGroup)
+        #expect(firstPluginTarget.dependencies.isEmpty)
 
         // Generated second plugin target
-        let secondPluginTarget = try XCTUnwrap(project.targets.values.sorted().last(where: { $0.name == "B" }))
+        let secondPluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "B" }))
 
-        XCTAssertEqual(secondPluginTarget.destinations, .macOS)
-        XCTAssertEqual(secondPluginTarget.product, .staticFramework)
-        XCTAssertEqual(
-            secondPluginTarget.settings,
+        #expect(secondPluginTarget.destinations ==  .macOS)
+        #expect(secondPluginTarget.product ==  .staticFramework)
+        #expect(            secondPluginTarget.settings ==
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(secondPluginTarget.sources.map(\.path), [pluginManifestPaths[1]])
-        XCTAssertEqual(secondPluginTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(secondPluginTarget.dependencies)
+        #expect(secondPluginTarget.sources.map(\.path) ==  [pluginManifestPaths[1]])
+        #expect(secondPluginTarget.filesGroup ==  projectsGroup)
+        #expect(secondPluginTarget.dependencies.isEmpty == true)
 
         // Generated Project
-        XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
-        XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
+        #expect(project.path ==  sourceRootPath.appending(component: projectName))
+        #expect(project.name ==  projectName)
+        #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(project.filesGroup, projectsGroup)
+        #expect(project.filesGroup ==  projectsGroup)
 
         // Generated Schemes
         let schemes = project.schemes.sorted(by: { $0.name < $1.name })
-        XCTAssertEqual(project.schemes.count, 3)
-        XCTAssertEqual(
-            schemes.map(\.name),
+        #expect(project.schemes.count ==  3)
+        #expect(            schemes.map(\.name) ==
             [firstPluginTarget.name, secondPluginTarget.name, "Plugins"].sorted()
         )
 
-        let firstBuildAction = try XCTUnwrap(schemes[0].buildAction)
-        XCTAssertEqual(
-            firstBuildAction.targets.map(\.name),
+        let firstBuildAction = try #require(schemes[0].buildAction)
+        #expect(            firstBuildAction.targets.map(\.name) ==
             [firstPluginTarget].map(\.name)
         )
 
-        let secondBuildAction = try XCTUnwrap(schemes[1].buildAction)
-        XCTAssertEqual(secondBuildAction.targets.map(\.name), [secondPluginTarget].map(\.name))
+        let secondBuildAction = try #require(schemes[1].buildAction)
+        #expect(secondBuildAction.targets.map(\.name) ==  [secondPluginTarget].map(\.name))
 
-        let pluginsBuildAction = try XCTUnwrap(schemes[2].buildAction)
-        XCTAssertEqual(
-            pluginsBuildAction.targets.map(\.name).sorted(),
+        let pluginsBuildAction = try #require(schemes[2].buildAction)
+        #expect(            pluginsBuildAction.targets.map(\.name).sorted() ==
             [firstPluginTarget, secondPluginTarget].map(\.name).sorted()
         )
     }
 
-    func test_tuist_edit_plugin_only_takes_required_sources() async throws {
+    @Test func test_tuist_edit_plugin_only_takes_required_sources() async throws {
         // Given
-        let sourceRootPath = try temporaryPath()
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPath = sourceRootPath.appending(component: "Plugin.swift")
         let editablePluginManifests = [
             EditablePluginManifest(name: pluginManifestPath.parentDirectory.basename, path: pluginManifestPath.parentDirectory),
@@ -682,18 +663,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        let project = try XCTUnwrap(graph.projects.values.first)
-        let pluginTarget = try XCTUnwrap(project.targets.values.first)
+        let project = try #require(graph.projects.values.first)
+        let pluginTarget = try #require(project.targets.values.first)
 
-        XCTAssertEqual(
-            pluginTarget.sources.sorted(by: { $0.path < $1.path }),
+        #expect(            pluginTarget.sources.sorted(by: { $0.path < $1.path }) ==
             ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
     }
 
-    func test_tuist_edit_project_with_plugin() async throws {
+    @Test func test_tuist_edit_project_with_plugin() async throws {
         // Given
-        let sourceRootPath = try temporaryPath()
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = [sourceRootPath].map { $0.appending(components: "Tuist", "ProjectDescriptionHelpers") }
         let templates: [AbsolutePath] = []
@@ -727,24 +707,23 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let pluginsProject = try XCTUnwrap(graph.projects.values.first(where: { $0.name == pluginsProjectName }))
-        let manifestsProject = try XCTUnwrap(graph.projects.values.first(where: { $0.name == manifestsProjectName }))
+        let pluginsProject = try #require(graph.projects.values.first(where: { $0.name == pluginsProjectName }))
+        let manifestsProject = try #require(graph.projects.values.first(where: { $0.name == manifestsProjectName }))
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
-        let localPluginTarget = try XCTUnwrap(targets.first(where: { $0.name == "ALocalPlugin" }))
-        let helpersTarget = try XCTUnwrap(targets.first(where: { $0.name == "ProjectDescriptionHelpers" }))
-        let manifestsTarget = try XCTUnwrap(targets.first(where: { $0 != localPluginTarget && $0 != helpersTarget }))
+        let localPluginTarget = try #require(targets.first(where: { $0.name == "ALocalPlugin" }))
+        let helpersTarget = try #require(targets.first(where: { $0.name == "ProjectDescriptionHelpers" }))
+        let manifestsTarget = try #require(targets.first(where: { $0 != localPluginTarget && $0 != helpersTarget }))
 
         // Then
-        XCTAssertEqual(targets.count, 3)
+        #expect(targets.count ==  3)
 
         // Local plugin target
-        XCTAssertEqual(localPluginTarget.destinations, .macOS)
-        XCTAssertEqual(localPluginTarget.product, .staticFramework)
-        XCTAssertEqual(localPluginTarget.sources.map(\.path).first?.parentDirectory, localPlugin.path)
-        XCTAssertEqual(localPluginTarget.filesGroup, pluginsGroup)
-        XCTAssertEmpty(localPluginTarget.dependencies)
-        XCTAssertEqual(
-            localPluginTarget.settings,
+        #expect(localPluginTarget.destinations ==  .macOS)
+        #expect(localPluginTarget.product ==  .staticFramework)
+        #expect(localPluginTarget.sources.map(\.path).first?.parentDirectory ==  localPlugin.path)
+        #expect(localPluginTarget.filesGroup == pluginsGroup)
+        #expect(localPluginTarget.dependencies.isEmpty)
+        #expect(            localPluginTarget.settings ==
             expectedSettings(includePaths: [
                 projectDescriptionPath,
                 projectDescriptionPath.parentDirectory,
@@ -752,16 +731,15 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // ProjectDescriptionHelpers target
-        XCTAssertEqual(helpersTarget.destinations, .macOS)
-        XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(helpersTarget.sources.map(\.path).first, helperPaths.first)
-        XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
+        #expect(helpersTarget.destinations ==  .macOS)
+        #expect(helpersTarget.product ==  .staticFramework)
+        #expect(helpersTarget.sources.map(\.path).first ==  helperPaths.first)
+        #expect(helpersTarget.filesGroup ==  projectsGroup)
         // Helpers can depend on local editable plugins
-        XCTAssertEqual(helpersTarget.dependencies, [
+        #expect(helpersTarget.dependencies == [
             .target(name: localPluginTarget.name),
         ])
-        XCTAssertEqual(
-            helpersTarget.settings,
+        #expect(            helpersTarget.settings ==
             expectedSettings(includePaths: [
                 projectDescriptionPath,
                 projectDescriptionPath.parentDirectory,
@@ -771,19 +749,19 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // Generated Manifests target
-        XCTAssertEqual(manifestsTarget.destinations, .macOS)
-        XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
-        XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(
-            manifestsTarget.dependencies,
+        #expect(manifestsTarget.destinations ==  .macOS)
+        #expect(manifestsTarget.product ==  .staticFramework)
+        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
+        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(
+            manifestsTarget.dependencies ==
             [
                 .target(name: "ProjectDescriptionHelpers"),
                 .target(name: "ALocalPlugin"),
             ]
         )
-        XCTAssertEqual(
-            manifestsTarget.settings,
+        #expect(
+            manifestsTarget.settings ==
             expectedSettings(includePaths: [
                 projectDescriptionPath,
                 projectDescriptionPath.parentDirectory,
@@ -793,44 +771,44 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // Generated manifests Project
-        let manifestsScheme = try XCTUnwrap(manifestsProject.schemes.first)
-        let manifestsBuildAction = try XCTUnwrap(manifestsScheme.buildAction)
-        let manifestsRunAction = try XCTUnwrap(manifestsScheme.runAction)
-        XCTAssertEqual(manifestsProject.path, sourceRootPath.appending(component: manifestsProjectName))
-        XCTAssertEqual(manifestsProject.name, manifestsProjectName)
-        XCTAssertEqual(manifestsProject.settings, Settings(
+        let manifestsScheme = try #require(manifestsProject.schemes.first)
+        let manifestsBuildAction = try #require(manifestsScheme.buildAction)
+        let manifestsRunAction = try #require(manifestsScheme.runAction)
+        #expect(manifestsProject.path ==  sourceRootPath.appending(component: manifestsProjectName))
+        #expect(manifestsProject.name ==  manifestsProjectName)
+        #expect(manifestsProject.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(manifestsProject.filesGroup, projectsGroup)
-        XCTAssertEqual(manifestsProject.schemes.count, 1)
-        XCTAssertEqual(manifestsScheme.name, manifestsProjectName)
-        XCTAssertEqual(
-            manifestsBuildAction.targets.map(\.name).sorted(),
+        #expect(manifestsProject.filesGroup ==  projectsGroup)
+        #expect(manifestsProject.schemes.count ==  1)
+        #expect(manifestsScheme.name ==  manifestsProjectName)
+        #expect(
+            manifestsBuildAction.targets.map(\.name).sorted() ==
             [manifestsTarget.name, "ProjectDescriptionHelpers"].sorted()
         )
-        XCTAssertEqual(manifestsRunAction.filePath, tuistPath)
-        XCTAssertEqual(
-            manifestsRunAction.arguments,
+        #expect(manifestsRunAction.filePath ==  tuistPath)
+        #expect(
+            manifestsRunAction.arguments ==
             Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
         )
 
         // Generated plugins project for local plugins
         let schemes = pluginsProject.schemes
-        let aLocalPluginScheme = try XCTUnwrap(schemes.first(where: { $0.name == "ALocalPlugin" }))
-        let pluginsScheme = try XCTUnwrap(schemes.first(where: { $0.name == pluginsProjectName }))
-        XCTAssertEqual(pluginsProject.path, sourceRootPath.appending(component: pluginsProjectName))
-        XCTAssertEqual(pluginsProject.name, pluginsProjectName)
-        XCTAssertEqual(pluginsProject.settings, Settings(
+        let aLocalPluginScheme = try #require(schemes.first(where: { $0.name == "ALocalPlugin" }))
+        let pluginsScheme = try #require(schemes.first(where: { $0.name == pluginsProjectName }))
+        #expect(pluginsProject.path ==  sourceRootPath.appending(component: pluginsProjectName))
+        #expect(pluginsProject.name ==  pluginsProjectName)
+        #expect(pluginsProject.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        XCTAssertEqual(pluginsProject.filesGroup, pluginsGroup)
-        XCTAssertEqual(pluginsProject.schemes.count, 2)
-        XCTAssertEqual(aLocalPluginScheme.buildAction?.targets.map(\.name).sorted(), [localPlugin.name])
-        XCTAssertEqual(pluginsScheme.buildAction?.targets.map(\.name).sorted(), [localPlugin.name])
+        #expect(pluginsProject.filesGroup ==  pluginsGroup)
+        #expect(pluginsProject.schemes.count ==  2)
+        #expect(aLocalPluginScheme.buildAction?.targets.map(\.name).sorted() ==  [localPlugin.name])
+        #expect(pluginsScheme.buildAction?.targets.map(\.name).sorted() ==  [localPlugin.name])
     }
 
     fileprivate func expectedSettings(includePaths: [AbsolutePath]) -> Settings {

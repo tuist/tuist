@@ -46,7 +46,7 @@ public final class MockEnvironment: Environmenting {
 }
 
 extension Environment {
-    public static var mocked: MockEnvironmenting? { current as? MockEnvironmenting }
+    public static var mocked: MockEnvironment? { current as? MockEnvironment }
 }
 
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
