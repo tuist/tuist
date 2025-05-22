@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 final class RegistryLogoutService {
@@ -14,7 +14,8 @@ final class RegistryLogoutService {
     init(
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling =
+            SwiftPackageManagerController(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.serverURLService = serverURLService
@@ -41,7 +42,9 @@ final class RegistryLogoutService {
 
     private func path(_ path: String?) async throws -> AbsolutePath {
         if let path {
-            return try await AbsolutePath(validating: path, relativeTo: fileSystem.currentWorkingDirectory())
+            return try await AbsolutePath(
+                validating: path, relativeTo: fileSystem.currentWorkingDirectory()
+            )
         } else {
             return try await fileSystem.currentWorkingDirectory()
         }

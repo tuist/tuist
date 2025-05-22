@@ -3,10 +3,10 @@ import Mockable
 import Path
 import Testing
 import TuistCache
-import TuistCLIServer
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeProj
 

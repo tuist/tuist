@@ -1,10 +1,11 @@
 import FileSystem
 import Mockable
-import TuistCLIServer
 import TuistCore
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XCTest
+
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistKit

@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol ProjectTokensListServicing {
@@ -32,7 +32,9 @@ final class ProjectTokensListService: ProjectTokensListServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -46,12 +48,16 @@ final class ProjectTokensListService: ProjectTokensListServicing {
 
         if tokens.isEmpty {
             Logger.current
-                .notice("No project tokens found. Create one by running `tuist project tokens create \(fullHandle).")
+                .notice(
+                    "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
+                )
         } else {
-            let textTable = TextTable<ServerProjectToken> { [
-                TextTable.Column(title: "ID", value: $0.id),
-                TextTable.Column(title: "Created at", value: $0.insertedAt),
-            ] }
+            let textTable = TextTable<ServerProjectToken> {
+                [
+                    TextTable.Column(title: "ID", value: $0.id),
+                    TextTable.Column(title: "Created at", value: $0.insertedAt),
+                ]
+            }
             Logger.current.notice("\(textTable.render(tokens))")
         }
     }

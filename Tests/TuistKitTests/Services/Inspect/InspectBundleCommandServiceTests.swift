@@ -5,9 +5,9 @@ import Mockable
 import Path
 import Rosalind
 import Testing
-import TuistCLIServer
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import TuistSupportTesting
 

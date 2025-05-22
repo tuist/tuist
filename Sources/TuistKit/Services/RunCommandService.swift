@@ -6,7 +6,7 @@ import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSimulator
 import TuistSupport
 import XcodeGraph

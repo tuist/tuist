@@ -3,11 +3,11 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCache
-import TuistCLIServer
 import TuistCore
 import TuistHasher
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper

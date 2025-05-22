@@ -80,8 +80,8 @@ let targets: [Target] = [
             "TuistPlugin",
             "XcodeGraph",
             "Mockable",
-            "TuistServer",
-            "TuistCLIServer",
+            "TuistServerCore",
+            "TuistServerCLI",
             "TuistSimulator",
             "FileSystem",
             "TuistCache",
@@ -338,7 +338,7 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistServer",
+        name: "TuistServerCore",
         dependencies: [
             "TuistCore",
             "TuistSupport",
@@ -357,12 +357,12 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistCLIServer",
+        name: "TuistServerCLI",
         dependencies: [
             "TuistCore",
             "TuistSupport",
             "TuistCache",
-            "TuistServer",
+            "TuistServerCore",
             "TuistSimulator",
             "FileSystem",
             "XcodeGraph",
@@ -504,8 +504,8 @@ let package = Package(
             targets: ["TuistAcceptanceTesting"]
         ),
         .library(
-            name: "TuistServer",
-            targets: ["TuistServer"]
+            name: "TuistServerCore",
+            targets: ["TuistServerCore"]
         ),
         .library(
             name: "TuistHasher",

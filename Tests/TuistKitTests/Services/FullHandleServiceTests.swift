@@ -2,7 +2,7 @@ import Foundation
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistServer
+@testable import TuistServerCore
 
 final class FullHandleServiceTests: TuistUnitTestCase {
     private var subject: FullHandleServicing!

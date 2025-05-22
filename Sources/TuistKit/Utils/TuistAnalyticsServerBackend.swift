@@ -2,9 +2,9 @@ import FileSystem
 import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
-import TuistCLIServer
 import TuistCore
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
@@ -63,13 +63,16 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             projectId: fullHandle,
             serverURL: url
         )
-        let runsDirectory = try cacheDirectoriesProvider
-            .cacheDirectory(for: .runs)
+        let runsDirectory =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
 
         let runDirectory = runsDirectory.appending(component: commandEvent.runId)
 
-        let resultBundlePath = commandEvent.resultBundlePath ?? runDirectory
-            .appending(component: "\(Constants.resultBundleName).xcresult")
+        let resultBundlePath =
+            commandEvent.resultBundlePath
+                ?? runDirectory
+                .appending(component: "\(Constants.resultBundleName).xcresult")
 
         if try await fileSystem.exists(resultBundlePath) {
             try await analyticsArtifactUploadService.uploadResultBundle(

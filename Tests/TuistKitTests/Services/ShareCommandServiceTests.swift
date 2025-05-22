@@ -2,10 +2,10 @@ import Foundation
 import Mockable
 import SnapshotTesting
 import TuistAutomation
-import TuistCLIServer
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph

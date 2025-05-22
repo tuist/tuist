@@ -1,12 +1,12 @@
 import Foundation
 import SwiftUI
-import TuistServer
+import TuistServerCore
 
 @Observable
 final class PreviewsViewModel: Sendable {
     private let listPreviewsService: ListPreviewsServicing
 
-    private(set) var previews: [TuistServer.Preview] = []
+    private(set) var previews: [TuistServerCore.Preview] = []
 
     init(
         listPreviewsService: ListPreviewsServicing = ListPreviewsService()

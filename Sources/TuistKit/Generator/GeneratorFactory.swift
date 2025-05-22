@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import TuistCLIServer
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 /// The protocol describes the interface of a factory that instantiates
@@ -92,7 +92,9 @@ public class GeneratorFactory: GeneratorFactorying {
             skipUITests: skipUITests,
             tuist: config
         )
-        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+        let workspaceMapperFactory = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(mappers: projectMappers)
+        )
         let graphMapperFactory = GraphMapperFactory()
 
         let graphMappers = graphMapperFactory.automation(
@@ -143,7 +145,9 @@ public class GeneratorFactory: GeneratorFactorying {
         let projectMappers = projectMapperFactory.default(
             tuist: config
         )
-        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+        let workspaceMapperFactory = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(mappers: projectMappers)
+        )
         let graphMapperFactory = GraphMapperFactory()
         let graphMappers = graphMapperFactory.automation(
             config: config,

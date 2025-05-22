@@ -1,8 +1,8 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistCLIServer
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 
@@ -31,7 +31,8 @@ public struct BuildOptions: ParsableArguments {
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
 
     @Argument(
-        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
+        help:
+        "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory.",
         envKey: .buildOptionsScheme
     )
     public var scheme: String?
@@ -79,7 +80,8 @@ public struct BuildOptions: ParsableArguments {
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
+        help:
+        "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
         envKey: .buildOptionsRosetta
     )
     public var rosetta: Bool = false
@@ -99,14 +101,16 @@ public struct BuildOptions: ParsableArguments {
     public var buildOutputPath: String?
 
     @Option(
-        help: "[Deprecated] Overrides the folder that should be used for derived data when building the project.",
+        help:
+        "[Deprecated] Overrides the folder that should be used for derived data when building the project.",
         envKey: .buildOptionsDerivedDataPath
     )
     public var derivedDataPath: String?
 
     @Flag(
         name: .long,
-        help: "When passed, it generates the project and skips building. This is useful for debugging purposes.",
+        help:
+        "When passed, it generates the project and skips building. This is useful for debugging purposes.",
         envKey: .buildOptionsGenerateOnly
     )
     public var generateOnly: Bool = false
@@ -120,7 +124,9 @@ public struct BuildOptions: ParsableArguments {
 }
 
 /// Command that builds a target from the project in the current directory.
-public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand, RecentPathRememberableCommand {
+public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
+    RecentPathRememberableCommand
+{
     public init() {}
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
@@ -165,11 +171,12 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand, Recent
                 )
         }
 
-        let absolutePath = if let path = buildOptions.path {
-            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            FileHandler.shared.currentPath
-        }
+        let absolutePath =
+            if let path = buildOptions.path {
+                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                FileHandler.shared.currentPath
+            }
 
         try await BuildService(
             generatorFactory: Self.generatorFactory,
@@ -180,10 +187,12 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand, Recent
             clean: buildOptions.clean,
             configuration: buildOptions.configuration,
             ignoreBinaryCache: !binaryCache,
-            buildOutputPath: buildOptions.buildOutputPath.map { try AbsolutePath(
-                validating: $0,
-                relativeTo: FileHandler.shared.currentPath
-            ) },
+            buildOutputPath: buildOptions.buildOutputPath.map {
+                try AbsolutePath(
+                    validating: $0,
+                    relativeTo: FileHandler.shared.currentPath
+                )
+            },
             derivedDataPath: buildOptions.derivedDataPath,
             path: absolutePath,
             device: buildOptions.device,

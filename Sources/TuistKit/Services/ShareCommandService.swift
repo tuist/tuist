@@ -3,10 +3,10 @@ import Foundation
 import Noora
 import Path
 import TuistAutomation
-import TuistCLIServer
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSimulator
 import TuistSupport
 import XcodeGraph

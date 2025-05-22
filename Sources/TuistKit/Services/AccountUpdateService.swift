@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol AccountUpdateServicing {

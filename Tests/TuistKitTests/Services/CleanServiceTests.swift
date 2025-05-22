@@ -5,7 +5,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import XCTest
 

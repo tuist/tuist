@@ -20,8 +20,8 @@ public enum Module: String, CaseIterable {
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
-    case server = "TuistServer"
-    case cliServer = "TuistCLIServer"
+    case serverCore = "TuistServerCore"
+    case serverCLI = "TuistServerCLI"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
     case simulator = "TuistSimulator"
@@ -134,7 +134,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
              .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold, .cliServer, .simulator:
+             .dependencies, .acceptanceTesting, .serverCore, .hasher, .cache, .scaffold, .serverCLI, .simulator:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -157,7 +157,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .cliServer, .simulator:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .serverCore, .hasher, .serverCLI, .simulator:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -211,7 +211,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.testingTargetName!),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.server.targetName),
+                    .target(name: Module.serverCore.targetName),
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeProj"),
                 ]
@@ -297,7 +297,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.automation.targetName),
-                    .target(name: Module.server.targetName),
+                    .target(name: Module.serverCore.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
                     .target(name: Module.loader.targetName),
@@ -308,7 +308,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
-                    .target(name: Module.cliServer.targetName),
+                    .target(name: Module.serverCLI.targetName),
                     .target(name: Module.simulator.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
@@ -427,7 +427,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-            case .server:
+            case .serverCore:
                 [
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.core.targetName, condition: .when([.macos])),
@@ -453,13 +453,13 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
                 ]
-            case .cliServer:
+            case .serverCLI:
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.cache.targetName),
-                    .target(name: Module.server.targetName),
+                    .target(name: Module.serverCore.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "Rosalind"),
@@ -504,7 +504,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
-                    .target(name: Module.server.targetName),
+                    .target(name: Module.serverCore.targetName),
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.analytics.targetName),
                     .target(name: Module.loader.targetName),
@@ -623,7 +623,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command"),
                     .external(name: "FileSystemTesting"),
                 ]
-            case .server:
+            case .serverCore:
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.support.testingTargetName!),
@@ -652,7 +652,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-            case .cliServer: [
+            case .serverCLI: [
                     .target(name: Module.support.testingTargetName!),
                 ]
             }
@@ -672,9 +672,9 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
                  .analytics,
-                 .migration, .tuistFixtureGenerator, .cache, .scaffold, .cliServer, .simulator:
+                 .migration, .tuistFixtureGenerator, .cache, .scaffold, .serverCLI, .simulator:
                 []
-            case .server:
+            case .serverCore:
                 [
                     .external(name: "FileSystem"),
                 ]
@@ -750,7 +750,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
                  .projectDescription, .acceptanceTesting,
-                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher, .cliServer, .simulator:
+                 .asyncQueue, .plugin, .analytics, .dependencies, .serverCore, .hasher, .serverCLI, .simulator:
                 []
             case .cache:
                 [
@@ -841,7 +841,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server:
+        case .simulator, .serverCore:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -850,7 +850,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server: .multiplatform(iOS: "18.0", macOS: "14.0")
+        case .simulator, .serverCore: .multiplatform(iOS: "18.0", macOS: "14.0")
         default: .macOS("14.0")
         }
     }

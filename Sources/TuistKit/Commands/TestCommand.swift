@@ -1,13 +1,15 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistCLIServer
 import TuistCore
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentPathRememberableCommand {
+public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
+    RecentPathRememberableCommand
+{
     public init() {}
 
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
@@ -23,7 +25,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
-        help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",
+        help:
+        "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",
         envKey: .testScheme
     )
     var scheme: String?
@@ -37,7 +40,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
 
     @Flag(
         name: .shortAndLong,
-        help: "When passed, the result necessary for test selection is not persisted to the server.",
+        help:
+        "When passed, the result necessary for test selection is not persisted to the server.",
         envKey: .testNoUpload
     )
     var noUpload: Bool = false
@@ -73,7 +77,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
 
     @Flag(
         name: .long,
-        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
+        help:
+        "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode.",
         envKey: .testRosetta
     )
     var rosetta: Bool = false
@@ -101,7 +106,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     var resultBundlePath: String?
 
     @Option(
-        help: "[Deprecated] Overrides the folder that should be used for derived data when testing a project.",
+        help:
+        "[Deprecated] Overrides the folder that should be used for derived data when testing a project.",
         completion: .directory,
         envKey: .testDerivedDataPath
     )
@@ -109,7 +115,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
 
     @Option(
         name: .long,
-        help: "[Deprecated] Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times.",
+        help:
+        "[Deprecated] Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times.",
         envKey: .testRetryCount
     )
     var retryCount: Int = 0
@@ -124,7 +131,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
+        help:
+        "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
         envKey: .testTestTargets
     )
     var testTargets: [TestIdentifier] = []
@@ -132,7 +140,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
+        help:
+        "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
         envKey: .testSkipTestTargets
     )
     var skipTestTargets: [TestIdentifier] = []
@@ -140,7 +149,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     @Option(
         name: .customLong("filter-configurations"),
         parsing: .upToNextOption,
-        help: "The list of configurations you want to test. It is applied before --skip-configuration",
+        help:
+        "The list of configurations you want to test. It is applied before --skip-configuration",
         envKey: .testConfigurations
     )
     var configurations: [String] = []
@@ -160,14 +170,16 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
     var binaryCache: Bool = true
 
     @Flag(
-        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
+        help:
+        "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
 
     @Flag(
         name: .long,
-        help: "When passed, it generates the project and skips testing. This is useful for debugging purposes.",
+        help:
+        "When passed, it generates the project and skips testing. This is useful for debugging purposes.",
         envKey: .testGenerateOnly
     )
     var generateOnly: Bool = false
@@ -236,19 +248,21 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentP
                 )
         }
 
-        let absolutePath = if let path {
-            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            FileHandler.shared.currentPath
-        }
+        let absolutePath =
+            if let path {
+                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                FileHandler.shared.currentPath
+            }
 
-        let action: XcodeBuildTestAction = if buildOnly {
-            .build
-        } else if withoutBuilding {
-            .testWithoutBuilding
-        } else {
-            .test
-        }
+        let action: XcodeBuildTestAction =
+            if buildOnly {
+                .build
+            } else if withoutBuilding {
+                .testWithoutBuilding
+            } else {
+                .test
+            }
 
         try await TestService(
             generatorFactory: Self.generatorFactory,

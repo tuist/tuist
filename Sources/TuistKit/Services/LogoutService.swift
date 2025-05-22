@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol LogoutServicing: AnyObject {
@@ -33,7 +33,9 @@ final class LogoutService: LogoutServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }

@@ -1,6 +1,6 @@
 import Foundation
 import TuistAcceptanceTesting
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import TuistSupportTesting
 import XCTest

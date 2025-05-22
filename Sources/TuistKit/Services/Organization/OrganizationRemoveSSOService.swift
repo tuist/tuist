@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationRemoveSSOServicing {
