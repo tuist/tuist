@@ -125,7 +125,12 @@ public class CachedManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, disableSandbox: Bool, loader: () async throws -> T) async throws -> T {
+    private func load<T: Codable>(
+        manifest: Manifest,
+        at path: AbsolutePath,
+        disableSandbox: Bool,
+        loader: () async throws -> T
+    ) async throws -> T {
         let manifestPathCandidates = [
             path.appending(component: manifest.fileName(path)),
             manifest.alternativeFileName(path).map { path.appending(component: $0) },
