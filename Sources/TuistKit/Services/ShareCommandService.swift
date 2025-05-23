@@ -126,6 +126,7 @@ struct ShareCommandService {
         self.fileArchiverFactory = fileArchiverFactory
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         path: String?,
         apps: [String],
