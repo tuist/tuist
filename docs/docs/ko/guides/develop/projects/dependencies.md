@@ -343,7 +343,14 @@ let package = Package(
 
 ### `.swiftmodule`에서 발생하는 전이적 정적 의존성 문제 {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-동적 프레임워브나 라이브러리가 `import StaticSwiftModule`을 통해 정적 라이브러리에 의존하는 경우, 해당 심볼이 동적 프레임워크나 라이브러리의 `.swiftmodule`에 포함되어 [컴파일 실패를 유발할 가능성](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1)이 있습니다. 이를 방지하기 위해서는 [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly)를 사용하여 정적 의존성을 import해야 합니다:
+When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import the static dependency using <LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+
+```swift
+internal import StaticModule
+```
+
+> [!NOTE]
+> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
 
 ```swift
 @_implementationOnly import StaticModule
