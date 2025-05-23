@@ -1,14 +1,14 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import Testing
-import FileSystem
-import FileSystemTesting
 
 @testable import TuistGenerator
 
@@ -43,7 +43,8 @@ struct GraphLinterTests {
         // Then
         #expect(
             result
-                .contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)) == true
+                .contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)) ==
+                true
         )
     }
 
@@ -52,7 +53,7 @@ struct GraphLinterTests {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(10, 0, 0)
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -74,7 +75,7 @@ struct GraphLinterTests {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(11, 0, 0)
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -134,10 +135,10 @@ struct GraphLinterTests {
         // Then
         #expect(
             result ==
-            [LintingIssue(
-                reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
-                severity: .warning
-            )]
+                [LintingIssue(
+                    reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
+                    severity: .warning
+                )]
         )
     }
 
@@ -184,7 +185,7 @@ struct GraphLinterTests {
         // Then
         #expect(
             result ==
-            []
+                []
         )
     }
 
@@ -193,7 +194,7 @@ struct GraphLinterTests {
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let error = NSError.test()
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -1284,7 +1285,7 @@ struct GraphLinterTests {
     @Test func test_lint_invalid_appClipTargetBundleIdentifiers() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        
+
         try await createFiles([
             "entitlements/AppClip.entitlements",
         ])
@@ -1872,12 +1873,12 @@ struct GraphLinterTests {
         // Then
         #expect(
             got ==
-            [
-                LintingIssue(
-                    reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
-                    severity: .warning
-                ),
-            ]
+                [
+                    LintingIssue(
+                        reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
+                        severity: .warning
+                    ),
+                ]
         )
     }
 
@@ -1927,12 +1928,12 @@ struct GraphLinterTests {
         // Then
         #expect(
             got ==
-            [
-                LintingIssue(
-                    reason: "List of targets for code coverage is empty",
-                    severity: .warning
-                ),
-            ]
+                [
+                    LintingIssue(
+                        reason: "List of targets for code coverage is empty",
+                        severity: .warning
+                    ),
+                ]
         )
     }
 
@@ -1965,12 +1966,12 @@ struct GraphLinterTests {
         // Then
         #expect(
             got ==
-            [
-                LintingIssue(
-                    reason: "Target 'TargetA' at '\(project.path)' doesn't exist",
-                    severity: .error
-                ),
-            ]
+                [
+                    LintingIssue(
+                        reason: "Target 'TargetA' at '\(project.path)' doesn't exist",
+                        severity: .error
+                    ),
+                ]
         )
     }
 
@@ -2086,10 +2087,10 @@ struct GraphLinterTests {
         // Then
         #expect(
             results ==
-            [LintingIssue(
-                reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget does not support the required platforms: macos. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: ios.",
-                severity: .error
-            )]
+                [LintingIssue(
+                    reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget does not support the required platforms: macos. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: ios.",
+                    severity: .error
+                )]
         )
     }
 
@@ -2131,10 +2132,10 @@ struct GraphLinterTests {
         // Then
         #expect(
             results ==
-            [LintingIssue(
-                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                severity: .error
-            )]
+                [LintingIssue(
+                    reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                    severity: .error
+                )]
         )
     }
 
@@ -2169,10 +2170,10 @@ struct GraphLinterTests {
         // Then
         #expect(
             results ==
-            [LintingIssue(
-                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                severity: .error
-            )]
+                [LintingIssue(
+                    reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                    severity: .error
+                )]
         )
     }
 

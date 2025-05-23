@@ -67,7 +67,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         public init(
             credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
             ciChecker: CIChecking = CIChecker(),
-            environment: Environmenting = Environment.shared
+            environment: Environmenting = Environment.current
         ) {
             self.credentialsStore = credentialsStore
             self.ciChecker = ciChecker
