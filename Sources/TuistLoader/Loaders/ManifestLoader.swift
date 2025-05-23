@@ -455,8 +455,8 @@ public class ManifestLoader: ManifestLoading {
                     ] +
                         projectDescriptionHelperModules.map(\.path.parentDirectory),
                     disallowedPaths: [
-                        try await rootDirectoryLocator.locate(from: path),
-                    ]
+                        try? await rootDirectoryLocator.locate(from: path),
+                    ].compactMap { $0 }
                 )
                 return ["/usr/bin/sandbox-exec", "-p", profile] + arguments
             #else
