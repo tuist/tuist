@@ -55,3 +55,19 @@ public func expectLogs(
     """
     #expect(output.contains(expected) == true, "\(message)", sourceLocation: sourceLocation)
 }
+
+public func doesntExpectLogs(_ pattern: String) {
+    let standardOutput = Logger.testingLogHandler.collected[.info, <=]
+
+    let message = """
+    The standard output:
+    ===========
+    \(standardOutput)
+
+    Contains the not expected:
+    ===========
+    \(pattern)
+    """
+
+    #expect(standardOutput.contains(pattern) == false)
+}

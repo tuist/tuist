@@ -14,7 +14,6 @@ import XcodeProj
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-@Suite(.withMockedSwiftVersionProvider)
 final class MultipleConfigurationsIntegrationTests {
     init() async throws {
         let mockSwiftVersionProvider = try #require(SwiftVersionProvider.mocked)
@@ -29,7 +28,11 @@ final class MultipleConfigurationsIntegrationTests {
         try await setupTestProject()
     }
 
-    @Test func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
         // Given
         let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
@@ -40,7 +43,11 @@ final class MultipleConfigurationsIntegrationTests {
         })
     }
 
-    @Test func testGenerateWhenSingleDebugConfigurationInProject() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenSingleDebugConfigurationInProject() async throws {
         // Given
         let projectSettings = Settings(
             base: ["A": "A"],
@@ -58,7 +65,11 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(debug.contains("A", "A") == true) // from base
     }
 
-    @Test func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -83,7 +94,11 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(debug.contains("C", "C") == true) // from settings
     }
 
-    @Test func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
         // Given
         let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -104,7 +119,11 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(debug.contains("C", "C") == true) // from settings
     }
 
-    @Test func testGenerateWhenBuildConfigurationWithCustomName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenBuildConfigurationWithCustomName() async throws {
         // Given
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -130,10 +149,14 @@ final class MultipleConfigurationsIntegrationTests {
         let release = try extractWorkspaceSettings(configuration: "Release")
         #expect(release.contains("A", "A_BASE") == true) // from base
         #expect(release.contains("B", "B_BASE") == true) // from base
-        #expect(release.contains("C", "C") == true) // non-existing, only defined in Custom
+        #expect(release.contains("C", "C") == false) // non-existing, only defined in Custom
     }
 
-    @Test func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -159,7 +182,11 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(debug.contains("C", "C") == true) // from target settings
     }
 
-    @Test func testGenerateWhenMultipleConfigurations() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenMultipleConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -213,7 +240,11 @@ final class MultipleConfigurationsIntegrationTests {
      - target base
      - target configuraiton settings
      */
-    @Test func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
         // Given
         let projectDebugFilePath = try createFile(path: "Configs/project_debug.xcconfig", content: """
         A=A_PROJECT_XCCONFIG
@@ -292,7 +323,11 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(debug.contains("TARGET", "YES") == true) // from target settings
     }
 
-    @Test func testGenerateWhenCustomConfigurations() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenCustomConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",

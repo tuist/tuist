@@ -11,7 +11,6 @@ import XcodeProj
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-@Suite(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
 struct WorkspaceSettingsDescriptorGeneratorTests {
     var subject: WorkspaceSettingsDescriptorGenerator!
 
@@ -24,7 +23,7 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         subject = WorkspaceSettingsDescriptorGenerator()
     }
 
-    @Test func test_generate_withoutGenerationOptions() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func test_generate_withoutGenerationOptions() {
         // Given
         let workspace = Workspace.test()
 
@@ -35,7 +34,7 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
-    @Test func test_generate_withGenerationOptions() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func test_generate_withGenerationOptions() {
         // Given
         let workspace = Workspace.test(
             generationOptions: .test(

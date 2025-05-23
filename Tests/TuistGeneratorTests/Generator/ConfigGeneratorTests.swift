@@ -13,7 +13,6 @@ import XcodeProj
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-@Suite(.withMockedXcodeController)
 struct ConfigGeneratorTests {
     var pbxproj: PBXProj!
     var subject: ConfigGenerator!
@@ -31,7 +30,7 @@ struct ConfigGeneratorTests {
             .willReturn(Version(15, 0, 0))
     }
 
-    @Test func test_generateProjectConfig_whenDebug() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateProjectConfig_whenDebug() async throws {
         try await generateProjectConfig(config: .debug)
         #expect(pbxproj.configurationLists.count == 1)
         let configurationList: XCConfigurationList = pbxproj.configurationLists.first!
@@ -42,7 +41,7 @@ struct ConfigGeneratorTests {
         #expect(debugConfig.buildSettings["Base"] == .string("Base"))
     }
 
-    @Test func test_generateProjectConfig_whenRelease() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateProjectConfig_whenRelease() async throws {
         try await generateProjectConfig(config: .release)
 
         #expect(pbxproj.configurationLists.count == 1)
@@ -60,7 +59,7 @@ struct ConfigGeneratorTests {
         #expect(customReleaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] == .string("NO"))
     }
 
-    @Test func test_generateTargetConfig() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetConfig() async throws {
         // Given
         let commonSettings: SettingsDictionary = [
             "Base": "Base",
@@ -103,7 +102,10 @@ struct ConfigGeneratorTests {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
-    @Test func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
@@ -141,7 +143,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetConfig_whenVariableInfoPlistPath() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_whenVariableInfoPlistPath() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
@@ -179,7 +184,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_iOS() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTestTargetConfiguration_iOS() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App")
 
@@ -196,7 +201,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_iOS_when_essentialSettings() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTestTargetConfiguration_iOS_when_essentialSettings() async throws {
         // Given / When
         let settings = Settings.test(defaultSettings: .essential)
         try await generateTestTargetConfig(appName: "App", settings: settings)
@@ -214,7 +222,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_macOS() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTestTargetConfiguration_macOS() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App", destinations: .macOS)
 
@@ -231,7 +239,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_macOS_when_essentialSettings() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTestTargetConfiguration_macOS_when_essentialSettings() async throws {
         // Given / When
         let settings = Settings.test(defaultSettings: .essential)
         try await generateTestTargetConfig(appName: "App", destinations: .macOS, settings: settings)
@@ -249,7 +260,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_usesProductName() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTestTargetConfiguration_usesProductName() async throws {
         // Given / When
         try await generateTestTargetConfig(
             appName: "App-dash",
@@ -269,7 +283,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTestTargetConfiguration_usesProductName_when_essentialSettings() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTestTargetConfiguration_usesProductName_when_essentialSettings() async throws {
         // Given / When
         let settings = Settings.test(defaultSettings: .essential)
         try await generateTestTargetConfig(
@@ -291,7 +308,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateUITestTargetConfiguration() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateUITestTargetConfiguration() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App", uiTest: true)
 
@@ -307,7 +324,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateUITestTargetConfiguration_when_essentialSettings() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateUITestTargetConfiguration_when_essentialSettings() async throws {
         // Given / When
         let settings = Settings.test(defaultSettings: .essential)
         try await generateTestTargetConfig(appName: "App", uiTest: true, settings: settings)
@@ -344,7 +364,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateUITestTargetConfiguration_usesTargetName_when_essentialSettings() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateUITestTargetConfiguration_usesTargetName_when_essentialSettings() async throws {
         // Given / When
         let settings = Settings.test(defaultSettings: .essential)
         try await generateTestTargetConfig(
@@ -366,7 +389,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenIOS_withMacAndVisionForIPhoneSupport() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenIOS_withMacAndVisionForIPhoneSupport() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -409,7 +435,10 @@ struct ConfigGeneratorTests {
         #expect(releaseConfig?.buildSettings["SUPPORTED_PLATFORMS"] == nil)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -447,7 +476,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() async throws {
         // Given
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
@@ -485,7 +517,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenMac() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetWithDeploymentTarget_whenMac() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.mac], deploymentTargets: .macOS("10.14.1"))
@@ -517,7 +549,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenCatalyst() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenCatalyst() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -557,7 +592,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenWatch() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenWatch() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleWatch], deploymentTargets: .watchOS("6.0"))
@@ -590,7 +628,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenTV() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetWithDeploymentTarget_whenTV() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleTv], deploymentTargets: .tvOS("14.0"))
@@ -623,7 +661,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenVision() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenVision() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleVision], deploymentTargets: .visionOS("1.0"))
@@ -656,7 +697,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithDeploymentTarget_whenVisionWithiPadDesign() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetWithDeploymentTarget_whenVisionWithiPadDesign() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -694,7 +738,7 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateTargetWithMultiplePlatforms() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetWithMultiplePlatforms() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.mac, .iPad, .iPhone])
@@ -730,7 +774,10 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test func test_generateProjectConfig_defaultConfigurationName() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateProjectConfig_defaultConfigurationName() async throws {
         // Given
         let settings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -750,7 +797,10 @@ struct ConfigGeneratorTests {
         #expect(result.defaultConfigurationName == "CustomRelease")
     }
 
-    @Test func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
         // Given
         let settings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -769,7 +819,10 @@ struct ConfigGeneratorTests {
         #expect(result.defaultConfigurationName == "AnotherDebug")
     }
 
-    @Test func test_generateTargetConfig_defaultConfigurationName() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_defaultConfigurationName() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -798,7 +851,10 @@ struct ConfigGeneratorTests {
         #expect(result?.defaultConfigurationName == "CustomRelease")
     }
 
-    @Test func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -826,7 +882,7 @@ struct ConfigGeneratorTests {
         #expect(result?.defaultConfigurationName == "AnotherDebug")
     }
 
-    @Test func test_generateTargetConfigWithDuplicateValues() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetConfigWithDuplicateValues() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -882,7 +938,10 @@ struct ConfigGeneratorTests {
         ])
     }
 
-    @Test func test_generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework(
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework(
     ) async throws {
         // Given
         let projectSettings = Settings.default
@@ -929,7 +988,10 @@ struct ConfigGeneratorTests {
         )
     }
 
-    @Test func test_generateTargetConfig_doesntAddTheLoadPluginExecutableSwiftFlag_when_theTargetDependsOnAStaticFrameworkThatDoesntRepresentAMacro(
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_doesntAddTheLoadPluginExecutableSwiftFlag_when_theTargetDependsOnAStaticFrameworkThatDoesntRepresentAMacro(
     ) async throws {
         // Given
         let projectSettings = Settings.default
@@ -965,7 +1027,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == nil)
     }
 
-    @Test func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvided(
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvided(
     ) async throws {
         let projectSettings = Settings.default
         let appClip = Target.test(
@@ -1002,7 +1067,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == "$(MY_CUSTOM_VARIABLE)")
     }
 
-    @Test func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvidedByStringLiteral(
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvidedByStringLiteral(
     ) async throws {
         let projectSettings = Settings.default
         let appClip = Target.test(
@@ -1039,7 +1107,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == "$(MY_CUSTOM_VARIABLE)")
     }
 
-    @Test func test_generateTargetConfig_when_mergedBinaryTypeIsAutomatic_defaultSettingsIsEssential() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_mergedBinaryTypeIsAutomatic_defaultSettingsIsEssential() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .essential)
         let appTarget = Target.test(settings: settings, mergedBinaryType: .automatic)
@@ -1069,7 +1140,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == "automatic")
     }
 
-    @Test func test_generateTargetConfig_when_mergedBinaryTypeIsManual_defaultSettingsIsEssential() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_mergedBinaryTypeIsManual_defaultSettingsIsEssential() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .essential)
         let appTarget = Target.test(settings: settings, mergedBinaryType: .manual(mergeableDependencies: []))
@@ -1099,7 +1173,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == "manual")
     }
 
-    @Test func test_generateTargetConfig_when_mergeableIsTrue_defaultSettingsIsEssential() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_mergeableIsTrue_defaultSettingsIsEssential() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .essential)
         let frameworkTarget = Target.test(product: .framework, settings: settings, mergeable: true)
@@ -1129,7 +1206,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == "YES")
     }
 
-    @Test func test_generateTargetConfig_when_defaultSettingsIsRecommendedWithExcludingTEST_HOST_then_TEST_HOSTIsNil(
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_defaultSettingsIsRecommendedWithExcludingTEST_HOST_then_TEST_HOSTIsNil(
     ) async throws {
         // Given
         let settings = Settings.test(defaultSettings: .recommended(excluding: ["TEST_HOST"]))
@@ -1169,7 +1249,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == nil)
     }
 
-    @Test func test_generateTargetConfig_when_defaultSettingsIsEssentialWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_defaultSettingsIsEssentialWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .essential(excluding: ["TEST_HOST"]))
         let appTarget = Target.test(name: "App", product: .app)
@@ -1208,7 +1291,10 @@ struct ConfigGeneratorTests {
         #expect(targetSettingsResult == nil)
     }
 
-    @Test func test_generateTargetConfig_when_defaultSettingsIsNoneWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateTargetConfig_when_defaultSettingsIsNoneWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .none)
         let appTarget = Target.test(name: "App", product: .app)

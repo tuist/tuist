@@ -10,7 +10,6 @@ import XcodeGraph
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-@Suite(.withMockedXcodeController)
 struct DefaultSettingsProvider_iOSTests {
     private var subject: DefaultSettingsProvider!
 
@@ -149,7 +148,7 @@ struct DefaultSettingsProvider_iOSTests {
         subject = DefaultSettingsProvider()
     }
 
-    @Test func testProjectSettings_whenExcludingEssentialDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenExcludingEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -175,7 +174,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["CLANG_CXX_LIBRARY"] == nil)
     }
 
-    @Test func testProjectSettings_whenEssentialDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -200,7 +199,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == projectEssentialDebugSettings)
     }
 
-    @Test func testProjectSettings_whenEssentialRelease_iOS() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenEssentialRelease_iOS() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -225,7 +224,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == projectEssentialReleaseSettings)
     }
 
-    @Test func testTargetSettings_whenBinaryAllowsToBeMerged() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenBinaryAllowsToBeMerged() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
@@ -250,7 +249,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["MERGEABLE_LIBRARY"] == "YES")
     }
 
-    @Test func testTargetSettings_whenBinaryDoesNotMergeDependencies() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenBinaryDoesNotMergeDependencies() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
@@ -274,7 +273,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["MERGED_BINARY_TYPE"] == nil)
     }
 
-    @Test func testTargetSettings_whenAppMergesDependencies_automatic() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_automatic() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
@@ -298,7 +297,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["MERGED_BINARY_TYPE"] == "automatic")
     }
 
-    @Test func testTargetSettings_whenAppMergesDependencies_manualDebug() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_manualDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
@@ -323,7 +322,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["OTHER_LDFLAGS"] == "-Wl,-reexport_framework,Sample")
     }
 
-    @Test func testTargetSettings_whenAppMergesDependencies_manualRelease() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_manualRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let project = Project.test()
@@ -348,7 +347,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["OTHER_LDFLAGS"] == "-Wl,-merge_framework,Sample")
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_App() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -377,7 +376,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == appTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -406,7 +405,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == frameworkTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -435,7 +434,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == frameworkTargetEssentialReleaseSettings)
     }
 
-    @Test func testProjectSettings_whenRecommendedDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -462,7 +461,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 50)
     }
 
-    @Test func testProjectSettings_whenRecommendedRelease() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenRecommendedRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -488,7 +487,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 47)
     }
 
-    @Test func testProjectSettings_whenNoneDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenNoneDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -513,7 +512,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 0)
     }
 
-    @Test func testProjectSettings_whenNoneRelease() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenNoneRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -538,7 +537,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 0)
     }
 
-    @Test func testTargetSettings_whenRecommendedDebug() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -568,7 +567,8 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 11)
     }
 
-    @Test func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil(
+    ) async throws {
         // Given
         let project = Project.test(settings: .test(defaultSettings: .essential))
         let target = Target.test(settings: nil)
@@ -591,7 +591,7 @@ struct DefaultSettingsProvider_iOSTests {
         expectSettings(got, containsAll: appTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenXcode10() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenXcode10() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -620,7 +620,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }) == false)
     }
 
-    @Test func testTargetSettings_whenXcode11() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenXcode11() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -649,7 +649,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }) == true)
     }
 
-    @Test func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -678,7 +678,9 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["SWIFT_VERSION"] == .string("5.0"))
     }
 
-    @Test func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() async throws {
+    @Test(
+        .withMockedXcodeController
+    ) func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -713,7 +715,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["SWIFT_VERSION"] == nil)
     }
 
-    @Test func testTargetSettings_whenEssential_containsDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssential_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -742,7 +744,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["SWIFT_VERSION"] == .string("5.0"))
     }
 
-    @Test func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -766,7 +768,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["SWIFT_VERSION"] == nil)
     }
 
-    @Test func testTargetSettings_whenRecommendedRelease_App() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedRelease_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -795,7 +797,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 10)
     }
 
-    @Test func testTargetSettings_whenRecommendedDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -825,7 +827,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 18)
     }
 
-    @Test func testTargetSettings_whenRecommendedRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -855,7 +857,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 17)
     }
 
-    @Test func testTargetSettings_whenNoneDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNoneDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -884,7 +886,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 0)
     }
 
-    @Test func testTargetSettings_whenNoneRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNoneRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -908,7 +910,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got.count == 0)
     }
 
-    @Test func testTargetSettings_whenRecommendedDebug_UnitTests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -937,7 +939,7 @@ struct DefaultSettingsProvider_iOSTests {
         expectSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenRecommendedDebug_UITests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -966,7 +968,7 @@ struct DefaultSettingsProvider_iOSTests {
         expectSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_UnitTests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -995,7 +997,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == testTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_UITests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1024,7 +1026,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == testTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_MultiplatformFramework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_MultiplatformFramework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1057,7 +1059,7 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got == multiplatformFrameworkTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
@@ -1110,7 +1112,7 @@ struct DefaultSettingsProvider_iOSTests {
     }
 }
 
-@Suite(.withMockedXcodeController)
+@Suite
 struct DefaultSettingsProvider_MacosTests {
     private var subject: DefaultSettingsProvider!
 
@@ -1135,7 +1137,7 @@ struct DefaultSettingsProvider_MacosTests {
         subject = DefaultSettingsProvider()
     }
 
-    @Test func testTargetSettings_whenEssentialDebug_Macro() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1163,7 +1165,7 @@ struct DefaultSettingsProvider_MacosTests {
         #expect(got == macroTargetEssentialDebugSettings)
     }
 
-    @Test func testTargetSettings_whenEssentialRelease_Macro() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialRelease_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(

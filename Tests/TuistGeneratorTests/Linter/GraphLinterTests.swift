@@ -12,7 +12,6 @@ import XcodeGraph
 
 @testable import TuistGenerator
 
-@Suite(.inTemporaryDirectory, .withMockedXcodeController)
 struct GraphLinterTests {
     private var subject: GraphLinter!
     private var graphTraverser: MockGraphTraversing!
@@ -25,7 +24,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_when_frameworks_are_missing() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_frameworks_are_missing() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/A.framework"))
@@ -48,7 +47,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_when_packages_and_xcode_10() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_packages_and_xcode_10() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
@@ -70,7 +69,7 @@ struct GraphLinterTests {
         #expect(result.contains(LintingIssue(reason: reason, severity: .error)) == true)
     }
 
-    @Test func test_lint_when_packages_and_xcode_11() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_packages_and_xcode_11() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
@@ -92,7 +91,7 @@ struct GraphLinterTests {
         #expect(result.contains(LintingIssue(reason: reason, severity: .error)) == false)
     }
 
-    @Test func test_lint_when_scheme_has_unknown_target() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_scheme_has_unknown_target() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "UnknownReferenceTarget")
@@ -142,7 +141,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_when_scheme_has_known_target() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_scheme_has_known_target() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "KnownReferenceTarget")
@@ -189,7 +188,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_when_no_version_available() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_no_version_available() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
@@ -209,7 +208,10 @@ struct GraphLinterTests {
         #expect(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)) == true)
     }
 
-    @Test func test_lint_when_staticFramework_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_staticFramework_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -249,7 +251,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_when_staticLibrary_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_staticLibrary_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -289,7 +294,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_when_messagesExtension_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_messagesExtension_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -332,7 +340,7 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_appExtension_canDependOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_appExtension_canDependOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appExtension = Target.empty(name: "app_extension", product: .appExtension)
@@ -358,7 +366,7 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_frameworkDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_frameworkDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -384,7 +392,7 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_applicationDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_applicationDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -410,7 +418,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_xpcCanDependOnAllTypesOfFrameworksAndLibraries() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_xpcCanDependOnAllTypesOfFrameworksAndLibraries() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let dynamicFramework = Target.empty(name: "DynamicFramework", destinations: [.mac], product: .framework)
@@ -448,7 +459,7 @@ struct GraphLinterTests {
         #expect(result == [])
     }
 
-    @Test func test_lint_testTargetsDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_testTargetsDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -476,7 +487,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_staticProductsCanDependOnDynamicFrameworks() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_staticProductsCanDependOnDynamicFrameworks() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(name: "StaticFramework", product: .staticFramework)
@@ -504,7 +518,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_macStaticProductsCantDependOniOSStaticProducts() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_macStaticProductsCantDependOniOSStaticProducts() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let macStaticFramework = Target.empty(name: "MacStaticFramework", destinations: .macOS, product: .staticFramework)
@@ -538,7 +555,7 @@ struct GraphLinterTests {
         #expect(result.isEmpty == false)
     }
 
-    @Test func test_lint_watch_canDependOnWatchExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_canDependOnWatchExtension() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let watchExtension = Target.empty(name: "WatckExtension", destinations: .watchOS, product: .watch2Extension)
@@ -564,7 +581,7 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
-    @Test func test_lint_watch_canOnlyDependOnWatchExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_canOnlyDependOnWatchExtension() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let invalidDependency = Target.empty(name: "Framework", destinations: .watchOS, product: .framework)
@@ -590,7 +607,10 @@ struct GraphLinterTests {
         #expect(result.isEmpty == false)
     }
 
-    @Test func test_lint_when_watchOS_UITests_depends_on_watch2App() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_watch2App() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let watchApp = Target.empty(
@@ -626,7 +646,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_watchOS_UITests_depends_on_staticLibrary() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_staticLibrary() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticLibrary = Target.empty(
@@ -662,7 +685,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_watchOS_UITests_depends_on_framework() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_framework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let framework = Target.empty(
@@ -698,7 +724,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_watchOS_UITests_depends_on_staticFramework() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_staticFramework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(
@@ -734,7 +763,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_watch_application() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_application() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use the regular application (.app) product identifier
 
@@ -785,7 +814,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_watch_application_withWidgetExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_application_withWidgetExtension() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use WidgetKit extensions
 
@@ -828,7 +857,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_iOSApp_withCompanionWatchApplication() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_iOSApp_withCompanionWatchApplication() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.empty(
@@ -868,7 +897,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_missingProjectConfigurationsFromDependencyProjects() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_missingProjectConfigurationsFromDependencyProjects() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let customConfigurations: [BuildConfiguration: Configuration?] = [
@@ -933,7 +965,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let customConfigurations: [BuildConfiguration: Configuration?] = [
@@ -1005,7 +1040,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_doesNotFlagDependenciesWithExtraConfigurations() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_doesNotFlagDependenciesWithExtraConfigurations() async throws {
         // Lower level dependencies could be shared by projects in different workspaces as such
         // it is ok for them to contain more configurations than the entry node projects
 
@@ -1074,7 +1112,10 @@ struct GraphLinterTests {
         #expect(result == [])
     }
 
-    @Test func test_lint_doesNotFlagDependenciesWithLessConfigurations() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_doesNotFlagDependenciesWithLessConfigurations() async throws {
         // If a dependency is used by multiple projects, project are allowed to have less configurations
         // as long as the dependency has them.
         // For example: a dependency has configurations Debug, Testing, Beta, Release.
@@ -1144,7 +1185,7 @@ struct GraphLinterTests {
         #expect(result == [])
     }
 
-    @Test func test_lint_valid_watchTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1187,7 +1228,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_invalid_watchTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_invalid_watchTargetBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1239,7 +1280,7 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_valid_appClipTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_valid_appClipTargetBundleIdentifiers() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -1282,7 +1323,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_invalid_appClipTargetBundleIdentifiers() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_invalid_appClipTargetBundleIdentifiers() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -1331,7 +1375,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_when_appclip_is_missing_required_entitlements() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appclip_is_missing_required_entitlements() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1372,7 +1419,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_when_appclip_entitlements_does_not_exist() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appclip_entitlements_does_not_exist() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1414,7 +1464,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_when_app_contains_more_than_one_appClip() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_app_contains_more_than_one_appClip() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -1479,7 +1532,10 @@ struct GraphLinterTests {
         ])
     }
 
-    @Test func test_lint_when_appClip_has_a_framework_dependency() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appClip_has_a_framework_dependency() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -1526,7 +1582,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_cli_tool_links_dynamic_framework() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_cli_tool_links_dynamic_framework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let tool = Target.test(
@@ -1564,7 +1620,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_cli_tool_links_dynamic_library() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_cli_tool_links_dynamic_library() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let tool = Target.test(
@@ -1602,7 +1658,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_when_cli_tool_links_supported_dependencies() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_cli_tool_links_supported_dependencies() async throws {
         // Given
         let path: AbsolutePath = "/project"
 
@@ -1651,7 +1710,10 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lint_ios_uitests_allows_macos_bundle_dependency() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_ios_uitests_allows_macos_bundle_dependency() async throws {
         let path: AbsolutePath = "/project"
 
         let uitests = Target.test(name: "UITests", platform: .iOS, product: .uiTests)
@@ -1679,7 +1741,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_lint_macos_bundle_allows_ios_dependencies() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_macos_bundle_allows_ios_dependencies() async throws {
         let path: AbsolutePath = "/project"
 
         let bundle = Target.test(name: "Bundle", platform: .macOS, product: .bundle)
@@ -1709,7 +1771,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintDifferentBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintDifferentBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -1747,7 +1809,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintBundleIdentifiersShouldIgnoreVariables() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintBundleIdentifiersShouldIgnoreVariables() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -1781,7 +1843,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintCodeCoverage_none() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_none() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test())
 
@@ -1792,7 +1854,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_lintCodeCoverage_all() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_all() async throws {
         // Given
         let graphTraverser = GraphTraverser(
             graph: .test(
@@ -1811,7 +1873,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintCodeCoverage_relevant() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_relevant() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let targetA = Target.test(name: "TargetA")
@@ -1857,7 +1919,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintCodeCoverage_relevant_notConfigured() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_relevant_notConfigured() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
@@ -1882,7 +1944,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lintCodeCoverage_targets() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
@@ -1912,7 +1974,7 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
-    @Test func test_lintCodeCoverage_targets_empty() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets_empty() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
@@ -1937,7 +1999,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lintCodeCoverage_targets_nonExisting() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets_nonExisting() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
@@ -1975,7 +2037,7 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_multiDestinationTarget_validLinks() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_multiDestinationTarget_validLinks() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
@@ -2012,7 +2074,7 @@ struct GraphLinterTests {
         #expect(results.isEmpty == true)
     }
 
-    @Test func test_lint_multiDestinationTarget_invalidLinks() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_multiDestinationTarget_invalidLinks() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
@@ -2043,7 +2105,10 @@ struct GraphLinterTests {
         #expect(results.isEmpty == false)
     }
 
-    @Test func test_lint_multiDestinationTarget_dependsOnTargetWithFewerSupportedPlatforms() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multiDestinationTarget_dependsOnTargetWithFewerSupportedPlatforms() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
@@ -2094,7 +2159,10 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_multipleDependencies_when_directAndTransitiveDependenciesWithSameProductName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multipleDependencies_when_directAndTransitiveDependenciesWithSameProductName() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -2139,7 +2207,10 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_lint_multipleDependencies_when_multipleDirectDependenciesWithSameProductName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multipleDependencies_when_multipleDirectDependenciesWithSameProductName() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -2177,7 +2248,10 @@ struct GraphLinterTests {
         )
     }
 
-    @Test func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() async throws {
         let platforms: [Platform] = [.macOS, .iOS]
 
         for platform in platforms {
@@ -2235,7 +2309,10 @@ struct GraphLinterTests {
         }
     }
 
-    @Test func test_extensionKitExtension_macOS_canEmbedAnXPCService() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_extensionKitExtension_macOS_canEmbedAnXPCService() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
 

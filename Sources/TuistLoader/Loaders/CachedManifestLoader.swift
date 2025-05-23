@@ -18,7 +18,6 @@ public class CachedManifestLoader: ManifestLoading {
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileSystem: FileSysteming
-    private let environment: Environmenting
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let tuistVersion: String
     private let decoder = JSONDecoder()
@@ -28,13 +27,11 @@ public class CachedManifestLoader: ManifestLoading {
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
-        let environment = TuistSupport.Environment.current
         self.init(
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
             helpersDirectoryLocator: HelpersDirectoryLocator(),
             fileSystem: FileSystem(),
-            environment: environment,
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             tuistVersion: Constants.version
         )
@@ -45,7 +42,6 @@ public class CachedManifestLoader: ManifestLoading {
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
         helpersDirectoryLocator: HelpersDirectoryLocating,
         fileSystem: FileSysteming,
-        environment: Environmenting,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         tuistVersion: String
     ) {
@@ -53,7 +49,6 @@ public class CachedManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileSystem = fileSystem
-        self.environment = environment
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.tuistVersion = tuistVersion
         cacheDirectory = ThrowableCaching {
@@ -226,7 +221,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }

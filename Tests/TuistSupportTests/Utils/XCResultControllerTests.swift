@@ -9,7 +9,6 @@ import TuistSupportTesting
 
 @testable import TuistSupport
 
-@Suite(.withMockedXcodeController, .inTemporaryDirectory)
 struct XCResultControllerTests {
     private var subject: XCResultToolController!
     private let system = MockSystem()
@@ -23,7 +22,7 @@ struct XCResultControllerTests {
         subject = XCResultToolController(system: system)
     }
 
-    @Test func test_resultBundleObject() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject() async throws {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -44,7 +43,7 @@ struct XCResultControllerTests {
         #expect(got == "{some: 'json'}")
     }
 
-    @Test func test_resultBundleObject_when_xcode_15() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_when_xcode_15() async throws {
         // Given
         let mockXcodeController = try #require(XcodeController.mocked)
 
@@ -70,7 +69,7 @@ struct XCResultControllerTests {
         #expect(got == "{some: 'json'}")
     }
 
-    @Test func test_resultBundleObject_with_id() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_with_id() async throws {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -95,7 +94,7 @@ struct XCResultControllerTests {
         #expect(got == "{some: 'json'}")
     }
 
-    @Test func test_resultBundleObject_with_id_when_xcode_15() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_with_id_when_xcode_15() async throws {
         // Given
         let mockXcodeController = try #require(XcodeController.mocked)
 

@@ -55,7 +55,7 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        try await Environment.$current.withValue(MockEnvironmenting()) {
+        try await Environment.$current.withValue(MockEnvironment()) {
             try await function()
         }
     }

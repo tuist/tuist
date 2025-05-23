@@ -8,7 +8,6 @@ import TSCUtility
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-@Suite(.withMockedEnvironment)
 struct CommandEnvironmentVariableTests {
     private var tuistVariables: [String: String] {
         get {
@@ -23,7 +22,7 @@ struct CommandEnvironmentVariableTests {
         Environment.mocked?.tuistVariables[key.rawValue] = value
     }
 
-    func testBuildCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testBuildCommandUsesEnvVars() throws {
         setVariable(.buildOptionsScheme, value: "Scheme1")
         setVariable(.buildOptionsGenerate, value: "true")
         setVariable(.buildOptionsClean, value: "true")
@@ -85,7 +84,7 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
     }
 
-    func testCleanCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testCleanCommandUsesEnvVars() throws {
         setVariable(.cleanCleanCategories, value: "dependencies")
         setVariable(.cleanPath, value: "/path/to/clean")
 
@@ -101,7 +100,7 @@ struct CommandEnvironmentVariableTests {
         #expect(cleanCommandWithArgs.path == "/new/clean/path")
     }
 
-    func testDumpCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testDumpCommandUsesEnvVars() throws {
         setVariable(.dumpPath, value: "/path/to/dump")
         setVariable(.dumpManifest, value: "Project")
 
@@ -117,7 +116,7 @@ struct CommandEnvironmentVariableTests {
         #expect(dumpCommandWithArgs.manifest == .workspace)
     }
 
-    func testEditCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testEditCommandUsesEnvVars() throws {
         setVariable(.editPath, value: "/path/to/edit")
         setVariable(.editPermanent, value: "true")
         setVariable(.editOnlyCurrentDirectory, value: "true")
@@ -137,7 +136,7 @@ struct CommandEnvironmentVariableTests {
         #expect(editCommandWithArgs.onlyCurrentDirectory == false)
     }
 
-    func testGenerateCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testGenerateCommandUsesEnvVars() throws {
         setVariable(.generatePath, value: "/path/to/generate")
         setVariable(.generateOpen, value: "false")
         setVariable(.generateBinaryCache, value: "false")
@@ -157,7 +156,7 @@ struct CommandEnvironmentVariableTests {
         #expect(generateCommandWithArgs.binaryCache == true)
     }
 
-    func testGraphCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testGraphCommandUsesEnvVars() throws {
         setVariable(.graphSkipTestTargets, value: "true")
         setVariable(.graphSkipExternalDependencies, value: "true")
         setVariable(.graphPlatform, value: "ios")
@@ -201,7 +200,7 @@ struct CommandEnvironmentVariableTests {
         #expect(graphCommandWithArgs.outputPath == "/new/graph/output")
     }
 
-    func testInstallCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testInstallCommandUsesEnvVars() throws {
         setVariable(.installPath, value: "/path/to/install")
         setVariable(.installUpdate, value: "true")
 
@@ -217,7 +216,7 @@ struct CommandEnvironmentVariableTests {
         #expect(installCommandWithArgs.update == false)
     }
 
-    func testListCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testListCommandUsesEnvVars() throws {
         setVariable(.scaffoldListJson, value: "true")
         setVariable(.scaffoldListPath, value: "/path/to/list")
 
@@ -233,7 +232,7 @@ struct CommandEnvironmentVariableTests {
         #expect(listCommandWithArgs.path == "/new/list/path")
     }
 
-    func testMigrationCheckEmptyBuildSettingsCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testMigrationCheckEmptyBuildSettingsCommandUsesEnvVars() throws {
         setVariable(.migrationCheckEmptySettingsXcodeprojPath, value: "/path/to/xcodeproj")
         setVariable(.migrationCheckEmptySettingsTarget, value: "MyTarget")
 
@@ -249,7 +248,7 @@ struct CommandEnvironmentVariableTests {
         #expect(migrationCommandWithArgs.target == "NewTarget")
     }
 
-    func testMigrationSettingsToXCConfigCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testMigrationSettingsToXCConfigCommandUsesEnvVars() throws {
         setVariable(.migrationSettingsToXcconfigXcodeprojPath, value: "/path/to/xcodeproj")
         setVariable(.migrationSettingsToXcconfigXcconfigPath, value: "/path/to/xcconfig")
         setVariable(.migrationSettingsToXcconfigTarget, value: "MyTarget")
@@ -269,7 +268,7 @@ struct CommandEnvironmentVariableTests {
         #expect(migrationCommandWithArgs.target == "NewTarget")
     }
 
-    func testMigrationTargetsByDependenciesCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testMigrationTargetsByDependenciesCommandUsesEnvVars() throws {
         setVariable(.migrationListTargetsXcodeprojPath, value: "/path/to/xcodeproj")
 
         let migrationCommandWithEnvVars = try MigrationTargetsByDependenciesCommand.parse([])
@@ -281,7 +280,7 @@ struct CommandEnvironmentVariableTests {
         #expect(migrationCommandWithArgs.xcodeprojPath == "/new/xcodeproj/path")
     }
 
-    func testPluginArchiveCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testPluginArchiveCommandUsesEnvVars() throws {
         setVariable(.pluginArchivePath, value: "/path/to/plugin")
 
         let pluginCommandWithEnvVars = try PluginArchiveCommand.parse([])
@@ -293,7 +292,7 @@ struct CommandEnvironmentVariableTests {
         #expect(pluginCommandWithArgs.path == "/new/plugin/path")
     }
 
-    func testPluginBuildCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testPluginBuildCommandUsesEnvVars() throws {
         setVariable(.pluginOptionsPath, value: "/path/to/plugin")
         setVariable(.pluginOptionsConfiguration, value: "debug")
         setVariable(.pluginBuildBuildTests, value: "true")
@@ -325,7 +324,7 @@ struct CommandEnvironmentVariableTests {
         #expect(pluginCommandWithArgs.products == ["Product3", "Product4"])
     }
 
-    func testPluginRunCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testPluginRunCommandUsesEnvVars() throws {
         setVariable(.pluginOptionsPath, value: "/path/to/plugin")
         setVariable(.pluginOptionsConfiguration, value: "debug")
         setVariable(.pluginRunBuildTests, value: "true")
@@ -357,7 +356,7 @@ struct CommandEnvironmentVariableTests {
         #expect(pluginCommandWithArgs.arguments == ["arg4", "arg5"])
     }
 
-    func testPluginTestCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testPluginTestCommandUsesEnvVars() throws {
         setVariable(.pluginOptionsPath, value: "/path/to/plugin")
         setVariable(.pluginOptionsConfiguration, value: "debug")
         setVariable(.pluginTestBuildTests, value: "true")
@@ -381,7 +380,7 @@ struct CommandEnvironmentVariableTests {
         #expect(pluginCommandWithArgs.testProducts == ["Product3", "Product4"])
     }
 
-    func testRunCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testRunCommandUsesEnvVars() throws {
         // Set environment variables for RunCommand
         setVariable(.runGenerate, value: "true")
         setVariable(.runClean, value: "true")
@@ -420,7 +419,7 @@ struct CommandEnvironmentVariableTests {
         #expect(runCommandWithArgs.arguments == ["arg4", "arg5"])
     }
 
-    func testScaffoldCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testScaffoldCommandUsesEnvVars() throws {
         // Set environment variables for ScaffoldCommand
         setVariable(.scaffoldJson, value: "true")
         setVariable(.scaffoldPath, value: "/path/to/scaffold")
@@ -443,7 +442,7 @@ struct CommandEnvironmentVariableTests {
         #expect(scaffoldCommandWithArgs.template == "AnotherTemplate")
     }
 
-    func testTestCommandWithEnvVars() throws {
+    @Test(.withMockedEnvironment) func testTestCommandWithEnvVars() throws {
         // Set environment variables for TestCommand
         setVariable(.testScheme, value: "MyScheme")
         setVariable(.testClean, value: "true")
@@ -540,7 +539,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.selectiveTesting == false)
     }
 
-    func testOrganizationBillingCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationBillingCommandUsesEnvVars() throws {
         setVariable(.organizationBillingOrganizationName, value: "MyOrganization")
         setVariable(.organizationBillingPath, value: "/path/to/billing")
 
@@ -556,7 +555,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/billing/path")
     }
 
-    func testOrganizationCreateCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationCreateCommandUsesEnvVars() throws {
         setVariable(.organizationCreateOrganizationName, value: "MyNewOrganization")
         setVariable(.organizationCreatePath, value: "/path/to/create")
 
@@ -572,7 +571,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/create/path")
     }
 
-    func testOrganizationDeleteCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationDeleteCommandUsesEnvVars() throws {
         setVariable(.organizationDeleteOrganizationName, value: "OrganizationToDelete")
         setVariable(.organizationDeletePath, value: "/path/to/delete")
 
@@ -588,7 +587,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/delete/path")
     }
 
-    func testProjectTokensCreateCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testProjectTokensCreateCommandUsesEnvVars() throws {
         setVariable(.projectTokenFullHandle, value: "tuist-org/tuist")
         setVariable(.projectTokenPath, value: "/path/to/token")
 
@@ -604,7 +603,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/token/path")
     }
 
-    func testOrganizationListCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationListCommandUsesEnvVars() throws {
         setVariable(.organizationListJson, value: "true")
         setVariable(.organizationListPath, value: "/path/to/list")
 
@@ -620,7 +619,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/list/path")
     }
 
-    func testOrganizationRemoveInviteCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationRemoveInviteCommandUsesEnvVars() throws {
         setVariable(.organizationRemoveInviteOrganizationName, value: "MyOrganization")
         setVariable(.organizationRemoveInviteEmail, value: "email@example.com")
         setVariable(.organizationRemoveInvitePath, value: "/path/to/invite")
@@ -640,7 +639,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/invite/path")
     }
 
-    func testOrganizationRemoveMemberCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationRemoveMemberCommandUsesEnvVars() throws {
         setVariable(.organizationRemoveMemberOrganizationName, value: "MyOrganization")
         setVariable(.organizationRemoveMemberUsername, value: "username")
         setVariable(.organizationRemoveMemberPath, value: "/path/to/member")
@@ -660,7 +659,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/member/path")
     }
 
-    func testOrganizationRemoveSSOCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationRemoveSSOCommandUsesEnvVars() throws {
         setVariable(.organizationRemoveSSOOrganizationName, value: "MyOrganization")
         setVariable(.organizationRemoveSSOPath, value: "/path/to/sso")
 
@@ -676,7 +675,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/sso/path")
     }
 
-    func testOrganizationUpdateSSOCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationUpdateSSOCommandUsesEnvVars() throws {
         setVariable(.organizationUpdateSSOOrganizationName, value: "MyOrganization")
         setVariable(.organizationUpdateSSOProvider, value: "google")
         setVariable(.organizationUpdateSSOOrganizationId, value: "1234")
@@ -700,7 +699,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/update/sso/path")
     }
 
-    func testProjectDeleteCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testProjectDeleteCommandUsesEnvVars() throws {
         setVariable(.projectDeleteFullHandle, value: "tuist-org/tuist")
         setVariable(.projectDeletePath, value: "/path/to/delete")
 
@@ -716,7 +715,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/delete/path")
     }
 
-    func testProjectCreateCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testProjectCreateCommandUsesEnvVars() throws {
         setVariable(.projectCreateFullHandle, value: "tuist-org/tuist")
         setVariable(.projectCreatePath, value: "/path/to/create")
 
@@ -732,7 +731,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/create/path")
     }
 
-    func testOrganizationInviteCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationInviteCommandUsesEnvVars() throws {
         setVariable(.organizationInviteOrganizationName, value: "InviteOrganization")
         setVariable(.organizationInviteEmail, value: "email@example.com")
         setVariable(.organizationInvitePath, value: "/path/to/invite")
@@ -752,7 +751,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/invite/path")
     }
 
-    func testOrganizationShowCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationShowCommandUsesEnvVars() throws {
         setVariable(.organizationShowOrganizationName, value: "MyOrganization")
         setVariable(.organizationShowJson, value: "true")
         setVariable(.organizationShowPath, value: "/path/to/show")
@@ -772,7 +771,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/show/path")
     }
 
-    func testProjectListCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testProjectListCommandUsesEnvVars() throws {
         setVariable(.projectListJson, value: "true")
         setVariable(.projectListPath, value: "/path/to/list")
 
@@ -788,7 +787,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/list/path")
     }
 
-    func testOrganizationUpdateMemberCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testOrganizationUpdateMemberCommandUsesEnvVars() throws {
         setVariable(.organizationUpdateMemberOrganizationName, value: "MyOrganization")
         setVariable(.organizationUpdateMemberUsername, value: "username")
         setVariable(.organizationUpdateMemberRole, value: "admin")
@@ -812,7 +811,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/member/path")
     }
 
-    func testLoginCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
         let commandWithEnvVars = try LoginCommand.parse([])
@@ -824,7 +823,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/auth/path")
     }
 
-    func testWhoamiCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testWhoamiCommandUsesEnvVars() throws {
         setVariable(.whoamiPath, value: "/path/to/session")
 
         let commandWithEnvVars = try WhoamiCommand.parse([])
@@ -836,7 +835,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/session/path")
     }
 
-    func testLogoutCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testLogoutCommandUsesEnvVars() throws {
         setVariable(.logoutPath, value: "/path/to/logout")
 
         let commandWithEnvVars = try LogoutCommand.parse([])
@@ -848,7 +847,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/logout/path")
     }
 
-    func testCacheCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment) func testCacheCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheGenerateOnly, value: "true")
         setVariable(.cachePrintHashes, value: "true")

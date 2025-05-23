@@ -13,7 +13,6 @@ import XcodeGraph
 @testable import TuistSupportTesting
 @testable import XcodeProj
 
-@Suite(.withMockedSwiftVersionProvider, .inTemporaryDirectory)
 struct ProjectDescriptorGeneratorTests {
     var subject: ProjectDescriptorGenerator!
 
@@ -25,7 +24,11 @@ struct ProjectDescriptorGeneratorTests {
         subject = ProjectDescriptorGenerator()
     }
 
-    @Test func test_generate_testTargetIdentity() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_testTargetIdentity() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(
@@ -87,7 +90,11 @@ struct ProjectDescriptorGeneratorTests {
         } == true)
     }
 
-    @Test func test_objectVersion_when_xcode11_and_spm() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode11_and_spm() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -128,7 +135,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    @Test func test_objectVersion_when_xcode11() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode11() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -155,7 +166,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    @Test func test_objectVersion_when_xcode10() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode10() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -182,7 +197,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    @Test func test_knownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_knownRegions() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -223,7 +242,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsDefaultKnownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsDefaultKnownRegions() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -244,7 +267,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsCustomDefaultKnownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsCustomDefaultKnownRegions() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -259,7 +286,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(pbxProject.knownRegions == ["Base", "en-GB"])
     }
 
-    @Test func test_generate_setsOrganizationName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsOrganizationName() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -282,7 +313,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsClassPrefix() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsClassPrefix() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -305,7 +340,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsResourcesTagsName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsResourcesTagsName() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -336,7 +375,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsDefaultDevelopmentRegion() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsDefaultDevelopmentRegion() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -406,7 +449,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(packages.map(\.name) == ["LocalPackageA", "LocalPackageB"])
     }
 
-    @Test func test_generate_localSwiftPackagePaths() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_localSwiftPackagePaths() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -452,7 +499,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_setsLastUpgradeCheck() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsLastUpgradeCheck() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
@@ -480,7 +531,11 @@ struct ProjectDescriptorGeneratorTests {
         ])
     }
 
-    @Test func test_generate_localSwiftPackages() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_localSwiftPackages() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -534,7 +589,11 @@ struct ProjectDescriptorGeneratorTests {
         #expect(remoteSwiftPackageReferenceNames.isEmpty == true)
     }
 
-    @Test func test_generate_remoteSwiftPackages() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_remoteSwiftPackages() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()

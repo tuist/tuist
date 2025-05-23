@@ -13,7 +13,6 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-@Suite(.withMockedDeveloperEnvironment, .withMockedSwiftVersionProvider)
 struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
@@ -31,7 +30,12 @@ struct ProjectEditorMapperTests {
         )
     }
 
-    @Test func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -91,7 +95,7 @@ struct ProjectEditorMapperTests {
             project.targets.values.sorted()
                 .first(where: { $0.name == sourceRootPath.basename + projectName })
         )
-        #expect(targets.last == manifestsTarget)
+        #expect(targets.first == manifestsTarget)
 
         #expect(manifestsTarget.destinations == .macOS)
         #expect(manifestsTarget.product == .staticFramework)
@@ -262,7 +266,12 @@ struct ProjectEditorMapperTests {
         #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    @Test func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -341,7 +350,12 @@ struct ProjectEditorMapperTests {
         #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    @Test func test_tuist_edit_with_more_than_one_manifest() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_tuist_edit_with_more_than_one_manifest() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
@@ -453,7 +467,12 @@ struct ProjectEditorMapperTests {
         #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
-    @Test func test_tuist_edit_with_one_plugin_no_projects() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_tuist_edit_with_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [sourceRootPath].map { $0.appending(component: "Plugin.swift") }
         let editablePluginManifests = pluginManifestPaths.map {
@@ -529,7 +548,12 @@ struct ProjectEditorMapperTests {
         #expect(allPluginsBuildAction.targets.map(\.name).sorted() == targets.map(\.name).sorted())
     }
 
-    @Test func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPaths = [
             sourceRootPath.appending(component: "A").appending(component: "Plugin.swift"),
@@ -633,7 +657,12 @@ struct ProjectEditorMapperTests {
         )
     }
 
-    @Test func test_tuist_edit_plugin_only_takes_required_sources() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_tuist_edit_plugin_only_takes_required_sources() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginManifestPath = sourceRootPath.appending(component: "Plugin.swift")
@@ -689,7 +718,12 @@ struct ProjectEditorMapperTests {
         )
     }
 
-    @Test func test_tuist_edit_project_with_plugin() async throws {
+    @Test(
+        .withMockedDeveloperEnvironment,
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_tuist_edit_project_with_plugin() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }

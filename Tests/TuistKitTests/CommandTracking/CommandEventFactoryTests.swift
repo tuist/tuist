@@ -12,7 +12,6 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-@Suite(.withMockedSwiftVersionProvider, .inTemporaryDirectory)
 struct CommandEventFactoryTests {
     private var subject: CommandEventFactory!
     private var machineEnvironment: MachineEnvironmentRetrieving!
@@ -35,7 +34,7 @@ struct CommandEventFactoryTests {
 
     // MARK: - Tests
 
-    @Test func test_tagCommand_tagsExpectedCommand() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func test_tagCommand_tagsExpectedCommand() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project")
@@ -247,7 +246,7 @@ struct CommandEventFactoryTests {
         )
     }
 
-    @Test func test_make_when_is_not_in_git_repository() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func test_make_when_is_not_in_git_repository() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -285,7 +284,10 @@ struct CommandEventFactoryTests {
         #expect(event.gitRef == nil)
     }
 
-    @Test func test_make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory
+    ) func test_make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -339,7 +341,10 @@ struct CommandEventFactoryTests {
         #expect(event.gitRef == nil)
     }
 
-    @Test func test_make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory
+    ) func test_make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(

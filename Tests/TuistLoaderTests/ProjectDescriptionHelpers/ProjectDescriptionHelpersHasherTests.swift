@@ -8,7 +8,6 @@ import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-@Suite(.withMockedSwiftVersionProvider, .withMockedEnvironment, .inTemporaryDirectory)
 struct ProjectDescriptionHelpersHasherTests {
     private var subject: ProjectDescriptionHelpersHasher!
     private var machineEnvironment: MockMachineEnvironmentRetrieving!
@@ -28,7 +27,7 @@ struct ProjectDescriptionHelpersHasherTests {
         )
     }
 
-    @Test func hash() async throws {
+    @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment, .inTemporaryDirectory) func hash() async throws {
         // Given
         let environmentMock = try #require(TuistSupport.Environment.mocked)
         let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
