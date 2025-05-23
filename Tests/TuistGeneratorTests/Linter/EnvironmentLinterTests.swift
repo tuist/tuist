@@ -2,29 +2,24 @@ import Foundation
 import Mockable
 import TuistCore
 import TuistSupport
-import XCTest
+import Testing
+import FileSystem
+import FileSystemTesting
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class EnvironmentLinterTests: TuistUnitTestCase {
+@Suite(.withMockedXcodeController)
+struct EnvironmentLinterTests {
     private var rootDirectoryLocator: MockRootDirectoryLocating!
     var subject: EnvironmentLinter!
 
-    override func setUp() {
-        super.setUp()
-
+    init() throws {
         rootDirectoryLocator = .init()
         subject = EnvironmentLinter(rootDirectoryLocator: rootDirectoryLocator)
     }
 
-    override func tearDown() {
-        subject = nil
-        rootDirectoryLocator = nil
-        super.tearDown()
-    }
-
-    func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() async throws {
+    @Test func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() async throws {
         // Given
         let configGeneratedProjectOptions = [
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: "4.3.2"),
@@ -34,7 +29,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
         ]
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
@@ -43,10 +39,10 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             .concurrentMap { try await self.subject.lintXcodeVersion(configGeneratedProjectOptions: $0) }.flatMap { $0 }
 
         // Then
-        XCTEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() async throws {
+    @Test func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() async throws {
         // Given
         let configGeneratedProjectOptions = [
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: "4.3.1"),
@@ -59,7 +55,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .list(["3.2.1"])),
         ]
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
@@ -70,14 +67,15 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             // Then
             let expectedMessage =
                 "The selected Xcode version is 4.3.2, which is not compatible with this project's Xcode version requirement of \(options.compatibleXcodeVersions)."
-            XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .error)))
+            #expect(got.contains(LintingIssue(reason: expectedMessage, severity: .error)) == true)
         }
     }
 
-    func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() async throws {
+    @Test func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() async throws {
         // Given
         let configGeneratedProjectOptions = TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .all)
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
@@ -85,21 +83,21 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         let got = try await subject.lintXcodeVersion(configGeneratedProjectOptions: configGeneratedProjectOptions)
 
         // Then
-        XCTEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
     func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() async throws {
         // Given
         let configGeneratedProjectOptions = TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .list(["3.2.1"]))
         let error = NSError.test()
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willThrow(error)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.lintXcodeVersion(configGeneratedProjectOptions: configGeneratedProjectOptions),
-            error
-        )
+        await #expect(throws: error) {
+            try await subject.lintXcodeVersion(configGeneratedProjectOptions: configGeneratedProjectOptions)
+        }
     }
 }
