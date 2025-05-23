@@ -400,7 +400,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootGroup = try #require(pbxproj.rootGroup())
+        let rootGroup = try #require(try pbxproj.rootGroup())
         let packagesGroup = rootGroup.group(named: "Packages")
         let packages = try #require(packagesGroup?.children)
         #expect(packages.map(\.name) == ["LocalPackageA", "LocalPackageB"])
@@ -444,7 +444,7 @@ struct ProjectDescriptorGeneratorTests {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootGroup = try #require(pbxproj.rootGroup())
+        let rootGroup = try #require(try pbxproj.rootGroup())
         let packageGroup = try #require(rootGroup.group(named: "Packages"))
         let paths = packageGroup.children.compactMap(\.path)
         #expect(paths == [

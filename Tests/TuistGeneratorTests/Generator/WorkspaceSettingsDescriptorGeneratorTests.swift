@@ -5,29 +5,26 @@ import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
+import Testing
+import FileSystem
+import FileSystemTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
+@Suite(.inTemporaryDirectory, .withMockedSwiftVersionProvider)
+struct WorkspaceSettingsDescriptorGeneratorTests {
     var subject: WorkspaceSettingsDescriptorGenerator!
 
-    override func setUp() {
-        super.setUp()
-
-        given(swiftVersionProvider)
+    init() throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
 
         subject = WorkspaceSettingsDescriptorGenerator()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_generate_withoutGenerationOptions() {
+    @Test func test_generate_withoutGenerationOptions() {
         // Given
         let workspace = Workspace.test()
 
@@ -35,10 +32,10 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertEqual(result, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
+        #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
-    func test_generate_withGenerationOptions() {
+    @Test func test_generate_withGenerationOptions() {
         // Given
         let workspace = Workspace.test(
             generationOptions: .test(
@@ -50,6 +47,6 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertEqual(result, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
+        #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 }

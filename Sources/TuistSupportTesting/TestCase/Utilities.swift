@@ -24,3 +24,14 @@ public func createFiles(_ files: [String], content: String? = nil) async throws 
     }
     return paths
 }
+
+@discardableResult
+public func makeDirectories(_ folders: [String]) async throws -> [AbsolutePath] {
+    let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+    let fileSystem = FileSystem()
+    let paths = try folders.map { temporaryPath.appending(try RelativePath(validating: $0)) }
+    for path in paths {
+        try await fileSystem.makeDirectory(at: path)
+    }
+    return paths
+}

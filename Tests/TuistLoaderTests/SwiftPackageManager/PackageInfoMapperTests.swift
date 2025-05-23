@@ -460,7 +460,7 @@ struct PackageInfoMapperTests {
     @Test func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
-        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2)))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
@@ -546,10 +546,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -571,8 +571,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -582,10 +582,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -608,8 +608,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -619,17 +619,18 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenLegacySwift_usesLegacyIOSVersion() async throws {
+    @Test func testMap_whenLegacySwift_usesLegacyIOSVersion() async throws {
         // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then
         // this one.
-        swiftVersionProvider.reset()
-        given(swiftVersionProvider)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.6.0")
 
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -651,8 +652,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -672,10 +673,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenMacCatalyst() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenMacCatalyst() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -697,8 +698,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -719,11 +720,11 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenAlternativeDefaultSources() async throws {
+    @Test func testMap_whenAlternativeDefaultSources() async throws {
         for alternativeDefaultSource in ["Source", "src", "srcs"] {
-            let basePath = try temporaryPath()
+            let basePath = try #require(FileSystem.temporaryTestDirectory)
             let sourcesPath = basePath.appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1"))
-            try fileHandler.createFolder(sourcesPath)
+            try await fileSystem.makeDirectory(at: sourcesPath)
 
             let project = try await subject.map(
                 package: "Package",
@@ -745,8 +746,8 @@ struct PackageInfoMapperTests {
                 ]
             )
 
-            XCTAssertBetterEqual(
-                project,
+            #expect(
+                project ==
                 .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
@@ -769,7 +770,7 @@ struct PackageInfoMapperTests {
         }
     }
 
-    func testMap_whenOnlyBinaries_doesNotCreateProject() async throws {
+    @Test func testMap_whenOnlyBinaries_doesNotCreateProject() async throws {
         let project = try await subject.map(
             package: "Package",
             packageInfos: [
@@ -789,13 +790,13 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertNil(project)
+        #expect(project == nil)
     }
 
-    func testMap_whenNameContainsUnderscores_mapsToDashInBundleID() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenNameContainsUnderscores_mapsToDashInBundleID() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target_1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -816,8 +817,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -827,17 +828,17 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsDefinesContainsQuotes() async throws {
+    @Test func testMap_whenSettingsDefinesContainsQuotes() async throws {
         // When having a manifest that includes a GCC definition like `FOO="BAR"`, SPM successfully maintains the quotes
         // and it will convert it to a compiler parameter like `-DFOO=\"BAR\"`.
         // Xcode configuration, instead, treats the quotes as value assignment, resulting in `-DFOO=BAR`,
         // which has a different meaning in GCC macros, building packages incorrectly.
         // Tuist needs to escape those definitions for SPM manifests, as SPM is doing, so they can be built the same way.
 
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
-
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -873,8 +874,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -918,10 +919,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/com.example.target-1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -943,8 +944,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -963,12 +964,12 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenTargetNotInProduct_ignoresIt() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenTargetNotInProduct_ignoresIt() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
-        try fileHandler.createFolder(sourcesPath1)
-        try fileHandler.createFolder(sourcesPath2)
+        try await fileSystem.makeDirectory(at: sourcesPath1)
+        try await fileSystem.makeDirectory(at: sourcesPath2)
 
         let project = try await subject.map(
             package: "Package",
@@ -990,8 +991,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1001,14 +1002,14 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenTargetIsNotRegular_ignoresTarget() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenTargetIsNotRegular_ignoresTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
         let sourcesPath3 = basePath.appending(try RelativePath(validating: "Package/Sources/Target3"))
-        try fileHandler.createFolder(sourcesPath1)
-        try fileHandler.createFolder(sourcesPath2)
-        try fileHandler.createFolder(sourcesPath3)
+        try await fileSystem.makeDirectory(at: sourcesPath1)
+        try await fileSystem.makeDirectory(at: sourcesPath2)
+        try await fileSystem.makeDirectory(at: sourcesPath3)
 
         let project = try await subject.map(
             package: "Package",
@@ -1031,8 +1032,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1042,11 +1043,12 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenProductIsNotLibrary_ignoresProduct() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target3")))
+    @Test func testMap_whenProductIsNotLibrary_ignoresProduct() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target3")))
 
         let project = try await subject.map(
             package: "Package",
@@ -1071,8 +1073,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1082,11 +1084,11 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenCustomSources() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenCustomSources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
-
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -1106,8 +1108,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1135,19 +1137,20 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasResources() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasResources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         // Create resources files and directories
         let resource1 = sourcesPath.appending(try RelativePath(validating: "Resource/Folder"))
         let resource2 = sourcesPath.appending(try RelativePath(validating: "Another/Resource/Folder"))
         let resource3 = sourcesPath.appending(try RelativePath(validating: "AnotherOne/Resource/Folder"))
 
-        try fileHandler.createFolder(resource1)
-        try fileHandler.createFolder(resource2)
-        try fileHandler.createFolder(resource3)
+        try await fileSystem.makeDirectory(at: resource1)
+        try await fileSystem.makeDirectory(at: resource2)
+        try await fileSystem.makeDirectory(at: resource3)
+
         try await fileSystem.makeDirectory(at: sourcesPath.appending(components: "Resource", "Base.lproj"))
         try await fileSystem.touch(sourcesPath.appending(components: "Resource", "Base.lproj", "Localizable.strings"))
 
@@ -1184,8 +1187,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1259,8 +1262,8 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
         let resourcesPath = sourcesPath.appending(component: "Resources")
         let defaultResourcePath = resourcesPath.appending(component: "file.xib")
@@ -1302,8 +1305,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1335,8 +1338,8 @@ struct PackageInfoMapperTests {
     }
 
     // For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
-    func testMap_whenResourcesInsideXCFramework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenResourcesInsideXCFramework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
         let xcframeworkPath = sourcesPath.appending(component: "BinaryFramework.xcframework")
         let resourcePath = xcframeworkPath.appending(component: "file.xib")
@@ -1372,8 +1375,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1390,8 +1393,8 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasDefaultResources() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasDefaultResources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
             "metal",
@@ -1429,8 +1432,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1446,16 +1449,17 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasHeadersWithCustomModuleMap() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasHeadersWithCustomModuleMap() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         let topHeaderPath = headersPath.appending(component: "AnHeader.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnotherHeader.h")
-        try fileHandler.createFolder(headersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: moduleMapPath, atomically: true)
-        try fileHandler.write("", path: topHeaderPath, atomically: true)
-        try fileHandler.write("", path: nestedHeaderPath, atomically: true)
+        
+        try await fileSystem.makeDirectory(at: headersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: moduleMapPath)
+        try await fileSystem.writeText("", at: topHeaderPath)
+        try await fileSystem.writeText("", at: nestedHeaderPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -1478,8 +1482,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1501,14 +1505,14 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         let headerPath = headersPath.appending(component: "AnHeader.h")
         try await fileSystem.makeDirectory(at: headersPath)
-        try fileHandler.write("", path: moduleMapPath, atomically: true)
-        try fileHandler.write("", path: headerPath, atomically: true)
+        try await fileSystem.writeText("", at: moduleMapPath)
+        try await fileSystem.writeText("", at: headerPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -1531,8 +1535,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1555,12 +1559,12 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasSystemLibrary() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasSystemLibrary() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
-        try fileHandler.createFolder(targetPath)
-        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.writeText("", at: moduleMapPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -1585,8 +1589,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1608,11 +1612,11 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_errorWhenSystemLibraryHasMissingModuleMap() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_errorWhenSystemLibraryHasMissingModuleMap() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
-        try fileHandler.createFolder(targetPath)
+        try await fileSystem.makeDirectory(at: targetPath)
 
         let error = PackageInfoMapperError.modulemapMissing(
             moduleMapPath: moduleMapPath.pathString,
@@ -1620,38 +1624,41 @@ struct PackageInfoMapperTests {
             target: "Target1"
         )
 
-        await XCTAssertThrowsSpecific(try await subject.map(
-            package: "Package",
-            basePath: basePath,
-            packageInfos: [
-                "Package": .test(
-                    name: "Package",
-                    products: [
-                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
-                    ],
-                    targets: [
-                        .test(
-                            name: "Target1",
-                            type: .system
-                        ),
-                    ],
-                    platforms: [.ios],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
-                ),
-            ]
-        ), error)
+        await #expect(throws: error, performing: {
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                        ],
+                        targets: [
+                            .test(
+                                name: "Target1",
+                                type: .system
+                            ),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        })
     }
 
-    func testMap_whenHasHeadersWithUmbrellaHeader() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenHasHeadersWithUmbrellaHeader() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let topHeaderPath = headersPath.appending(component: "Target1.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnHeader.h")
-        try fileHandler.createFolder(headersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: topHeaderPath, atomically: true)
-        try fileHandler.write("", path: nestedHeaderPath, atomically: true)
+        
+        try await fileSystem.makeDirectory(at: headersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: topHeaderPath)
+        try await fileSystem.writeText("", at: nestedHeaderPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -1674,8 +1681,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1697,20 +1704,21 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenDependenciesHaveHeaders() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenDependenciesHaveHeaders() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
         let dependency1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let dependency1ModuleMapPath = dependency1HeadersPath.appending(component: "module.modulemap")
         let dependency2HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/include"))
         let dependency2ModuleMapPath = dependency2HeadersPath.appending(component: "module.modulemap")
-        try fileHandler.createFolder(target1HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: target1ModuleMapPath, atomically: true)
-        try fileHandler.createFolder(dependency1HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: dependency1ModuleMapPath, atomically: true)
-        try fileHandler.createFolder(dependency2HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: dependency2ModuleMapPath, atomically: true)
+       
+        try await fileSystem.makeDirectory(at: target1HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: target1ModuleMapPath)
+        try await fileSystem.makeDirectory(at: dependency1HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: dependency1ModuleMapPath)
+        try await fileSystem.makeDirectory(at: dependency2HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: dependency2ModuleMapPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -1739,8 +1747,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1799,21 +1807,22 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenExternalDependenciesHaveHeaders() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenExternalDependenciesHaveHeaders() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
         let dependency1HeadersPath = basePath.appending(try RelativePath(validating: "Package2/Sources/Dependency1/include"))
         let dependency1ModuleMapPath = dependency1HeadersPath.appending(component: "module.modulemap")
         let dependency2HeadersPath = basePath.appending(try RelativePath(validating: "Package3/Sources/Dependency2/include"))
         let dependency2ModuleMapPath = dependency2HeadersPath.appending(component: "module.modulemap")
-        try fileHandler.createFolder(target1HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: target1ModuleMapPath, atomically: true)
-        try fileHandler.createFolder(dependency1HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: dependency1ModuleMapPath, atomically: true)
-        try fileHandler.createFolder(dependency2HeadersPath.appending(component: "Subfolder"))
-        try fileHandler.write("", path: dependency2ModuleMapPath, atomically: true)
-
+        
+        try await fileSystem.makeDirectory(at: target1HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: target1ModuleMapPath)
+        try await fileSystem.makeDirectory(at: dependency1HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: dependency1ModuleMapPath)
+        try await fileSystem.makeDirectory(at: dependency2HeadersPath.appending(component: "Subfolder"))
+        try await fileSystem.writeText("", at: dependency2ModuleMapPath)
+        
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -1867,8 +1876,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1894,19 +1903,20 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenCustomPath() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenCustomPath() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
 
         // Create resources files and directories
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Custom/Headers"))
         let headerPath = headersPath.appending(component: "module.h")
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
-        try fileHandler.createFolder(headersPath)
-        try fileHandler.write("", path: headerPath, atomically: true)
-        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        
+        try await fileSystem.makeDirectory(at: headersPath)
+        try await fileSystem.writeText("", at: headerPath)
+        try await fileSystem.writeText("", at: moduleMapPath)
 
         let resourceFolderPathCustomTarget = basePath.appending(try RelativePath(validating: "Package/Custom/Resource/Folder"))
-        try fileHandler.createFolder(resourceFolderPathCustomTarget)
+        try await fileSystem.makeDirectory(at: resourceFolderPathCustomTarget)
 
         // Project declaration
         let project = try await subject.map(
@@ -1935,8 +1945,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -1971,13 +1981,15 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(dependencyHeadersPath)
-        try fileHandler.touch(dependencyHeadersPath.appending(component: "Header.h"))
-        try fileHandler.createFolder(sourcesPath)
+        
+        try await fileSystem.makeDirectory(at: dependencyHeadersPath)
+        try await fileSystem.touch(dependencyHeadersPath.appending(component: "Header.h"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2001,8 +2013,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2034,11 +2046,11 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenMultipleAvailable_takesMultiple() async throws {
+    @Test func testMap_whenMultipleAvailable_takesMultiple() async throws {
         // Given
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         // When
         let project = try await subject.map(
@@ -2078,19 +2090,19 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertEqual(project?.name, expected.name)
+        #expect(project?.name == expected.name)
 
         // Need to sort targets of projects, because internally a set is used to generate targets for different platforms
         // That could lead to mixed orders
         let projectTargets = project?.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
-        XCTAssertBetterEqual(projectTargets, expectedTargets)
+        #expect(projectTargets == expectedTargets)
     }
 
-    func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2131,16 +2143,16 @@ struct PackageInfoMapperTests {
         dump(project?.targets.first?.destinations)
         dump(other.targets.first?.destinations)
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             other
         )
     }
 
-    func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2171,8 +2183,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2195,10 +2207,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2221,8 +2233,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2244,10 +2256,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2274,8 +2286,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2294,10 +2306,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2323,8 +2335,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2343,10 +2355,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2371,8 +2383,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2391,10 +2403,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: basePath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2420,8 +2432,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2440,10 +2452,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2469,8 +2481,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2489,10 +2501,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2518,8 +2530,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2533,10 +2545,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2561,8 +2573,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2576,10 +2588,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2604,8 +2616,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2619,10 +2631,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -2647,8 +2659,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2665,10 +2677,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -2695,8 +2707,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2715,10 +2727,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -2766,8 +2778,8 @@ struct PackageInfoMapperTests {
                 )
             )
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
@@ -2812,10 +2824,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let customSettings: XcodeGraph.Settings = .test(
             base: ["CUSTOM_SETTING": .string("CUSTOM_VALUE")],
@@ -2862,8 +2874,8 @@ struct PackageInfoMapperTests {
                 targetSettings: targetSettings
             )
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2895,10 +2907,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenConditionalSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenConditionalSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -2935,8 +2947,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -2968,10 +2980,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -2997,8 +3009,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3012,10 +3024,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3041,8 +3053,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3056,13 +3068,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenTargetDependency_mapsToTargetDependency() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenTargetDependency_mapsToTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
-        try fileHandler.createFolder(sourcesPath)
-        try fileHandler.createFolder(dependenciesPath)
-
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: dependenciesPath)
+        
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -3086,8 +3098,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3098,12 +3110,12 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenBinaryTargetDependency_mapsToXcframework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenBinaryTargetDependency_mapsToXcframework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
-        try fileHandler.createFolder(sourcesPath)
-        try fileHandler.createFolder(dependenciesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: dependenciesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3128,8 +3140,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3148,12 +3160,12 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenTargetByNameDependency_mapsToTargetDependency() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenTargetByNameDependency_mapsToTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
-        try fileHandler.createFolder(sourcesPath)
-        try fileHandler.createFolder(dependenciesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: dependenciesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3178,8 +3190,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3190,10 +3202,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3220,8 +3232,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3240,10 +3252,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3270,8 +3282,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3289,10 +3301,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3319,8 +3331,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3338,13 +3350,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenExternalProductDependency_mapsToProjectDependencies() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
+    @Test func testMap_whenExternalProductDependency_mapsToProjectDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
         let package1 = PackageInfo.test(
             name: "Package",
@@ -3384,8 +3396,8 @@ struct PackageInfoMapperTests {
             basePath: basePath,
             packageInfos: ["Package": package1, "Package2": package2]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3401,13 +3413,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
+    @Test func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
         let package1 = PackageInfo.test(
             name: "Package",
@@ -3447,8 +3459,8 @@ struct PackageInfoMapperTests {
             basePath: basePath,
             packageInfos: ["Package": package1, "Package2": package2]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3464,10 +3476,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3488,8 +3500,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
@@ -3500,10 +3512,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3524,8 +3536,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
@@ -3536,10 +3548,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3560,8 +3572,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["SWIFT_VERSION": "4.0.0"]),
@@ -3572,10 +3584,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3596,8 +3608,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
@@ -3608,10 +3620,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3636,8 +3648,8 @@ struct PackageInfoMapperTests {
                 baseSettings: .default
             )
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["SWIFT_VERSION": "5.9.0"]),
@@ -3648,10 +3660,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: "Package",
@@ -3679,11 +3691,11 @@ struct PackageInfoMapperTests {
             )
         )
 
-        XCTAssertNotNil(project?.settings?.configurations.first(where: { $0.name == "Custom" }))
+        #expect(project?.settings?.configurations.first(where: { $0.name == "Custom" }) != nil)
     }
 
-    func testMap_whenTargetsWithDefaultHardcodedMapping() async throws {
-        let basePath = try temporaryPath()
+    @Test func testMap_whenTargetsWithDefaultHardcodedMapping() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let testTargets = [
             "Nimble",
             "Quick",
@@ -3697,9 +3709,10 @@ struct PackageInfoMapperTests {
             "XCTVapor",
         ]
         let allTargets = ["RxSwift"] + testTargets
-        try allTargets
-            .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
-            .forEach { try fileHandler.createFolder($0) }
+        for path in try allTargets
+            .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) } {
+                try await fileSystem.makeDirectory(at: path)
+            }
 
         let project = try await subject.map(
             package: "Package",
@@ -3726,8 +3739,8 @@ struct PackageInfoMapperTests {
             )
         )
 
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -3762,11 +3775,11 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenTargetDependenciesOnTargetHaveConditions() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2")))
+    @Test func testMap_whenTargetDependenciesOnTargetHaveConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2")))
 
         let project = try await subject.map(
             package: "Package",
@@ -3833,18 +3846,19 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertEqual(project?.name, expected.name)
+        #expect(project?.name == expected.name)
 
         let projectTargets = project!.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
-        XCTAssertBetterEqual(projectTargets, expectedTargets)
+        #expect(projectTargets == expectedTargets)
     }
 
-    func testMap_whenTargetDependenciesOnProductHaveConditions() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
+    @Test func testMap_whenTargetDependenciesOnProductHaveConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
 
         let package1 = PackageInfo.test(
             name: "Package",
@@ -3907,22 +3921,22 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        XCTAssertEqual(project?.name, expected.name)
+        #expect(project?.name == expected.name)
 
         let projectTargets = project!.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
 
-        XCTAssertBetterEqual(
-            projectTargets,
+        #expect(
+            projectTargets ==
             expectedTargets
         )
     }
 
-    func testMap_whenTargetNameContainsSpaces() async throws {
+    @Test func testMap_whenTargetNameContainsSpaces() async throws {
         let packageName = "Package With Space"
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "\(packageName)/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
 
         let project = try await subject.map(
             package: packageName,
@@ -3943,8 +3957,8 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: packageName,
                 targets: [
@@ -3958,13 +3972,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTarget() async throws {
+    @Test func testMap_whenSwiftPackageHasTestTarget() async throws {
         // Given
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -3994,8 +4008,8 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
@@ -4019,13 +4033,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
+    @Test func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
         // Given
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -4058,8 +4072,8 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
@@ -4090,16 +4104,16 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() async throws {
+    @Test func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() async throws {
         // Given
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target"]))
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "MacTarget"]))
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "CommonTarget"]))
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "MacTarget"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "CommonTarget"]))
         let productTestsPath = basePath.appending(components: ["Package", "Tests", "ProductTests"])
-        try fileHandler.createFolder(productTestsPath)
+        try await fileSystem.makeDirectory(at: productTestsPath)
         let macProductTestsPath = basePath.appending(components: ["Package", "Tests", "MacProductTests"])
-        try fileHandler.createFolder(macProductTestsPath)
+        try await fileSystem.makeDirectory(at: macProductTestsPath)
 
         // When
         let project = try await subject.map(
@@ -4154,8 +4168,8 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
@@ -4203,13 +4217,13 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() async throws {
+    @Test func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() async throws {
         // Given
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -4238,8 +4252,8 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
@@ -4266,10 +4280,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_whenHasModuleAliases() async throws {
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
+    @Test func testMap_whenHasModuleAliases() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
             "Package": .test(
                 name: "Package",
@@ -4327,8 +4341,8 @@ struct PackageInfoMapperTests {
             packageInfos: packageInfos,
             packageModuleAliases: packageModuleAliases
         )
-        XCTAssertBetterEqual(
-            project,
+        #expect(
+            project ==
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
@@ -4343,8 +4357,8 @@ struct PackageInfoMapperTests {
                 ]
             )
         )
-        XCTAssertBetterEqual(
-            projectTwo,
+        #expect(
+            projectTwo ==
             .testWithDefaultConfigs(
                 name: "Package2",
                 targets: [
@@ -4363,10 +4377,10 @@ struct PackageInfoMapperTests {
         )
     }
 
-    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
+    @Test func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
         // Given
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
             "Package": .test(
                 name: "Package",
@@ -4394,16 +4408,16 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+        #expect(
+            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"] ==
             ["$(inherited)"]
         )
     }
 
-    func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
+    @Test func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
         // Given
-        let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
             "Package": .test(
                 name: "Package",
@@ -4431,8 +4445,8 @@ struct PackageInfoMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            project?.settings?.base["OTHER_SWIFT_FLAGS"],
+        #expect(
+            project?.settings?.base["OTHER_SWIFT_FLAGS"] ==
             .array(["$(inherited)", "-package-name", "Package"])
         )
     }
