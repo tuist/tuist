@@ -21,7 +21,6 @@ public protocol DefaultSettingsProviding {
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
-    
     private static let essentialProjectSettings: Set<String> = [
         "ALWAYS_SEARCH_USER_PATHS",
         "DEBUG_INFORMATION_FORMAT",
@@ -89,7 +88,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             "ENABLE_PREVIEWS",
         ],
     ]
-    
+
     public init() {}
 
     // MARK: - DefaultSettingsProviding

@@ -1,11 +1,11 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import struct TSCUtility.Version
 import TuistSupport
 import TuistSupportTesting
-import Testing
-import FileSystem
-import FileSystemTesting
 
 @testable import TuistSupport
 
@@ -13,7 +13,7 @@ import FileSystemTesting
 struct XCResultControllerTests {
     private var subject: XCResultToolController!
     private let system = MockSystem()
-    
+
     init() throws {
         let mockXcodeController = try #require(XcodeController.mocked)
         given(mockXcodeController)

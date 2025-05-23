@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TSCUtility
-import FileSystemTesting
 import Testing
+import TSCUtility
 
 @testable import TuistCore
 @testable import TuistSupport
@@ -13,7 +13,7 @@ import Testing
 struct SimulatorControllerTests {
     private var subject: SimulatorController!
     private let system = MockSystem()
-    
+
     init() {
         subject = SimulatorController(
             system: system
@@ -78,9 +78,17 @@ struct SimulatorControllerTests {
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await #expect(throws: SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime]), performing: {
-            _ = try await subject.findAvailableDevice(platform: .iOS, version: .init(15, 0, 0), minVersion: nil, deviceName: nil)
-        })
+        await #expect(
+            throws: SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime]),
+            performing: {
+                _ = try await subject.findAvailableDevice(
+                    platform: .iOS,
+                    version: .init(15, 0, 0),
+                    minVersion: nil,
+                    deviceName: nil
+                )
+            }
+        )
     }
 
     @Test func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
@@ -98,9 +106,12 @@ struct SimulatorControllerTests {
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await #expect(throws: SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime]), performing: {
-            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100")
-        })
+        await #expect(
+            throws: SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime]),
+            performing: {
+                _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100")
+            }
+        )
     }
 
     @Test func test_findAvailableDevice_should_findDeviceWithUdid() async throws {

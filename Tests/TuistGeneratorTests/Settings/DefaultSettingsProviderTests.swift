@@ -1,14 +1,14 @@
+import FileSystem
+import FileSystemTesting
 import Mockable
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
+import TuistSupport
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 @testable import TuistSupportTesting
-import FileSystem
-import FileSystemTesting
-import TuistSupport
 
 @Suite(.withMockedXcodeController)
 struct DefaultSettingsProvider_iOSTests {
@@ -231,7 +231,7 @@ struct DefaultSettingsProvider_iOSTests {
         let project = Project.test()
         let target = Target.test(product: .dynamicLibrary, mergeable: true)
         let graph = Graph.test(path: project.path)
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -256,7 +256,7 @@ struct DefaultSettingsProvider_iOSTests {
         let project = Project.test()
         let target = Target.test(product: .app)
         let graph = Graph.test(path: project.path)
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selectedVersion()
@@ -1192,18 +1192,18 @@ struct DefaultSettingsProvider_MacosTests {
     }
 }
 
-fileprivate func expectSettings(
+private func expectSettings(
     _ first: [String: SettingValue],
     containsAll second: [String: SettingValue],
-    file: StaticString = #file,
-    line: UInt = #line
+    file _: StaticString = #file,
+    line _: UInt = #line
 ) {
     for (key, expectedValue) in second {
         let result = first[key]
         let resultDescription = result.map { "\($0)" } ?? "nil"
         #expect(
             result ==
-            expectedValue
+                expectedValue
         )
     }
 }

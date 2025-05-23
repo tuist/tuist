@@ -1,15 +1,15 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
 import Mockable
 import Path
+import Testing
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
 import XcodeProj
-import Testing
-import FileSystem
-import FileSystemTesting
-import Foundation
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting

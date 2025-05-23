@@ -1,11 +1,10 @@
-import Mockable
-import ProjectDescription
-import TuistCore
-import TuistSupport
-import Testing
 import FileSystem
 import FileSystemTesting
-import TuistSupportTesting
+import Mockable
+import ProjectDescription
+import Testing
+import TuistCore
+import TuistSupport
 @testable import TuistLoader
 @testable import TuistSupportTesting
 

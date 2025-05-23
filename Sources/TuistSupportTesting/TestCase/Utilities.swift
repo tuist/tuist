@@ -1,7 +1,7 @@
-import Testing
-import FileSystemTesting
 import FileSystem
+import FileSystemTesting
 import Path
+import Testing
 
 @discardableResult
 public func createFiles(_ files: [String], content: String? = nil) async throws -> [AbsolutePath] {

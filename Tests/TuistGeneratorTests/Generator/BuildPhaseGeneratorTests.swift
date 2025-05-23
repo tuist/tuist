@@ -1,14 +1,14 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import Testing
-import FileSystem
-import FileSystemTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -1054,10 +1054,10 @@ struct BuildPhaseGeneratorTests {
         ])
         #expect(
             pbxBuildPhase?.files?.compactMap(\.settings) ==
-            [
-                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
-                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
-            ]
+                [
+                    ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+                    ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+                ]
         )
     }
 
@@ -1134,7 +1134,7 @@ struct BuildPhaseGeneratorTests {
         #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1184,7 +1184,7 @@ struct BuildPhaseGeneratorTests {
         #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1224,7 +1224,7 @@ struct BuildPhaseGeneratorTests {
         ])
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1264,7 +1264,7 @@ struct BuildPhaseGeneratorTests {
         ])
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1342,11 +1342,11 @@ struct BuildPhaseGeneratorTests {
         ])
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
         #expect(
             pbxBuildPhase.files?.compactMap(\.platformFilter) ==
-            [PlatformFilter.catalyst.xcodeprojValue]
+                [PlatformFilter.catalyst.xcodeprojValue]
         )
     }
 
@@ -1386,7 +1386,7 @@ struct BuildPhaseGeneratorTests {
         ])
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1651,7 +1651,7 @@ struct BuildPhaseGeneratorTests {
         #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
         #expect(
             pbxBuildPhase.files?.compactMap(\.settings) ==
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+                [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
@@ -1784,10 +1784,10 @@ struct BuildPhaseGeneratorTests {
         #expect(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         #expect(
             buildPhase?.outputPaths ==
-            [
-                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-            ]
+                [
+                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+                ]
         )
     }
 

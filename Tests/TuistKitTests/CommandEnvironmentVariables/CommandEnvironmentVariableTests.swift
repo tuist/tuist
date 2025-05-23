@@ -1,8 +1,8 @@
 import ArgumentParser
 import Difference
 import Foundation
-import TSCUtility
 import Testing
+import TSCUtility
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
@@ -10,8 +10,6 @@ import Testing
 
 @Suite(.withMockedEnvironment)
 struct CommandEnvironmentVariableTests {
-
-
     private var tuistVariables: [String: String] {
         get {
             return Environment.mocked?.tuistVariables ?? [:]
@@ -41,21 +39,21 @@ struct CommandEnvironmentVariableTests {
         setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
 
         let buildCommandWithEnvVars = try BuildCommand.parse([])
-        #expect(buildCommandWithEnvVars.buildOptions.scheme ==  "Scheme1")
+        #expect(buildCommandWithEnvVars.buildOptions.scheme == "Scheme1")
         #expect(buildCommandWithEnvVars.buildOptions.generate == true)
         #expect(buildCommandWithEnvVars.buildOptions.clean == true)
-        #expect(buildCommandWithEnvVars.buildOptions.path ==  "/path/to/project")
-        #expect(buildCommandWithEnvVars.buildOptions.device ==  "iPhone")
-        #expect(buildCommandWithEnvVars.buildOptions.platform ==  .iOS)
-        #expect(buildCommandWithEnvVars.buildOptions.os ==  "14.5.0")
+        #expect(buildCommandWithEnvVars.buildOptions.path == "/path/to/project")
+        #expect(buildCommandWithEnvVars.buildOptions.device == "iPhone")
+        #expect(buildCommandWithEnvVars.buildOptions.platform == .iOS)
+        #expect(buildCommandWithEnvVars.buildOptions.os == "14.5.0")
         #expect(buildCommandWithEnvVars.buildOptions.rosetta == true)
-        #expect(buildCommandWithEnvVars.buildOptions.configuration ==  "Debug")
-        #expect(buildCommandWithEnvVars.buildOptions.buildOutputPath ==  "/path/to/output")
-        #expect(buildCommandWithEnvVars.buildOptions.derivedDataPath ==  "/path/to/derivedData")
+        #expect(buildCommandWithEnvVars.buildOptions.configuration == "Debug")
+        #expect(buildCommandWithEnvVars.buildOptions.buildOutputPath == "/path/to/output")
+        #expect(buildCommandWithEnvVars.buildOptions.derivedDataPath == "/path/to/derivedData")
         #expect(buildCommandWithEnvVars.buildOptions.generateOnly == true)
         #expect(
             buildCommandWithEnvVars.buildOptions.passthroughXcodeBuildArguments ==
-            ["clean", "-configuration", "Release"]
+                ["clean", "-configuration", "Release"]
         )
 
         let buildCommandWithArgs = try BuildCommand.parse([
@@ -73,18 +71,18 @@ struct CommandEnvironmentVariableTests {
             "--",
             "-configuration", "Debug",
         ])
-        #expect(buildCommandWithArgs.buildOptions.scheme ==  "Scheme2")
+        #expect(buildCommandWithArgs.buildOptions.scheme == "Scheme2")
         #expect(buildCommandWithArgs.buildOptions.generate == true)
         #expect(buildCommandWithArgs.buildOptions.clean == false)
-        #expect(buildCommandWithArgs.buildOptions.path ==  "/new/path")
-        #expect(buildCommandWithArgs.buildOptions.device ==  "iPad")
-        #expect(buildCommandWithArgs.buildOptions.platform ==  .tvOS)
+        #expect(buildCommandWithArgs.buildOptions.path == "/new/path")
+        #expect(buildCommandWithArgs.buildOptions.device == "iPad")
+        #expect(buildCommandWithArgs.buildOptions.platform == .tvOS)
         #expect(buildCommandWithArgs.buildOptions.rosetta == false)
-        #expect(buildCommandWithArgs.buildOptions.configuration ==  "Release")
-        #expect(buildCommandWithArgs.buildOptions.buildOutputPath ==  "/new/output")
-        #expect(buildCommandWithArgs.buildOptions.derivedDataPath ==  "/new/derivedData")
+        #expect(buildCommandWithArgs.buildOptions.configuration == "Release")
+        #expect(buildCommandWithArgs.buildOptions.buildOutputPath == "/new/output")
+        #expect(buildCommandWithArgs.buildOptions.derivedDataPath == "/new/derivedData")
         #expect(buildCommandWithArgs.buildOptions.generateOnly == false)
-        #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration",  "Debug"])
+        #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
     }
 
     func testCleanCommandUsesEnvVars() throws {
@@ -92,15 +90,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cleanPath, value: "/path/to/clean")
 
         let cleanCommandWithEnvVars = try CleanCommand.parse([])
-        #expect(cleanCommandWithEnvVars.cleanCategories ==  [TuistCleanCategory.dependencies])
-        #expect(cleanCommandWithEnvVars.path ==  "/path/to/clean")
+        #expect(cleanCommandWithEnvVars.cleanCategories == [TuistCleanCategory.dependencies])
+        #expect(cleanCommandWithEnvVars.path == "/path/to/clean")
 
         let cleanCommandWithArgs = try CleanCommand.parse([
             "manifests",
             "--path", "/new/clean/path",
         ])
-        #expect(cleanCommandWithArgs.cleanCategories ==  [TuistCleanCategory.global(.manifests)])
-        #expect(cleanCommandWithArgs.path ==  "/new/clean/path")
+        #expect(cleanCommandWithArgs.cleanCategories == [TuistCleanCategory.global(.manifests)])
+        #expect(cleanCommandWithArgs.path == "/new/clean/path")
     }
 
     func testDumpCommandUsesEnvVars() throws {
@@ -108,15 +106,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.dumpManifest, value: "Project")
 
         let dumpCommandWithEnvVars = try DumpCommand.parse([])
-        #expect(dumpCommandWithEnvVars.path ==  "/path/to/dump")
-        #expect(dumpCommandWithEnvVars.manifest ==  .project)
+        #expect(dumpCommandWithEnvVars.path == "/path/to/dump")
+        #expect(dumpCommandWithEnvVars.manifest == .project)
 
         let dumpCommandWithArgs = try DumpCommand.parse([
             "workspace",
             "--path", "/new/dump/path",
         ])
-        #expect(dumpCommandWithArgs.path ==  "/new/dump/path")
-        #expect(dumpCommandWithArgs.manifest ==  .workspace)
+        #expect(dumpCommandWithArgs.path == "/new/dump/path")
+        #expect(dumpCommandWithArgs.manifest == .workspace)
     }
 
     func testEditCommandUsesEnvVars() throws {
@@ -125,7 +123,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.editOnlyCurrentDirectory, value: "true")
 
         let editCommandWithEnvVars = try EditCommand.parse([])
-        #expect(editCommandWithEnvVars.path ==  "/path/to/edit")
+        #expect(editCommandWithEnvVars.path == "/path/to/edit")
         #expect(editCommandWithEnvVars.permanent == true)
         #expect(editCommandWithEnvVars.onlyCurrentDirectory == true)
 
@@ -134,7 +132,7 @@ struct CommandEnvironmentVariableTests {
             "--no-permanent",
             "--no-only-current-directory",
         ])
-        #expect(editCommandWithArgs.path ==  "/new/edit/path")
+        #expect(editCommandWithArgs.path == "/new/edit/path")
         #expect(editCommandWithArgs.permanent == false)
         #expect(editCommandWithArgs.onlyCurrentDirectory == false)
     }
@@ -145,7 +143,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.generateBinaryCache, value: "false")
 
         let generateCommandWithEnvVars = try GenerateCommand.parse([])
-        #expect(generateCommandWithEnvVars.path ==  "/path/to/generate")
+        #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
 
@@ -154,7 +152,7 @@ struct CommandEnvironmentVariableTests {
             "--open",
             "--binary-cache",
         ])
-        #expect(generateCommandWithArgs.path ==  "/new/generate/path")
+        #expect(generateCommandWithArgs.path == "/new/generate/path")
         #expect(generateCommandWithArgs.open == true)
         #expect(generateCommandWithArgs.binaryCache == true)
     }
@@ -173,13 +171,13 @@ struct CommandEnvironmentVariableTests {
         let graphCommandWithEnvVars = try GraphCommand.parse([])
         #expect(graphCommandWithEnvVars.skipTestTargets == true)
         #expect(graphCommandWithEnvVars.skipExternalDependencies == true)
-        #expect(graphCommandWithEnvVars.platform ==  .iOS)
-        #expect(graphCommandWithEnvVars.format ==  .svg)
+        #expect(graphCommandWithEnvVars.platform == .iOS)
+        #expect(graphCommandWithEnvVars.format == .svg)
         #expect(graphCommandWithEnvVars.open == false)
-        #expect(graphCommandWithEnvVars.layoutAlgorithm ==  .circo)
-        #expect(graphCommandWithEnvVars.targets == ["Target1",  "Target2"])
-        #expect(graphCommandWithEnvVars.path ==  "/path/to/graph")
-        #expect(graphCommandWithEnvVars.outputPath ==  "/path/to/output")
+        #expect(graphCommandWithEnvVars.layoutAlgorithm == .circo)
+        #expect(graphCommandWithEnvVars.targets == ["Target1", "Target2"])
+        #expect(graphCommandWithEnvVars.path == "/path/to/graph")
+        #expect(graphCommandWithEnvVars.outputPath == "/path/to/output")
 
         let graphCommandWithArgs = try GraphCommand.parse([
             "--no-skip-test-targets",
@@ -194,13 +192,13 @@ struct CommandEnvironmentVariableTests {
         ])
         #expect(graphCommandWithArgs.skipTestTargets == false)
         #expect(graphCommandWithArgs.skipExternalDependencies == false)
-        #expect(graphCommandWithArgs.platform ==  .macOS)
-        #expect(graphCommandWithArgs.format ==  .json)
+        #expect(graphCommandWithArgs.platform == .macOS)
+        #expect(graphCommandWithArgs.format == .json)
         #expect(graphCommandWithArgs.open == true)
-        #expect(graphCommandWithArgs.layoutAlgorithm ==  .fdp)
-        #expect(graphCommandWithArgs.targets == ["Target3",  "Target4"])
-        #expect(graphCommandWithArgs.path ==  "/new/graph/path")
-        #expect(graphCommandWithArgs.outputPath ==  "/new/graph/output")
+        #expect(graphCommandWithArgs.layoutAlgorithm == .fdp)
+        #expect(graphCommandWithArgs.targets == ["Target3", "Target4"])
+        #expect(graphCommandWithArgs.path == "/new/graph/path")
+        #expect(graphCommandWithArgs.outputPath == "/new/graph/output")
     }
 
     func testInstallCommandUsesEnvVars() throws {
@@ -208,14 +206,14 @@ struct CommandEnvironmentVariableTests {
         setVariable(.installUpdate, value: "true")
 
         let installCommandWithEnvVars = try InstallCommand.parse([])
-        #expect(installCommandWithEnvVars.path ==  "/path/to/install")
+        #expect(installCommandWithEnvVars.path == "/path/to/install")
         #expect(installCommandWithEnvVars.update == true)
 
         let installCommandWithArgs = try InstallCommand.parse([
             "--path", "/new/install/path",
             "--no-update",
         ])
-        #expect(installCommandWithArgs.path ==  "/new/install/path")
+        #expect(installCommandWithArgs.path == "/new/install/path")
         #expect(installCommandWithArgs.update == false)
     }
 
@@ -225,14 +223,14 @@ struct CommandEnvironmentVariableTests {
 
         let listCommandWithEnvVars = try ListCommand.parse([])
         #expect(listCommandWithEnvVars.json == true)
-        #expect(listCommandWithEnvVars.path ==  "/path/to/list")
+        #expect(listCommandWithEnvVars.path == "/path/to/list")
 
         let listCommandWithArgs = try ListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
         #expect(listCommandWithArgs.json == false)
-        #expect(listCommandWithArgs.path ==  "/new/list/path")
+        #expect(listCommandWithArgs.path == "/new/list/path")
     }
 
     func testMigrationCheckEmptyBuildSettingsCommandUsesEnvVars() throws {
@@ -240,15 +238,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.migrationCheckEmptySettingsTarget, value: "MyTarget")
 
         let migrationCommandWithEnvVars = try MigrationCheckEmptyBuildSettingsCommand.parse([])
-        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
-        #expect(migrationCommandWithEnvVars.target ==  "MyTarget")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath == "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.target == "MyTarget")
 
         let migrationCommandWithArgs = try MigrationCheckEmptyBuildSettingsCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
             "--target", "NewTarget",
         ])
-        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
-        #expect(migrationCommandWithArgs.target ==  "NewTarget")
+        #expect(migrationCommandWithArgs.xcodeprojPath == "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.target == "NewTarget")
     }
 
     func testMigrationSettingsToXCConfigCommandUsesEnvVars() throws {
@@ -257,42 +255,42 @@ struct CommandEnvironmentVariableTests {
         setVariable(.migrationSettingsToXcconfigTarget, value: "MyTarget")
 
         let migrationCommandWithEnvVars = try MigrationSettingsToXCConfigCommand.parse([])
-        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
-        #expect(migrationCommandWithEnvVars.xcconfigPath ==  "/path/to/xcconfig")
-        #expect(migrationCommandWithEnvVars.target ==  "MyTarget")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath == "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.xcconfigPath == "/path/to/xcconfig")
+        #expect(migrationCommandWithEnvVars.target == "MyTarget")
 
         let migrationCommandWithArgs = try MigrationSettingsToXCConfigCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
             "--xcconfig-path", "/new/xcconfig/path",
             "--target", "NewTarget",
         ])
-        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
-        #expect(migrationCommandWithArgs.xcconfigPath ==  "/new/xcconfig/path")
-        #expect(migrationCommandWithArgs.target ==  "NewTarget")
+        #expect(migrationCommandWithArgs.xcodeprojPath == "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.xcconfigPath == "/new/xcconfig/path")
+        #expect(migrationCommandWithArgs.target == "NewTarget")
     }
 
     func testMigrationTargetsByDependenciesCommandUsesEnvVars() throws {
         setVariable(.migrationListTargetsXcodeprojPath, value: "/path/to/xcodeproj")
 
         let migrationCommandWithEnvVars = try MigrationTargetsByDependenciesCommand.parse([])
-        #expect(migrationCommandWithEnvVars.xcodeprojPath ==  "/path/to/xcodeproj")
+        #expect(migrationCommandWithEnvVars.xcodeprojPath == "/path/to/xcodeproj")
 
         let migrationCommandWithArgs = try MigrationTargetsByDependenciesCommand.parse([
             "--xcodeproj-path", "/new/xcodeproj/path",
         ])
-        #expect(migrationCommandWithArgs.xcodeprojPath ==  "/new/xcodeproj/path")
+        #expect(migrationCommandWithArgs.xcodeprojPath == "/new/xcodeproj/path")
     }
 
     func testPluginArchiveCommandUsesEnvVars() throws {
         setVariable(.pluginArchivePath, value: "/path/to/plugin")
 
         let pluginCommandWithEnvVars = try PluginArchiveCommand.parse([])
-        #expect(pluginCommandWithEnvVars.path ==  "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.path == "/path/to/plugin")
 
         let pluginCommandWithArgs = try PluginArchiveCommand.parse([
             "--path", "/new/plugin/path",
         ])
-        #expect(pluginCommandWithArgs.path ==  "/new/plugin/path")
+        #expect(pluginCommandWithArgs.path == "/new/plugin/path")
     }
 
     func testPluginBuildCommandUsesEnvVars() throws {
@@ -304,8 +302,8 @@ struct CommandEnvironmentVariableTests {
         setVariable(.pluginBuildProducts, value: "Product1,Product2")
 
         let pluginCommandWithEnvVars = try PluginBuildCommand.parse([])
-        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
-        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.pluginOptions.path == "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration == .debug)
         #expect(pluginCommandWithEnvVars.buildTests == true)
         #expect(pluginCommandWithEnvVars.showBinPath == true)
         #expect(pluginCommandWithEnvVars.targets == ["Target1", "Target2"])
@@ -319,8 +317,8 @@ struct CommandEnvironmentVariableTests {
             "--targets", "Target3", "--targets", "Target4",
             "--products", "Product3", "--products", "Product4",
         ])
-        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
-        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.pluginOptions.path == "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration == .release)
         #expect(pluginCommandWithArgs.buildTests == false)
         #expect(pluginCommandWithArgs.showBinPath == false)
         #expect(pluginCommandWithArgs.targets == ["Target3", "Target4"])
@@ -336,12 +334,12 @@ struct CommandEnvironmentVariableTests {
         setVariable(.pluginRunArguments, value: "arg1,arg2,arg3")
 
         let pluginCommandWithEnvVars = try PluginRunCommand.parse([])
-        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
-        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.pluginOptions.path == "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration == .debug)
         #expect(pluginCommandWithEnvVars.buildTests == true)
         #expect(pluginCommandWithEnvVars.skipBuild == true)
-        #expect(pluginCommandWithEnvVars.task ==  "myTask")
-        #expect(pluginCommandWithEnvVars.arguments == ["arg1", "arg2",  "arg3"])
+        #expect(pluginCommandWithEnvVars.task == "myTask")
+        #expect(pluginCommandWithEnvVars.arguments == ["arg1", "arg2", "arg3"])
 
         let pluginCommandWithArgs = try PluginRunCommand.parse([
             "--path", "/new/plugin/path",
@@ -351,12 +349,12 @@ struct CommandEnvironmentVariableTests {
             "otherTask",
             "arg4", "arg5",
         ])
-        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
-        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.pluginOptions.path == "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration == .release)
         #expect(pluginCommandWithArgs.buildTests == false)
         #expect(pluginCommandWithArgs.skipBuild == false)
-        #expect(pluginCommandWithArgs.task ==  "otherTask")
-        #expect(pluginCommandWithArgs.arguments == ["arg4",  "arg5"])
+        #expect(pluginCommandWithArgs.task == "otherTask")
+        #expect(pluginCommandWithArgs.arguments == ["arg4", "arg5"])
     }
 
     func testPluginTestCommandUsesEnvVars() throws {
@@ -366,10 +364,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.pluginTestTestProducts, value: "Product1,Product2")
 
         let pluginCommandWithEnvVars = try PluginTestCommand.parse([])
-        #expect(pluginCommandWithEnvVars.pluginOptions.path ==  "/path/to/plugin")
-        #expect(pluginCommandWithEnvVars.pluginOptions.configuration ==  .debug)
+        #expect(pluginCommandWithEnvVars.pluginOptions.path == "/path/to/plugin")
+        #expect(pluginCommandWithEnvVars.pluginOptions.configuration == .debug)
         #expect(pluginCommandWithEnvVars.buildTests == true)
-        #expect(pluginCommandWithEnvVars.testProducts == ["Product1",  "Product2"])
+        #expect(pluginCommandWithEnvVars.testProducts == ["Product1", "Product2"])
 
         let pluginCommandWithArgs = try PluginTestCommand.parse([
             "--path", "/new/plugin/path",
@@ -377,10 +375,10 @@ struct CommandEnvironmentVariableTests {
             "--no-build-tests",
             "--test-products", "Product3", "--test-products", "Product4",
         ])
-        #expect(pluginCommandWithArgs.pluginOptions.path ==  "/new/plugin/path")
-        #expect(pluginCommandWithArgs.pluginOptions.configuration ==  .release)
+        #expect(pluginCommandWithArgs.pluginOptions.path == "/new/plugin/path")
+        #expect(pluginCommandWithArgs.pluginOptions.configuration == .release)
         #expect(pluginCommandWithArgs.buildTests == false)
-        #expect(pluginCommandWithArgs.testProducts == ["Product3",  "Product4"])
+        #expect(pluginCommandWithArgs.testProducts == ["Product3", "Product4"])
     }
 
     func testRunCommandUsesEnvVars() throws {
@@ -395,9 +393,9 @@ struct CommandEnvironmentVariableTests {
         let runCommandWithEnvVars = try RunCommand.parse([])
         #expect(runCommandWithEnvVars.generate == true)
         #expect(runCommandWithEnvVars.clean == true)
-        #expect(runCommandWithEnvVars.os ==  "14.5")
+        #expect(runCommandWithEnvVars.os == "14.5")
         #expect(runCommandWithEnvVars.runnable == .scheme("MyScheme"))
-        #expect(runCommandWithEnvVars.arguments == ["arg1", "arg2",  "arg3"])
+        #expect(runCommandWithEnvVars.arguments == ["arg1", "arg2", "arg3"])
 
         // Execute RunCommand with command line arguments
         let runCommandWithArgs = try RunCommand.parse([
@@ -413,13 +411,13 @@ struct CommandEnvironmentVariableTests {
         ])
         #expect(runCommandWithArgs.generate == false)
         #expect(runCommandWithArgs.clean == false)
-        #expect(runCommandWithArgs.path ==  "/new/run/path")
-        #expect(runCommandWithArgs.configuration ==  "Release")
-        #expect(runCommandWithArgs.device ==  "iPhone 12")
-        #expect(runCommandWithArgs.os ==  "15.0")
+        #expect(runCommandWithArgs.path == "/new/run/path")
+        #expect(runCommandWithArgs.configuration == "Release")
+        #expect(runCommandWithArgs.device == "iPhone 12")
+        #expect(runCommandWithArgs.os == "15.0")
         #expect(runCommandWithArgs.rosetta == true)
-        #expect(runCommandWithArgs.runnable ==  .scheme("AnotherScheme"))
-        #expect(runCommandWithArgs.arguments == ["arg4",  "arg5"])
+        #expect(runCommandWithArgs.runnable == .scheme("AnotherScheme"))
+        #expect(runCommandWithArgs.arguments == ["arg4", "arg5"])
     }
 
     func testScaffoldCommandUsesEnvVars() throws {
@@ -431,8 +429,8 @@ struct CommandEnvironmentVariableTests {
         // Execute ScaffoldCommand without command line arguments
         let scaffoldCommandWithEnvVars = try ScaffoldCommand.parse([])
         #expect(scaffoldCommandWithEnvVars.json == true)
-        #expect(scaffoldCommandWithEnvVars.path ==  "/path/to/scaffold")
-        #expect(scaffoldCommandWithEnvVars.template ==  "MyTemplate")
+        #expect(scaffoldCommandWithEnvVars.path == "/path/to/scaffold")
+        #expect(scaffoldCommandWithEnvVars.template == "MyTemplate")
 
         // Execute ScaffoldCommand with command line arguments
         let scaffoldCommandWithArgs = try ScaffoldCommand.parse([
@@ -441,8 +439,8 @@ struct CommandEnvironmentVariableTests {
             "AnotherTemplate",
         ])
         #expect(scaffoldCommandWithArgs.json == false)
-        #expect(scaffoldCommandWithArgs.path ==  "/new/scaffold/path")
-        #expect(scaffoldCommandWithArgs.template ==  "AnotherTemplate")
+        #expect(scaffoldCommandWithArgs.path == "/new/scaffold/path")
+        #expect(scaffoldCommandWithArgs.template == "AnotherTemplate")
     }
 
     func testTestCommandWithEnvVars() throws {
@@ -470,21 +468,21 @@ struct CommandEnvironmentVariableTests {
 
         // Execute TestCommand without command line arguments
         let testCommandWithEnvVars = try TestCommand.parse([])
-        #expect(testCommandWithEnvVars.scheme ==  "MyScheme")
+        #expect(testCommandWithEnvVars.scheme == "MyScheme")
         #expect(testCommandWithEnvVars.clean == true)
         #expect(testCommandWithEnvVars.noUpload == true)
-        #expect(testCommandWithEnvVars.path ==  "/path/to/test")
-        #expect(testCommandWithEnvVars.device ==  "iPhone")
-        #expect(testCommandWithEnvVars.platform ==  "iOS")
-        #expect(testCommandWithEnvVars.os ==  "14.5")
+        #expect(testCommandWithEnvVars.path == "/path/to/test")
+        #expect(testCommandWithEnvVars.device == "iPhone")
+        #expect(testCommandWithEnvVars.platform == "iOS")
+        #expect(testCommandWithEnvVars.os == "14.5")
         #expect(testCommandWithEnvVars.rosetta == true)
-        #expect(testCommandWithEnvVars.configuration ==  "Debug")
+        #expect(testCommandWithEnvVars.configuration == "Debug")
         #expect(testCommandWithEnvVars.skipUITests == true)
-        #expect(testCommandWithEnvVars.resultBundlePath ==  "/path/to/resultBundle")
-        #expect(testCommandWithEnvVars.derivedDataPath ==  "/path/to/derivedData")
-        #expect(testCommandWithEnvVars.retryCount ==  2)
-        #expect(testCommandWithEnvVars.testPlan ==  "MyTestPlan")
-        #expect(testCommandWithEnvVars.testTargets ==  [])
+        #expect(testCommandWithEnvVars.resultBundlePath == "/path/to/resultBundle")
+        #expect(testCommandWithEnvVars.derivedDataPath == "/path/to/derivedData")
+        #expect(testCommandWithEnvVars.retryCount == 2)
+        #expect(testCommandWithEnvVars.testPlan == "MyTestPlan")
+        #expect(testCommandWithEnvVars.testTargets == [])
         #expect(testCommandWithEnvVars.skipTestTargets == [
             try TestIdentifier(string: "SkipTarget1"),
             try TestIdentifier(string: "SkipTarget2"),
@@ -517,26 +515,26 @@ struct CommandEnvironmentVariableTests {
             "--no-binary-cache",
             "--no-selective-testing",
         ])
-        #expect(testCommandWithArgs.scheme ==  "NewScheme")
+        #expect(testCommandWithArgs.scheme == "NewScheme")
         #expect(testCommandWithArgs.clean == false)
-        #expect(testCommandWithArgs.path ==  "/new/test/path")
-        #expect(testCommandWithArgs.device ==  "iPad")
-        #expect(testCommandWithArgs.platform ==  "macOS")
-        #expect(testCommandWithArgs.os ==  "15.0")
+        #expect(testCommandWithArgs.path == "/new/test/path")
+        #expect(testCommandWithArgs.device == "iPad")
+        #expect(testCommandWithArgs.platform == "macOS")
+        #expect(testCommandWithArgs.os == "15.0")
         #expect(testCommandWithArgs.rosetta == false)
-        #expect(testCommandWithArgs.configuration ==  "Release")
+        #expect(testCommandWithArgs.configuration == "Release")
         #expect(testCommandWithArgs.skipUITests == false)
-        #expect(testCommandWithArgs.resultBundlePath ==  "/new/resultBundle/path")
-        #expect(testCommandWithArgs.derivedDataPath ==  "/new/derivedData/path")
-        #expect(testCommandWithArgs.retryCount ==  3)
-        #expect(testCommandWithArgs.testPlan ==  "NewTestPlan")
-        #expect(testCommandWithArgs.testTargets ==  [])
+        #expect(testCommandWithArgs.resultBundlePath == "/new/resultBundle/path")
+        #expect(testCommandWithArgs.derivedDataPath == "/new/derivedData/path")
+        #expect(testCommandWithArgs.retryCount == 3)
+        #expect(testCommandWithArgs.testPlan == "NewTestPlan")
+        #expect(testCommandWithArgs.testTargets == [])
         #expect(testCommandWithArgs.skipTestTargets == [
             try TestIdentifier(string: "NewSkipTarget1"),
             try TestIdentifier(string: "NewSkipTarget2"),
         ])
-        #expect(testCommandWithArgs.configurations == ["NewConfig1",  "NewConfig2"])
-        #expect(testCommandWithArgs.skipConfigurations == ["NewSkipConfig1",  "NewSkipConfig2"])
+        #expect(testCommandWithArgs.configurations == ["NewConfig1", "NewConfig2"])
+        #expect(testCommandWithArgs.skipConfigurations == ["NewSkipConfig1", "NewSkipConfig2"])
         #expect(testCommandWithArgs.generateOnly == false)
         #expect(testCommandWithArgs.binaryCache == false)
         #expect(testCommandWithArgs.selectiveTesting == false)
@@ -547,15 +545,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationBillingPath, value: "/path/to/billing")
 
         let commandWithEnvVars = try OrganizationBillingCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.path ==  "/path/to/billing")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.path == "/path/to/billing")
 
         let commandWithArgs = try OrganizationBillingCommand.parse([
             "AnotherOrganization",
             "--path", "/new/billing/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "AnotherOrganization")
-        #expect(commandWithArgs.path ==  "/new/billing/path")
+        #expect(commandWithArgs.organizationName == "AnotherOrganization")
+        #expect(commandWithArgs.path == "/new/billing/path")
     }
 
     func testOrganizationCreateCommandUsesEnvVars() throws {
@@ -563,15 +561,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationCreatePath, value: "/path/to/create")
 
         let commandWithEnvVars = try OrganizationCreateCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyNewOrganization")
-        #expect(commandWithEnvVars.path ==  "/path/to/create")
+        #expect(commandWithEnvVars.organizationName == "MyNewOrganization")
+        #expect(commandWithEnvVars.path == "/path/to/create")
 
         let commandWithArgs = try OrganizationCreateCommand.parse([
             "AnotherNewOrganization",
             "--path", "/new/create/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "AnotherNewOrganization")
-        #expect(commandWithArgs.path ==  "/new/create/path")
+        #expect(commandWithArgs.organizationName == "AnotherNewOrganization")
+        #expect(commandWithArgs.path == "/new/create/path")
     }
 
     func testOrganizationDeleteCommandUsesEnvVars() throws {
@@ -579,15 +577,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationDeletePath, value: "/path/to/delete")
 
         let commandWithEnvVars = try OrganizationDeleteCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "OrganizationToDelete")
-        #expect(commandWithEnvVars.path ==  "/path/to/delete")
+        #expect(commandWithEnvVars.organizationName == "OrganizationToDelete")
+        #expect(commandWithEnvVars.path == "/path/to/delete")
 
         let commandWithArgs = try OrganizationDeleteCommand.parse([
             "AnotherOrganizationToDelete",
             "--path", "/new/delete/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "AnotherOrganizationToDelete")
-        #expect(commandWithArgs.path ==  "/new/delete/path")
+        #expect(commandWithArgs.organizationName == "AnotherOrganizationToDelete")
+        #expect(commandWithArgs.path == "/new/delete/path")
     }
 
     func testProjectTokensCreateCommandUsesEnvVars() throws {
@@ -595,15 +593,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.projectTokenPath, value: "/path/to/token")
 
         let commandWithEnvVars = try ProjectTokensCreateCommand.parse([])
-        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
-        #expect(commandWithEnvVars.path ==  "/path/to/token")
+        #expect(commandWithEnvVars.fullHandle == "tuist-org/tuist")
+        #expect(commandWithEnvVars.path == "/path/to/token")
 
         let commandWithArgs = try ProjectTokensCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/token/path",
         ])
-        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
-        #expect(commandWithArgs.path ==  "/new/token/path")
+        #expect(commandWithArgs.fullHandle == "new-org/new-project")
+        #expect(commandWithArgs.path == "/new/token/path")
     }
 
     func testOrganizationListCommandUsesEnvVars() throws {
@@ -612,14 +610,14 @@ struct CommandEnvironmentVariableTests {
 
         let commandWithEnvVars = try OrganizationListCommand.parse([])
         #expect(commandWithEnvVars.json == true)
-        #expect(commandWithEnvVars.path ==  "/path/to/list")
+        #expect(commandWithEnvVars.path == "/path/to/list")
 
         let commandWithArgs = try OrganizationListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
         #expect(commandWithArgs.json == false)
-        #expect(commandWithArgs.path ==  "/new/list/path")
+        #expect(commandWithArgs.path == "/new/list/path")
     }
 
     func testOrganizationRemoveInviteCommandUsesEnvVars() throws {
@@ -628,18 +626,18 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationRemoveInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationRemoveInviteCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.email ==  "email@example.com")
-        #expect(commandWithEnvVars.path ==  "/path/to/invite")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.email == "email@example.com")
+        #expect(commandWithEnvVars.path == "/path/to/invite")
 
         let commandWithArgs = try OrganizationRemoveInviteCommand.parse([
             "NewOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
-        #expect(commandWithArgs.email ==  "newemail@example.com")
-        #expect(commandWithArgs.path ==  "/new/invite/path")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
+        #expect(commandWithArgs.email == "newemail@example.com")
+        #expect(commandWithArgs.path == "/new/invite/path")
     }
 
     func testOrganizationRemoveMemberCommandUsesEnvVars() throws {
@@ -648,18 +646,18 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationRemoveMemberPath, value: "/path/to/member")
 
         let commandWithEnvVars = try OrganizationRemoveMemberCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.username ==  "username")
-        #expect(commandWithEnvVars.path ==  "/path/to/member")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.username == "username")
+        #expect(commandWithEnvVars.path == "/path/to/member")
 
         let commandWithArgs = try OrganizationRemoveMemberCommand.parse([
             "NewOrganization",
             "newusername",
             "--path", "/new/member/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
-        #expect(commandWithArgs.username ==  "newusername")
-        #expect(commandWithArgs.path ==  "/new/member/path")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
+        #expect(commandWithArgs.username == "newusername")
+        #expect(commandWithArgs.path == "/new/member/path")
     }
 
     func testOrganizationRemoveSSOCommandUsesEnvVars() throws {
@@ -667,15 +665,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationRemoveSSOPath, value: "/path/to/sso")
 
         let commandWithEnvVars = try OrganizationRemoveSSOCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.path ==  "/path/to/sso")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.path == "/path/to/sso")
 
         let commandWithArgs = try OrganizationRemoveSSOCommand.parse([
             "NewOrganization",
             "--path", "/new/sso/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
-        #expect(commandWithArgs.path ==  "/new/sso/path")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
+        #expect(commandWithArgs.path == "/new/sso/path")
     }
 
     func testOrganizationUpdateSSOCommandUsesEnvVars() throws {
@@ -685,10 +683,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationUpdateSSOPath, value: "/path/to/update/sso")
 
         let commandWithEnvVars = try OrganizationUpdateSSOCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.provider ==  .google)
-        #expect(commandWithEnvVars.organizationId ==  "1234")
-        #expect(commandWithEnvVars.path ==  "/path/to/update/sso")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.provider == .google)
+        #expect(commandWithEnvVars.organizationId == "1234")
+        #expect(commandWithEnvVars.path == "/path/to/update/sso")
 
         let commandWithArgs = try OrganizationUpdateSSOCommand.parse([
             "NewOrganization",
@@ -696,10 +694,10 @@ struct CommandEnvironmentVariableTests {
             "--organization-id", "5678",
             "--path", "/new/update/sso/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
-        #expect(commandWithArgs.provider ==  .google)
-        #expect(commandWithArgs.organizationId ==  "5678")
-        #expect(commandWithArgs.path ==  "/new/update/sso/path")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
+        #expect(commandWithArgs.provider == .google)
+        #expect(commandWithArgs.organizationId == "5678")
+        #expect(commandWithArgs.path == "/new/update/sso/path")
     }
 
     func testProjectDeleteCommandUsesEnvVars() throws {
@@ -707,15 +705,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.projectDeletePath, value: "/path/to/delete")
 
         let commandWithEnvVars = try ProjectDeleteCommand.parse([])
-        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
-        #expect(commandWithEnvVars.path ==  "/path/to/delete")
+        #expect(commandWithEnvVars.fullHandle == "tuist-org/tuist")
+        #expect(commandWithEnvVars.path == "/path/to/delete")
 
         let commandWithArgs = try ProjectDeleteCommand.parse([
             "new-org/new-project",
             "--path", "/new/delete/path",
         ])
-        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
-        #expect(commandWithArgs.path ==  "/new/delete/path")
+        #expect(commandWithArgs.fullHandle == "new-org/new-project")
+        #expect(commandWithArgs.path == "/new/delete/path")
     }
 
     func testProjectCreateCommandUsesEnvVars() throws {
@@ -723,15 +721,15 @@ struct CommandEnvironmentVariableTests {
         setVariable(.projectCreatePath, value: "/path/to/create")
 
         let commandWithEnvVars = try ProjectCreateCommand.parse([])
-        #expect(commandWithEnvVars.fullHandle ==  "tuist-org/tuist")
-        #expect(commandWithEnvVars.path ==  "/path/to/create")
+        #expect(commandWithEnvVars.fullHandle == "tuist-org/tuist")
+        #expect(commandWithEnvVars.path == "/path/to/create")
 
         let commandWithArgs = try ProjectCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/create/path",
         ])
-        #expect(commandWithArgs.fullHandle ==  "new-org/new-project")
-        #expect(commandWithArgs.path ==  "/new/create/path")
+        #expect(commandWithArgs.fullHandle == "new-org/new-project")
+        #expect(commandWithArgs.path == "/new/create/path")
     }
 
     func testOrganizationInviteCommandUsesEnvVars() throws {
@@ -740,18 +738,18 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationInviteCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "InviteOrganization")
-        #expect(commandWithEnvVars.email ==  "email@example.com")
-        #expect(commandWithEnvVars.path ==  "/path/to/invite")
+        #expect(commandWithEnvVars.organizationName == "InviteOrganization")
+        #expect(commandWithEnvVars.email == "email@example.com")
+        #expect(commandWithEnvVars.path == "/path/to/invite")
 
         let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
             "--path", "/new/invite/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewInviteOrganization")
-        #expect(commandWithArgs.email ==  "newemail@example.com")
-        #expect(commandWithArgs.path ==  "/new/invite/path")
+        #expect(commandWithArgs.organizationName == "NewInviteOrganization")
+        #expect(commandWithArgs.email == "newemail@example.com")
+        #expect(commandWithArgs.path == "/new/invite/path")
     }
 
     func testOrganizationShowCommandUsesEnvVars() throws {
@@ -760,18 +758,18 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationShowPath, value: "/path/to/show")
 
         let commandWithEnvVars = try OrganizationShowCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
         #expect(commandWithEnvVars.json == true)
-        #expect(commandWithEnvVars.path ==  "/path/to/show")
+        #expect(commandWithEnvVars.path == "/path/to/show")
 
         let commandWithArgs = try OrganizationShowCommand.parse([
             "NewOrganization",
             "--no-json",
             "--path", "/new/show/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
         #expect(commandWithArgs.json == false)
-        #expect(commandWithArgs.path ==  "/new/show/path")
+        #expect(commandWithArgs.path == "/new/show/path")
     }
 
     func testProjectListCommandUsesEnvVars() throws {
@@ -780,14 +778,14 @@ struct CommandEnvironmentVariableTests {
 
         let commandWithEnvVars = try ProjectListCommand.parse([])
         #expect(commandWithEnvVars.json == true)
-        #expect(commandWithEnvVars.path ==  "/path/to/list")
+        #expect(commandWithEnvVars.path == "/path/to/list")
 
         let commandWithArgs = try ProjectListCommand.parse([
             "--no-json",
             "--path", "/new/list/path",
         ])
         #expect(commandWithArgs.json == false)
-        #expect(commandWithArgs.path ==  "/new/list/path")
+        #expect(commandWithArgs.path == "/new/list/path")
     }
 
     func testOrganizationUpdateMemberCommandUsesEnvVars() throws {
@@ -797,10 +795,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.organizationUpdateMemberPath, value: "/path/to/member")
 
         let commandWithEnvVars = try OrganizationUpdateMemberCommand.parse([])
-        #expect(commandWithEnvVars.organizationName ==  "MyOrganization")
-        #expect(commandWithEnvVars.username ==  "username")
-        #expect(commandWithEnvVars.role ==  "admin")
-        #expect(commandWithEnvVars.path ==  "/path/to/member")
+        #expect(commandWithEnvVars.organizationName == "MyOrganization")
+        #expect(commandWithEnvVars.username == "username")
+        #expect(commandWithEnvVars.role == "admin")
+        #expect(commandWithEnvVars.path == "/path/to/member")
 
         let commandWithArgs = try OrganizationUpdateMemberCommand.parse([
             "NewOrganization",
@@ -808,46 +806,46 @@ struct CommandEnvironmentVariableTests {
             "--role", "user",
             "--path", "/new/member/path",
         ])
-        #expect(commandWithArgs.organizationName ==  "NewOrganization")
-        #expect(commandWithArgs.username ==  "newusername")
-        #expect(commandWithArgs.role ==  "user")
-        #expect(commandWithArgs.path ==  "/new/member/path")
+        #expect(commandWithArgs.organizationName == "NewOrganization")
+        #expect(commandWithArgs.username == "newusername")
+        #expect(commandWithArgs.role == "user")
+        #expect(commandWithArgs.path == "/new/member/path")
     }
 
     func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
         let commandWithEnvVars = try LoginCommand.parse([])
-        #expect(commandWithEnvVars.path ==  "/path/to/auth")
+        #expect(commandWithEnvVars.path == "/path/to/auth")
 
         let commandWithArgs = try LoginCommand.parse([
             "--path", "/new/auth/path",
         ])
-        #expect(commandWithArgs.path ==  "/new/auth/path")
+        #expect(commandWithArgs.path == "/new/auth/path")
     }
 
     func testWhoamiCommandUsesEnvVars() throws {
         setVariable(.whoamiPath, value: "/path/to/session")
 
         let commandWithEnvVars = try WhoamiCommand.parse([])
-        #expect(commandWithEnvVars.path ==  "/path/to/session")
+        #expect(commandWithEnvVars.path == "/path/to/session")
 
         let commandWithArgs = try WhoamiCommand.parse([
             "--path", "/new/session/path",
         ])
-        #expect(commandWithArgs.path ==  "/new/session/path")
+        #expect(commandWithArgs.path == "/new/session/path")
     }
 
     func testLogoutCommandUsesEnvVars() throws {
         setVariable(.logoutPath, value: "/path/to/logout")
 
         let commandWithEnvVars = try LogoutCommand.parse([])
-        #expect(commandWithEnvVars.path ==  "/path/to/logout")
+        #expect(commandWithEnvVars.path == "/path/to/logout")
 
         let commandWithArgs = try LogoutCommand.parse([
             "--path", "/new/logout/path",
         ])
-        #expect(commandWithArgs.path ==  "/new/logout/path")
+        #expect(commandWithArgs.path == "/new/logout/path")
     }
 
     func testCacheCommandUsesEnvVars() throws {
@@ -859,12 +857,12 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheCommand.parse([])
-        #expect(commandWithEnvVars.externalOnly ==  true)
-        #expect(commandWithEnvVars.generateOnly ==  true)
-        #expect(commandWithEnvVars.printHashes ==  true)
-        #expect(commandWithEnvVars.configuration ==  "CacheConfig")
-        #expect(commandWithEnvVars.path ==  "/cache/path")
-        #expect(commandWithEnvVars.targets == ["Fmk1",  "Fmk2"])
+        #expect(commandWithEnvVars.externalOnly == true)
+        #expect(commandWithEnvVars.generateOnly == true)
+        #expect(commandWithEnvVars.printHashes == true)
+        #expect(commandWithEnvVars.configuration == "CacheConfig")
+        #expect(commandWithEnvVars.path == "/cache/path")
+        #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
         let commandWithArgs = try CacheCommand.parse([
             "--external-only",
@@ -875,11 +873,11 @@ struct CommandEnvironmentVariableTests {
             "--",
             "Fmk1", "Fmk2",
         ])
-        #expect(commandWithArgs.externalOnly ==  true)
-        #expect(commandWithArgs.generateOnly ==  true)
-        #expect(commandWithArgs.printHashes ==  true)
-        #expect(commandWithArgs.configuration ==  "CacheConfig")
-        #expect(commandWithArgs.path ==  "/cache/path")
-        #expect(commandWithArgs.targets == ["Fmk1",  "Fmk2"])
+        #expect(commandWithArgs.externalOnly == true)
+        #expect(commandWithArgs.generateOnly == true)
+        #expect(commandWithArgs.printHashes == true)
+        #expect(commandWithArgs.configuration == "CacheConfig")
+        #expect(commandWithArgs.path == "/cache/path")
+        #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
     }
 }

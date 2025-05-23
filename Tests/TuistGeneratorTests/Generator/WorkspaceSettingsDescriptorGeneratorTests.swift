@@ -1,13 +1,13 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import Testing
-import FileSystem
-import FileSystemTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
