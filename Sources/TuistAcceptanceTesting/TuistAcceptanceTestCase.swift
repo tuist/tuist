@@ -39,14 +39,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
                 "TUIST_CONFIG_SRCROOT"
             ]!
         )
-
-        do {
-            // Environment
-            environment = try MockEnvironment()
-            Environment._shared.mutate { $0 = environment }
-        } catch {
-            XCTFail("Failed to setup environment")
-        }
     }
 
     override open func tearDown() async throws {

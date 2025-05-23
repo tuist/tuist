@@ -6,41 +6,38 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
+import Testing
+import FileSystem
+import FileSystemTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
-    func test_description_when_missingFileReference() {
+struct BuildPhaseGenerationErrorTests {
+    @Test func test_description_when_missingFileReference() {
         let path = try! AbsolutePath(validating: "/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
-        XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).description, expected)
+        #expect(BuildPhaseGenerationError.missingFileReference(path).description == expected)
     }
 
-    func test_type_when_missingFileReference() {
+    @Test func test_type_when_missingFileReference() {
         let path = try! AbsolutePath(validating: "/test")
-        XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).type, .bug)
+        #expect(BuildPhaseGenerationError.missingFileReference(path).type == .bug)
     }
 }
 
-final class BuildPhaseGeneratorTests: TuistUnitTestCase {
+@Suite(.withMockedSwiftVersionProvider, .withMockedXcodeController, .inTemporaryDirectory)
+struct BuildPhaseGeneratorTests {
     var subject: BuildPhaseGenerator!
 
-    override func setUp() {
-        super.setUp()
+    init() async throws {
         subject = BuildPhaseGenerator()
-
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_generateSourcesBuildPhase() throws {
+    @Test func test_generateSourcesBuildPhase() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -76,7 +73,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.name
         }
 
-        XCTAssertEqual(buildFilesNames, [
+        #expect(buildFilesNames == [
             "file1.swift",
             "file2.swift",
             "file3.swift",
@@ -87,7 +84,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let settings = buildFiles.map(\.settings)
 
-        XCTAssertEqual(settings, [
+        #expect(settings == [
             ["COMPILER_FLAGS": "flag"],
             nil,
             ["ATTRIBUTES": ["codegen"]],
@@ -97,7 +94,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
+    @Test func test_generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -135,7 +132,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let buildFilesPlatformFilters = buildFiles.map(\.platformFilters)
 
-        XCTAssertEqual(buildFilesNames, [
+        #expect(buildFilesNames == [
             "file1.swift",
             "file2.swift",
             "file3.swift",
@@ -144,7 +141,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "file6.swift",
         ])
 
-        XCTAssertEqual(buildFilesPlatformFilters, [
+        #expect(buildFilesPlatformFilters == [
             nil, // No platform filter applied, because none request
             nil, // No platform filter applied, because the test target is an iOS target, so no filter necessary
             ["watchos"],
@@ -154,7 +151,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
+    @Test func test_generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -185,12 +182,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.name
         }
 
-        XCTAssertEqual(buildFilesNames, [
+        #expect(buildFilesNames == [
             "resource.metal",
         ])
     }
 
-    func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
+    @Test func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -211,10 +208,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // Then
         let buildPhase = try pbxTarget.sourcesBuildPhase()
 
-        XCTAssertNil(buildPhase)
+        #expect(buildPhase == nil)
     }
 
-    func test_generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
+    @Test func test_generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -234,11 +231,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = try pbxTarget.sourcesBuildPhase()
-        let files = try XCTUnwrap(buildPhase?.files)
-        XCTAssertEmpty(files)
+        let files = try #require(buildPhase?.files)
+        #expect(files.isEmpty == true)
     }
 
-    func test_generateScripts() throws {
+    @Test func test_generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -254,15 +251,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(buildPhase.name, targetScript.name)
-        XCTAssertEqual(buildPhase.shellScript, targetScript.script)
-        XCTAssertEqual(buildPhase.shellPath, "/bin/sh")
-        XCTAssertEqual(buildPhase.files, [])
-        XCTAssertTrue(buildPhase.showEnvVarsInLog)
+        let buildPhase = try #require(target.buildPhases.first as? PBXShellScriptBuildPhase)
+        #expect(buildPhase.name == targetScript.name)
+        #expect(buildPhase.shellScript == targetScript.script)
+        #expect(buildPhase.shellPath == "/bin/sh")
+        #expect(buildPhase.files == [])
+        #expect(buildPhase.showEnvVarsInLog == true)
     }
 
-    func test_generateScriptsWithCustomShell() throws {
+    @Test func test_generateScriptsWithCustomShell() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -284,11 +281,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(buildPhase.shellPath, "/bin/zsh")
+        let buildPhase = try #require(target.buildPhases.first as? PBXShellScriptBuildPhase)
+        #expect(buildPhase.shellPath == "/bin/zsh")
     }
 
-    func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
+    @Test func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/file.swift")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -297,19 +294,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test()
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
-            files: [SourceFile(path: path, compilerFlags: nil)],
-            coreDataModels: [],
-            target: target,
-            pbxTarget: pbxTarget,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )) {
-            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
-        }
+        #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
+            try subject.generateSourcesBuildPhase(
+                files: [SourceFile(path: path, compilerFlags: nil)],
+                coreDataModels: [],
+                target: target,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        })
     }
 
-    func test_generateSourcesBuildPhase_withDocCArchive() throws {
+    @Test func test_generateSourcesBuildPhase_withDocCArchive() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -340,10 +337,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.name
         }
 
-        XCTAssertEqual(buildFilesNames, ["Doc.docc", "Foo.swift"])
+        #expect(buildFilesNames == ["Doc.docc", "Foo.swift"])
     }
 
-    func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
+    @Test func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -373,12 +370,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let buildPhase = try pbxTarget.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
 
-        XCTAssertEqual(buildFiles.map(\.file), [
+        #expect(buildFiles.map(\.file) == [
             fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
         ])
     }
 
-    func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
+    @Test func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -387,19 +384,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test()
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
-            files: [SourceFile(path: path, compilerFlags: nil)],
-            coreDataModels: [],
-            target: target,
-            pbxTarget: pbxTarget,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )) {
-            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
-        }
+        #expect(throws: BuildPhaseGenerationError.missingFileReference(path), performing: {
+            try subject.generateSourcesBuildPhase(
+                files: [SourceFile(path: path, compilerFlags: nil)],
+                coreDataModels: [],
+                target: target,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        })
     }
 
-    func test_generateHeadersBuildPhase() throws {
+    @Test func test_generateHeadersBuildPhase() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -422,7 +419,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXHeadersBuildPhase)
+        let buildPhase = try #require(target.buildPhases.first as? PBXHeadersBuildPhase)
         let buildFiles = buildPhase.files ?? []
 
         struct FileWithSettings: Equatable {
@@ -437,15 +434,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             )
         }
 
-        XCTAssertEqual(buildFilesWithSettings, [
+        #expect(buildFilesWithSettings == [
             FileWithSettings(name: "Private1.h", attributes: ["Private"]),
             FileWithSettings(name: "Public1.h", attributes: ["Public"]),
             FileWithSettings(name: "Project1.h", attributes: nil),
         ])
     }
 
-    func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
-        let tmpDir = try temporaryPath()
+    @Test func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
+        let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -480,11 +477,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             pbxproj: pbxproj
         )
 
-        XCTAssertEmpty(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase })
+        #expect(pbxTarget.buildPhases.filter { $0 is PBXHeadersBuildPhase }.isEmpty == true)
     }
 
-    func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
-        let tmpDir = try temporaryPath()
+    @Test func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
+        let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -520,16 +517,16 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         let firstBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases.first
-        XCTAssertNotNil(firstBuildPhase)
-        XCTAssertTrue(firstBuildPhase is PBXHeadersBuildPhase)
+        #expect(firstBuildPhase != nil)
+        #expect(firstBuildPhase is PBXHeadersBuildPhase == true)
 
         let secondBuildPhase: PBXBuildPhase? = pbxTarget.buildPhases[1]
-        XCTAssertTrue(secondBuildPhase is PBXSourcesBuildPhase)
+        #expect(secondBuildPhase is PBXSourcesBuildPhase == true)
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
+    @Test func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let files: [AbsolutePath] = [
             "/path/resources/en.lproj/Main.storyboard",
             "/path/resources/en.lproj/App.strings",
@@ -560,15 +557,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map(\.file), [
+        #expect(buildPhase?.files?.map(\.file) == [
             fileElements.elements["/path/resources/Main.storyboard"],
             fileElements.elements["/path/resources/App.strings"],
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
+    @Test func test_generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
@@ -609,15 +606,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map(\.file?.nameOrPath), [
+        #expect(buildPhase?.files?.map(\.file?.nameOrPath) == [
             "Controller.xib",
             "Storyboard.storyboard",
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
+    @Test func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
@@ -656,11 +653,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let buildFiles = try XCTUnwrap(nativeTarget.buildPhases.first?.files)
-        XCTAssertEmpty(buildFiles)
+        let buildFiles = try #require(nativeTarget.buildPhases.first?.files)
+        #expect(buildFiles.isEmpty == true)
     }
 
-    func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
+    @Test func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
         let coreDataModel = CoreDataModel(
             path: try AbsolutePath(validating: "/Model.xcdatamodeld"),
@@ -693,15 +690,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase: PBXBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXSourcesBuildPhase)
-        let pbxBuildFile: PBXBuildFile = try XCTUnwrap(pbxBuildPhase.files?.first)
-        XCTAssertEqual(pbxBuildFile.file, versionGroup)
-        XCTAssertEqual(versionGroup.currentVersion, model)
+        let pbxBuildPhase: PBXBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXSourcesBuildPhase)
+        let pbxBuildFile: PBXBuildFile = try #require(pbxBuildPhase.files?.first)
+        #expect(pbxBuildFile.file == versionGroup)
+        #expect(versionGroup.currentVersion == model)
     }
 
-    func test_generateResourcesBuildPhase_whenNormalResource() throws {
+    @Test func test_generateResourcesBuildPhase_whenNormalResource() throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = try AbsolutePath(validating: "/image.png")
         let target = Target.test(resources: .init([.file(path: path)]))
         let fileElements = ProjectFileElements()
@@ -727,15 +724,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        #expect(pbxBuildPhase != nil)
+        #expect(pbxBuildPhase is PBXResourcesBuildPhase == true)
         let pbxBuildFile: PBXBuildFile? = pbxBuildPhase?.files?.first
-        XCTAssertEqual(pbxBuildFile?.file, fileElement)
+        #expect(pbxBuildFile?.file == fileElement)
     }
 
-    func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
+    @Test func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources: [ResourceFileElement] = [
             .file(path: "/file.type", tags: ["fileTag"]),
             .folderReference(path: "/folder", tags: ["folderTag"]),
@@ -768,20 +765,20 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        #expect(pbxBuildPhase != nil)
+        #expect(pbxBuildPhase is PBXResourcesBuildPhase == true)
 
-        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        let resourceBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
         let allFileSettings = resourceBuildPhase.files?.map(\.settings)
-        XCTAssertEqual(allFileSettings, [
+        #expect(allFileSettings == [
             ["ASSET_TAGS": ["fileTag"]],
             ["ASSET_TAGS": ["folderTag"]],
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
+    @Test func test_generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources: [ResourceFileElement] = [
             .file(path: "/Shared.type"),
             .file(path: "/iOS.type", inclusionCondition: .when([.ios])),
@@ -823,23 +820,21 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "/watchOS.type": ["watchos"],
         ]
 
-        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
 
-        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
-        let buildFiles = try XCTUnwrap(resourceBuildPhase.files)
+        let resourceBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        let buildFiles = try #require(resourceBuildPhase.files)
 
         for buildFile in buildFiles {
             // Explicitly exctracting the original path because it gets lost in translation for resource files
-            let path = try XCTUnwrap(fileElements.elements.first(where: { $0.value === buildFile.file })).key
+            let path = try #require(fileElements.elements.first(where: { $0.value === buildFile.file })).key
 
             // Actual comparison of platform filters for the given buildFile
-            XCTAssertEqual(expectedPlatformFilters[path.pathString], buildFile.platformFilters)
+            #expect(expectedPlatformFilters[path.pathString] == buildFile.platformFilters)
         }
     }
 
-    func test_generateResourceBundle() throws {
+    @Test func test_generateResourceBundle() throws {
         // Given
         let path = try AbsolutePath(validating: "/path")
         let bundle1 = Target.test(name: "Bundle1", product: .bundle)
@@ -883,15 +878,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
-        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
+        #expect(resourcePhase?.files?.compactMap { $0.file?.nameOrPath } == [
             "Bundle1",
             "Bundle2",
         ])
     }
 
-    func test_generateResourceBundle_fromProjectDependency() throws {
+    @Test func test_generateResourceBundle_fromProjectDependency() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let app = Target.test(name: "App", product: .app)
         let pbxproj = PBXProj()
@@ -923,12 +918,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
-        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
+        #expect(resourcePhase?.files?.compactMap { $0.file?.nameOrPath } == [
             "Bundle1",
         ])
     }
 
-    func test_generateCopyFilesBuildPhases() throws {
+    @Test func test_generateCopyFilesBuildPhases() throws {
         // Given
         let fonts: [CopyFileElement] = [
             .file(path: "/path/fonts/font1.ttf"),
@@ -961,11 +956,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let firstBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(firstBuildPhase.name, "Copy Fonts")
-        XCTAssertEqual(firstBuildPhase.dstSubfolderSpec, .resources)
-        XCTAssertEqual(firstBuildPhase.dstPath, "Fonts")
-        XCTAssertEqual(firstBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let firstBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(firstBuildPhase.name == "Copy Fonts")
+        #expect(firstBuildPhase.dstSubfolderSpec == .resources)
+        #expect(firstBuildPhase.dstPath == "Fonts")
+        #expect(firstBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "font1.ttf",
             "font2.ttf",
             "font3.ttf",
@@ -974,7 +969,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "font6.ttf",
         ])
 
-        XCTAssertEqual(firstBuildPhase.files?.map(\.platformFilters), [
+        #expect(firstBuildPhase.files?.map(\.platformFilters) == [
             nil,
             nil,
             ["macos"],
@@ -983,7 +978,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             nil,
         ])
 
-        XCTAssertEqual(firstBuildPhase.files?.map(\.settings), [
+        #expect(firstBuildPhase.files?.map(\.settings) == [
             nil,
             nil,
             nil,
@@ -992,16 +987,16 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             nil,
         ])
 
-        let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
-        XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)
-        XCTAssertEqual(secondBuildPhase.dstPath, "Templates")
-        XCTAssertEqual(secondBuildPhase.files?.compactMap { $0.file?.nameOrPath }, ["tuist.rtfd"])
+        let secondBuildPhase = try #require(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
+        #expect(secondBuildPhase.name == "Copy Templates")
+        #expect(secondBuildPhase.dstSubfolderSpec == .sharedSupport)
+        #expect(secondBuildPhase.dstPath == "Templates")
+        #expect(secondBuildPhase.files?.compactMap { $0.file?.nameOrPath } == ["tuist.rtfd"])
     }
 
-    func test_generateAppExtensionsBuildPhase() throws {
+    @Test func test_generateAppExtensionsBuildPhase() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
@@ -1047,18 +1042,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, [
+        #expect(pbxBuildPhase != nil)
+        #expect(pbxBuildPhase is PBXCopyFilesBuildPhase == true)
+        #expect(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath } == [
             "AppExtension",
             "StickerPackExtension",
         ])
-        XCTAssertEqual(pbxBuildPhase?.files?.map(\.platformFilter), [
+        #expect(pbxBuildPhase?.files?.map(\.platformFilter) == [
             nil,
             "ios",
         ])
-        XCTAssertEqual(
-            pbxBuildPhase?.files?.compactMap(\.settings),
+        #expect(
+            pbxBuildPhase?.files?.compactMap(\.settings) ==
             [
                 ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
                 ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
@@ -1066,7 +1061,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
+    @Test func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let pbxproj = PBXProj()
@@ -1094,10 +1089,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(nativeTarget.buildPhases.isEmpty)
+        #expect(nativeTarget.buildPhases.isEmpty == true)
     }
 
-    func test_generateWatchBuildPhase() throws {
+    @Test func test_generateWatchBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
@@ -1132,18 +1127,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             pbxproj: pbxproj
         )
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "WatchApp",
         ])
-        XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateWatchBuildPhase_watchApplication() throws {
+    @Test func test_generateWatchBuildPhase_watchApplication() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .app)
@@ -1182,18 +1177,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "WatchApp",
         ])
-        XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateEmbedXPCServicesBuildPhase() throws {
+    @Test func test_generateEmbedXPCServicesBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let xpcService = Target.test(name: "XPCService", platform: .macOS, product: .xpc)
@@ -1223,17 +1218,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "XPCService",
         ])
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateEmbedPluginsBuildPhase() throws {
+    @Test func test_generateEmbedPluginsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
@@ -1263,17 +1258,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "EmbedPlugin",
         ])
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
+    @Test func test_generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let generatedResourceBundle = Target.test(
@@ -1308,10 +1303,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEmpty(nativeTarget.buildPhases)
+        #expect(nativeTarget.buildPhases.isEmpty)
     }
 
-    func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
+    @Test func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .macCatalyst])
         let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
@@ -1341,21 +1336,21 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "EmbedPlugin",
         ])
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.platformFilter),
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.platformFilter) ==
             [PlatformFilter.catalyst.xcodeprojValue]
         )
     }
 
-    func test_generateEmbedSystemExtensionsBuildPhase() throws {
+    @Test func test_generateEmbedSystemExtensionsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let systemExtension = Target.test(name: "SystemExtension", platform: .macOS, product: .systemExtension)
@@ -1385,19 +1380,20 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == [
             "SystemExtension",
         ])
-        XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap(\.settings),
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateTarget_actions() async throws {
+    @Test func test_generateTarget_actions() async throws {
         // Given
-        given(swiftVersionProvider)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
 
@@ -1456,26 +1452,27 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(preBuildPhase.name, "pre")
-        XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
-        XCTAssertEqual(preBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
-        XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
-        XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
-        XCTAssertFalse(preBuildPhase.runOnlyForDeploymentPostprocessing)
+        let preBuildPhase = try #require(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        #expect(preBuildPhase.name == "pre")
+        #expect(preBuildPhase.shellPath == "/bin/sh")
+        #expect(preBuildPhase.shellScript == "\"$SRCROOT\"/script.sh arg")
+        #expect(preBuildPhase.showEnvVarsInLog == true)
+        #expect(preBuildPhase.alwaysOutOfDate == false)
+        #expect(preBuildPhase.runOnlyForDeploymentPostprocessing == false)
 
-        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(postBuildPhase.name, "post")
-        XCTAssertEqual(postBuildPhase.shellPath, "/bin/sh")
-        XCTAssertEqual(postBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
-        XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
-        XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
-        XCTAssertTrue(postBuildPhase.runOnlyForDeploymentPostprocessing)
+        let postBuildPhase = try #require(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        #expect(postBuildPhase.name == "post")
+        #expect(postBuildPhase.shellPath == "/bin/sh")
+        #expect(postBuildPhase.shellScript == "\"$SRCROOT\"/script.sh arg")
+        #expect(postBuildPhase.showEnvVarsInLog == false)
+        #expect(postBuildPhase.alwaysOutOfDate == true)
+        #expect(postBuildPhase.runOnlyForDeploymentPostprocessing == true)
     }
 
-    func test_generateTarget_action_custom_shell() async throws {
+    @Test func test_generateTarget_action_custom_shell() async throws {
         // Given
-        given(swiftVersionProvider)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
 
@@ -1535,16 +1532,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
+        let preBuildPhase = try #require(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        #expect(preBuildPhase.shellPath == "/bin/sh")
 
-        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
+        let postBuildPhase = try #require(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        #expect(postBuildPhase.shellPath == "/bin/zsh")
     }
 
-    func test_generateTarget_action_dependency_file() async throws {
+    @Test func test_generateTarget_action_dependency_file() async throws {
         // Given
-        given(swiftVersionProvider)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
 
@@ -1603,14 +1601,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
-        XCTAssertNil(preBuildPhase.dependencyFile)
+        let preBuildPhase = try #require(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        #expect(preBuildPhase.dependencyFile == nil)
 
-        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(postBuildPhase.dependencyFile, "$(TEMP_DIR)/dependency.d")
+        let postBuildPhase = try #require(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        #expect(postBuildPhase.dependencyFile == "$(TEMP_DIR)/dependency.d")
     }
 
-    func test_generateEmbedAppClipsBuildPhase() throws {
+    @Test func test_generateEmbedAppClipsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let appClip = Target.test(name: "AppClip", product: .appClip)
@@ -1647,18 +1645,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
-        XCTAssertNotNil(pbxBuildPhase)
-        XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
-        XCTAssertEqual(pbxBuildPhase?.files?.first?.platformFilter, "ios")
-        XCTAssertEqual(
-            pbxBuildPhase?.files?.compactMap(\.settings),
+        let pbxBuildPhase = try #require(nativeTarget.buildPhases.first)
+        #expect(pbxBuildPhase is PBXCopyFilesBuildPhase == true)
+        #expect(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath } == ["AppClip"])
+        #expect(pbxBuildPhase.files?.first?.platformFilter == "ios")
+        #expect(
+            pbxBuildPhase.files?.compactMap(\.settings) ==
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
 
-    func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
+    @Test func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1694,13 +1691,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let resourcesFiles = resourcesBuildPhase?.files?.compactMap {
             $0.file?.nameOrPath
         } ?? []
-        XCTAssertEqual(sourcesFiles, [
+        #expect(sourcesFiles == [
             "Model.xcdatamodeld",
         ])
-        XCTAssertTrue(resourcesFiles.isEmpty)
+        #expect(resourcesFiles.isEmpty == true)
     }
 
-    func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
+    @Test func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1737,13 +1734,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.nameOrPath
         } ?? []
 
-        XCTAssertTrue(sourcesFiles.isEmpty)
-        XCTAssertEqual(resourcesFiles, [
+        #expect(sourcesFiles.isEmpty == true)
+        #expect(resourcesFiles == [
             "Model.xcdatamodeld",
         ])
     }
 
-    func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
+    @Test func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
         // Given
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
@@ -1779,14 +1776,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        XCTAssertNotNil(buildPhase)
+        #expect(buildPhase != nil)
 
         let expectedScript =
             "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
-        XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
-        XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
-        XCTAssertEqual(
-            buildPhase?.outputPaths,
+        #expect(buildPhase?.shellScript?.contains(expectedScript) == true)
+        #expect(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
+        #expect(
+            buildPhase?.outputPaths ==
             [
                 "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
                 "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",

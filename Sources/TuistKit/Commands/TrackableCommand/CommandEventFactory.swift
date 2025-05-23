@@ -13,16 +13,13 @@ import XcodeGraph
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
-    private let swiftVersionProvider: SwiftVersionProviding
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitController: GitControlling = GitController(),
-        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared
+        gitController: GitControlling = GitController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.gitController = gitController
-        self.swiftVersionProvider = swiftVersionProvider
     }
 
     public func make(
@@ -60,7 +57,7 @@ public final class CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: try swiftVersionProvider.swiftVersion(),
+            swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: machineEnvironment.isCI,
