@@ -347,3 +347,10 @@ When a dynamic framework or library depends on static ones through `import Stati
 ```swift
 internal import StaticModule
 ```
+
+> [!NOTE]
+> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly) instead:
+
+```swift
+@_implementationOnly import StaticModule
+```
