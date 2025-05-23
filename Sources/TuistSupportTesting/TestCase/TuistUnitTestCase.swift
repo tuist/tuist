@@ -6,7 +6,6 @@ import XCTest
 
 open class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
-    public var xcodeController: MockXcodeControlling!
     public var fileSystem: FileSysteming!
 
     override open func setUp() {
