@@ -1,4 +1,4 @@
-@_implementationOnly import Foundation
+internal import Foundation
 
 func dumpIfNeeded(_ entity: some Encodable) {
     guard !ProcessInfo.processInfo.arguments.isEmpty,
