@@ -60,18 +60,15 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
     private let credentialsStore: ServerCredentialsStoring
     #if canImport(TuistSupport)
         private let ciChecker: CIChecking
-        private let environment: Environmenting
     #endif
 
     #if canImport(TuistSupport)
         public init(
             credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
-            ciChecker: CIChecking = CIChecker(),
-            environment: Environmenting = Environment.current
+            ciChecker: CIChecking = CIChecker()
         ) {
             self.credentialsStore = credentialsStore
             self.ciChecker = ciChecker
-            self.environment = environment
         }
     #else
         public init(
@@ -84,11 +81,11 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
     public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if ciChecker.isCI() {
-                if let configToken = environment.tuistVariables[
+                if let configToken = Environment.current.tuistVariables[
                     Constants.EnvironmentVariables.token
                 ] {
                     return .project(configToken)
-                } else if let deprecatedToken = environment.tuistVariables[
+                } else if let deprecatedToken = Environment.current.tuistVariables[
                     Constants.EnvironmentVariables.deprecatedToken
                 ] {
                     Logger.current

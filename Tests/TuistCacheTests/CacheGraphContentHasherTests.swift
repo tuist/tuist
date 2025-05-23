@@ -10,7 +10,7 @@ import XcodeGraph
 
 @testable import TuistCache
 
-@Suite()
+@Suite
 struct CacheGraphContentHasherTests {
     private var graphContentHasher: MockGraphContentHashing!
     private var contentHasher: MockContentHashing!
@@ -35,7 +35,10 @@ struct CacheGraphContentHasherTests {
             .willReturn(Version(15, 0, 0))
     }
 
-    @Test func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
+    ) func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
             path: "/Project/Path",
@@ -78,7 +81,10 @@ struct CacheGraphContentHasherTests {
             .called(1)
     }
 
-    @Test func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
+    ) func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
         let excludedTarget = GraphTarget(
             path: "/Project/Path",
@@ -126,7 +132,10 @@ struct CacheGraphContentHasherTests {
             .called(1)
     }
 
-    @Test func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
+    @Test(
+        .withMockedXcodeController,
+        .withMockedSwiftVersionProvider
+    ) func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given
         let project = Project.test()
 
