@@ -3,7 +3,7 @@ import Foundation
 import Mockable
 import TuistAutomation
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum DeviceServiceError: FatalError, Equatable {

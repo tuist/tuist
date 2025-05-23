@@ -6,7 +6,7 @@ import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

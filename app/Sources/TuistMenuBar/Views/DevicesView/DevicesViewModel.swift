@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 import TuistAutomation
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

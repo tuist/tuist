@@ -3,8 +3,7 @@ import Foundation
 import TuistCache
 import TuistCore
 import TuistHasher
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

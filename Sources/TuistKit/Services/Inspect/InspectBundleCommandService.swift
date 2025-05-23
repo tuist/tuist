@@ -4,8 +4,7 @@ import Noora
 import Path
 import Rosalind
 import TuistLoader
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum InspectBundleCommandServiceError: LocalizedError {

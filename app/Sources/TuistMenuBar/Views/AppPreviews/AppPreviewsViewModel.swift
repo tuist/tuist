@@ -1,5 +1,5 @@
 import Foundation
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 struct AppPreviewsKey: AppStorageKey {

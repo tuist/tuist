@@ -4,7 +4,7 @@ import Path
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {

@@ -5,8 +5,7 @@ import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 final class GenerateService {

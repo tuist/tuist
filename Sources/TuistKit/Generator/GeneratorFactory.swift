@@ -3,8 +3,7 @@ import Mockable
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 /// The protocol describes the interface of a factory that instantiates

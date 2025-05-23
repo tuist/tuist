@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import TuistServerCore
+import TuistServer
 
 struct ProjectUpdateCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {

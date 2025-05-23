@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 @Mockable

@@ -6,8 +6,7 @@ import Path
 import Rosalind
 import Testing
 import TuistLoader
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 

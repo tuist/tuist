@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum ProjectShowServiceError: Equatable, FatalError {

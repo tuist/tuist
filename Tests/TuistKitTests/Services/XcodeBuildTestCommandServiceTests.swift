@@ -8,8 +8,7 @@ import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph

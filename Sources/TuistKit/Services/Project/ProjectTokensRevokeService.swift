@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 protocol ProjectTokensRevokeServicing {

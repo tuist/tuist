@@ -667,7 +667,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
         try FileHandler.shared.createFolder(nonTuistWorkspacePath)
-        let workspacePath = path.appending(component: "TuistServerCore.xcworkspace")
+        let workspacePath = path.appending(component: "TuistServer.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
         try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
