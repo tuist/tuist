@@ -21,6 +21,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
     private var graphVizMapper: MockGraphToGraphVizMapper!
     private var xcodeGraphMapper: MockXcodeGraphMapping!
+    private var configLoader: MockConfigLoading!
     private var subject: GraphService!
 
     override func setUp() {
@@ -29,12 +30,14 @@ final class GraphServiceTests: TuistUnitTestCase {
         manifestGraphLoader = MockManifestGraphLoading()
         manifestLoader = MockManifestLoading()
         xcodeGraphMapper = MockXcodeGraphMapping()
+        configLoader = MockConfigLoading()
 
         subject = GraphService(
             graphVizGenerator: graphVizMapper,
             manifestGraphLoader: manifestGraphLoader,
             manifestLoader: manifestLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            xcodeGraphMapper: xcodeGraphMapper,
+            configLoader: configLoader
         )
     }
 
@@ -63,8 +66,12 @@ final class GraphServiceTests: TuistUnitTestCase {
             graphVizMapper.stubMap = Graph()
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn((.test(), [], MapperEnvironment(), []))
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
 
             // When
             try await subject.run(
@@ -100,8 +107,12 @@ final class GraphServiceTests: TuistUnitTestCase {
             try await fileSystem.touch(projectManifestPath)
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn((.test(), [], MapperEnvironment(), []))
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
 
             // When
             try await subject.run(
@@ -140,8 +151,12 @@ final class GraphServiceTests: TuistUnitTestCase {
                 .willReturn(true)
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn((.test(), [], MapperEnvironment(), []))
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
 
             // When
             try await subject.run(
@@ -179,6 +194,10 @@ final class GraphServiceTests: TuistUnitTestCase {
 
             given(xcodeGraphMapper)
                 .map(at: .any)
+                .willReturn(.test())
+
+            given(configLoader)
+                .loadConfig(path: .any)
                 .willReturn(.test())
 
             // When

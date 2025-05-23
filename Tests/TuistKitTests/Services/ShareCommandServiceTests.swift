@@ -156,7 +156,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             )
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn(
                     (
                         .test(
@@ -279,7 +279,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
         let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
 
         given(manifestGraphLoader)
-            .load(path: .any)
+            .load(path: .any, disableSandbox: .any)
             .willReturn(
                 (
                     .test(
@@ -367,7 +367,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             )
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn(
                     (
                         .test(
@@ -475,7 +475,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 .willReturn(.test())
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn(
                     (
                         .test(
@@ -569,7 +569,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             )
 
             given(manifestGraphLoader)
-                .load(path: .any)
+                .load(path: .any, disableSandbox: .any)
                 .willReturn(
                     (
                         .test(

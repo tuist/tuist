@@ -20,8 +20,12 @@ import XcodeGraph
 @Mockable
 public protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
+    /// - Parameters:
+    ///   - path: Path to load
+    ///   - disableSandbox: Whether to disable loading the manifest in a sandboxed environment.
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue])
+    func load(path: AbsolutePath, disableSandbox: Bool) async throws
+        -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue])
     // swiftlint:disable:previous large_tuple
 }
 
@@ -95,14 +99,17 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     // swiftlint:disable:next function_body_length large_tuple
-    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
+    public func load(
+        path: AbsolutePath,
+        disableSandbox: Bool
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
         try await manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
 
         // Load Workspace
-        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path)
+        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
         let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
@@ -117,7 +124,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         {
             let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
-                with: plugins
+                with: plugins,
+                disableSandbox: disableSandbox
             )
 
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
@@ -135,7 +143,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packageSettings {
             allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
-                packageSettings: packageSettings
+                packageSettings: packageSettings,
+                disableSandbox: disableSandbox
             )
         }
 

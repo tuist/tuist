@@ -44,6 +44,10 @@ extension Tuist {
         /// Default value is `true`.
         public var buildInsightsDisabled: Bool
 
+        /// Disables building manifests in a sandboxed environment.
+        /// This is discouraged and should only be used if absolutely necessary.
+        public var disableSandbox: Bool
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
@@ -51,7 +55,8 @@ extension Tuist {
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool = false
+            buildInsightsDisabled: Bool = false,
+            disableSandbox: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -61,7 +66,8 @@ extension Tuist {
                 enforceExplicitDependencies: false,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
-                buildInsightsDisabled: buildInsightsDisabled
+                buildInsightsDisabled: buildInsightsDisabled,
+                disableSandbox: disableSandbox
             )
         }
 
@@ -87,7 +93,8 @@ extension Tuist {
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
-                buildInsightsDisabled: false
+                buildInsightsDisabled: false,
+                disableSandbox: false
             )
         }
     }

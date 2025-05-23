@@ -70,7 +70,10 @@ final class HashSelectiveTestingCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            graph = try await generator.load(path: absolutePath)
+            graph = try await generator.load(
+                path: absolutePath,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         } else {
             graph = try await xcodeGraphMapper.map(at: absolutePath)
         }

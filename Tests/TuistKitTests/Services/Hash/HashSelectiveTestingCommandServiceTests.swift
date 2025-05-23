@@ -69,7 +69,7 @@ struct HashSelectiveTestingCommandServiceTests {
                 config: .value(config),
                 includedTargets: .value([])
             ).willReturn(generator)
-            given(generator).load(path: .value(path)).willReturn(graph)
+            given(generator).load(path: .value(path), disableSandbox: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
                 graph: .value(graph),
                 additionalStrings: .value(
@@ -103,7 +103,7 @@ struct HashSelectiveTestingCommandServiceTests {
                 config: .value(config),
                 includedTargets: .value([])
             ).willReturn(generator)
-            given(generator).load(path: .value(path)).willReturn(graph)
+            given(generator).load(path: .value(path), disableSandbox: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
                 graph: .value(graph),
                 additionalStrings: .value(

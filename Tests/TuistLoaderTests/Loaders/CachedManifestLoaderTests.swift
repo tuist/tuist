@@ -48,8 +48,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         subject = createSubject()
 
         given(manifestLoader)
-            .loadWorkspace(at: .any)
-            .willProduce { [unowned self] path in
+            .loadWorkspace(at: .any, disableSandbox: .any)
+            .willProduce { [unowned self] path, _ in
                 guard let manifest = workspaceManifests[path] else {
                     throw ManifestLoaderError.manifestNotFound(.workspace, path)
                 }
@@ -58,8 +58,8 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             }
 
         given(manifestLoader)
-            .loadProject(at: .any)
-            .willProduce { [unowned self] path in
+            .loadProject(at: .any, disableSandbox: .any)
+            .willProduce { [unowned self] path, _ in
                 guard let manifest = projectManifests[path] else {
                     throw ManifestLoaderError.manifestNotFound(.project, path)
                 }
@@ -103,7 +103,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try await stubProject(project, at: path)
 
         // When
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, project)
@@ -117,10 +117,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try await stubProject(project, at: path)
 
         // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, project)
@@ -132,12 +132,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let originalProject = Project.test(name: "Original")
         try await stubProject(originalProject, at: path)
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
         try await stubProject(modifiedProject, at: path)
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, modifiedProject)
@@ -151,12 +151,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try await stubProject(project, at: path)
         try stubHelpers(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try stubHelpers(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -172,12 +172,12 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .willReturn()
         try stubPlugins(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try stubPlugins(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -191,10 +191,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         environment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, project)
@@ -207,11 +207,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
         environment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         environment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -223,11 +223,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 1)
@@ -239,11 +239,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
         subject = createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         subject = createSubject(tuistVersion: "2.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(recordedLoadProjectCalls, 2)
@@ -254,11 +254,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try corruptFiles(at: cacheDirectory)
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, project)
@@ -271,7 +271,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: path) },
+            { try await self.subject.loadProject(at: path, disableSandbox: false) },
             ManifestLoaderError.manifestNotFound(.project, path)
         )
     }
@@ -337,7 +337,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         try await stubProject(project, at: path)
 
         // When
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result, project)
@@ -365,7 +365,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         // When/Then
         await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: path) },
+            { try await self.subject.loadProject(at: path, disableSandbox: false) },
             expectedError
         )
     }

@@ -68,15 +68,15 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project {
+    public func loadProject(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Project {
         try await load(manifest: .project, at: path) {
-            try await manifestLoader.loadProject(at: path)
+            try await manifestLoader.loadProject(at: path, disableSandbox: disableSandbox)
         }
     }
 
-    public func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace {
+    public func loadWorkspace(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Workspace {
         try await load(manifest: .workspace, at: path) {
-            try await manifestLoader.loadWorkspace(at: path)
+            try await manifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
         }
     }
 
@@ -92,9 +92,11 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings {
+    public func loadPackageSettings(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription
+        .PackageSettings
+    {
         try await load(manifest: .packageSettings, at: path) {
-            try await manifestLoader.loadPackageSettings(at: path)
+            try await manifestLoader.loadPackageSettings(at: path, disableSandbox: disableSandbox)
         }
     }
 
