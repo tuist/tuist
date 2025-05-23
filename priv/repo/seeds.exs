@@ -84,6 +84,10 @@ builds =
   Enum.map(1..2000, fn _ ->
     status = Enum.random([:success, :failure])
     is_ci = Enum.random([true, false])
+    scheme = Enum.random(["App", "AppTests"])
+    xcode_version = Enum.random(["12.4", "13.0", "13.2"])
+    macos_version = Enum.random(["11.2.3", "12.3.4", "13.4.5"])
+    model_identifier = Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
     account_id = if is_ci, do: organization.id, else: user.account.id
 
     inserted_at =
@@ -99,12 +103,13 @@ builds =
     %{
       id: UUIDv7.generate(),
       duration: Enum.random(10_000..100_000),
-      macos_version: "11.2.3",
-      xcode_version: "12.4",
+      macos_version: macos_version,
+      xcode_version: xcode_version,
       is_ci: is_ci,
-      model_identifier: "Mac15,6",
+      model_identifier: model_identifier,
       project_id: ios_app_with_frameworks_project.id,
       account_id: account_id,
+      scheme: scheme,
       inserted_at: inserted_at,
       status: status
     }

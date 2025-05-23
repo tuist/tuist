@@ -70,6 +70,26 @@ a {
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
+
+    & > [data-part="legend"] {
+      margin-right: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-xsmall);
+      width: 6px;
+      height: 16px;
+
+      &[data-color="primary"] {
+        background-color: var(--noora-chart-primary);
+      }
+
+      &[data-color="secondary"] {
+        background-color: var(--noora-chart-secondary);
+      }
+
+      &[data-color="destructive"] {
+        background-color: var(--noora-chart-destructive);
+      }
+    }
+
     & > [data-part="title"] {
       flex-grow: 1;
       color: var(--noora-surface-label-secondary);

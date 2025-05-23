@@ -7,6 +7,149 @@ defmodule Tuist.Runs.AnalyticsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  describe "builds_duration_analytics_grouped_by_category/3" do
+    test "returns duration analytics grouped by xcode_version" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "14.3.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        xcode_version: "14.3.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        xcode_version: "15.0.0",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "13.2.1",
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_duration_analytics_grouped_by_category(
+          project.id,
+          :xcode_version,
+          start_date: Date.add(DateTime.utc_now(), -30)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 2000.0, category: "13.2.1"},
+               %{value: 1500.0, category: "14.3.1"},
+               %{value: 1500.0, category: "15.0.0"}
+             ]
+    end
+
+    test "returns duration analytics grouped by model_identifier" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        model_identifier: "MacBookPro18,2",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        model_identifier: "MacBookPro18,2",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        model_identifier: "Mac14,15",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_duration_analytics_grouped_by_category(
+          project.id,
+          :model_identifier,
+          start_date: Date.add(DateTime.utc_now(), -30)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 1500.0, category: "Mac14,15"},
+               %{value: 1500.0, category: "MacBookPro18,2"}
+             ]
+    end
+
+    test "returns duration analytics grouped by macos_version" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        macos_version: "13.5.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        macos_version: "13.5.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        macos_version: "14.0.0",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_duration_analytics_grouped_by_category(
+          project.id,
+          :macos_version,
+          start_date: Date.add(DateTime.utc_now(), -30)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 1500.0, category: "13.5.1"},
+               %{value: 1500.0, category: "14.0.0"}
+             ]
+    end
+  end
+
   describe "builds_duration_analytics/2" do
     test "returns duration analytics for the last three days" do
       # Given
@@ -52,6 +195,67 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got.values == [0, 1500.0, 1500.0]
       assert got.trend == -25.0
       assert got.total_average_duration == 1500
+    end
+  end
+
+  describe "builds_percentile_durations/2" do
+    test "returns p90 duration analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1_000_000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 4000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_percentile_durations(
+          project.id,
+          0.5,
+          start_date: ~D[2024-04-28]
+        )
+
+      # Then
+      assert got.values == [0, 1500.0, 3000.0]
     end
   end
 

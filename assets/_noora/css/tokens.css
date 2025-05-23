@@ -375,6 +375,7 @@
   --noora-chart-quaternary: light-dark(var(--noora-azure-500), var(--noora-azure-400));
   --noora-chart-destructive: light-dark(var(--noora-red-400), var(--noora-red-300));
   --noora-chart-flaky: light-dark(var(--noora-yellow-600), var(--noora-yellow-400));
+  --noora-chart-p99: light-dark(var(--noora-green-500), var(--noora-green-400));
   --noora-chart-p90: light-dark(var(--noora-pink-500), var(--noora-pink-400));
   --noora-chart-p50: light-dark(var(--noora-orange-600), var(--noora-orange-400));
   --noora-chart-legend-primary: light-dark(var(--noora-purple-500), var(--noora-purple-400));

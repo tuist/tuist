@@ -22,13 +22,13 @@ defmodule TuistWeb.AppLayoutComponents do
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
       <.sidebar_item
-        label="Overview"
+        label={gettext("Overview")}
         icon="smart_home"
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
       <.sidebar_item
-        label="Test Runs"
+        label={gettext("Test Runs")}
         icon="dashboard"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
         selected={
@@ -37,7 +37,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label="Cache Runs"
+        label={gettext("Cache Runs")}
         icon="schema"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/cache-runs"}
         selected={
@@ -47,7 +47,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label="Generate Runs"
+        label={gettext("Generate Runs")}
         icon="filters"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/binary-cache/generate-runs"}
         selected={
@@ -57,7 +57,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label="Previews"
+        label={gettext("Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
         selected={
@@ -68,13 +68,25 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        label="Bundles"
+        label={gettext("Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
         selected={
           String.starts_with?(
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"
+          )
+        }
+      />
+      <.sidebar_item
+        :if={FunWithFlags.enabled?(:builds_enabled)}
+        label={gettext("Builds")}
+        icon="versions"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
           )
         }
       />

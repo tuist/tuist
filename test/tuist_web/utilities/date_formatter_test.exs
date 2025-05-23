@@ -52,4 +52,38 @@ defmodule TuistWeb.Utilities.DateFormatterTest do
       assert result == "tomorrow"
     end
   end
+
+  describe "format_duration_from_milliseconds/1" do
+    test "formats milliseconds only" do
+      assert DateFormatter.format_duration_from_milliseconds(500) == "0.5s"
+    end
+
+    test "formats seconds with milliseconds" do
+      assert DateFormatter.format_duration_from_milliseconds(5_500) == "5.5s"
+    end
+
+    test "formats minutes with seconds" do
+      assert DateFormatter.format_duration_from_milliseconds(125_000) == "2m 5s"
+    end
+
+    test "formats hours with minutes and seconds" do
+      assert DateFormatter.format_duration_from_milliseconds(7_825_000) == "2h 10m 25s"
+    end
+
+    test "formats large durations" do
+      assert DateFormatter.format_duration_from_milliseconds(12_675_400) == "3h 31m 15s"
+    end
+
+    test "omits hours when zero" do
+      assert DateFormatter.format_duration_from_milliseconds(125_400) == "2m 5s"
+    end
+
+    test "omits minutes when zero" do
+      assert DateFormatter.format_duration_from_milliseconds(3_600_500) == "1h 0.5s"
+    end
+
+    test "handles zero duration" do
+      assert DateFormatter.format_duration_from_milliseconds(0) == "0.0s"
+    end
+  end
 end

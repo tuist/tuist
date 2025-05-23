@@ -3,6 +3,7 @@
 @import "./pages/auth.css";
 @import "./pages/bundle.css";
 @import "./pages/bundles.css";
+@import "./pages/builds.css";
 @import "./pages/cache_runs.css";
 @import "./pages/error.css";
 @import "./pages/generate_runs.css";

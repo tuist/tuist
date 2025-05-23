@@ -6,9 +6,9 @@ import { parse, formatHex } from "culori";
  * @param {number} milliseconds - The elapsed time in milliseconds
  * @returns {string} Formatted time string
  */
-function formatElapsedTime(seconds) {
+function formatSeconds(seconds) {
   if (seconds < 60) {
-    return `${seconds}s`;
+    return `${Math.round(seconds * 10) / 10}s`;
   } else if (seconds == 60) {
     return "1m";
   } else if (seconds < 3600) {
@@ -34,6 +34,10 @@ function formatElapsedTime(seconds) {
   }
 }
 
+function formatMilliseconds(milliseconds) {
+  return formatSeconds(milliseconds / 1000);
+}
+
 function formatBytes(bytes) {
   if (bytes >= 1_000_000_000) {
     return `${(bytes / 1_000_000_000).toFixed(0)} GB`;
@@ -54,14 +58,18 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
-  formatElapsedTime: (el) => (value, _) => {
-    return formatElapsedTime(value);
+  formatMilliseconds: (el) => (value, _) => {
+    return formatMilliseconds(value);
+  },
+  formatSeconds: (el) => (value, _) => {
+    return formatSeconds(value);
   },
 };
 
 const tooltipFormatters = {
   formatBytes,
-  formatElapsedTime,
+  formatMilliseconds,
+  formatSeconds,
 };
 
 function locale() {
@@ -89,6 +97,7 @@ export default {
       this.chart.resize();
     };
     window.addEventListener("resize", this.resizeListener);
+    window.addEventListener("phx:resize", this.resizeListener);
   },
   updated() {
     const option = this.option();
@@ -98,11 +107,16 @@ export default {
     this.chart.dispose();
     window.removeEventListener("changed-preferred-theme", this.colorSchemeListener);
     window.removeEventListener("resize", this.resizeListener);
+    window.removeEventListener("phx:resize", this.resizeListener);
   },
   option() {
     let option = {};
     try {
       option = JSON.parse(this.el.querySelector("[data-part='data']").textContent);
+
+      if (option.legend && option.legend.textStyle && option.legend.textStyle.color) {
+        option.legend.textStyle.color = processColor(option.legend.textStyle.color);
+      }
 
       if (option.series && Array.isArray(option.series)) {
         option.series = processSeriesColors(option.series);

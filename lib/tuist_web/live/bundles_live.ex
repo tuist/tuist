@@ -11,7 +11,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Previews
   alias Tuist.Projects
 
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
+  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,
      assign(
        socket,

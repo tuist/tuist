@@ -22,6 +22,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
       is_ci: Keyword.get(attrs, :is_ci, false),
       model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+      scheme: Keyword.get(attrs, :scheme, "App"),
       project_id: project_id,
       account_id: account_id,
       inserted_at: Keyword.get(attrs, :inserted_at),

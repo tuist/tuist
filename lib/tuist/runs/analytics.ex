@@ -9,6 +9,51 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Repo
   alias Tuist.Runs.Build
 
+  def builds_duration_analytics_grouped_by_category(project_id, category, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    query =
+      where(
+        from(b in Build),
+        [b],
+        b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+          b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id
+      )
+
+    query =
+      case category do
+        :xcode_version ->
+          query
+          |> group_by([b], b.xcode_version)
+          |> select([b], %{category: b.xcode_version, value: avg(b.duration)})
+
+        :model_identifier ->
+          query
+          |> group_by([b], b.model_identifier)
+          |> select([b], %{category: b.model_identifier, value: avg(b.duration)})
+
+        :macos_version ->
+          query
+          |> group_by([b], b.macos_version)
+          |> select([b], %{category: b.macos_version, value: avg(b.duration)})
+      end
+
+    query
+    |> Repo.all()
+    |> Enum.map(
+      &%{
+        category: &1.category,
+        value:
+          case &1.value do
+            nil -> 0
+            duration when is_float(duration) -> duration
+            duration -> Decimal.to_float(duration)
+          end
+      }
+    )
+  end
+
   def builds_analytics(project_id, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
@@ -17,16 +62,19 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date, date_period, time_bucket ->
-        from(b in Build,
-          group_by: selected_as(^date_period),
-          where:
-            b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
-              b.project_id == ^project_id,
-          select: %{
-            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-            count: count(b)
-          }
+        add_filters(
+          from(b in Build,
+            group_by: selected_as(^date_period),
+            where:
+              b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id,
+            select: %{
+              date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+              count: count(b)
+            }
+          ),
+          opts
         )
       end
     })
@@ -56,12 +104,58 @@ defmodule Tuist.Runs.Analytics do
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
                 b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period), average: avg(b.duration)}
+            select: %{date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period), value: avg(b.duration)}
           ),
           opts
         )
       end
     })
+  end
+
+  def builds_percentile_durations(project_id, percentile, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    durations = fn start_date, end_date, date_period, time_bucket ->
+      add_filters(
+        from(b in Build,
+          group_by: selected_as(^date_period),
+          where:
+            b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
+          select: %{
+            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+            value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
+          }
+        ),
+        opts
+      )
+    end
+
+    # Group builds by period for trend analysis
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    durations =
+      runs_duration_per_period(%{
+        query: durations,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period,
+        time_bucket: time_bucket_for_date_period(date_period)
+      })
+
+    %{
+      dates:
+        Enum.map(
+          durations,
+          & &1.date
+        ),
+      values:
+        Enum.map(
+          durations,
+          & &1.value
+        )
+    }
   end
 
   def runs_duration_analytics(name, opts) do
@@ -91,7 +185,7 @@ defmodule Tuist.Runs.Analytics do
               e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
                 e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
                 e.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), average: avg(e.duration)}
+            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), value: avg(e.duration)}
           ),
           Keyword.put(opts, :name, name)
         )
@@ -124,7 +218,7 @@ defmodule Tuist.Runs.Analytics do
       })
 
     average_durations =
-      runs_duration_average_per_period(%{
+      runs_duration_per_period(%{
         query: average_durations,
         start_date: start_date,
         end_date: end_date,
@@ -148,7 +242,7 @@ defmodule Tuist.Runs.Analytics do
       values:
         Enum.map(
           average_durations,
-          & &1.average
+          & &1.value
         )
     }
   end
@@ -560,44 +654,45 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp runs_duration_average_per_period(%{
+  defp runs_duration_per_period(%{
          query: query,
          start_date: start_date,
          end_date: end_date,
          date_period: date_period,
          time_bucket: time_bucket
        }) do
-    averages =
+    durations =
       start_date
       |> query.(end_date, date_period, time_bucket)
       |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1.average})
+      |> Map.new(&{normalise_date(&1.date, date_period), &1.value})
 
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
     |> Enum.map(fn date ->
-      average = Map.get(averages, date)
+      duration = Map.get(durations, date)
 
       %{
         date: date,
-        average:
-          if is_nil(average) do
-            0
-          else
-            Decimal.to_float(average)
+        value:
+          case duration do
+            nil -> 0
+            duration when is_float(duration) -> duration
+            _ -> Decimal.to_float(duration)
           end
       }
     end)
   end
 
   defp add_filters(query, opts) do
-    is_ci = Keyword.get(opts, :is_ci)
+    query = query_with_is_ci_filter(query, opts)
+
+    scheme = Keyword.get(opts, :scheme)
 
     query =
-      case is_ci do
+      case scheme do
         nil -> query
-        true -> where(query, [e], e.is_ci == true)
-        false -> where(query, [e], e.is_ci == false)
+        _ -> where(query, [e], e.scheme == ^scheme)
       end
 
     status = Keyword.get(opts, :status)
@@ -609,6 +704,16 @@ defmodule Tuist.Runs.Analytics do
       end
 
     add_name_filter(query, opts)
+  end
+
+  defp query_with_is_ci_filter(query, opts) do
+    is_ci = Keyword.get(opts, :is_ci)
+
+    case is_ci do
+      nil -> query
+      true -> where(query, [e], e.is_ci == true)
+      false -> where(query, [e], e.is_ci == false)
+    end
   end
 
   defp add_name_filter(query, opts) do

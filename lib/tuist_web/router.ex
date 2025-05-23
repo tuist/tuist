@@ -543,6 +543,7 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
       live "/bundles/:bundle_id", BundleLive
+      live "/builds", BuildsLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

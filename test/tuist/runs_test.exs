@@ -106,4 +106,91 @@ defmodule Tuist.RunsTest do
       assert got_builds_second_page == [build_one]
     end
   end
+
+  describe "project_build_schemes/1" do
+    test "returns distinct schemes for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different schemes for the project
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "Framework",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create another build with a duplicate scheme (should be de-duped in the result)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build with nil scheme (should be excluded)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: nil,
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build for another project (should be excluded)
+      RunsFixtures.build_fixture(
+        project_id: other_project.id,
+        scheme: "OtherApp",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build older than 30 days (should be excluded)
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "OldScheme",
+        inserted_at: old_date
+      )
+
+      # When
+      schemes = Runs.project_build_schemes(project)
+
+      # Then
+      assert schemes == ["App", "Framework"]
+    end
+
+    test "returns an empty list when no builds exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      schemes = Runs.project_build_schemes(project)
+
+      # Then
+      assert schemes == []
+    end
+
+    test "returns an empty list when only no schemes exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create a build with nil scheme
+      {:ok, _build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: nil,
+          inserted_at: DateTime.utc_now()
+        )
+
+      # When
+      schemes = Runs.project_build_schemes(project)
+
+      # Then
+      assert schemes == []
+    end
+  end
 end

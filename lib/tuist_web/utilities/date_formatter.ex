@@ -8,4 +8,29 @@ defmodule TuistWeb.Utilities.DateFormatter do
       _ -> Timex.from_now(date)
     end
   end
+
+  def format_duration_from_milliseconds(duration_ms) do
+    duration_ms = trunc(duration_ms)
+    hours = div(duration_ms, 3_600_000)
+    remainder = rem(duration_ms, 3_600_000)
+
+    minutes = div(remainder, 60_000)
+    remainder = rem(remainder, 60_000)
+
+    seconds = div(remainder, 1_000)
+    milliseconds = rem(remainder, 1_000)
+
+    seconds_with_ms = seconds + milliseconds / 1000
+
+    parts = []
+    parts = if hours > 0, do: parts ++ ["#{hours}h"], else: parts
+    parts = if minutes > 0, do: parts ++ ["#{minutes}m"], else: parts
+
+    parts =
+      if duration_ms > 60_000 and seconds > 0,
+        do: parts ++ ["#{seconds}s"],
+        else: parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
+
+    Enum.join(parts, " ")
+  end
 end

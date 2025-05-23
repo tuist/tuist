@@ -170,7 +170,7 @@ defmodule TuistWeb.TestRunsLive do
                 &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
               ),
             name: gettext("Avg. test run duration"),
-            value_formatter: "fn:formatElapsedTime"
+            value_formatter: "fn:formatSeconds"
           }
       end
 

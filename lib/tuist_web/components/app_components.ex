@@ -26,6 +26,11 @@ defmodule TuistWeb.AppComponents do
   attr :id, :string, required: true, doc: "The id of the widget."
   attr :title, :string, required: true, doc: "The title of the widget."
 
+  attr :legend_color, :string,
+    values: ~w(primary secondary destructive),
+    required: false,
+    doc: "The color of the legend. The legend is hidden if the value is `nil`."
+
   attr :description, :string,
     required: false,
     doc: "The description of the widget value.",
@@ -79,6 +84,12 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <.card_section class="tuist-widget" id={@id}>
       <div data-part="header">
+        <div
+          :if={not is_nil(Map.get(assigns, :legend_color))}
+          data-color={@legend_color}
+          data-part="legend"
+        >
+        </div>
         <span data-part="title">{@title}</span>
         <.tooltip
           :if={@description}
@@ -104,7 +115,7 @@ defmodule TuistWeb.AppComponents do
   end
 
   attr :title, :string, required: true, doc: "The title of the legend."
-  attr :value, :string, required: true, doc: "The value associated with the legend type."
+  attr :value, :string, doc: "The value associated with the legend type.", default: nil
 
   attr :style, :string,
     required: false,
@@ -119,7 +130,7 @@ defmodule TuistWeb.AppComponents do
         <div data-part="indicator"></div>
         <span data-part="title">{@title}</span>
       </div>
-      <span data-part="value">{@value}</span>
+      <span :if={not is_nil(@value)} data-part="value">{@value}</span>
     </div>
     """
   end
