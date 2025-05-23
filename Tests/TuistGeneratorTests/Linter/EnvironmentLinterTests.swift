@@ -1,10 +1,10 @@
-import Foundation
-import Mockable
-import TuistCore
-import TuistSupport
-import Testing
 import FileSystem
 import FileSystemTesting
+import Foundation
+import Mockable
+import Testing
+import TuistCore
+import TuistSupport
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -36,7 +36,7 @@ struct EnvironmentLinterTests {
 
         // When
         let got = try await configGeneratedProjectOptions
-            .concurrentMap { try await self.subject.lintXcodeVersion(configGeneratedProjectOptions: $0) }.flatMap { $0 }
+            .concurrentMap { try await subject.lintXcodeVersion(configGeneratedProjectOptions: $0) }.flatMap { $0 }
 
         // Then
         #expect(got.isEmpty == true)
