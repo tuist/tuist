@@ -46,9 +46,6 @@ jobs:
           version: 2025.1.3
           experimental: true
 
-      - name: Install dependencies
-        run: mise run install
-
       - name: Generate manifest docs
         run: mise run docs:generate-manifests-docs
 
