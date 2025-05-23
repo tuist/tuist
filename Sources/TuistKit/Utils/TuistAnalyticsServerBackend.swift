@@ -3,8 +3,7 @@ import Foundation
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {

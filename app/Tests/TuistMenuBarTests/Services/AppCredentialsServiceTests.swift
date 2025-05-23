@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Testing
 
-import class TuistServerCore.MockServerSessionControlling
+import class TuistServer.MockServerSessionControlling
 
 @testable import TuistApp
 

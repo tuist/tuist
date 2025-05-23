@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 final class RegistryLogoutService {

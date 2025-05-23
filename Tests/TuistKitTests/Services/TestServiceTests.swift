@@ -5,8 +5,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistLoader
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 import XCTest

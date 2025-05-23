@@ -5,7 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XCTest
 

@@ -5,7 +5,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .external(name: "Path", condition: .when([.macos])),
         .project(target: "TuistSupport", path: "../", condition: .when([.macos])),
         .project(target: "TuistCore", path: "../", condition: .when([.macos])),
-        .project(target: "TuistServerCore", path: "../", condition: .when([.macos])),
+        .project(target: "TuistServer", path: "../", condition: .when([.macos])),
         .project(target: "TuistAutomation", path: "../", condition: .when([.macos])),
         .external(name: "XcodeGraph", condition: .when([.macos])),
         .external(name: "Command", condition: .when([.macos])),
@@ -88,7 +88,7 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
-                .project(target: "TuistServerCore", path: "../"),
+                .project(target: "TuistServer", path: "../"),
             ]
         ),
         .target(
