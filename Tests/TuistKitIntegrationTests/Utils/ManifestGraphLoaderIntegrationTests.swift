@@ -34,7 +34,7 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
         let path = try await temporaryFixture("WorkspaceWithPlugins")
 
         // When
-        let (result, _, _, _) = try await subject.load(path: path)
+        let (result, _, _, _) = try await subject.load(path: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result.workspace.name, "Workspace")
@@ -51,7 +51,7 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
             .appending(component: "App")
 
         // When
-        let (result, _, _, _) = try await subject.load(path: path)
+        let (result, _, _, _) = try await subject.load(path: path, disableSandbox: false)
 
         // Then
         XCTAssertEqual(result.workspace.name, "App")

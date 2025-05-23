@@ -61,7 +61,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .willReturn(())
 
         given(manifestLoader)
-            .loadPackageSettings(at: .any)
+            .loadPackageSettings(at: .any, disableSandbox: .any)
             .willReturn(.test())
 
         given(swiftPackageManagerController)
@@ -69,7 +69,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .willReturn("5.4.9")
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins, disableSandbox: false)
 
         // Then
         let expected: TuistCore.PackageSettings = .init(

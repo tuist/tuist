@@ -62,23 +62,29 @@ public protocol ManifestLoading {
     func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config
 
     /// Loads the Project.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the Project.swift.
+    ///   - disableSandbox: Whether to disable loading the manifest in a sandboxed environment.
+    func loadProject(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Workspace.swift
-    func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the Workspace.swift.
+    ///   - disableSandbox: Whether to disable loading the manifest in a sandboxed environment.
+    func loadWorkspace(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Workspace
 
     /// Loads the name_of_template.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template
 
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
-    /// -  path: Path to the directory that contains Package.swift
-    func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings
+    /// - Parameters:
+    ///   - path: Path to the directory that contains Package.swift
+    ///   - disableSandbox: Whether to disable loading the manifest in a sandboxed environment.
+    func loadPackageSettings(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.PackageSettings
 
     /// Loads `Package.swift`
-    /// - path: Path to the directory that contains Package.swift
+    /// - Parameter path: Path to the directory that contains Package.swift
     func loadPackage(at path: AbsolutePath) async throws -> PackageInfo
 
     /// Loads the Plugin.swift in the given directory.
@@ -120,6 +126,7 @@ public class ManifestLoader: ManifestLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     // MARK: - Init
 
@@ -132,7 +139,8 @@ public class ManifestLoader: ManifestLoading {
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
             swiftPackageManagerController: SwiftPackageManagerController(),
-            packageInfoLoader: PackageInfoLoader()
+            packageInfoLoader: PackageInfoLoader(),
+            rootDirectoryLocator: RootDirectoryLocator()
         )
     }
 
@@ -145,7 +153,8 @@ public class ManifestLoader: ManifestLoading {
         xcodeController: XcodeControlling,
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -156,6 +165,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
         decoder = JSONDecoder()
     }
 
@@ -176,30 +186,30 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
-        try await loadManifest(.config, at: path)
+        try await loadManifest(.config, at: path, disableSandbox: false)
     }
 
-    public func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project {
-        try await loadManifest(.project, at: path)
+    public func loadProject(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Project {
+        try await loadManifest(.project, at: path, disableSandbox: disableSandbox)
     }
 
-    public func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace {
-        try await loadManifest(.workspace, at: path)
+    public func loadWorkspace(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Workspace {
+        try await loadManifest(.workspace, at: path, disableSandbox: disableSandbox)
     }
 
     public func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template {
-        try await loadManifest(.template, at: path)
+        try await loadManifest(.template, at: path, disableSandbox: true)
     }
 
     public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await packageInfoLoader.loadPackageInfo(
-            at: path
-        )
+        try await packageInfoLoader.loadPackageInfo(at: path)
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings {
+    public func loadPackageSettings(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription
+        .PackageSettings
+    {
         do {
-            return try await loadManifest(.packageSettings, at: path)
+            return try await loadManifest(.packageSettings, at: path, disableSandbox: disableSandbox)
         } catch let error as ManifestLoaderError {
             switch error {
             case let .manifestLoadingFailed(path: _, data: data, context: _):
@@ -215,7 +225,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadPlugin(at path: AbsolutePath) async throws -> ProjectDescription.Plugin {
-        try await loadManifest(.plugin, at: path)
+        try await loadManifest(.plugin, at: path, disableSandbox: true)
     }
 
     public func register(plugins: Plugins) throws {
@@ -227,14 +237,15 @@ public class ManifestLoader: ManifestLoading {
     // swiftlint:disable:next function_body_length
     private func loadManifest<T: Decodable>(
         _ manifest: Manifest,
-        at path: AbsolutePath
+        at path: AbsolutePath,
+        disableSandbox: Bool
     ) async throws -> T {
         let manifestPath = try await manifestPath(
             manifest,
             at: path
         )
 
-        let data = try await loadDataForManifest(manifest, at: manifestPath)
+        let data = try await loadDataForManifest(manifest, at: manifestPath, disableSandbox: disableSandbox)
 
         do {
             return try decoder.decode(T.self, from: data)
@@ -317,11 +328,13 @@ public class ManifestLoader: ManifestLoading {
 
     private func loadDataForManifest(
         _ manifest: Manifest,
-        at path: AbsolutePath
+        at path: AbsolutePath,
+        disableSandbox: Bool
     ) async throws -> Data {
         let arguments = try await buildArguments(
             manifest,
-            at: path
+            at: path,
+            disableSandbox: disableSandbox
         ) + ["--tuist-dump"]
 
         do {
@@ -351,7 +364,8 @@ public class ManifestLoader: ManifestLoading {
     // swiftlint:disable:next function_body_length
     private func buildArguments(
         _ manifest: Manifest,
-        at path: AbsolutePath
+        at path: AbsolutePath,
+        disableSandbox: Bool
     ) async throws -> [String] {
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
@@ -379,7 +393,7 @@ public class ManifestLoader: ManifestLoading {
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .projectDescriptionHelpers)
 
-        let projectDescriptionHelperArguments: [String] = try await {
+        let projectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = try await {
             switch manifest {
             case .config, .plugin, .package:
                 return []
@@ -394,14 +408,15 @@ public class ManifestLoader: ManifestLoading {
                     at: path,
                     projectDescriptionSearchPaths: searchPaths,
                     projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                ).flatMap { [
-                    "-I", $0.path.parentDirectory.pathString,
-                    "-L", $0.path.parentDirectory.pathString,
-                    "-F", $0.path.parentDirectory.pathString,
-                    "-l\($0.name)",
-                ] }
+                )
             }
         }()
+        let projectDescriptionHelperArguments = projectDescriptionHelperModules.flatMap { [
+            "-I", $0.path.parentDirectory.pathString,
+            "-L", $0.path.parentDirectory.pathString,
+            "-F", $0.path.parentDirectory.pathString,
+            "-l\($0.name)",
+        ] }
 
         let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
@@ -428,7 +443,61 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(contentsOf: packageDescriptionArguments)
         arguments.append(path.pathString)
 
-        return arguments
+        if !disableSandbox {
+            #if os(macOS)
+                let profile = try macOSSandboxProfile(
+                    readOnlyPaths: [
+                        path,
+                        try await xcodeController.selected().path,
+                        searchPaths.includeSearchPath,
+                        searchPaths.librarySearchPath,
+                        searchPaths.frameworkSearchPath,
+                    ] +
+                        projectDescriptionHelperModules.map(\.path.parentDirectory),
+                    disallowedPaths: [
+                        try? await rootDirectoryLocator.locate(from: path),
+                    ].compactMap { $0 }
+                )
+                return ["/usr/bin/sandbox-exec", "-p", profile] + arguments
+            #else
+                return arguments
+            #endif
+        } else {
+            return arguments
+        }
+    }
+
+    private func macOSSandboxProfile(
+        readOnlyPaths: [AbsolutePath],
+        disallowedPaths: [AbsolutePath]
+    ) throws -> String {
+        try """
+        (version 1)
+
+        ; Deny all operations by default unless explicitly allowed
+        (deny default)
+
+        ; Import base system rules
+        (import "system.sb")
+
+        ; Allow process operations (fork, exec, etc.)
+        (allow process*)
+        ; Allow querying information about the current process
+        (allow process-info* (target self))
+
+        ; Allow reading file metadata (permissions, size, etc.)
+        (allow file-read-metadata)
+
+        ; Allow reading and writing temporary and intermediate build files and caches
+        (allow file-read* file-write* (subpath "/private/tmp/"))
+        (allow file-read* file-write* (subpath "/private/var/"))
+
+        ; Deny reading from specified paths
+        \(Set(disallowedPaths).map { "(deny file-read* (subpath \"\(try $0.realPath)\"))" }.joined(separator: "\n"))
+
+        ; Allow reading from specified paths
+        \(Set(readOnlyPaths).map { "(allow file-read* (subpath \"\(try $0.realPath)\"))" }.joined(separator: "\n"))
+        """
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
@@ -457,5 +526,19 @@ public class ManifestLoader: ManifestLoading {
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }
 
         Logger.current.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
+    }
+}
+
+extension AbsolutePath {
+    fileprivate var realPath: Self {
+        get throws {
+            if pathString.starts(with: "/var") || pathString.starts(with: "/tmp") {
+                return try AbsolutePath(validating: "/private" + pathString)
+            }
+            if let resolved = try? FileManager.default.destinationOfSymbolicLink(atPath: pathString) {
+                return try AbsolutePath(validating: resolved)
+            }
+            return self
+        }
     }
 }

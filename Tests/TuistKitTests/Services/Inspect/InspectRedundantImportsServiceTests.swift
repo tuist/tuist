@@ -56,7 +56,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
             given(configLoader).loadConfig(path: .value(path)).willReturn(config)
             given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
-            given(generator).load(path: .value(path)).willReturn(graph)
+            given(generator).load(path: .value(path), disableSandbox: .any).willReturn(graph)
             given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
             given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
@@ -95,7 +95,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
-        given(generator).load(path: .value(path)).willReturn(graph)
+        given(generator).load(path: .value(path), disableSandbox: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn([])
 
         // When / Then
@@ -117,7 +117,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
-        given(generator).load(path: .value(path)).willReturn(graph)
+        given(generator).load(path: .value(path), disableSandbox: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 

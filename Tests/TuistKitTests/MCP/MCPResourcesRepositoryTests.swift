@@ -79,7 +79,12 @@ struct MCPResourcesRepositoryTests {
                 given(configLoader).loadConfig(path: .value(temporaryDirectory))
                     .willReturn(Tuist.test(project: .testGeneratedProject()))
                 given(manifestLoader).hasRootManifest(at: .value(temporaryDirectory)).willReturn(true)
-                given(manifestGraphLoader).load(path: .value(temporaryDirectory)).willReturn((graph, [], .init(), []))
+                given(manifestGraphLoader).load(path: .value(temporaryDirectory), disableSandbox: .any).willReturn((
+                    graph,
+                    [],
+                    .init(),
+                    []
+                ))
 
                 // When
                 let got = try await subject.read(.init(uri: "tuist://\(temporaryDirectory.pathString)"))

@@ -187,6 +187,7 @@ final class DumpServiceTests: TuistTestCase {
                   "generationOptions": {
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
+                    "disableSandbox": false,
                     "enforceExplicitDependencies": false,
                     "optionalAuthentication": false,
                     "resolveDependenciesWithSystemScm": false,

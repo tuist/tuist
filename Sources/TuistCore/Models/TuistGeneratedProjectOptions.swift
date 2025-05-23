@@ -27,6 +27,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let defaultConfiguration: String?
         public var optionalAuthentication: Bool
         public let buildInsightsDisabled: Bool
+        public let disableSandbox: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -36,7 +37,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool
+            buildInsightsDisabled: Bool,
+            disableSandbox: Bool
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -46,6 +48,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.defaultConfiguration = defaultConfiguration
             self.optionalAuthentication = optionalAuthentication
             self.buildInsightsDisabled = buildInsightsDisabled
+            self.disableSandbox = disableSandbox
         }
     }
 
@@ -86,7 +89,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
-                buildInsightsDisabled: true
+                buildInsightsDisabled: true,
+                disableSandbox: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
         )
@@ -122,7 +126,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool = true
+            buildInsightsDisabled: Bool = true,
+            disableSandbox: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -132,7 +137,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
-                buildInsightsDisabled: buildInsightsDisabled
+                buildInsightsDisabled: buildInsightsDisabled,
+                disableSandbox: disableSandbox
             )
         }
     }

@@ -14,9 +14,9 @@ import XcodeGraph
 @Mockable
 public protocol Generating {
     @discardableResult
-    func load(path: AbsolutePath) async throws -> Graph
-    func generate(path: AbsolutePath) async throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment)
+    func load(path: AbsolutePath, disableSandbox: Bool) async throws -> Graph
+    func generate(path: AbsolutePath, disableSandbox: Bool) async throws -> AbsolutePath
+    func generateWithGraph(path: AbsolutePath, disableSandbox: Bool) async throws -> (AbsolutePath, Graph, MapperEnvironment)
 }
 
 public class Generator: Generating {
@@ -44,13 +44,16 @@ public class Generator: Generating {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    public func generate(path: AbsolutePath) async throws -> AbsolutePath {
-        let (generatedPath, _, _) = try await generateWithGraph(path: path)
+    public func generate(path: AbsolutePath, disableSandbox: Bool) async throws -> AbsolutePath {
+        let (generatedPath, _, _) = try await generateWithGraph(path: path, disableSandbox: disableSandbox)
         return generatedPath
     }
 
-    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
-        let (graph, sideEffects, environment) = try await load(path: path)
+    public func generateWithGraph(
+        path: AbsolutePath,
+        disableSandbox: Bool
+    ) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
+        let (graph, sideEffects, environment) = try await load(path: path, disableSandbox: disableSandbox)
 
         // Load
         let graphTraverser = GraphTraverser(graph: graph)
@@ -81,15 +84,18 @@ public class Generator: Generating {
         return (workspaceDescriptor.xcworkspacePath, graph, environment)
     }
 
-    public func load(path: AbsolutePath) async throws -> Graph {
-        try await load(path: path).0
+    public func load(path: AbsolutePath, disableSandbox: Bool) async throws -> Graph {
+        try await load(path: path, disableSandbox: disableSandbox).0
     }
 
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    func load(path: AbsolutePath, disableSandbox: Bool) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current.notice("Loading and constructing the graph", metadata: .section)
         Logger.current.notice("It might take a while if the cache is empty")
 
-        let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
+        let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(
+            path: path,
+            disableSandbox: disableSandbox
+        )
 
         lintingIssues.append(contentsOf: issues)
         return (graph, sideEffectDescriptors, environment)

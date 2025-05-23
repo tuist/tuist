@@ -8,10 +8,16 @@ import TuistSupport
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {
     /// Load the Dependencies model at the specified path.
-    /// - Parameter path: The absolute path for the `PackageSettings` to load.
-    /// - Parameter plugins: The plugins for the `PackageSettings` to load.
+    /// - Parameters:
+    ///   - path: The absolute path for the `PackageSettings` to load.
+    ///   - plugins: The plugins for the `PackageSettings` to load.
+    ///   - disableSandbox: Whether to disable loading the manifest in a sandboxed environment.
     /// - Returns: The `PackageSettings` loaded from the specified path.
-    func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) async throws -> TuistCore.PackageSettings
+    func loadPackageSettings(
+        at path: AbsolutePath,
+        with plugins: Plugins,
+        disableSandbox: Bool
+    ) async throws -> TuistCore.PackageSettings
 }
 
 public final class PackageSettingsLoader: PackageSettingsLoading {
@@ -32,10 +38,14 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) async throws -> TuistCore.PackageSettings {
+    public func loadPackageSettings(
+        at path: AbsolutePath,
+        with plugins: Plugins,
+        disableSandbox: Bool
+    ) async throws -> TuistCore.PackageSettings {
         let path = try await manifestFilesLocator.locatePackageManifest(at: path)?.parentDirectory ?? path
         try manifestLoader.register(plugins: plugins)
-        let manifest = try await manifestLoader.loadPackageSettings(at: path)
+        let manifest = try await manifestLoader.loadPackageSettings(at: path, disableSandbox: disableSandbox)
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: path,

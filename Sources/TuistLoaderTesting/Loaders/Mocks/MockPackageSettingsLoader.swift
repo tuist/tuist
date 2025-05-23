@@ -9,16 +9,20 @@ public class MockPackageSettingsLoader: PackageSettingsLoading {
 
     public var invokedLoadPackageSettings = false
     public var invokedLoadPackageSettingsCount = 0
-    public var invokedLoadPackageSettingsParameters: (AbsolutePath, Plugins)?
-    public var invokedLoadPackageSettingsParemetersList = [(AbsolutePath, Plugins)]()
-    public var loadPackageSettingsStub: ((AbsolutePath, Plugins) throws -> PackageSettings)?
+    public var invokedLoadPackageSettingsParameters: (AbsolutePath, Plugins, Bool)?
+    public var invokedLoadPackageSettingsParemetersList = [(AbsolutePath, Plugins, Bool)]()
+    public var loadPackageSettingsStub: ((AbsolutePath, Plugins, Bool) throws -> PackageSettings)?
 
-    public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> PackageSettings {
+    public func loadPackageSettings(
+        at path: AbsolutePath,
+        with plugins: Plugins,
+        disableSandbox: Bool
+    ) throws -> PackageSettings {
         invokedLoadPackageSettings = true
         invokedLoadPackageSettingsCount += 1
-        invokedLoadPackageSettingsParameters = (path, plugins)
-        invokedLoadPackageSettingsParemetersList.append((path, plugins))
+        invokedLoadPackageSettingsParameters = (path, plugins, disableSandbox)
+        invokedLoadPackageSettingsParemetersList.append((path, plugins, disableSandbox))
 
-        return try loadPackageSettingsStub?(path, plugins) ?? PackageSettings.test()
+        return try loadPackageSettingsStub?(path, plugins, disableSandbox) ?? PackageSettings.test()
     }
 }

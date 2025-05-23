@@ -236,9 +236,15 @@ struct RunCommandService {
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {
             Logger.current.notice("Generating project for running", metadata: .section)
-            graph = try await generator.generateWithGraph(path: path).1
+            graph = try await generator.generateWithGraph(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            ).1
         } else {
-            graph = try await generator.load(path: path)
+            graph = try await generator.load(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         }
 
         guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
