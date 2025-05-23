@@ -1,12 +1,12 @@
 import Foundation
 import Mockable
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistCache
 

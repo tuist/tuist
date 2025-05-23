@@ -21,7 +21,7 @@ public protocol XcodeControlling: Sendable {
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
     @TaskLocal public static var current: XcodeControlling = XcodeController()
-    
+
     public init() {}
 
     /// Cached response of `xcode-select` command

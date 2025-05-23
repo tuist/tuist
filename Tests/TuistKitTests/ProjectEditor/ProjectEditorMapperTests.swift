@@ -1,14 +1,14 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TSCUtility
 import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeGraph
-import Testing
-import FileSystem
-import FileSystemTesting
 
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -18,7 +18,7 @@ struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
-    init() {
+    init() throws {
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
             .swiftVersion()
@@ -53,7 +53,7 @@ struct ProjectEditorMapperTests {
         given(swiftPackageManagerController)
             .getToolsVersion(at: .any)
             .willReturn("5.5.0")
-        
+
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
             .selected()
@@ -82,24 +82,25 @@ struct ProjectEditorMapperTests {
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        #expect(graph.name ==  "TestManifests")
+        #expect(graph.name == "TestManifests")
 
-        #expect(targets.count ==  9)
+        #expect(targets.count == 9)
 
         // Generated Manifests target
         let manifestsTarget = try #require(
             project.targets.values.sorted()
                 .first(where: { $0.name == sourceRootPath.basename + projectName })
         )
-        #expect(targets.last ==  manifestsTarget)
+        #expect(targets.last == manifestsTarget)
 
-        #expect(manifestsTarget.destinations ==  .macOS)
-        #expect(manifestsTarget.product ==  .staticFramework)
-        #expect(            manifestsTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(manifestsTarget.destinations == .macOS)
+        #expect(manifestsTarget.product == .staticFramework)
+        #expect(
+            manifestsTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
-        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
+        #expect(manifestsTarget.filesGroup == projectsGroup)
         #expect(Set(manifestsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
             .target(name: "PluginTwo"),
@@ -110,14 +111,15 @@ struct ProjectEditorMapperTests {
         let helpersTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "ProjectDescriptionHelpers" }))
         #expect(targets.contains(helpersTarget) == true)
 
-        #expect(helpersTarget.name ==  "ProjectDescriptionHelpers")
-        #expect(helpersTarget.destinations ==  .macOS)
-        #expect(helpersTarget.product ==  .staticFramework)
-        #expect(            helpersTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(helpersTarget.name == "ProjectDescriptionHelpers")
+        #expect(helpersTarget.destinations == .macOS)
+        #expect(helpersTarget.product == .staticFramework)
+        #expect(
+            helpersTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(helpersTarget.sources.map(\.path) ==  helperPaths)
-        #expect(helpersTarget.filesGroup ==  projectsGroup)
+        #expect(helpersTarget.sources.map(\.path) == helperPaths)
+        #expect(helpersTarget.filesGroup == projectsGroup)
         #expect(Set(manifestsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
             .target(name: "PluginTwo"),
@@ -128,15 +130,16 @@ struct ProjectEditorMapperTests {
         let templatesTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Templates" }))
         #expect(targets.contains(templatesTarget) == true)
 
-        #expect(templatesTarget.name ==  "Templates")
-        #expect(templatesTarget.destinations ==  .macOS)
-        #expect(templatesTarget.product ==  .staticFramework)
-        #expect(            templatesTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(templatesTarget.name == "Templates")
+        #expect(templatesTarget.destinations == .macOS)
+        #expect(templatesTarget.product == .staticFramework)
+        #expect(
+            templatesTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(templatesTarget.sources.map(\.path) ==  templates)
-        #expect(templatesTarget.additionalFiles.map(\.path) ==  templateResource)
-        #expect(templatesTarget.filesGroup ==  projectsGroup)
+        #expect(templatesTarget.sources.map(\.path) == templates)
+        #expect(templatesTarget.additionalFiles.map(\.path) == templateResource)
+        #expect(templatesTarget.filesGroup == projectsGroup)
         #expect(Set(templatesTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
@@ -148,14 +151,15 @@ struct ProjectEditorMapperTests {
         )
         #expect(targets.contains(resourceSynthesizersTarget) == true)
 
-        #expect(resourceSynthesizersTarget.name ==  "ResourceSynthesizers")
-        #expect(resourceSynthesizersTarget.destinations ==  .macOS)
-        #expect(resourceSynthesizersTarget.product ==  .staticFramework)
-        #expect(            resourceSynthesizersTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(resourceSynthesizersTarget.name == "ResourceSynthesizers")
+        #expect(resourceSynthesizersTarget.destinations == .macOS)
+        #expect(resourceSynthesizersTarget.product == .staticFramework)
+        #expect(
+            resourceSynthesizersTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(resourceSynthesizersTarget.additionalFiles.map(\.path) ==  resourceSynthesizers)
-        #expect(resourceSynthesizersTarget.filesGroup ==  projectsGroup)
+        #expect(resourceSynthesizersTarget.additionalFiles.map(\.path) == resourceSynthesizers)
+        #expect(resourceSynthesizersTarget.filesGroup == projectsGroup)
         #expect(Set(resourceSynthesizersTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
@@ -164,14 +168,15 @@ struct ProjectEditorMapperTests {
         let stencilsTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Stencils" }))
         #expect(targets.contains(stencilsTarget) == true)
 
-        #expect(stencilsTarget.name ==  "Stencils")
-        #expect(stencilsTarget.destinations ==  .macOS)
-        #expect(stencilsTarget.product ==  .staticFramework)
-        #expect(            stencilsTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(stencilsTarget.name == "Stencils")
+        #expect(stencilsTarget.destinations == .macOS)
+        #expect(stencilsTarget.product == .staticFramework)
+        #expect(
+            stencilsTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(stencilsTarget.sources.map(\.path) ==  stencils)
-        #expect(stencilsTarget.filesGroup ==  projectsGroup)
+        #expect(stencilsTarget.sources.map(\.path) == stencils)
+        #expect(stencilsTarget.filesGroup == projectsGroup)
         #expect(Set(stencilsTarget.dependencies) == Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
@@ -180,23 +185,24 @@ struct ProjectEditorMapperTests {
         let configTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Config" }))
         #expect(targets.contains(configTarget) == true)
 
-        #expect(configTarget.name ==  "Config")
-        #expect(configTarget.destinations ==  .macOS)
-        #expect(configTarget.product ==  .staticFramework)
-        #expect(            configTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(configTarget.name == "Config")
+        #expect(configTarget.destinations == .macOS)
+        #expect(configTarget.product == .staticFramework)
+        #expect(
+            configTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(configTarget.sources.map(\.path) ==  [configPath])
-        #expect(configTarget.filesGroup ==  projectsGroup)
+        #expect(configTarget.sources.map(\.path) == [configPath])
+        #expect(configTarget.filesGroup == projectsGroup)
         #expect(configTarget.dependencies.isEmpty == true)
 
         // Generated Packages target
         let packagesTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Packages" }))
         #expect(targets.contains(packagesTarget) == true)
 
-        #expect(packagesTarget.name ==  "Packages")
-        #expect(packagesTarget.destinations ==  .macOS)
-        #expect(packagesTarget.product ==  .staticFramework)
+        #expect(packagesTarget.name == "Packages")
+        #expect(packagesTarget.destinations == .macOS)
+        #expect(packagesTarget.product == .staticFramework)
         var expectedPackagesSettings = expectedSettings(includePaths: [
             projectDescriptionPath,
             projectDescriptionPath.parentDirectory,
@@ -224,35 +230,36 @@ struct ProjectEditorMapperTests {
                 }
             )
         )
-        #expect(            packagesTarget.settings ==
-            expectedPackagesSettings
+        #expect(
+            packagesTarget.settings ==
+                expectedPackagesSettings
         )
-        #expect(packagesTarget.dependencies ==  [.target(name: "ProjectDescriptionHelpers")])
-        #expect(packagesTarget.sources.map(\.path) ==  [packageManifestPath])
-        #expect(packagesTarget.filesGroup ==  projectsGroup)
+        #expect(packagesTarget.dependencies == [.target(name: "ProjectDescriptionHelpers")])
+        #expect(packagesTarget.sources.map(\.path) == [packageManifestPath])
+        #expect(packagesTarget.filesGroup == projectsGroup)
 
         // Generated Project
-        #expect(project.path ==  sourceRootPath.appending(component: projectName))
-        #expect(project.name ==  projectName)
+        #expect(project.path == sourceRootPath.appending(component: projectName))
+        #expect(project.name == projectName)
         #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(project.filesGroup ==  projectsGroup)
+        #expect(project.filesGroup == projectsGroup)
 
         // Generated Scheme
-        #expect(project.schemes.count ==  1)
+        #expect(project.schemes.count == 1)
         let scheme = try #require(project.schemes.first)
-        #expect(scheme.name ==  projectName)
+        #expect(scheme.name == projectName)
 
         let buildAction = try #require(scheme.buildAction)
-        #expect(buildAction.targets.lazy.map(\.name).sorted() ==  project.targets.values.map(\.name).sorted())
+        #expect(buildAction.targets.lazy.map(\.name).sorted() == project.targets.values.map(\.name).sorted())
 
         let runAction = try #require(scheme.runAction)
-        #expect(runAction.filePath ==  tuistPath)
+        #expect(runAction.filePath == tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
     @Test func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
@@ -291,7 +298,7 @@ struct ProjectEditorMapperTests {
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        #expect(targets.count ==  1)
+        #expect(targets.count == 1)
         #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated Manifests target
@@ -300,37 +307,38 @@ struct ProjectEditorMapperTests {
                 .last(where: { $0.name == sourceRootPath.basename + projectName })
         )
 
-        #expect(manifestsTarget.destinations ==  .macOS)
-        #expect(manifestsTarget.product ==  .staticFramework)
-        #expect(            manifestsTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(manifestsTarget.destinations == .macOS)
+        #expect(manifestsTarget.product == .staticFramework)
+        #expect(
+            manifestsTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
-        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
+        #expect(manifestsTarget.filesGroup == projectsGroup)
         #expect(manifestsTarget.dependencies.isEmpty)
 
         // Generated Project
-        #expect(project.path ==  sourceRootPath.appending(component: projectName))
-        #expect(project.name ==  projectName)
+        #expect(project.path == sourceRootPath.appending(component: projectName))
+        #expect(project.name == projectName)
         #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(project.filesGroup ==  projectsGroup)
+        #expect(project.filesGroup == projectsGroup)
 
         // Generated Scheme
-        #expect(project.schemes.count ==  1)
+        #expect(project.schemes.count == 1)
         let scheme = try #require(project.schemes.first)
-        #expect(scheme.name ==  projectName)
+        #expect(scheme.name == projectName)
 
         let buildAction = try #require(scheme.buildAction)
-        #expect(buildAction.targets.map(\.name) ==  targets.map(\.name))
+        #expect(buildAction.targets.map(\.name) == targets.map(\.name))
 
         let runAction = try #require(scheme.runAction)
-        #expect(runAction.filePath ==  tuistPath)
+        #expect(runAction.filePath == tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
     @Test func test_tuist_edit_with_more_than_one_manifest() async throws {
@@ -374,20 +382,21 @@ struct ProjectEditorMapperTests {
 
         // Then
 
-        #expect(targets.count ==  3)
+        #expect(targets.count == 3)
         #expect(targets.flatMap(\.dependencies).isEmpty == true)
 
         // Generated Manifests target
         let manifestOneTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "ModuleManifests" }))
 
-        #expect(manifestOneTarget.name ==  "ModuleManifests")
-        #expect(manifestOneTarget.destinations ==  .macOS)
-        #expect(manifestOneTarget.product ==  .staticFramework)
-        #expect(            manifestOneTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(manifestOneTarget.name == "ModuleManifests")
+        #expect(manifestOneTarget.destinations == .macOS)
+        #expect(manifestOneTarget.product == .staticFramework)
+        #expect(
+            manifestOneTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(manifestOneTarget.sources.map(\.path) ==  [try #require(projectManifestPaths.last)])
-        #expect(manifestOneTarget.filesGroup ==  .group(name: projectName))
+        #expect(manifestOneTarget.sources.map(\.path) == [try #require(projectManifestPaths.last)])
+        #expect(manifestOneTarget.filesGroup == .group(name: projectName))
         #expect(manifestOneTarget.dependencies.isEmpty == true)
 
         // Generated Manifests target
@@ -396,50 +405,52 @@ struct ProjectEditorMapperTests {
                 .last(where: { $0.name == "\(sourceRootPath.basename)Manifests" })
         )
 
-        #expect(manifestTwoTarget.destinations ==  .macOS)
-        #expect(manifestTwoTarget.product ==  .staticFramework)
-        #expect(            manifestTwoTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(manifestTwoTarget.destinations == .macOS)
+        #expect(manifestTwoTarget.product == .staticFramework)
+        #expect(
+            manifestTwoTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(manifestTwoTarget.sources.map(\.path) ==  [try #require(projectManifestPaths.first)])
-        #expect(manifestTwoTarget.filesGroup ==  .group(name: projectName))
+        #expect(manifestTwoTarget.sources.map(\.path) == [try #require(projectManifestPaths.first)])
+        #expect(manifestTwoTarget.filesGroup == .group(name: projectName))
         #expect(manifestTwoTarget.dependencies.isEmpty == true)
 
         // Generated Config target
         let configTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "Config" }))
 
-        #expect(configTarget.name ==  "Config")
-        #expect(configTarget.destinations ==  .macOS)
-        #expect(configTarget.product ==  .staticFramework)
-        #expect(            configTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(configTarget.name == "Config")
+        #expect(configTarget.destinations == .macOS)
+        #expect(configTarget.product == .staticFramework)
+        #expect(
+            configTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(configTarget.sources.map(\.path) ==  [configPath])
-        #expect(configTarget.filesGroup ==  .group(name: projectName))
+        #expect(configTarget.sources.map(\.path) == [configPath])
+        #expect(configTarget.filesGroup == .group(name: projectName))
         #expect(configTarget.dependencies.isEmpty == true)
 
         // Generated Project
-        #expect(project.path ==  sourceRootPath.appending(component: projectName))
-        #expect(project.name ==  projectName)
+        #expect(project.path == sourceRootPath.appending(component: projectName))
+        #expect(project.name == projectName)
         #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(project.filesGroup ==  .group(name: projectName))
+        #expect(project.filesGroup == .group(name: projectName))
 
         // Generated Scheme
-        #expect(project.schemes.count ==  1)
+        #expect(project.schemes.count == 1)
         let scheme = try #require(project.schemes.first)
-        #expect(scheme.name ==  projectName)
+        #expect(scheme.name == projectName)
 
         let buildAction = try #require(scheme.buildAction)
-        #expect(buildAction.targets.map(\.name).sorted() ==  targets.map(\.name).sorted())
+        #expect(buildAction.targets.map(\.name).sorted() == targets.map(\.name).sorted())
 
         let runAction = try #require(scheme.runAction)
-        #expect(runAction.filePath ==  tuistPath)
+        #expect(runAction.filePath == tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument,  isEnabled: true)]))
+        #expect(runAction.arguments == Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
     }
 
     @Test func test_tuist_edit_with_one_plugin_no_projects() async throws {
@@ -480,41 +491,42 @@ struct ProjectEditorMapperTests {
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        #expect(targets.count ==  1)
+        #expect(targets.count == 1)
         #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated Plugin target
         let pluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == sourceRootPath.basename }))
 
-        #expect(pluginTarget.destinations ==  .macOS)
-        #expect(pluginTarget.product ==  .staticFramework)
-        #expect(            pluginTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(pluginTarget.destinations == .macOS)
+        #expect(pluginTarget.product == .staticFramework)
+        #expect(
+            pluginTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(pluginTarget.sources.map(\.path) ==  pluginManifestPaths)
-        #expect(pluginTarget.filesGroup ==  projectsGroup)
+        #expect(pluginTarget.sources.map(\.path) == pluginManifestPaths)
+        #expect(pluginTarget.filesGroup == projectsGroup)
         #expect(pluginTarget.dependencies.isEmpty)
 
         // Generated Project
-        #expect(project.path ==  sourceRootPath.appending(component: projectName))
-        #expect(project.name ==  projectName)
+        #expect(project.path == sourceRootPath.appending(component: projectName))
+        #expect(project.name == projectName)
         #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(project.filesGroup ==  projectsGroup)
+        #expect(project.filesGroup == projectsGroup)
 
         // Generated Schemes
-        #expect(project.schemes.count ==  2)
+        #expect(project.schemes.count == 2)
         let schemes = project.schemes
-        #expect(schemes.map(\.name).sorted() == [pluginTarget.name,  "Plugins"].sorted())
+        #expect(schemes.map(\.name).sorted() == [pluginTarget.name, "Plugins"].sorted())
 
         let pluginBuildAction = try #require(schemes.first?.buildAction)
-        #expect(pluginBuildAction.targets.map(\.name) ==  [pluginTarget.name])
+        #expect(pluginBuildAction.targets.map(\.name) == [pluginTarget.name])
 
         let allPluginsBuildAction = try #require(schemes.last?.buildAction)
-        #expect(allPluginsBuildAction.targets.map(\.name).sorted() ==  targets.map(\.name).sorted())
+        #expect(allPluginsBuildAction.targets.map(\.name).sorted() == targets.map(\.name).sorted())
     }
 
     @Test func test_tuist_edit_with_more_than_one_plugin_no_projects() async throws {
@@ -558,61 +570,66 @@ struct ProjectEditorMapperTests {
         let targets = graph.projects.values.flatMap(\.targets.values).sorted(by: { $0.name < $1.name })
 
         // Then
-        #expect(targets.count ==  2)
+        #expect(targets.count == 2)
         #expect(targets.flatMap(\.dependencies).isEmpty)
 
         // Generated first plugin target
         let firstPluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "A" }))
 
-        #expect(firstPluginTarget.destinations ==  .macOS)
-        #expect(firstPluginTarget.product ==  .staticFramework)
-        #expect(            firstPluginTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(firstPluginTarget.destinations == .macOS)
+        #expect(firstPluginTarget.product == .staticFramework)
+        #expect(
+            firstPluginTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(firstPluginTarget.sources.map(\.path) ==  [pluginManifestPaths[0]])
-        #expect(firstPluginTarget.filesGroup ==  projectsGroup)
+        #expect(firstPluginTarget.sources.map(\.path) == [pluginManifestPaths[0]])
+        #expect(firstPluginTarget.filesGroup == projectsGroup)
         #expect(firstPluginTarget.dependencies.isEmpty)
 
         // Generated second plugin target
         let secondPluginTarget = try #require(project.targets.values.sorted().last(where: { $0.name == "B" }))
 
-        #expect(secondPluginTarget.destinations ==  .macOS)
-        #expect(secondPluginTarget.product ==  .staticFramework)
-        #expect(            secondPluginTarget.settings ==
-            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        #expect(secondPluginTarget.destinations == .macOS)
+        #expect(secondPluginTarget.product == .staticFramework)
+        #expect(
+            secondPluginTarget.settings ==
+                expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        #expect(secondPluginTarget.sources.map(\.path) ==  [pluginManifestPaths[1]])
-        #expect(secondPluginTarget.filesGroup ==  projectsGroup)
+        #expect(secondPluginTarget.sources.map(\.path) == [pluginManifestPaths[1]])
+        #expect(secondPluginTarget.filesGroup == projectsGroup)
         #expect(secondPluginTarget.dependencies.isEmpty == true)
 
         // Generated Project
-        #expect(project.path ==  sourceRootPath.appending(component: projectName))
-        #expect(project.name ==  projectName)
+        #expect(project.path == sourceRootPath.appending(component: projectName))
+        #expect(project.name == projectName)
         #expect(project.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(project.filesGroup ==  projectsGroup)
+        #expect(project.filesGroup == projectsGroup)
 
         // Generated Schemes
         let schemes = project.schemes.sorted(by: { $0.name < $1.name })
-        #expect(project.schemes.count ==  3)
-        #expect(            schemes.map(\.name) ==
-            [firstPluginTarget.name, secondPluginTarget.name, "Plugins"].sorted()
+        #expect(project.schemes.count == 3)
+        #expect(
+            schemes.map(\.name) ==
+                [firstPluginTarget.name, secondPluginTarget.name, "Plugins"].sorted()
         )
 
         let firstBuildAction = try #require(schemes[0].buildAction)
-        #expect(            firstBuildAction.targets.map(\.name) ==
-            [firstPluginTarget].map(\.name)
+        #expect(
+            firstBuildAction.targets.map(\.name) ==
+                [firstPluginTarget].map(\.name)
         )
 
         let secondBuildAction = try #require(schemes[1].buildAction)
-        #expect(secondBuildAction.targets.map(\.name) ==  [secondPluginTarget].map(\.name))
+        #expect(secondBuildAction.targets.map(\.name) == [secondPluginTarget].map(\.name))
 
         let pluginsBuildAction = try #require(schemes[2].buildAction)
-        #expect(            pluginsBuildAction.targets.map(\.name).sorted() ==
-            [firstPluginTarget, secondPluginTarget].map(\.name).sorted()
+        #expect(
+            pluginsBuildAction.targets.map(\.name).sorted() ==
+                [firstPluginTarget, secondPluginTarget].map(\.name).sorted()
         )
     }
 
@@ -666,8 +683,9 @@ struct ProjectEditorMapperTests {
         let project = try #require(graph.projects.values.first)
         let pluginTarget = try #require(project.targets.values.first)
 
-        #expect(            pluginTarget.sources.sorted(by: { $0.path < $1.path }) ==
-            ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
+        #expect(
+            pluginTarget.sources.sorted(by: { $0.path < $1.path }) ==
+                ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
     }
 
@@ -715,103 +733,105 @@ struct ProjectEditorMapperTests {
         let manifestsTarget = try #require(targets.first(where: { $0 != localPluginTarget && $0 != helpersTarget }))
 
         // Then
-        #expect(targets.count ==  3)
+        #expect(targets.count == 3)
 
         // Local plugin target
-        #expect(localPluginTarget.destinations ==  .macOS)
-        #expect(localPluginTarget.product ==  .staticFramework)
-        #expect(localPluginTarget.sources.map(\.path).first?.parentDirectory ==  localPlugin.path)
+        #expect(localPluginTarget.destinations == .macOS)
+        #expect(localPluginTarget.product == .staticFramework)
+        #expect(localPluginTarget.sources.map(\.path).first?.parentDirectory == localPlugin.path)
         #expect(localPluginTarget.filesGroup == pluginsGroup)
         #expect(localPluginTarget.dependencies.isEmpty)
-        #expect(            localPluginTarget.settings ==
-            expectedSettings(includePaths: [
-                projectDescriptionPath,
-                projectDescriptionPath.parentDirectory,
-            ])
+        #expect(
+            localPluginTarget.settings ==
+                expectedSettings(includePaths: [
+                    projectDescriptionPath,
+                    projectDescriptionPath.parentDirectory,
+                ])
         )
 
         // ProjectDescriptionHelpers target
-        #expect(helpersTarget.destinations ==  .macOS)
-        #expect(helpersTarget.product ==  .staticFramework)
-        #expect(helpersTarget.sources.map(\.path).first ==  helperPaths.first)
-        #expect(helpersTarget.filesGroup ==  projectsGroup)
+        #expect(helpersTarget.destinations == .macOS)
+        #expect(helpersTarget.product == .staticFramework)
+        #expect(helpersTarget.sources.map(\.path).first == helperPaths.first)
+        #expect(helpersTarget.filesGroup == projectsGroup)
         // Helpers can depend on local editable plugins
         #expect(helpersTarget.dependencies == [
             .target(name: localPluginTarget.name),
         ])
-        #expect(            helpersTarget.settings ==
-            expectedSettings(includePaths: [
-                projectDescriptionPath,
-                projectDescriptionPath.parentDirectory,
-                // Helpers can include pre-built remote plugins
-                remotePlugin.path.parentDirectory,
-            ])
+        #expect(
+            helpersTarget.settings ==
+                expectedSettings(includePaths: [
+                    projectDescriptionPath,
+                    projectDescriptionPath.parentDirectory,
+                    // Helpers can include pre-built remote plugins
+                    remotePlugin.path.parentDirectory,
+                ])
         )
 
         // Generated Manifests target
-        #expect(manifestsTarget.destinations ==  .macOS)
-        #expect(manifestsTarget.product ==  .staticFramework)
-        #expect(manifestsTarget.sources.map(\.path) ==  projectManifestPaths)
-        #expect(manifestsTarget.filesGroup ==  projectsGroup)
+        #expect(manifestsTarget.destinations == .macOS)
+        #expect(manifestsTarget.product == .staticFramework)
+        #expect(manifestsTarget.sources.map(\.path) == projectManifestPaths)
+        #expect(manifestsTarget.filesGroup == projectsGroup)
         #expect(
             manifestsTarget.dependencies ==
-            [
-                .target(name: "ProjectDescriptionHelpers"),
-                .target(name: "ALocalPlugin"),
-            ]
+                [
+                    .target(name: "ProjectDescriptionHelpers"),
+                    .target(name: "ALocalPlugin"),
+                ]
         )
         #expect(
             manifestsTarget.settings ==
-            expectedSettings(includePaths: [
-                projectDescriptionPath,
-                projectDescriptionPath.parentDirectory,
-                // Manifests can include plugins
-                remotePlugin.path.parentDirectory,
-            ])
+                expectedSettings(includePaths: [
+                    projectDescriptionPath,
+                    projectDescriptionPath.parentDirectory,
+                    // Manifests can include plugins
+                    remotePlugin.path.parentDirectory,
+                ])
         )
 
         // Generated manifests Project
         let manifestsScheme = try #require(manifestsProject.schemes.first)
         let manifestsBuildAction = try #require(manifestsScheme.buildAction)
         let manifestsRunAction = try #require(manifestsScheme.runAction)
-        #expect(manifestsProject.path ==  sourceRootPath.appending(component: manifestsProjectName))
-        #expect(manifestsProject.name ==  manifestsProjectName)
+        #expect(manifestsProject.path == sourceRootPath.appending(component: manifestsProjectName))
+        #expect(manifestsProject.name == manifestsProjectName)
         #expect(manifestsProject.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(manifestsProject.filesGroup ==  projectsGroup)
-        #expect(manifestsProject.schemes.count ==  1)
-        #expect(manifestsScheme.name ==  manifestsProjectName)
+        #expect(manifestsProject.filesGroup == projectsGroup)
+        #expect(manifestsProject.schemes.count == 1)
+        #expect(manifestsScheme.name == manifestsProjectName)
         #expect(
             manifestsBuildAction.targets.map(\.name).sorted() ==
-            [manifestsTarget.name, "ProjectDescriptionHelpers"].sorted()
+                [manifestsTarget.name, "ProjectDescriptionHelpers"].sorted()
         )
-        #expect(manifestsRunAction.filePath ==  tuistPath)
+        #expect(manifestsRunAction.filePath == tuistPath)
         #expect(
             manifestsRunAction.arguments ==
-            Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
+                Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
         )
 
         // Generated plugins project for local plugins
         let schemes = pluginsProject.schemes
         let aLocalPluginScheme = try #require(schemes.first(where: { $0.name == "ALocalPlugin" }))
         let pluginsScheme = try #require(schemes.first(where: { $0.name == pluginsProjectName }))
-        #expect(pluginsProject.path ==  sourceRootPath.appending(component: pluginsProjectName))
-        #expect(pluginsProject.name ==  pluginsProjectName)
+        #expect(pluginsProject.path == sourceRootPath.appending(component: pluginsProjectName))
+        #expect(pluginsProject.name == pluginsProjectName)
         #expect(pluginsProject.settings == Settings(
             base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
-        #expect(pluginsProject.filesGroup ==  pluginsGroup)
-        #expect(pluginsProject.schemes.count ==  2)
-        #expect(aLocalPluginScheme.buildAction?.targets.map(\.name).sorted() ==  [localPlugin.name])
-        #expect(pluginsScheme.buildAction?.targets.map(\.name).sorted() ==  [localPlugin.name])
+        #expect(pluginsProject.filesGroup == pluginsGroup)
+        #expect(pluginsProject.schemes.count == 2)
+        #expect(aLocalPluginScheme.buildAction?.targets.map(\.name).sorted() == [localPlugin.name])
+        #expect(pluginsScheme.buildAction?.targets.map(\.name).sorted() == [localPlugin.name])
     }
 
-    fileprivate func expectedSettings(includePaths: [AbsolutePath]) -> Settings {
+    private func expectedSettings(includePaths: [AbsolutePath]) -> Settings {
         let paths = includePaths
             .map(\.pathString)
             .map { "\"\($0)\"" }

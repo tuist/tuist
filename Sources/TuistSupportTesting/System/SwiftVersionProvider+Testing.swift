@@ -1,5 +1,5 @@
-import TuistSupport
 import Testing
+import TuistSupport
 
 extension SwiftVersionProvider {
     public static var mocked: MockSwiftVersionProviding? { current as? MockSwiftVersionProviding }

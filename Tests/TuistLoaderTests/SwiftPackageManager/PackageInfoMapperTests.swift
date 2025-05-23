@@ -1,13 +1,13 @@
 import FileSystem
+import FileSystemTesting
 import Mockable
 import Path
 import ProjectDescription
+import Testing
 import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import Testing
-import FileSystemTesting
 @testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistSupportTesting
@@ -16,7 +16,7 @@ import FileSystemTesting
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
     private let fileSystem = FileSystem()
-    
+
     init() throws {
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
@@ -54,12 +54,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product1": [
-                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
-                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                ],
-            ]
+                [
+                    "Product1": [
+                        .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
         )
     }
 
@@ -92,12 +92,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product1": [
-                    .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
-                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                ],
-            ]
+                [
+                    "Product1": [
+                        .xcframework(path: "\(basePath)/Sources/Target_1/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
         )
     }
 
@@ -133,12 +133,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product1": [
-                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
-                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                ],
-            ]
+                [
+                    "Product1": [
+                        .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
         )
     }
 
@@ -171,12 +171,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product1": [
-                    .xcframework(path: "\(basePath.pathString)/Target_1/Target_1.xcframework"),
-                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                ],
-            ]
+                [
+                    "Product1": [
+                        .xcframework(path: "\(basePath.pathString)/Target_1/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
         )
     }
 
@@ -235,22 +235,22 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product1": [
-                    .project(
-                        target: "Target_1",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
-                        condition: nil
-                    ),
-                ],
-                "Product2": [
-                    .project(
-                        target: "Target_2",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
-                        condition: nil
-                    ),
-                ],
-            ]
+                [
+                    "Product1": [
+                        .project(
+                            target: "Target_1",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                    "Product2": [
+                        .project(
+                            target: "Target_2",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                ]
         )
     }
 
@@ -313,30 +313,31 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product": [
-                    .project(
-                        target: "Product",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
-                        condition: nil
-                    ),
-                ],
-                "Package2Product": [
-                    .project(
-                        target: "Package2Product",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
-                        condition: nil
-                    ),
-                ],
-            ]
+                [
+                    "Product": [
+                        .project(
+                            target: "Product",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                    "Package2Product": [
+                        .project(
+                            target: "Package2Product",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                ]
         )
     }
 
     @Test func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
-        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
-        
+        try await fileSystem
+            .makeDirectory(at: basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
+
         let resolvedDependencies = try await subject.resolveExternalDependencies(
             path: basePath,
             packageInfos: [
@@ -387,22 +388,22 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "com.example.dep-1": [
-                    .project(
-                        target: "com_example_dep-1",
-                        path: .path(basePath.appending(try RelativePath(validating: "com.example.dep-1")).pathString),
-                        condition: nil
-                    ),
-                ],
-                "Product1": [
-                    .project(
-                        target: "Target_1",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
-                        condition: nil
-                    ),
-                ],
-            ]
+                [
+                    "com.example.dep-1": [
+                        .project(
+                            target: "com_example_dep-1",
+                            path: .path(basePath.appending(try RelativePath(validating: "com.example.dep-1")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                    "Product1": [
+                        .project(
+                            target: "Target_1",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                ]
         )
     }
 
@@ -445,15 +446,15 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product": [
-                    .project(
-                        target: "Target_1",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
-                        condition: nil
-                    ),
-                ],
-            ]
+                [
+                    "Product": [
+                        .project(
+                            target: "Target_1",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                ]
         )
     }
 
@@ -520,29 +521,29 @@ struct PackageInfoMapperTests {
 
         #expect(
             resolvedDependencies ==
-            [
-                "Product_1": [
-                    .project(
-                        target: "Target_1",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package_1")).pathString),
-                        condition: nil
-                    ),
-                ],
-                "Product_2": [
-                    .project(
-                        target: "Target_2",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package_2")).pathString),
-                        condition: nil
-                    ),
-                ],
-                "Product_3": [
-                    .project(
-                        target: "Target_3",
-                        path: .path(basePath.appending(try RelativePath(validating: "Package_2")).pathString),
-                        condition: nil
-                    ),
-                ],
-            ]
+                [
+                    "Product_1": [
+                        .project(
+                            target: "Target_1",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package_1")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                    "Product_2": [
+                        .project(
+                            target: "Target_2",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package_2")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                    "Product_3": [
+                        .project(
+                            target: "Target_3",
+                            path: .path(basePath.appending(try RelativePath(validating: "Package_2")).pathString),
+                            condition: nil
+                        ),
+                    ],
+                ]
         )
     }
 
@@ -573,12 +574,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -610,12 +611,12 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -654,22 +655,22 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        deploymentTargets: .multiplatform(
-                            iOS: "9.0",
-                            macOS: "10.10",
-                            watchOS: "2.0",
-                            tvOS: "9.0",
-                            visionOS: "1.0"
-                        )
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            deploymentTargets: .multiplatform(
+                                iOS: "9.0",
+                                macOS: "10.10",
+                                watchOS: "2.0",
+                                tvOS: "9.0",
+                                visionOS: "1.0"
+                            )
+                        ),
+                    ]
+                )
         )
     }
 
@@ -700,23 +701,23 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        destinations: Set(Destination.allCases),
-                        deploymentTargets: .multiplatform(
-                            iOS: "12.0",
-                            macOS: "10.13",
-                            watchOS: "4.0",
-                            tvOS: "12.0",
-                            visionOS: "1.0"
-                        )
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            destinations: Set(Destination.allCases),
+                            deploymentTargets: .multiplatform(
+                                iOS: "12.0",
+                                macOS: "10.13",
+                                watchOS: "4.0",
+                                tvOS: "12.0",
+                                visionOS: "1.0"
+                            )
+                        ),
+                    ]
+                )
         )
     }
 
@@ -748,22 +749,24 @@ struct PackageInfoMapperTests {
 
             #expect(
                 project ==
-                .testWithDefaultConfigs(
-                    name: "Package",
-                    targets: [
-                        .test(
-                            "Target1",
-                            basePath: basePath,
-                            customSources: .custom(.sourceFilesList(
-                                globs: [
-                                    basePath
-                                        .appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1/**"))
-                                        .pathString,
-                                ]
-                            ))
-                        ),
-                    ]
-                )
+                    .testWithDefaultConfigs(
+                        name: "Package",
+                        targets: [
+                            .test(
+                                "Target1",
+                                basePath: basePath,
+                                customSources: .custom(.sourceFilesList(
+                                    globs: [
+                                        basePath
+                                            .appending(
+                                                try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1/**")
+                                            )
+                                            .pathString,
+                                    ]
+                                ))
+                            ),
+                        ]
+                    )
             )
 
             try await fileSystem.remove(sourcesPath)
@@ -819,12 +822,12 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target_1", basePath: basePath, customBundleID: "Target.1"),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target_1", basePath: basePath, customBundleID: "Target.1"),
+                    ]
+                )
         )
     }
 
@@ -838,7 +841,7 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
-        
+
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -876,46 +879,46 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        baseSettings: .settings(
-                            configurations: [
-                                .debug(
-                                    name: .debug,
-                                    settings: [
-                                        "GCC_PREPROCESSOR_DEFINITIONS": [
-                                            "$(inherited)",
-                                            "FOO_DEBUG=1",
-                                        ],
-                                    ]
-                                ),
-                                .release(
-                                    name: .release,
-                                    settings: [:]
-                                ),
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            baseSettings: .settings(
+                                configurations: [
+                                    .debug(
+                                        name: .debug,
+                                        settings: [
+                                            "GCC_PREPROCESSOR_DEFINITIONS": [
+                                                "$(inherited)",
+                                                "FOO_DEBUG=1",
+                                            ],
+                                        ]
+                                    ),
+                                    .release(
+                                        name: .release,
+                                        settings: [:]
+                                    ),
+                                ]
+                            ),
+                            customSettings: [
+                                "GCC_PREPROCESSOR_DEFINITIONS": [
+                                    "$(inherited)",
+                                    // Escaped
+                                    "FOO1='\"BAR1\"'",
+                                    // Escaped
+                                    "FOO2='\"BAR2\"'",
+                                    // Not escaped
+                                    "FOO3=3",
+                                ],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ]
                         ),
-                        customSettings: [
-                            "GCC_PREPROCESSOR_DEFINITIONS": [
-                                "$(inherited)",
-                                // Escaped
-                                "FOO1='\"BAR1\"'",
-                                // Escaped
-                                "FOO2='\"BAR2\"'",
-                                // Not escaped
-                                "FOO3=3",
-                            ],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                    ]
+                )
         )
     }
 
@@ -946,21 +949,22 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "com_example_target-1",
-                        basePath: basePath,
-                        customProductName: "com_example_target_1",
-                        customBundleID: "com.example.target-1",
-                        customSources: .custom(.sourceFilesList(globs: [
-                            basePath
-                                .appending(try RelativePath(validating: "Package/Sources/com.example.target-1/**")).pathString,
-                        ]))
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "com_example_target-1",
+                            basePath: basePath,
+                            customProductName: "com_example_target_1",
+                            customBundleID: "com.example.target-1",
+                            customSources: .custom(.sourceFilesList(globs: [
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Sources/com.example.target-1/**"))
+                                    .pathString,
+                            ]))
+                        ),
+                    ]
+                )
         )
     }
 
@@ -993,12 +997,12 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -1034,18 +1038,18 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
     @Test func testMap_whenProductIsNotLibrary_ignoresProduct() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
-        
+
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target3")))
@@ -1075,12 +1079,12 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -1088,7 +1092,7 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
-        
+
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -1110,30 +1114,30 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSources: .custom([
-                            .init(
-                                stringLiteral:
-                                basePath.appending(try RelativePath(validating: "Package/Sources/Target1/Subfolder/**"))
-                                    .pathString
-                            ),
-                            .init(
-                                stringLiteral:
-                                basePath
-                                    .appending(
-                                        try RelativePath(validating: "Package/Sources/Target1/Another/Subfolder/file.swift")
-                                    )
-                                    .pathString
-                            ),
-                        ])
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSources: .custom([
+                                .init(
+                                    stringLiteral:
+                                    basePath.appending(try RelativePath(validating: "Package/Sources/Target1/Subfolder/**"))
+                                        .pathString
+                                ),
+                                .init(
+                                    stringLiteral:
+                                    basePath
+                                        .appending(
+                                            try RelativePath(validating: "Package/Sources/Target1/Another/Subfolder/file.swift")
+                                        )
+                                        .pathString
+                                ),
+                            ])
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1189,76 +1193,80 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            .glob(
-                                .path(basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString),
-                                excluding: [
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                .glob(
                                     .path(
+                                        basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
+                                            .pathString
+                                    ),
+                                    excluding: [
+                                        .path(
+                                            basePath
+                                                .appending(
+                                                    try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                                )
+                                                .pathString
+                                        ),
+                                    ]
+                                ),
+                            ])),
+                            resources: [
+                                .folderReference(
+                                    path: .path(
+                                        basePath
+                                            .appending(try RelativePath(validating: "Package/Sources/Target1/Resource/Folder"))
+                                            .pathString
+                                    ),
+                                    tags: []
+                                ),
+                                .glob(
+                                    pattern: .path(
                                         basePath
                                             .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                                try RelativePath(validating: "Package/Sources/Target1/Another/Resource/Folder/**")
                                             )
                                             .pathString
                                     ),
-                                ]
-                            ),
-                        ])),
-                        resources: [
-                            .folderReference(
-                                path: .path(
-                                    basePath.appending(try RelativePath(validating: "Package/Sources/Target1/Resource/Folder"))
-                                        .pathString
+                                    excluding: [
+                                        .path(
+                                            basePath
+                                                .appending(
+                                                    try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                                )
+                                                .pathString
+                                        ),
+                                    ],
+                                    tags: []
                                 ),
-                                tags: []
-                            ),
-                            .glob(
-                                pattern: .path(
-                                    basePath
-                                        .appending(
-                                            try RelativePath(validating: "Package/Sources/Target1/Another/Resource/Folder/**")
-                                        )
-                                        .pathString
-                                ),
-                                excluding: [
-                                    .path(
+                                .glob(
+                                    pattern: .path(
                                         basePath
                                             .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                                try RelativePath(validating: "Package/Sources/Target1/Resource/Base.lproj/**")
                                             )
                                             .pathString
                                     ),
-                                ],
-                                tags: []
-                            ),
-                            .glob(
-                                pattern: .path(
-                                    basePath
-                                        .appending(
-                                            try RelativePath(validating: "Package/Sources/Target1/Resource/Base.lproj/**")
-                                        )
-                                        .pathString
+                                    excluding: [
+                                        .path(
+                                            basePath
+                                                .appending(
+                                                    try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
+                                                )
+                                                .pathString
+                                        ),
+                                    ],
+                                    tags: []
                                 ),
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(
-                                                try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
-                                            )
-                                            .pathString
-                                    ),
-                                ],
-                                tags: []
-                            ),
-                        ]
-                    ),
-                ]
-            )
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1307,33 +1315,36 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        resources: [
-                            .glob(
-                                pattern: .path(resourcesPath.appending(component: "**").pathString),
-                                excluding: [],
-                                tags: []
-                            ),
-                        ]
-                    ),
-                    .test(
-                        "Target2",
-                        basePath: basePath,
-                        resources: [
-                            .glob(
-                                pattern: .path(targetTwoSourcesPath.appending(components: "resources", "file.xib").pathString),
-                                excluding: [],
-                                tags: []
-                            ),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            resources: [
+                                .glob(
+                                    pattern: .path(resourcesPath.appending(component: "**").pathString),
+                                    excluding: [],
+                                    tags: []
+                                ),
+                            ]
+                        ),
+                        .test(
+                            "Target2",
+                            basePath: basePath,
+                            resources: [
+                                .glob(
+                                    pattern: .path(
+                                        targetTwoSourcesPath.appending(components: "resources", "file.xib")
+                                            .pathString
+                                    ),
+                                    excluding: [],
+                                    tags: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1377,19 +1388,19 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        resources: [],
-                        dependencies: [
-                            .xcframework(path: Path(stringLiteral: xcframeworkPath.pathString)),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            resources: [],
+                            dependencies: [
+                                .xcframework(path: Path(stringLiteral: xcframeworkPath.pathString)),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1434,18 +1445,18 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        resources: defaultResourcePaths.map {
-                            ResourceFileElement.glob(pattern: .path($0.pathString), excluding: [], tags: [])
-                        }
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            resources: defaultResourcePaths.map {
+                                ResourceFileElement.glob(pattern: .path($0.pathString), excluding: [], tags: [])
+                            }
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1455,7 +1466,7 @@ struct PackageInfoMapperTests {
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         let topHeaderPath = headersPath.appending(component: "AnHeader.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnotherHeader.h")
-        
+
         try await fileSystem.makeDirectory(at: headersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: moduleMapPath)
         try await fileSystem.writeText("", at: topHeaderPath)
@@ -1484,24 +1495,24 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1537,25 +1548,25 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "target-with-dashes",
-                        basePath: basePath,
-                        customProductName: "target_with_dashes",
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "target-with-dashes",
+                            basePath: basePath,
+                            customProductName: "target_with_dashes",
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1591,24 +1602,24 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSources: .custom(nil),
-                        customSettings: [
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSources: .custom(nil),
+                            customSettings: [
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1655,7 +1666,7 @@ struct PackageInfoMapperTests {
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let topHeaderPath = headersPath.appending(component: "Target1.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnHeader.h")
-        
+
         try await fileSystem.makeDirectory(at: headersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: topHeaderPath)
         try await fileSystem.writeText("", at: nestedHeaderPath)
@@ -1683,24 +1694,24 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
-                            "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
+                                "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1712,7 +1723,7 @@ struct PackageInfoMapperTests {
         let dependency1ModuleMapPath = dependency1HeadersPath.appending(component: "module.modulemap")
         let dependency2HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/include"))
         let dependency2ModuleMapPath = dependency2HeadersPath.appending(component: "module.modulemap")
-       
+
         try await fileSystem.makeDirectory(at: target1HeadersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: target1ModuleMapPath)
         try await fileSystem.makeDirectory(at: dependency1HeadersPath.appending(component: "Subfolder"))
@@ -1749,61 +1760,61 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.target(name: "Dependency1")],
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/include",
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.target(name: "Dependency1")],
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/include",
+                                ],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
+                            moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                        ),
+                        .test(
+                            "Dependency1",
+                            basePath: basePath,
+                            dependencies: [.target(name: "Dependency2")],
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Dependency1/include",
+                                ],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
-                    ),
-                    .test(
-                        "Dependency1",
-                        basePath: basePath,
-                        dependencies: [.target(name: "Dependency2")],
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Dependency1/include",
+                            moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
+                        ),
+                        .test(
+                            "Dependency2",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Dependency2/include",
+                                ],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency2"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
-                    ),
-                    .test(
-                        "Dependency2",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Dependency2/include",
-                            ],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency2"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1815,14 +1826,14 @@ struct PackageInfoMapperTests {
         let dependency1ModuleMapPath = dependency1HeadersPath.appending(component: "module.modulemap")
         let dependency2HeadersPath = basePath.appending(try RelativePath(validating: "Package3/Sources/Dependency2/include"))
         let dependency2ModuleMapPath = dependency2HeadersPath.appending(component: "module.modulemap")
-        
+
         try await fileSystem.makeDirectory(at: target1HeadersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: target1ModuleMapPath)
         try await fileSystem.makeDirectory(at: dependency1HeadersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: dependency1ModuleMapPath)
         try await fileSystem.makeDirectory(at: dependency2HeadersPath.appending(component: "Subfolder"))
         try await fileSystem.writeText("", at: dependency2ModuleMapPath)
-        
+
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -1878,28 +1889,28 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.external(name: "Dependency1", condition: nil)],
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/include",
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.external(name: "Dependency1", condition: nil)],
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/include",
+                                ],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1910,7 +1921,7 @@ struct PackageInfoMapperTests {
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Custom/Headers"))
         let headerPath = headersPath.appending(component: "module.h")
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
-        
+
         try await fileSystem.makeDirectory(at: headersPath)
         try await fileSystem.writeText("", at: headerPath)
         try await fileSystem.writeText("", at: moduleMapPath)
@@ -1947,37 +1958,37 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            basePath
-                                .appending(try RelativePath(validating: "Package/Custom/Sources/Folder/**")).pathString,
-                        ])),
-                        resources: [
-                            .folderReference(
-                                path: .path(
-                                    basePath.appending(try RelativePath(validating: "Package/Custom/Resource/Folder"))
-                                        .pathString
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Custom/Sources/Folder/**")).pathString,
+                            ])),
+                            resources: [
+                                .folderReference(
+                                    path: .path(
+                                        basePath.appending(try RelativePath(validating: "Package/Custom/Resource/Folder"))
+                                            .pathString
+                                    ),
+                                    tags: []
                                 ),
-                                tags: []
-                            ),
-                        ],
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
-                    ),
-                ]
-            )
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -1985,7 +1996,7 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        
+
         try await fileSystem.makeDirectory(at: dependencyHeadersPath)
         try await fileSystem.touch(dependencyHeadersPath.appending(component: "Header.h"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2015,34 +2026,34 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.target(name: "Dependency1")]
-                    ),
-                    .test(
-                        "Dependency1",
-                        basePath: basePath,
-                        headers: .headers(
-                            public: .list(
-                                [.glob(.path("\(dependencyHeadersPath.pathString)/*.h"))]
-                            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.target(name: "Dependency1")]
                         ),
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
-                            "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
+                        .test(
+                            "Dependency1",
+                            basePath: basePath,
+                            headers: .headers(
+                                public: .list(
+                                    [.glob(.path("\(dependencyHeadersPath.pathString)/*.h"))]
+                                )
+                            ),
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
                             ],
-                        ],
-                        moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
-                    ),
-                ]
-            )
+                            moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2145,7 +2156,7 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            other
+                other
         )
     }
 
@@ -2185,25 +2196,25 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/value",
-                                "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
-                            ],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/value",
+                                    "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
+                                ],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2235,24 +2246,24 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/value",
-                            ],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/value",
+                                ],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2288,21 +2299,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2337,21 +2348,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2385,21 +2396,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "key"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "key"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2434,21 +2445,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2483,21 +2494,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2532,16 +2543,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "key1", "key2", "key3"]]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2575,16 +2586,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-upcoming-feature \"Foo\""]]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-upcoming-feature \"Foo\""]]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2618,16 +2629,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-experimental-feature \"Foo\""]]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-enable-experimental-feature \"Foo\""]]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2661,19 +2672,19 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"],
-                            "SWIFT_VERSION": "5",
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"],
+                                "SWIFT_VERSION": "5",
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2709,21 +2720,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2780,47 +2791,47 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableBundleAccessors: false,
-                    disableSynthesizedResourceAccessors: true,
-                    textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
-                ),
-                settings: .settings(
-                    base: [
-                        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
-                    ],
-                    configurations: [
-                        .debug(
-                            name: "Debug",
-                            settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
-                            xcconfig: "Sources/Target1/Config.xcconfig"
-                        ),
-                        .release(
-                            name: "Release",
-                            settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
-                            xcconfig: "Sources/Target1/Config.xcconfig"
-                        ),
-                    ],
-                    defaultSettings: .recommended
-                ),
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        destinations: .iOS,
-                        deploymentTargets: .iOS("12.0"),
-                        customSettings: [
-                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    options: .options(
+                        automaticSchemesOptions: .enabled(),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
-                ]
-            )
+                    settings: .settings(
+                        base: [
+                            "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                        ],
+                        configurations: [
+                            .debug(
+                                name: "Debug",
+                                settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                xcconfig: "Sources/Target1/Config.xcconfig"
+                            ),
+                            .release(
+                                name: "Release",
+                                settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                                xcconfig: "Sources/Target1/Config.xcconfig"
+                            ),
+                        ],
+                        defaultSettings: .recommended
+                    ),
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            destinations: .iOS,
+                            deploymentTargets: .iOS("12.0"),
+                            customSettings: [
+                                "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2876,34 +2887,34 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        baseSettings: .settings(
-                            base: [
-                                "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
-                                "CUSTOM_SETTING": "CUSTOM_VALUE",
-                            ],
-                            configurations: [
-                                .debug(
-                                    name: "Custom Debug",
-                                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
-                                    xcconfig: "Sources/Target1/Config.xcconfig"
-                                ),
-                                .release(
-                                    name: "Custom Release",
-                                    settings: ["CUSTOM_SETTING_3": .string("CUSTOM_VALUE_4")],
-                                    xcconfig: "Sources/Target1/Config.xcconfig"
-                                ),
-                            ],
-                            defaultSettings: .recommended
-                        )
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            baseSettings: .settings(
+                                base: [
+                                    "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                    "CUSTOM_SETTING": "CUSTOM_VALUE",
+                                ],
+                                configurations: [
+                                    .debug(
+                                        name: "Custom Debug",
+                                        settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                        xcconfig: "Sources/Target1/Config.xcconfig"
+                                    ),
+                                    .release(
+                                        name: "Custom Release",
+                                        settings: ["CUSTOM_SETTING_3": .string("CUSTOM_VALUE_4")],
+                                        xcconfig: "Sources/Target1/Config.xcconfig"
+                                    ),
+                                ],
+                                defaultSettings: .recommended
+                            )
+                        ),
+                    ]
+                )
         )
     }
 
@@ -2949,34 +2960,34 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/otherValue",
-                            ],
-                            "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/value",
-                                "$(SRCROOT)/Sources/Target1/otherValue",
-                            ],
-                            "HEADER_SEARCH_PATHS[sdk=appletvsimulator*]": [
-                                "$(inherited)",
-                                "$(SRCROOT)/Sources/Target1/value",
-                                "$(SRCROOT)/Sources/Target1/otherValue",
-                            ],
-                            "OTHER_SWIFT_FLAGS": [
-                                "$(inherited)",
-                            ],
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/otherValue",
+                                ],
+                                "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/value",
+                                    "$(SRCROOT)/Sources/Target1/otherValue",
+                                ],
+                                "HEADER_SEARCH_PATHS[sdk=appletvsimulator*]": [
+                                    "$(inherited)",
+                                    "$(SRCROOT)/Sources/Target1/value",
+                                    "$(SRCROOT)/Sources/Target1/otherValue",
+                                ],
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3011,16 +3022,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.sdk(name: "Framework", type: .framework, status: .required)]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.sdk(name: "Framework", type: .framework, status: .required)]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3055,16 +3066,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.sdk(name: "Library", type: .library, status: .required)]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.sdk(name: "Library", type: .library, status: .required)]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3074,7 +3085,7 @@ struct PackageInfoMapperTests {
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
         try await fileSystem.makeDirectory(at: dependenciesPath)
-        
+
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
@@ -3100,13 +3111,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
-                    .test("Dependency1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
+                        .test("Dependency1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3142,21 +3153,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [
-                            .xcframework(path: .path(
-                                basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
-                                    .pathString
-                            )),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [
+                                .xcframework(path: .path(
+                                    basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
+                                        .pathString
+                                )),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3192,13 +3203,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
-                    .test("Dependency1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
+                        .test("Dependency1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3234,21 +3245,21 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [
-                            .xcframework(path: .path(
-                                basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
-                                    .pathString
-                            )),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [
+                                .xcframework(path: .path(
+                                    basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
+                                        .pathString
+                                )),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3284,20 +3295,20 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.xcframework(path: .path(
-                            basePath
-                                .appending(try RelativePath(validating: "Package/Sources/Target1/Dependency1.xcframework"))
-                                .pathString
-                        ))]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.xcframework(path: .path(
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Sources/Target1/Dependency1.xcframework"))
+                                    .pathString
+                            ))]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3333,20 +3344,20 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [.xcframework(path: .path(
-                            basePath
-                                .appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
-                                .pathString
-                        ))]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [.xcframework(path: .path(
+                                basePath
+                                    .appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
+                                    .pathString
+                            ))]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3398,18 +3409,18 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [
-                            .external(name: "Product2", condition: nil),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [
+                                .external(name: "Product2", condition: nil),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3461,18 +3472,18 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        dependencies: [
-                            .external(name: "Product2", condition: nil),
-                        ]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [
+                                .external(name: "Product2", condition: nil),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -3502,13 +3513,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3538,13 +3549,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3574,13 +3585,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                settings: .settings(base: ["SWIFT_VERSION": "4.0.0"]),
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    settings: .settings(base: ["SWIFT_VERSION": "4.0.0"]),
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3610,17 +3621,18 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
-    @Test func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() async throws {
+    @Test func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured(
+    ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3650,13 +3662,13 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                settings: .settings(base: ["SWIFT_VERSION": "5.9.0"]),
-                targets: [
-                    .test("Target1", basePath: basePath),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    settings: .settings(base: ["SWIFT_VERSION": "5.9.0"]),
+                    targets: [
+                        .test("Target1", basePath: basePath),
+                    ]
+                )
         )
     }
 
@@ -3710,9 +3722,10 @@ struct PackageInfoMapperTests {
         ]
         let allTargets = ["RxSwift"] + testTargets
         for path in try allTargets
-            .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) } {
-                try await fileSystem.makeDirectory(at: path)
-            }
+            .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
+        {
+            try await fileSystem.makeDirectory(at: path)
+        }
 
         let project = try await subject.map(
             package: "Package",
@@ -3741,37 +3754,38 @@ struct PackageInfoMapperTests {
 
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("RxSwift", basePath: basePath, product: .framework),
-                ] + testTargets.map {
-                    var customSettings: ProjectDescription.SettingsDictionary
-                    var customProductName: String?
-                    switch $0 {
-                    case "Nimble":
-                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
-                    case "Quick":
-                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
-                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product
-                        // names
-                        customProductName = "RxTest_Dynamic"
-                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
-                    default:
-                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
-                    }
-                    customSettings["OTHER_SWIFT_FLAGS"] = [
-                        "$(inherited)",
-                    ]
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test("RxSwift", basePath: basePath, product: .framework),
+                    ] + testTargets.map {
+                        var customSettings: ProjectDescription.SettingsDictionary
+                        var customProductName: String?
+                        switch $0 {
+                        case "Nimble":
+                            customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
+                        case "Quick":
+                            customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
+                        case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to
+                            // product
+                            // names
+                            customProductName = "RxTest_Dynamic"
+                            customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
+                        default:
+                            customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
+                        }
+                        customSettings["OTHER_SWIFT_FLAGS"] = [
+                            "$(inherited)",
+                        ]
 
-                    return .test(
-                        $0,
-                        basePath: basePath,
-                        customProductName: customProductName,
-                        customSettings: customSettings
-                    )
-                }
-            )
+                        return .test(
+                            $0,
+                            basePath: basePath,
+                            customProductName: customProductName,
+                            customSettings: customSettings
+                        )
+                    }
+                )
         )
     }
 
@@ -3855,7 +3869,7 @@ struct PackageInfoMapperTests {
 
     @Test func testMap_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
-        
+
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
@@ -3928,7 +3942,7 @@ struct PackageInfoMapperTests {
 
         #expect(
             projectTargets ==
-            expectedTargets
+                expectedTargets
         )
     }
 
@@ -3959,16 +3973,16 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: packageName,
-                targets: [
-                    .test(
-                        "Target1",
-                        packageName: packageName,
-                        basePath: basePath
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: packageName,
+                    targets: [
+                        .test(
+                            "Target1",
+                            packageName: packageName,
+                            basePath: basePath
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4010,26 +4024,26 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                settings: .settings(),
-                targets: [
-                    .test("Target", basePath: basePath),
-                    .test(
-                        "TargetTests",
-                        basePath: basePath,
-                        product: .unitTests,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(testsPath.pathString)/**",
-                        ])),
-                        dependencies: [.target(name: "Target")]
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    options: .options(
+                        automaticSchemesOptions: .enabled(),
+                        disableSynthesizedResourceAccessors: true
                     ),
-                ]
-            )
+                    settings: .settings(),
+                    targets: [
+                        .test("Target", basePath: basePath),
+                        .test(
+                            "TargetTests",
+                            basePath: basePath,
+                            product: .unitTests,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                "\(testsPath.pathString)/**",
+                            ])),
+                            dependencies: [.target(name: "Target")]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4074,33 +4088,33 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                settings: .settings(),
-                targets: [
-                    .test(
-                        "Target",
-                        basePath: basePath,
-                        destinations: [.iPhone, .iPad],
-                        deploymentTargets: .iOS("12.0")
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    options: .options(
+                        automaticSchemesOptions: .enabled(),
+                        disableSynthesizedResourceAccessors: true
                     ),
-                    .test(
-                        "TargetTests",
-                        basePath: basePath,
-                        destinations: [.iPhone, .iPad],
-                        product: .unitTests,
-                        deploymentTargets: .iOS("12.0"),
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(testsPath.pathString)/**",
-                        ])),
-                        dependencies: [.target(name: "Target")]
-                    ),
-                ]
-            )
+                    settings: .settings(),
+                    targets: [
+                        .test(
+                            "Target",
+                            basePath: basePath,
+                            destinations: [.iPhone, .iPad],
+                            deploymentTargets: .iOS("12.0")
+                        ),
+                        .test(
+                            "TargetTests",
+                            basePath: basePath,
+                            destinations: [.iPhone, .iPad],
+                            product: .unitTests,
+                            deploymentTargets: .iOS("12.0"),
+                            customSources: .custom(.sourceFilesList(globs: [
+                                "\(testsPath.pathString)/**",
+                            ])),
+                            dependencies: [.target(name: "Target")]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4170,50 +4184,50 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                settings: .settings(),
-                targets: [
-                    .test("Target", basePath: basePath),
-                    .test(
-                        "MacTarget",
-                        basePath: basePath,
-                        destinations: [.mac],
-                        deploymentTargets: .macOS("10.13")
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    options: .options(
+                        automaticSchemesOptions: .enabled(),
+                        disableSynthesizedResourceAccessors: true
                     ),
-                    .test("CommonTarget", basePath: basePath),
-                    .test(
-                        "ProductTests",
-                        basePath: basePath,
-                        product: .unitTests,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(productTestsPath.pathString)/**",
-                        ])),
-                        dependencies: [
-                            .target(name: "Target"),
-                            .target(name: "CommonTarget"),
-                        ]
-                    ),
-                    .test(
-                        "MacProductTests",
-                        basePath: basePath,
-                        destinations: [.mac],
-                        product: .unitTests,
-                        deploymentTargets: .macOS("10.13"),
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(macProductTestsPath.pathString)/**",
-                        ])),
-                        dependencies: [
-                            .target(name: "MacTarget"),
-                            .target(name: "CommonTarget"),
-                        ]
-                    ),
-                ]
-            )
+                    settings: .settings(),
+                    targets: [
+                        .test("Target", basePath: basePath),
+                        .test(
+                            "MacTarget",
+                            basePath: basePath,
+                            destinations: [.mac],
+                            deploymentTargets: .macOS("10.13")
+                        ),
+                        .test("CommonTarget", basePath: basePath),
+                        .test(
+                            "ProductTests",
+                            basePath: basePath,
+                            product: .unitTests,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                "\(productTestsPath.pathString)/**",
+                            ])),
+                            dependencies: [
+                                .target(name: "Target"),
+                                .target(name: "CommonTarget"),
+                            ]
+                        ),
+                        .test(
+                            "MacProductTests",
+                            basePath: basePath,
+                            destinations: [.mac],
+                            product: .unitTests,
+                            deploymentTargets: .macOS("10.13"),
+                            customSources: .custom(.sourceFilesList(globs: [
+                                "\(macProductTestsPath.pathString)/**",
+                            ])),
+                            dependencies: [
+                                .target(name: "MacTarget"),
+                                .target(name: "CommonTarget"),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4254,29 +4268,29 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                settings: .settings(),
-                targets: [
-                    .test("Target", basePath: basePath),
-                    .test(
-                        "TargetTests",
-                        basePath: basePath,
-                        product: .unitTests,
-                        customSources: .custom(.sourceFilesList(globs: [
-                            "\(testsPath.pathString)/**",
-                        ])),
-                        dependencies: [
-                            .target(name: "Target"),
-                            .external(name: "External", condition: nil),
-                        ]
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    options: .options(
+                        automaticSchemesOptions: .enabled(),
+                        disableSynthesizedResourceAccessors: true
                     ),
-                ]
-            )
+                    settings: .settings(),
+                    targets: [
+                        .test("Target", basePath: basePath),
+                        .test(
+                            "TargetTests",
+                            basePath: basePath,
+                            product: .unitTests,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                "\(testsPath.pathString)/**",
+                            ])),
+                            dependencies: [
+                                .target(name: "Target"),
+                                .external(name: "External", condition: nil),
+                            ]
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4343,37 +4357,37 @@ struct PackageInfoMapperTests {
         )
         #expect(
             project ==
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Product",
-                        basePath: basePath,
-                        dependencies: [
-                            .target(name: "Package2Product", condition: nil),
-                        ],
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Product=Package2Product"]]
-                    ),
-                ]
-            )
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Product",
+                            basePath: basePath,
+                            dependencies: [
+                                .target(name: "Package2Product", condition: nil),
+                            ],
+                            customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Product=Package2Product"]]
+                        ),
+                    ]
+                )
         )
         #expect(
             projectTwo ==
-            .testWithDefaultConfigs(
-                name: "Package2",
-                targets: [
-                    .test(
-                        "Package2Product",
-                        packageName: "Package2",
-                        basePath: basePath,
-                        customSources: .custom(
-                            .sourceFilesList(
-                                globs: [basePath.appending(components: "Package2", "Sources", "Product").pathString + "/**"]
+                .testWithDefaultConfigs(
+                    name: "Package2",
+                    targets: [
+                        .test(
+                            "Package2Product",
+                            packageName: "Package2",
+                            basePath: basePath,
+                            customSources: .custom(
+                                .sourceFilesList(
+                                    globs: [basePath.appending(components: "Package2", "Sources", "Product").pathString + "/**"]
+                                )
                             )
-                        )
-                    ),
-                ]
-            )
+                        ),
+                    ]
+                )
         )
     }
 
@@ -4410,7 +4424,7 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"] ==
-            ["$(inherited)"]
+                ["$(inherited)"]
         )
     }
 
@@ -4447,7 +4461,7 @@ struct PackageInfoMapperTests {
         // Then
         #expect(
             project?.settings?.base["OTHER_SWIFT_FLAGS"] ==
-            .array(["$(inherited)", "-package-name", "Package"])
+                .array(["$(inherited)", "-package-name", "Package"])
         )
     }
 }

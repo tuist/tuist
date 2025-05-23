@@ -1,15 +1,15 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
-import Testing
-import FileSystem
-import FileSystemTesting
 
 @testable import TuistCache
 
@@ -59,7 +59,7 @@ struct ContentHashingIntegrationTests {
             versions: [],
             currentVersion: "2"
         )
-        
+
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.4.0")
         let xcodeControllerMock = try #require(XcodeController.mocked)
