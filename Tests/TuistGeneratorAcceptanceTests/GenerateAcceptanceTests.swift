@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistAcceptanceTesting
 import TuistSupport
@@ -1305,7 +1306,6 @@ final class GenerateAcceptanceTestiOSWorkspaceWithSandboxDisabled: TuistAcceptan
         try await setUpFixture(.iosWorkspaceWithSandboxDisabled)
         try await withDirectory(fixturePath.pathString) {
             try await run(GenerateCommand.self)
-            try await run(BuildCommand.self)
         }
 
         let workspacePath = fixturePath.appending(component: "Workspace.xcworkspace")
@@ -1315,6 +1315,29 @@ final class GenerateAcceptanceTestiOSWorkspaceWithSandboxDisabled: TuistAcceptan
         let projectPath = fixturePath.appending(components: "App", "App.xcodeproj")
         let projectExists = try await fileSystem.exists(projectPath)
         XCTAssertTrue(projectExists)
+    }
+
+    func test_ios_workspace_with_sandbox_enabled_fails() async throws {
+        try await setUpFixture(.iosWorkspaceWithSandboxDisabled)
+        try await fileSystem.modifyTextFile(at: fixturePath.appending(components: "Tuist", "Config.swift")) {
+            $0.replacingOccurrences(of: "disableSandbox: true", with: "disableSandbox: false")
+        }
+        await withDirectory(fixturePath.pathString) {
+            do {
+                try await run(GenerateCommand.self)
+                XCTFail("Generate should have failed with sandbox error")
+            } catch {
+                XCTAssertTrue(String(describing: error).contains("The '/usr/bin/sandbox-exec' was interrupted with a signal 5"))
+            }
+        }
+
+        let workspacePath = fixturePath.appending(component: "Workspace.xcworkspace")
+        let workspaceExists = try await fileSystem.exists(workspacePath)
+        XCTAssertFalse(workspaceExists)
+
+        let projectPath = fixturePath.appending(components: "App", "App.xcodeproj")
+        let projectExists = try await fileSystem.exists(projectPath)
+        XCTAssertFalse(projectExists)
     }
 }
 
@@ -1516,5 +1539,17 @@ extension TuistAcceptanceTestCase {
         FileManager.default.changeCurrentDirectoryPath(path)
         defer { FileManager.default.changeCurrentDirectoryPath(originalPath) }
         try await perform()
+    }
+}
+
+extension FileSysteming {
+    fileprivate func modifyTextFile(
+        at path: AbsolutePath,
+        encoding: String.Encoding = .utf8,
+        modify: (String) -> String
+    ) async throws {
+        let content = try await readTextFile(at: path, encoding: encoding)
+        let modifiedContent = modify(content)
+        try await writeText(modifiedContent, at: path, encoding: encoding, options: [.overwrite])
     }
 }

@@ -126,6 +126,7 @@ public class ManifestLoader: ManifestLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     // MARK: - Init
 
@@ -138,7 +139,8 @@ public class ManifestLoader: ManifestLoading {
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
             swiftPackageManagerController: SwiftPackageManagerController(),
-            packageInfoLoader: PackageInfoLoader()
+            packageInfoLoader: PackageInfoLoader(),
+            rootDirectoryLocator: RootDirectoryLocator()
         )
     }
 
@@ -151,7 +153,8 @@ public class ManifestLoader: ManifestLoading {
         xcodeController: XcodeControlling,
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -162,6 +165,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
         decoder = JSONDecoder()
     }
 
@@ -441,15 +445,18 @@ public class ManifestLoader: ManifestLoading {
 
         if !disableSandbox {
             #if os(macOS)
-                let profile = macOSSandboxProfile(
-                    readPaths: [
+                let profile = try macOSSandboxProfile(
+                    readOnlyPaths: [
                         path,
                         try await xcodeController.selected().path,
                         searchPaths.includeSearchPath,
                         searchPaths.librarySearchPath,
                         searchPaths.frameworkSearchPath,
                     ] +
-                        projectDescriptionHelperModules.map(\.path.parentDirectory)
+                        projectDescriptionHelperModules.map(\.path.parentDirectory),
+                    disallowedPaths: [
+                        try await rootDirectoryLocator.locate(from: path),
+                    ]
                 )
                 return ["/usr/bin/sandbox-exec", "-p", profile] + arguments
             #else
@@ -461,9 +468,10 @@ public class ManifestLoader: ManifestLoading {
     }
 
     private func macOSSandboxProfile(
-        readPaths: [AbsolutePath]
-    ) -> String {
-        """
+        readOnlyPaths: [AbsolutePath],
+        disallowedPaths: [AbsolutePath]
+    ) throws -> String {
+        try """
         (version 1)
 
         ; Deny all operations by default unless explicitly allowed
@@ -484,8 +492,11 @@ public class ManifestLoader: ManifestLoading {
         (allow file-read* file-write* (subpath "/private/tmp/"))
         (allow file-read* file-write* (subpath "/private/var/"))
 
+        ; Deny reading from specified paths
+        \(Set(disallowedPaths).map { "(deny file-read* (subpath \"\(try $0.realPath)\"))" }.joined(separator: "\n"))
+
         ; Allow reading from specified paths
-        \(Set(readPaths).map { "(allow file-read* (subpath \"\($0.pathString)\"))" }.joined(separator: "\n"))
+        \(Set(readOnlyPaths).map { "(allow file-read* (subpath \"\(try $0.realPath)\"))" }.joined(separator: "\n"))
         """
     }
 
@@ -515,5 +526,19 @@ public class ManifestLoader: ManifestLoading {
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }
 
         Logger.current.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
+    }
+}
+
+extension AbsolutePath {
+    fileprivate var realPath: Self {
+        get throws {
+            if pathString.starts(with: "/var") || pathString.starts(with: "/tmp") {
+                return try AbsolutePath(validating: "/private" + pathString)
+            }
+            if let resolved = try? FileManager.default.destinationOfSymbolicLink(atPath: pathString) {
+                return try AbsolutePath(validating: resolved)
+            }
+            return self
+        }
     }
 }
