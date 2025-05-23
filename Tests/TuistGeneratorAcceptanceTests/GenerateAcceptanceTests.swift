@@ -1300,7 +1300,23 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
-// frameworkWithMacroAndPluginPackages
+final class GenerateAcceptanceTestiOSWorkspaceWithSandboxDisabled: TuistAcceptanceTestCase {
+    func test_ios_workspace_with_sandbox_disabled() async throws {
+        try await setUpFixture(.iosWorkspaceWithSandboxDisabled)
+        try await withDirectory(fixturePath.pathString) {
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self)
+        }
+
+        let workspacePath = fixturePath.appending(component: "Workspace.xcworkspace")
+        let workspaceExists = try await fileSystem.exists(workspacePath)
+        XCTAssertTrue(workspaceExists)
+
+        let projectPath = fixturePath.appending(components: "App", "App.xcodeproj")
+        let projectExists = try await fileSystem.exists(projectPath)
+        XCTAssertTrue(projectExists)
+    }
+}
 
 extension TuistAcceptanceTestCase {
     private func resourcePath(
@@ -1493,5 +1509,12 @@ extension TuistAcceptanceTestCase {
                 line: line
             )
         }
+    }
+
+    fileprivate func withDirectory(_ path: String, _ perform: () async throws -> Void) async rethrows {
+        let originalPath = FileManager.default.currentDirectoryPath
+        FileManager.default.changeCurrentDirectoryPath(path)
+        defer { FileManager.default.changeCurrentDirectoryPath(originalPath) }
+        try await perform()
     }
 }
