@@ -1,39 +1,32 @@
 import Foundation
-import XCTest
-@testable import TuistSupport
+import Testing
+import TuistSupport
+import TuistSupportTesting
 
-final class CICheckerTests: XCTestCase {
-    var subject: CIChecker!
+struct CICheckerTests {
+    var subject: CIChecker = .init()
 
-    override func setUp() {
-        super.setUp()
-        subject = CIChecker()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func testIsCI_when_isCI() {
+    @Test(.withMockedEnvironment) func when_ci_env_variable_is_present() throws {
         // Given
-        let env = ["CI": "1"]
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["CI": "1"]
 
         // When
-        let got = subject.isCI(environment: env)
+        let got = subject.isCI()
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got == true)
     }
 
-    func testIsCI_when_isNotCI() {
+    @Test(.withMockedEnvironment) func when_ci_env_variable_is_absent() throws {
         // Given
-        let env: [String: String] = [:]
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
 
         // When
-        let got = subject.isCI(environment: env)
+        let got = subject.isCI()
 
         // Then
-        XCTAssertFalse(got)
+        #expect(got == false)
     }
 }

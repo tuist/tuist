@@ -141,7 +141,7 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
     fileprivate static func configDirectory() throws -> AbsolutePath {
         var directory: AbsolutePath!
 
-        if let xdgConfigHomeString = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+        if let xdgConfigHomeString = Environment.current.variables["XDG_CONFIG_HOME"] {
             do {
                 directory = try AbsolutePath(validating: xdgConfigHomeString)
             } catch {

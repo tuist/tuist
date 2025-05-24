@@ -35,7 +35,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         sourceRootPath = try AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
+            validating: Environment.current.variables[
                 "TUIST_CONFIG_SRCROOT"
             ]!
         )

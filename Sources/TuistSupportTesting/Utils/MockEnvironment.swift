@@ -6,8 +6,6 @@ import XCTest
 
 public final class MockEnvironment: Environmenting {
     fileprivate let directory: TemporaryDirectory
-    fileprivate var setupCallCount: UInt = 0
-    fileprivate var setupErrorStub: Error?
 
     init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -21,6 +19,8 @@ public final class MockEnvironment: Environmenting {
     public var manifestLoadingVariables: [String: String] = [:]
     public var isStatsEnabled: Bool = true
     public var isGitHubActions: Bool = false
+    public var variables: [String: String] = [:]
+    public var arguments: [String] = []
 
     public var automationPath: AbsolutePath? {
         nil
@@ -38,9 +38,9 @@ public final class MockEnvironment: Environmenting {
         queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }
 
-    public var workspacePath: AbsolutePath? { nil }
+    public var workspacePath: AbsolutePath?
 
-    public var schemeName: String? { nil }
+    public var schemeName: String?
 
     public func currentExecutablePath() -> AbsolutePath? { nil }
 }

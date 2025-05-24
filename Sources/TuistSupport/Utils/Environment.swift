@@ -7,13 +7,19 @@ import Path
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 @Mockable
-public protocol Environmenting: AnyObject, Sendable {
+public protocol Environmenting: Sendable {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
     /// Returns automation path
     /// Only to be used for acceptance tests
     var automationPath: AbsolutePath? { get }
+
+    /// Returns the environment variables.
+    var variables: [String: String] { get }
+
+    /// Returns the arguments that have been passed to the process.
+    var arguments: [String] { get }
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
@@ -52,30 +58,19 @@ public protocol Environmenting: AnyObject, Sendable {
 }
 
 /// Local environment controller.
-public final class Environment: Environmenting {
+public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
 
     // MARK: - Attributes
 
     /// File handler instance.
-    private let fileHandler: FileHandling
+    public let variables: [String: String]
+    public let arguments: [String]
 
-    /// Default public constructor.
-    convenience init() {
-        self.init(
-            fileHandler: FileHandler.shared
-        )
+    init() {
+        variables = ProcessInfo.processInfo.environment
+        arguments = ProcessInfo.processInfo.arguments
     }
-
-    /// Default environment constructor.
-    ///
-    /// - Parameters:
-    ///   - fileHandler: File handler instance to perform file operations.
-    init(fileHandler: FileHandling) {
-        self.fileHandler = fileHandler
-    }
-
-    // MARK: - EnvironmentControlling
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {

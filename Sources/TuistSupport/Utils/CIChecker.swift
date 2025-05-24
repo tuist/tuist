@@ -26,13 +26,7 @@ public final class CIChecker: CIChecking {
     // MARK: - CIChecking
 
     public func isCI() -> Bool {
-        isCI(environment: ProcessInfo.processInfo.environment)
-    }
-
-    // MARK: - Internal
-
-    func isCI(environment: [String: String]) -> Bool {
-        environment.first(where: {
+        Environment.current.variables.first(where: {
             CIChecker.variables.contains($0.key)
         }) != nil
     }

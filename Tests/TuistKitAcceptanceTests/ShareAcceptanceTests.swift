@@ -1,5 +1,8 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import SnapshotTesting
+import Testing
 import TuistAcceptanceTesting
 import TuistCore
 import TuistSupport
@@ -8,7 +11,42 @@ import XCTest
 
 @testable import TuistKit
 
-final class ShareAcceptanceTests: ServerAcceptanceTestCase {
+struct ShareAcceptanceTests {
+    @Test(
+        .withFixture("ios_app_with_frameworks"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment,
+        .withMockedNoora,
+        .withMockedLogger()
+    )
+    func ios_app_with_frameworks() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: Build
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+        resetUI()
+
+        // When: Share
+        try await TuistTest.run(
+            ShareCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+//        XCTAssertTrue(
+//            ui()
+//                .contains("Share App with others using the following link:") == true
+//        )
+//        let shareLink = try previewLink()
+//        resetUI()
+    }
+}
+
+final class ShareXCTAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {
         try await withMockedDependencies { @MainActor in
             try await setUpFixture(.iosAppWithFrameworks)

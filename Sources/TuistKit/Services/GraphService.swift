@@ -166,7 +166,7 @@ final class GraphService {
 
     private func installGraphViz() throws {
         Logger.current.notice("Installing GraphViz...")
-        var env = System.shared.env
+        var env = Environment.current.variables
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
     }

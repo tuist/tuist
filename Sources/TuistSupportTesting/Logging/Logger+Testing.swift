@@ -87,12 +87,14 @@ extension Logger {
 }
 
 public struct LoggerTestingTrait: TestTrait, SuiteTrait, TestScoping {
+    let forwardLogs: Bool
+
     public func provideScope(
         for _: Test,
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let (logger, handler) = Logger.initTestingLogger()
+        let (logger, handler) = Logger.initTestingLogger(forwardLogs: forwardLogs)
         try await Logger.$current.withValue(logger) {
             try await Logger.$testingLogHandler.withValue(handler) {
                 try await function()
@@ -103,5 +105,7 @@ public struct LoggerTestingTrait: TestTrait, SuiteTrait, TestScoping {
 
 extension Trait where Self == LoggerTestingTrait {
     /// When this trait is applied, it uses a mock for the task local `Logger.current`.`
-    public static var withMockedLogger: Self { Self() }
+    public static func withMockedLogger(forwardLogs: Bool = false) -> Self {
+        return Self(forwardLogs: forwardLogs)
+    }
 }

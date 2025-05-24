@@ -25,7 +25,6 @@ struct InspectBundleCommandService {
     private let configLoader: ConfigLoading
     private let serverURLService: ServerURLServicing
     private let gitController: GitControlling
-    private let environment: [String: String]
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -33,8 +32,7 @@ struct InspectBundleCommandService {
         createBundleService: CreateBundleServicing = CreateBundleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        gitController: GitControlling = GitController(),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        gitController: GitControlling = GitController()
     ) {
         self.fileSystem = fileSystem
         self.rosalind = rosalind
@@ -42,7 +40,6 @@ struct InspectBundleCommandService {
         self.configLoader = configLoader
         self.serverURLService = serverURLService
         self.gitController = gitController
-        self.environment = environment
     }
 
     func run(
@@ -76,7 +73,7 @@ struct InspectBundleCommandService {
 
         let gitCommitSHA: String?
         let gitBranch: String?
-        let gitRef = gitController.ref(environment: environment)
+        let gitRef = gitController.ref()
         if gitController.isInGitRepository(workingDirectory: path) {
             if gitController.hasCurrentBranchCommits(workingDirectory: path) {
                 gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)

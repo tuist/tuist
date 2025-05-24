@@ -205,7 +205,7 @@ struct CommandEventFactoryTests {
             .willReturn("https://github.com/tuist/tuist")
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn("github-ref")
 
         given(gitController)
@@ -269,7 +269,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn(nil)
 
         // When
@@ -322,7 +322,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn(nil)
 
         given(gitController)
@@ -371,7 +371,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn(nil)
 
         given(gitController)

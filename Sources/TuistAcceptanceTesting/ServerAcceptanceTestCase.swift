@@ -15,8 +15,8 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
         organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         projectHandle = String(UUID().uuidString.prefix(12).lowercased())
         fullHandle = "\(organizationHandle)/\(projectHandle)"
-        let email = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
-        let password = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
+        let email = try XCTUnwrap(Environment.current.variables[EnvKey.authEmail.rawValue])
+        let password = try XCTUnwrap(Environment.current.variables[EnvKey.authPassword.rawValue])
         try await run(LoginCommand.self, "--email", email, "--password", password)
         try await run(OrganizationCreateCommand.self, organizationHandle)
         try await run(ProjectCreateCommand.self, fullHandle)
@@ -26,7 +26,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
 
             let config = Config(
                 fullHandle: "\(fullHandle)",
-                url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://canary.tuist.dev")"
+                url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
             )
             """,
             path: fixturePath.appending(components: Constants.tuistManifestFileName),

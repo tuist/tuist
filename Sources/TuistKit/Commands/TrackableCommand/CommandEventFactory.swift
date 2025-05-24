@@ -24,8 +24,7 @@ public final class CommandEventFactory {
 
     public func make(
         from info: TrackableCommandInfo,
-        path: AbsolutePath,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        path: AbsolutePath
     ) throws -> CommandEvent {
         var gitCommitSHA: String?
         var gitRemoteURLOrigin: String?
@@ -63,7 +62,7 @@ public final class CommandEventFactory {
             isCI: machineEnvironment.isCI,
             status: info.status,
             gitCommitSHA: gitCommitSHA,
-            gitRef: gitController.ref(environment: environment),
+            gitRef: gitController.ref(),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
             graph: graph,

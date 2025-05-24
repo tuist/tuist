@@ -19,7 +19,7 @@ struct GeneratorAcceptanceTests {
         try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
     }
 
-    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger) func test_app_with_exponea_sdk() async throws {
+    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger()) func test_app_with_exponea_sdk() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 

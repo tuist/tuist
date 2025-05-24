@@ -1,11 +1,38 @@
 import FileSystem
 import Path
+import Testing
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XCTest
-
 @testable import TuistKit
+
+struct BuildAcceptanceTests {
+    @Test(
+        .withFixture("multiplatform_app_with_extension"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment
+    ) func multiplatform_app_with_extension() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When/Then
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--platform",
+                "ios",
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+}
 
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
@@ -177,14 +204,6 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework", "--platform", "macos")
         try await run(BuildCommand.self, "Framework", "--platform", "ios")
-    }
-}
-
-final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTestCase {
-    func test() async throws {
-        try await setUpFixture(.multiplatformAppWithExtension)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
 
