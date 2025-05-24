@@ -21,9 +21,6 @@ public protocol Environmenting: Sendable {
     /// Returns the arguments that have been passed to the process.
     var arguments: [String] { get }
 
-    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
-    var tuistVariables: [String: String] { get }
-
     /// Returns all the environment variables that can be included during the manifest loading process
     var manifestLoadingVariables: [String: String] { get }
 
@@ -55,6 +52,17 @@ public protocol Environmenting: Sendable {
 
     /// Returns path to the Tuist executable
     func currentExecutablePath() -> AbsolutePath?
+}
+
+extension Environmenting {
+    public var tuistVariables: [String: String] {
+        self.variables.filter { $0.key.hasPrefix("TUIST_") }
+    }
+    
+    public func isVariableTruthy(_ name: String) -> Bool {
+        guard let value = self.variables[name] else { return false }
+        return ["1", "true", "TRUE", "yes", "YES"].contains(value)
+    }
 }
 
 /// Local environment controller.
@@ -174,11 +182,6 @@ public struct Environment: Environmenting {
         } else {
             return cacheDirectory.appending(component: Constants.AsyncQueue.directoryName)
         }
-    }
-
-    /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
-    public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
     }
 
     public var manifestLoadingVariables: [String: String] {
