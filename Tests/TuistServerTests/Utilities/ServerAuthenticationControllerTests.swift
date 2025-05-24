@@ -9,7 +9,6 @@ import TuistSupportTesting
 struct ServerAuthenticationControllerTests {
     private var subject: ServerAuthenticationController!
     private var credentialsStore: MockServerCredentialsStoring!
-    private var ciChecker: MockCIChecking!
 
     private let accessToken =
         "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0dWlzdF9jbG91ZCIsImV4cCI6MTcyMDQyOTgxMiwiaWF0IjoxNzIwNDI5NzUyLCJpc3MiOiJ0dWlzdF9jbG91ZCIsImp0aSI6IjlmZGEwYmRmLTE0MjMtNDhmNi1iNWRmLWM2MDVjMGMwMzBiMiIsIm5iZiI6MTcyMDQyOTc1MSwicmVzb3VyY2UiOiJ1c2VyIiwic3ViIjoiMSIsInR5cCI6ImFjY2VzcyJ9.qsxjD51lHHaQo6NWs-gUxVUhQfyWEe3v3-okM0NIV72vDY-fGgzq9JU2F8DQbdOD8POqWkseCbtO66m_4J9uFw"
@@ -18,22 +17,18 @@ struct ServerAuthenticationControllerTests {
 
     init() throws {
         credentialsStore = .init()
-        ciChecker = .init()
         subject = .init(
-            credentialsStore: credentialsStore,
-            ciChecker: ciChecker
+            credentialsStore: credentialsStore
         )
     }
 
     @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        given(ciChecker)
-            .isCI()
-            .willReturn(true)
+        mockEnvironment.variables = [
+            Constants.EnvironmentVariables.token: "project-token",
+            "CI": "1",
+        ]
 
         // When
         let got = try await subject.authenticationToken(serverURL: .test())
@@ -48,12 +43,9 @@ struct ServerAuthenticationControllerTests {
     @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_not_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        mockEnvironment.variables = [
+            Constants.EnvironmentVariables.token: "project-token",
+        ]
         given(credentialsStore)
             .read(serverURL: .any)
             .willReturn(nil)
@@ -70,13 +62,11 @@ struct ServerAuthenticationControllerTests {
     {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
+        mockEnvironment.variables = [
+            Constants.EnvironmentVariables.token: "project-token",
+        ]
         let credentials = ServerCredentials.test(token: "access-token")
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+
         given(credentialsStore)
             .read(serverURL: .value(URL(string: "https://tuist.dev")!))
             .willReturn(nil)
@@ -98,13 +88,10 @@ struct ServerAuthenticationControllerTests {
     {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] = "project-token"
+        mockEnvironment.variables = [
+            Constants.EnvironmentVariables.token: "project-token",
+        ]
         let credentials = ServerCredentials.test(token: "access-token")
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
         given(credentialsStore)
             .read(serverURL: .value(URL(string: "https://tuist.dev")!))
             .willReturn(credentials)
@@ -122,12 +109,10 @@ struct ServerAuthenticationControllerTests {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
-            mockEnvironment.tuistVariables[
-                Constants.EnvironmentVariables.deprecatedToken
-            ] = "project-token"
-            given(ciChecker)
-                .isCI()
-                .willReturn(true)
+            mockEnvironment.variables = [
+                Constants.EnvironmentVariables.deprecatedToken: "project-token",
+                "CI": "1",
+            ]
 
             // When
             let got = try await subject.authenticationToken(serverURL: .test())
@@ -147,15 +132,11 @@ struct ServerAuthenticationControllerTests {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
-            mockEnvironment.tuistVariables[
-                Constants.EnvironmentVariables.deprecatedToken
-            ] = "deprecated-project-token"
-            mockEnvironment.tuistVariables[
-                Constants.EnvironmentVariables.token
-            ] = "project-token"
-            given(ciChecker)
-                .isCI()
-                .willReturn(true)
+            mockEnvironment.variables = [
+                Constants.EnvironmentVariables.deprecatedToken: "deprecated-project-token",
+                Constants.EnvironmentVariables.token: "project-token",
+                "CI": "1",
+            ]
 
             // When
             let got = try await subject.authenticationToken(serverURL: .test())
@@ -174,9 +155,8 @@ struct ServerAuthenticationControllerTests {
     @Test(.withMockedEnvironment) func test_when_credentials_store_returns_legacy_token() async throws {
         try await withMockedDependencies {
             // Given
-            given(ciChecker)
-                .isCI()
-                .willReturn(false)
+            let mockEnvironment = try #require(Environment.mocked)
+            mockEnvironment.variables = [:]
 
             given(credentialsStore)
                 .read(serverURL: .any)
@@ -198,12 +178,11 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
+    @Test func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
         try await withMockedDependencies {
             // Given
-            given(ciChecker)
-                .isCI()
-                .willReturn(false)
+            let mockEnvironment = try #require(Environment.mocked)
+            mockEnvironment.variables = [:]
 
             given(credentialsStore)
                 .read(serverURL: .any)
@@ -241,9 +220,8 @@ struct ServerAuthenticationControllerTests {
 
     @Test(.withMockedEnvironment) func test_when_credentials_store_returns_jwt_tokens() async throws {
         // Given
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
 
         given(credentialsStore)
             .read(serverURL: .any)

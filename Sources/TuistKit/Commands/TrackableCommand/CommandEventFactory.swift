@@ -59,7 +59,7 @@ public final class CommandEventFactory {
             swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
-            isCI: machineEnvironment.isCI,
+            isCI: Environment.current.isCI,
             status: info.status,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitController.ref(),

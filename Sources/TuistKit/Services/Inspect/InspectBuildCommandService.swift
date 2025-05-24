@@ -32,7 +32,6 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
 struct InspectBuildCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
-    private let ciChecker: CIChecking
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
@@ -45,7 +44,6 @@ struct InspectBuildCommandService {
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
-        ciChecker: CIChecking = CIChecker(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
@@ -57,7 +55,6 @@ struct InspectBuildCommandService {
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
-        self.ciChecker = ciChecker
         self.machineEnvironment = machineEnvironment
         self.xcodeBuildController = xcodeBuildController
         self.createBuildService = createBuildService
@@ -127,7 +124,7 @@ struct InspectBuildCommandService {
             id: xcactivityLog.mainSection.uniqueIdentifier,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
-            isCI: ciChecker.isCI(),
+            isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: Environment.current.schemeName,

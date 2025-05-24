@@ -56,12 +56,29 @@ public protocol Environmenting: Sendable {
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
-        self.variables.filter { $0.key.hasPrefix("TUIST_") }
+        variables.filter { $0.key.hasPrefix("TUIST_") }
     }
-    
+
     public func isVariableTruthy(_ name: String) -> Bool {
-        guard let value = self.variables[name] else { return false }
+        guard let value = variables[name] else { return false }
         return ["1", "true", "TRUE", "yes", "YES"].contains(value)
+    }
+
+    public var isCI: Bool {
+        let ciPlatformVariables = [
+            // GitHub: https://help.github.com/en/actions/automating-your-workflow-with-github-actions/using-environment-variables
+            "GITHUB_RUN_ID",
+            // CircleCI: https://circleci.com/docs/2.0/env-vars/
+            // Bitrise: https://devcenter.bitrise.io/builds/available-environment-variables/
+            // Buildkite: https://buildkite.com/docs/pipelines/environment-variables
+            // Travis: https://docs.travis-ci.com/user/environment-variables/
+            "CI",
+            // Jenkins: https://wiki.jenkins.io/display/JENKINS/Building+a+software+project
+            "BUILD_NUMBER",
+        ]
+        return variables.first(where: {
+            ciPlatformVariables.contains($0.key)
+        }) != nil
     }
 }
 

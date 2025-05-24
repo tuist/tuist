@@ -11,15 +11,15 @@ import TSCUtility
 struct CommandEnvironmentVariableTests {
     private var tuistVariables: [String: String] {
         get {
-            return Environment.mocked?.tuistVariables ?? [:]
+            return Environment.mocked?.variables ?? [:]
         }
         set {
-            Environment.mocked?.tuistVariables = newValue
+            Environment.mocked?.variables = newValue
         }
     }
 
     private func setVariable(_ key: EnvKey, value: String) {
-        Environment.mocked?.tuistVariables[key.rawValue] = value
+        Environment.mocked?.variables[key.rawValue] = value
     }
 
     @Test(.withMockedEnvironment) func testBuildCommandUsesEnvVars() throws {

@@ -22,7 +22,7 @@ struct ManifestLoaderFactoryTests {
     ) throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.tuistVariables[Constants.EnvironmentVariables.cacheManifests] = "0"
+        mockEnvironment.variables[Constants.EnvironmentVariables.cacheManifests] = "0"
         let sut = ManifestLoaderFactory()
         // When
         let result = sut.createManifestLoader()

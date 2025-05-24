@@ -12,7 +12,6 @@ import XcodeGraph
 
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
-    private let ciChecker = MockCIChecking()
     private let configLoader = MockConfigLoading()
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let derivedDataLocator = MockDerivedDataLocating()
@@ -28,7 +27,6 @@ struct InspectBuildCommandServiceTests {
         subject = InspectBuildCommandService(
             derivedDataLocator: derivedDataLocator,
             fileSystem: fileSystem,
-            ciChecker: ciChecker,
             machineEnvironment: machineEnvironment,
             xcodeBuildController: xcodeBuildController,
             createBuildService: createBuildService,
@@ -61,10 +59,6 @@ struct InspectBuildCommandServiceTests {
             )
             .willReturn()
 
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
-
         given(machineEnvironment)
             .modelIdentifier()
             .willReturn("Mac15,3")
@@ -75,12 +69,11 @@ struct InspectBuildCommandServiceTests {
 
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.schemeName = "App"
+        mockedEnvironment.variables = ["TUIST_INSPECT_BUILD_WAIT": "YES"]
 
         given(xcodeBuildController)
             .version()
             .willReturn(Version(16, 0, 0))
-
-        mockedEnvironment.tuistVariables = ["TUIST_INSPECT_BUILD_WAIT": "YES"]
 
         given(dateService)
             .now()
@@ -157,7 +150,7 @@ struct InspectBuildCommandServiceTests {
     func test_when_should_not_wait() async throws {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.tuistVariables = [:]
+        mockedEnvironment.variables = [:]
         mockedEnvironment.workspacePath = "/tmp/path"
 
         given(backgroundProcessRunner)

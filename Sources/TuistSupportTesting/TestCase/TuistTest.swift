@@ -84,7 +84,7 @@ public enum TuistTest {
         at level: Logger.Level = .warning,
         _ comparison: (Logger.Level, Logger.Level) -> Bool = { $0 >= $1 },
         sourceLocation: SourceLocation = #_sourceLocation
-    ) throws {
+    ) {
         let output = Logger.testingLogHandler.collected[level, comparison]
         let message = """
         The output:

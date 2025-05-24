@@ -15,7 +15,6 @@ public final class MockEnvironment: Environmenting {
     public var queueDirectoryStub: AbsolutePath?
     public var shouldOutputBeColoured: Bool = false
     public var isStandardOutputInteractive: Bool = false
-    public var tuistVariables: [String: String] = [:]
     public var manifestLoadingVariables: [String: String] = [:]
     public var isStatsEnabled: Bool = true
     public var isGitHubActions: Bool = false
