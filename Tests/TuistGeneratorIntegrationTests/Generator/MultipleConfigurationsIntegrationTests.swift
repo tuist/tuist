@@ -394,7 +394,7 @@ final class MultipleConfigurationsIntegrationTests {
     }
 
     private func setupTestProject() async throws {
-        try await makeDirectories(["App/Sources"])
+        try await TuistTest.makeDirectories(["App/Sources"])
     }
 
     @discardableResult

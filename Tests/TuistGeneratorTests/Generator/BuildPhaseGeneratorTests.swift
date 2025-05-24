@@ -637,7 +637,7 @@ struct BuildPhaseGeneratorTests {
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try await createFiles([
+        let files = try await TuistTest.createFiles([
             "resources/fr.lproj/Controller.strings",
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -690,7 +690,7 @@ struct BuildPhaseGeneratorTests {
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try await createFiles([
+        let files = try await TuistTest.createFiles([
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/en.lproj/Intents.strings",
             "resources/fr.lproj/Intents.strings",

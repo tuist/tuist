@@ -365,7 +365,7 @@ struct BuildServiceTests {
     }
 
     @Test func test_run_lists_schemes() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given
@@ -397,7 +397,7 @@ struct BuildServiceTests {
                 )
 
                 // Then
-                try expectLogs("Found the following buildable schemes: A, B", at: .debug, ==)
+                try TuistTest.expectLogs("Found the following buildable schemes: A, B", at: .debug, ==)
             }
         }
     }

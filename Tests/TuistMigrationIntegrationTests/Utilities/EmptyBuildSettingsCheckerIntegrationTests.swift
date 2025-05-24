@@ -33,7 +33,7 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
     }
 
     func test_check_when_non_empty_target_build_settings() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let xcodeprojPath = fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
@@ -53,7 +53,7 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
     }
 
     func test_check_when_non_empty_project_build_settings() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let xcodeprojPath = fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")

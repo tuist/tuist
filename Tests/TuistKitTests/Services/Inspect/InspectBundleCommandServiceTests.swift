@@ -75,7 +75,7 @@ struct InspectBundleCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory) func analyzeAppBundle() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let bundlePath = temporaryDirectory.appending(component: "App.ipa")

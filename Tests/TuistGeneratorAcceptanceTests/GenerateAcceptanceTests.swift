@@ -1,23 +1,31 @@
 import Path
+import Testing
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeProj
 import XCTest
 
-final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
-    func test_app_with_framework_and_tests() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
-        try await run(GenerateCommand.self)
-        try XCTAssertFrameworkNotEmbedded("Framework", by: "AppExtension")
-    }
-}
+struct GeneratorAcceptanceTests {
+    @Test(.withFixture("app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
 
-final class GenerateAcceptanceTestAppWithExponeaSDK: TuistAcceptanceTestCase {
-    func test_app_with_exponea_sdk() async throws {
-        try await setUpFixture(.appWithExponeaSDK)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then
+        try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
+    }
+
+    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger) func test_app_with_exponea_sdk() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 }
 
@@ -420,7 +428,7 @@ final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithIncompatibleXcode)
             do {
                 try await run(GenerateCommand.self)
@@ -777,7 +785,7 @@ final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase
 
 final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     func test_manifest_with_logs() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.manifestWithLogs)
             try await run(GenerateCommand.self)
             XCTAssertStandardOutput(pattern: "Target name - App")
@@ -1282,7 +1290,7 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 
     func test_app_with_mismatching_signed_xcframework_dependencies() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.appWithSignedXCFrameworkDependenciesMismatchingSignature)
             do {
                 try await run(GenerateCommand.self)

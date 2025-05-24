@@ -7,7 +7,7 @@ import XCTest
 
 final class LintAcceptanceTests: TuistAcceptanceTestCase {
     func test_ios_app_with_headers() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithHeaders)
             try await run(InspectImplicitImportsCommand.self)
             XCTAssertStandardOutput(pattern: "We did not find any implicit dependencies in your project.")
@@ -15,7 +15,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_implicit_dependencies() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithImplicitDependencies)
             await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
             XCTAssertStandardOutput(pattern: """
@@ -27,7 +27,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
 
 final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
     func test_xcode_project_with_inspect_build() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.xcodeProjectWithInspectBuild)
             let arguments = [
                 "-scheme", "App",
@@ -47,7 +47,7 @@ final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
 
 final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
     func test_xcode_project_with_inspect_build() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.xcodeProjectWithInspectBuild)
             let arguments = [
                 "-scheme", "App",

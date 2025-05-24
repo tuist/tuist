@@ -10,7 +10,7 @@ import XCTest
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,
@@ -41,7 +41,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
     func test_with_invalid_arguments() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,

@@ -48,7 +48,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_whenDot() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.dot")
@@ -86,7 +86,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_legacyJSON() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")
@@ -126,7 +126,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_json() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")
@@ -166,7 +166,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_json_and_has_no_root_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let graphPath = temporaryPath.appending(component: "graph.json")

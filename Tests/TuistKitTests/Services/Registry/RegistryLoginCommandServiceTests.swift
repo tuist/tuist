@@ -44,7 +44,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -82,7 +82,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login_when_ci() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
                 // Given
                 given(configLoader)
@@ -119,7 +119,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login_when_ci_and_xcode_project() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

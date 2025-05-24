@@ -20,7 +20,7 @@ struct MCPSetupClaudeCommandServiceTests {
     }
 
     @Test func run() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configurationFileController)
                 .update(

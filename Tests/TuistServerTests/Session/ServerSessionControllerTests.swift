@@ -179,7 +179,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesLegacyCredentials() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: "token",
@@ -201,7 +201,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesCredentials() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: nil,

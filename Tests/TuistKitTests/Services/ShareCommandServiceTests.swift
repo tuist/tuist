@@ -130,7 +130,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -343,7 +343,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_app() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -456,7 +456,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_app_and_json_flag() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let projectPath = try temporaryPath()
             let appTarget: Target = .test(
@@ -545,7 +545,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_appclip() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -739,7 +739,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_xcode_app() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -874,7 +874,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_app_bundles() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -943,7 +943,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     }
 
     func test_share_ipa() async throws {
-        try await withTestingDependencies { @MainActor in
+        try await withMockedDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

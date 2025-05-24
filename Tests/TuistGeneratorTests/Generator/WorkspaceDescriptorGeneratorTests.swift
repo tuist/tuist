@@ -38,7 +38,7 @@ struct WorkspaceDescriptorGeneratorTests {
     ) func test_generate_workspaceStructure() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "README.md",
             "Documentation/README.md",
             "Website/index.html",
