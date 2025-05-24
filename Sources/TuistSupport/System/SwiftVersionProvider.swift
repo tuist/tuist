@@ -20,11 +20,17 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
     @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider(System())
 
     /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
-    private static let swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
+    // swiftlint:disable force_try
+    private static let swiftVersionRegex = try! NSRegularExpression(
+        pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: []
+    )
 
     /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
     /// command.
-    private static let swiftlangVersionRegex = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
+    // swiftlint:disable force_try
+    private static let swiftlangVersionRegex = try! NSRegularExpression(
+        pattern: "swiftlang-(.+)\\sclang", options: []
+    )
 
     // swiftlint:enable force_try
 
@@ -43,7 +49,10 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
         cachedSwiftVersion = ThrowableCaching<String> {
             let output = try system.capture(["/usr/bin/xcrun", "swift", "--version"])
             let range = NSRange(location: 0, length: output.count)
-            guard let match = SwiftVersionProvider.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else {
+            guard let match = SwiftVersionProvider.swiftVersionRegex.firstMatch(
+                in: output, options: [], range: range
+            )
+            else {
                 throw SystemError.parseSwiftVersion(output)
             }
             return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
@@ -52,7 +61,10 @@ public final class SwiftVersionProvider: SwiftVersionProviding {
         cachedSwiftlangVersion = ThrowableCaching<String> {
             let output = try system.capture(["/usr/bin/xcrun", "swift", "--version"])
             let range = NSRange(location: 0, length: output.count)
-            guard let match = SwiftVersionProvider.swiftlangVersionRegex.firstMatch(in: output, options: [], range: range) else {
+            guard let match = SwiftVersionProvider.swiftlangVersionRegex.firstMatch(
+                in: output, options: [], range: range
+            )
+            else {
                 throw SystemError.parseSwiftVersion(output)
             }
             return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
