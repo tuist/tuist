@@ -1,7 +1,7 @@
 import Foundation
 import Path
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationBillingServicing {
@@ -32,14 +32,17 @@ final class OrganizationBillingService: OrganizationBillingServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
         try opener.open(
-            url: serverURL
+            url:
+            serverURL
                 .appendingPathComponent(organizationName)
                 .appendingPathComponent("billing")
         )

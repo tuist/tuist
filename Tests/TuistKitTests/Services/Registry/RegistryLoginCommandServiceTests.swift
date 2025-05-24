@@ -1,11 +1,11 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
+import TuistSupportTesting
 
 @testable import TuistKit
 
@@ -44,7 +44,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -69,18 +69,20 @@ struct RegistryLoginCommandServiceTests {
             try await subject.run(path: nil)
 
             // Then
-            #expect(ServiceContext.current?.recordedUI().contains("Logged in to the tuist registry") == true)
+            #expect(ui().contains("Logged in to the tuist registry") == true)
             verify(swiftPackageManagerController)
                 .packageRegistryLogin(token: .value("token"), registryURL: .any)
                 .called(1)
             verify(defaultsController)
-                .setPackageDendencySCMToRegistryTransformation(.value(.useRegistryIdentityAndSources))
+                .setPackageDendencySCMToRegistryTransformation(
+                    .value(.useRegistryIdentityAndSources)
+                )
                 .called(1)
         }
     }
 
     @Test func test_login_when_ci() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
                 // Given
                 given(configLoader)
@@ -117,7 +119,7 @@ struct RegistryLoginCommandServiceTests {
     }
 
     @Test func test_login_when_ci_and_xcode_project() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

@@ -1,13 +1,13 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
@@ -86,7 +86,7 @@ struct XcodeBuildTestCommandService {
             throw XcodeBuildTestCommandServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
-        await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        await RunMetadataStorage.current.update(graph: graph)
         let graphTraverser = GraphTraverser(graph: graph)
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
@@ -134,7 +134,7 @@ struct XcodeBuildTestCommandService {
             .filter({ testableTarget in !skipTestTargets.contains(where: { $0.target == testableTarget.target.name }) })
             .isEmpty
         {
-            ServiceContext.current?.logger?.info("There are no tests to run, exiting early...")
+            Logger.current.info("There are no tests to run, exiting early...")
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
                 selectiveTestingHashes: selectiveTestingHashes,
@@ -144,7 +144,7 @@ struct XcodeBuildTestCommandService {
         }
 
         if !skipTestTargets.isEmpty {
-            ServiceContext.current?.logger?
+            Logger.current
                 .info(
                     "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).sorted().joined(separator: ", "))"
                 )
@@ -214,7 +214,7 @@ struct XcodeBuildTestCommandService {
         ) {
             let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return []
@@ -222,7 +222,7 @@ struct XcodeBuildTestCommandService {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await ServiceContext.current?.runMetadataStorage?.update(
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return ["-resultBundlePath", resultBundlePath.pathString]
@@ -234,7 +234,7 @@ struct XcodeBuildTestCommandService {
         selectiveTestingHashes: [GraphTarget: String],
         targetTestCacheItems: [AbsolutePath: [String: CacheItem]]
     ) async {
-        await ServiceContext.current?.runMetadataStorage?.update(
+        await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: testableGraphTargets.reduce(into: [:]) { result, element in
                 guard let hash = selectiveTestingHashes[element] else { return }
                 let cacheItem = targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(

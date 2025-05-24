@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
@@ -125,18 +124,15 @@ public final class SimulatorController: SimulatorControlling {
     private let userInputReader: UserInputReading
 
     private let system: Systeming
-    private let devEnvironment: DeveloperEnvironmenting
     private let xcodeController: XcodeControlling
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
         system: Systeming = System.shared,
-        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
         xcodeController: XcodeControlling = XcodeController.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
-        self.devEnvironment = devEnvironment
         self.xcodeController = xcodeController
     }
 
@@ -312,13 +308,13 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
-        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        Logger.current.debug("Installing app at \(path) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
-        ServiceContext.current?.logger?
+        Logger.current
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         let simulator = try await xcodeController.selected().path.appending(
@@ -367,7 +363,7 @@ public final class SimulatorController: SimulatorControlling {
 
     public func macOSDestination(catalyst: Bool = false) -> String {
         let arch: String
-        switch devEnvironment.architecture {
+        switch DeveloperEnvironment.current.architecture {
         case .arm64:
             arch = "arm64"
         case .x8664:

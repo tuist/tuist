@@ -1,10 +1,9 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol AccountUpdateServicing {
@@ -94,7 +93,7 @@ extension AccountUpdateServicing {
         accountHandle: String?,
         handle: String?,
         directory: String?,
-        onEvent: ((AccountUpdateServiceEvent) -> Void) = { ServiceContext.current?.alerts?.success(.alert("\($0.description)")) }
+        onEvent: ((AccountUpdateServiceEvent) -> Void) = { AlertController.current.success(.alert("\($0.description)")) }
     ) async throws {
         try await run(
             accountHandle: accountHandle,

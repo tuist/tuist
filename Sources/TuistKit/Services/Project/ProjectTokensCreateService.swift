@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol ProjectTokensCreateServicing {
@@ -41,7 +40,9 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -53,6 +54,6 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info(.init(stringLiteral: token))
+        Logger.current.info(.init(stringLiteral: token))
     }
 }

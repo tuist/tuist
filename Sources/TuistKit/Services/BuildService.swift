@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 
@@ -20,7 +20,8 @@ enum BuildServiceError: FatalError {
         case let .workspaceNotFound(path):
             return "Workspace not found expected xcworkspace at \(path)"
         case let .schemeNotFound(scheme, existing):
-            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+            return
+                "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         }
     }
 
@@ -77,7 +78,8 @@ public final class BuildService {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
-                errorMessageOverride: "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
+                errorMessageOverride:
+                "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.building(
@@ -97,7 +99,8 @@ public final class BuildService {
             return
         }
 
-        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
+        else {
             throw BuildServiceError.workspaceNotFound(path: path.pathString)
         }
 
@@ -111,17 +114,22 @@ public final class BuildService {
             )
         }
 
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
 
         if let schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
-                throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
+                throw BuildServiceError.schemeNotFound(
+                    scheme: schemeName, existing: buildableSchemes.map(\.name)
+                )
             }
 
-            guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+            guard let graphTarget = buildGraphInspector.buildableTarget(
+                scheme: scheme, graphTraverser: graphTraverser
+            )
+            else {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
@@ -151,9 +159,14 @@ public final class BuildService {
         } else {
             var cleaned = false
             // Build only buildable entry schemes when specific schemes has not been passed
-            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(
+                graphTraverser: graphTraverser
+            )
             for scheme in buildableEntrySchemes {
-                guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+                guard let graphTarget = buildGraphInspector.buildableTarget(
+                    scheme: scheme, graphTraverser: graphTraverser
+                )
+                else {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
@@ -184,6 +197,6 @@ public final class BuildService {
             }
         }
 
-        ServiceContext.current?.alerts?.success(.alert("The project built successfully"))
+        AlertController.current.success(.alert("The project built successfully"))
     }
 }

@@ -4,7 +4,7 @@ import Mockable
 import Testing
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 
@@ -96,7 +96,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_createsBuild() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             given(environment)
@@ -107,7 +108,9 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+            let activityLogPath = buildLogsPath.appending(
+                components: "\(UUID().uuidString).xcactivitylog"
+            )
 
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
@@ -187,7 +190,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_createsBuild_with_path_from_cli() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
@@ -199,7 +203,9 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+            let activityLogPath = buildLogsPath.appending(
+                components: "\(UUID().uuidString).xcactivitylog"
+            )
 
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
@@ -229,7 +235,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_createsBuild_with_path_from_cli_for_xcworkspace() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             try await fileSystem.makeDirectory(at: workspacePath)
@@ -243,7 +250,9 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcacvitiylog")
+            let activityLogPath = buildLogsPath.appending(
+                components: "\(UUID().uuidString).xcacvitiylog"
+            )
 
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
@@ -278,7 +287,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_when_no_project_exists_at_a_given_path() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             given(environment)
                 .workspacePath
@@ -297,7 +307,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_when_no_logs_exist() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             given(environment)
@@ -323,7 +334,8 @@ struct InspectBuildCommandServiceTests {
 
     @Test
     func test_when_full_handle_not_specified() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
@@ -335,7 +347,9 @@ struct InspectBuildCommandServiceTests {
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+            let activityLogPath = buildLogsPath.appending(
+                components: "\(UUID().uuidString).xcactivitylog"
+            )
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
                 XCLogStoreManifestPlist(

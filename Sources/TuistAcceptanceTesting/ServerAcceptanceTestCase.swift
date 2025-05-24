@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -33,7 +32,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
             path: fixturePath.appending(components: Constants.tuistManifestFileName),
             atomically: true
         )
-        ServiceContext.current?.resetRecordedUI()
+        resetUI()
     }
 
     override open func tearDown() async throws {

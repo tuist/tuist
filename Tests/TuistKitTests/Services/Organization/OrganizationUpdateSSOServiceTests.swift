@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistKit
 
 final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
@@ -36,7 +36,7 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_update_sso() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(
@@ -55,14 +55,16 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            tuist now uses Google SSO with tuist.io. Users authenticated with the tuist.io SSO organization will automatically have access to the tuist projects.
-            """)
+            XCTAssertPrinterOutputContains(
+                """
+                tuist now uses Google SSO with tuist.io. Users authenticated with the tuist.io SSO organization will automatically have access to the tuist projects.
+                """
+            )
         }
     }
 
     func test_organization_update_sso_with_okta() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(
@@ -81,9 +83,11 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            tuist now uses Okta SSO with tuist.okta.com. Users authenticated with the tuist.okta.com SSO organization will automatically have access to the tuist projects.
-            """)
+            XCTAssertPrinterOutputContains(
+                """
+                tuist now uses Okta SSO with tuist.okta.com. Users authenticated with the tuist.okta.com SSO organization will automatically have access to the tuist projects.
+                """
+            )
         }
     }
 }

@@ -1,11 +1,13 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 
@@ -421,7 +423,7 @@ struct ShareCommandService {
         serverURL: URL,
         json: Bool
     ) async throws {
-        let preview = try await ServiceContext.current!.ui!.progressBarStep(
+        let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(displayName)",
             successMessage: "\(displayName) uploaded",
             errorMessage: "Failed to load manifests"
@@ -440,18 +442,18 @@ struct ShareCommandService {
             )
         }
 
-        ServiceContext.current?.alerts?
+        AlertController.current
             .success(
                 .alert(
                     "Share \(displayName) with others using the following link: \(preview.url.absoluteString)"
                 )
             )
 
-        await ServiceContext.current?.runMetadataStorage?.update(previewId: preview.id)
+        await RunMetadataStorage.current.update(previewId: preview.id)
 
         if json {
             let previewJSON = try preview.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(
                     stringLiteral: previewJSON.toString(prettyPrint: true)
                 ),

@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -254,7 +253,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
 
         if currentData != savedData {
-            ServiceContext.current?.alerts?.warning(.alert(
+            AlertController.current.warning(.alert(
                 "We detected outdated dependencies.",
                 takeaway: "Run \(.command("tuist install")) to update them."
             ))

@@ -1,10 +1,9 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 @Mockable
@@ -68,7 +67,9 @@ final class LoginService: LoginServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -134,15 +135,18 @@ extension LoginServicing {
         password: String? = nil,
         directory: String? = nil
     ) async throws {
-        try await run(email: email, password: password, directory: directory, onEvent: Self.defaultOnEvent(event:))
+        try await run(
+            email: email, password: password, directory: directory,
+            onEvent: Self.defaultOnEvent(event:)
+        )
     }
 
     private static func defaultOnEvent(event: LoginServiceEvent) {
         switch event {
         case .completed:
-            ServiceContext.current?.alerts?.success(.alert("\(event.description)"))
+            AlertController.current.success(.alert("\(event.description)"))
         default:
-            ServiceContext.current?.logger?.notice("\(event.description)")
+            Logger.current.notice("\(event.description)")
         }
     }
 }

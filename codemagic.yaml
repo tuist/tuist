@@ -47,29 +47,6 @@ workflows:
         script: swift build --configuration debug
     triggering:
       <<: *branch_triggering
-  build_docs:
-    name: Build Documentation
-    max_build_duration: 60
-    environment:
-      xcode: 16.3
-      groups:
-        - tuist
-    scripts:
-      - name: Set environment variables
-        script: |
-          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
-      - name: Install Mise
-        script: |
-          curl https://mise.run | MISE_VERSION=v2025.1.3 sh
-          mise install
-      - name: Install dependencies
-        script: mise run install
-      - name: Generate manifest docs
-        script: mise run docs:generate-manifests-docs
-      - name: Build the documentation
-        script: mise run docs:build
-    triggering:
-      <<: *branch_triggering
   unit_tests:
     name: Unit tests
     max_build_duration: 60

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistSimulator
 import TuistSupport
 
 @Mockable

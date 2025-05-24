@@ -1,6 +1,6 @@
 import Foundation
+import Logging
 import Path
-import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -10,7 +10,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (
         Graph, [SideEffectDescriptor], MapperEnvironment
     ) {
-        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Tree-shaking nodes")
+        Logger.current.debug("Transforming graph \(graph.name): Tree-shaking nodes")
         let sourceTargets: Set<TargetReference> = Set(
             graph.projects.flatMap { projectPath, project -> [TargetReference] in
                 return project.targets.compactMap { _, target -> TargetReference? in

@@ -4,7 +4,6 @@ import Foundation
 import GraphViz
 import Path
 import ProjectAutomation
-import ServiceContextModule
 import Tools
 import TuistCore
 import TuistGenerator
@@ -77,7 +76,7 @@ final class GraphService {
         }
         let filePath = outputPath.appending(component: "graph.\(fileExtension)")
         if try await fileSystem.exists(filePath) {
-            ServiceContext.current?.logger?.notice("Deleting existing graph at \(filePath.pathString)")
+            Logger.current.notice("Deleting existing graph at \(filePath.pathString)")
             try await fileSystem.remove(filePath)
         }
 
@@ -99,7 +98,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        ServiceContext.current?.alerts?.success(.alert("Graph exported to \(filePath.pathString)"))
+        AlertController.current.success(.alert("Graph exported to \(filePath.pathString)"))
     }
 
     private func export(
@@ -166,7 +165,7 @@ final class GraphService {
     }
 
     private func installGraphViz() throws {
-        ServiceContext.current?.logger?.notice("Installing GraphViz...")
+        Logger.current.notice("Installing GraphViz...")
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)

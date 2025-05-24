@@ -3,7 +3,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
@@ -66,20 +65,20 @@ public protocol SwiftPackageManagerControlling {
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let system: Systeming
     private let fileSystem: FileSysteming
-    private let commandRunner: CommandRunning
+    private let commandRunner: () -> CommandRunning
 
     public init() {
         self.init(
             system: System.shared,
             fileSystem: FileSystem(),
-            commandRunner: CommandRunner(logger: ServiceContext.$current.get()?.logger)
+            commandRunner: { CommandRunner(logger: Logger.current) }
         )
     }
 
     init(
         system: Systeming,
         fileSystem: FileSysteming,
-        commandRunner: CommandRunning
+        commandRunner: @escaping () -> CommandRunning
     ) {
         self.system = system
         self.fileSystem = fileSystem
@@ -169,7 +168,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         token: String,
         registryURL: Foundation.URL
     ) async throws {
-        _ = try await commandRunner.run(
+        _ = try await commandRunner().run(
             arguments: [
                 "/usr/bin/swift",
                 "package-registry",
@@ -186,7 +185,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     public func packageRegistryLogout(
         registryURL: Foundation.URL
     ) async throws {
-        _ = try await commandRunner.run(
+        _ = try await commandRunner().run(
             arguments: [
                 "/usr/bin/swift",
                 "package-registry",

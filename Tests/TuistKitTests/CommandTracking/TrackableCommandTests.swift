@@ -5,7 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import XCTest
 
@@ -71,15 +71,19 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(flag: false, shouldFail: true)
         // When
         await XCTAssertThrowsSpecific(
-            try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())),
+            try await subject.run(
+                backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())
+            ),
             TestCommand.TestError.commandFailed
         )
 
         // Then
         verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.status == .failure("Command failed")
-            })
+            .dispatch(
+                event: Parameter<CommandEvent>.matching { event in
+                    event.name == "test" && event.status == .failure("Command failed")
+                }
+            )
             .called(1)
     }
 
@@ -141,7 +145,9 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // When
-        try await subject.run(backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test()))
+        try await subject.run(
+            backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test())
+        )
 
         // Then
         verify(asyncQueue)

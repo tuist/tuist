@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistScaffold
@@ -144,7 +143,7 @@ public struct PluginService: PluginServicing {
             .compactMap { pluginLocation in
                 switch pluginLocation {
                 case let .local(path):
-                    ServiceContext.current?.logger?.debug("Using plugin \(pluginLocation.description)", metadata: .subsection)
+                    Logger.current.debug("Using plugin \(pluginLocation.description)", metadata: .subsection)
                     return try AbsolutePath(validating: path)
                 case .git:
                     return nil
@@ -252,12 +251,12 @@ public struct PluginService: PluginServicing {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
 
         guard try await !fileSystem.exists(pluginRepositoryDirectory) else {
-            ServiceContext.current?.logger?.debug("Using cached git plugin \(url)")
+            Logger.current.debug("Using cached git plugin \(url)")
             return
         }
 
-        ServiceContext.current?.logger?.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
-        ServiceContext.current?.logger?.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
+        Logger.current.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
+        Logger.current.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
         try gitController.clone(url: url, to: pluginRepositoryDirectory)
         try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
@@ -276,7 +275,7 @@ public struct PluginService: PluginServicing {
 
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
         guard try await !fileSystem.exists(pluginReleaseDirectory) else {
-            ServiceContext.current?.logger?.debug("Using cached git plugin release \(url)")
+            Logger.current.debug("Using cached git plugin release \(url)")
             return
         }
 
@@ -284,7 +283,7 @@ public struct PluginService: PluginServicing {
         guard let releaseURL = getPluginDownloadUrl(gitUrl: url, gitTag: gitTag, pluginName: plugin.name, releaseUrl: releaseUrl)
         else { throw PluginServiceError.invalidURL(url) }
 
-        ServiceContext.current?.logger?.debug("Cloning plugin release from \(url) @ \(gitTag)")
+        Logger.current.debug("Cloning plugin release from \(url) @ \(gitTag)")
         try await FileHandler.shared.inTemporaryDirectory { _ in
             // Download the release.
             // Currently, we assume the release path exists.

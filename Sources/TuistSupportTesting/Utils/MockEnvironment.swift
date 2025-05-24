@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistSupport
 import XCTest
 
@@ -42,4 +43,25 @@ public final class MockEnvironment: Environmenting {
     public var schemeName: String? { nil }
 
     public func currentExecutablePath() -> AbsolutePath? { nil }
+}
+
+extension Environment {
+    public static var mocked: MockEnvironmenting? { current as? MockEnvironmenting }
+}
+
+public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
+    public func provideScope(
+        for _: Test,
+        testCase _: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        try await Environment.$current.withValue(MockEnvironmenting()) {
+            try await function()
+        }
+    }
+}
+
+extension Trait where Self == EnvironmentTestingTrait {
+    /// When this trait is applied to a test, the environment will be mocked.
+    public static var withMockedEnvironment: Self { Self() }
 }

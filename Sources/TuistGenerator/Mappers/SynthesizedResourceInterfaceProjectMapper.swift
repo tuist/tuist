@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import SwiftGenKit
 import TuistCore
 import TuistSupport
@@ -51,7 +50,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         guard !project.options.disableSynthesizedResourceAccessors else {
             return (project, [])
         }
-        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing resource accessors")
+        Logger.current.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
         let mappings = try project.targets.values
             .map { try mapTarget($0, project: project) }
@@ -197,7 +196,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         } else {
             if try !FileHandler.shared.readFile(path).isEmpty { return true }
         }
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .warning,
             "Skipping synthesizing accessors for \(path.pathString) because its contents are empty."
         )

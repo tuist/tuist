@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -91,7 +90,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
-        ServiceContext.current?.logger?.notice("Generating workspace \(workspaceName)", metadata: .section)
+        Logger.current.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
         let projects = try await Array(graphTraverser.projects.values)

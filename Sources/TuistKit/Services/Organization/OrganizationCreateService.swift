@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationCreateServicing {
@@ -33,7 +32,9 @@ final class OrganizationCreateService: OrganizationCreateServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -45,6 +46,6 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("Tuist organization \(organization.name) was successfully created 🎉")
+        Logger.current.info("Tuist organization \(organization.name) was successfully created 🎉")
     }
 }

@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol ProjectCreateServicing {
@@ -46,6 +45,6 @@ final class ProjectCreateService: ProjectCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("Tuist project \(project.fullName) was successfully created 🎉")
+        Logger.current.info("Tuist project \(project.fullName) was successfully created 🎉")
     }
 }

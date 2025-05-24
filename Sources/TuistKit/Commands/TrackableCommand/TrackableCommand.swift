@@ -2,12 +2,11 @@ import ArgumentParser
 import Foundation
 import OpenAPIRuntime
 import Path
-import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
 import TuistCore
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import XcodeGraph
 
@@ -68,9 +67,7 @@ public class TrackableCommand {
             path = fileHandler.currentPath
         }
         let runMetadataStorage = RunMetadataStorage()
-        var context = ServiceContext.current ?? ServiceContext.topLevel
-        context.runMetadataStorage = runMetadataStorage
-        try await ServiceContext.withValue(context) {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             do {
                 if var asyncCommand = command as? AsyncParsableCommand {
                     try await asyncCommand.run()
@@ -137,18 +134,18 @@ public class TrackableCommand {
             path: path
         )
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || ciChecker.isCI() {
-            ServiceContext.current?.logger?.info("Uploading run metadata...")
+            Logger.current.info("Uploading run metadata...")
             do {
                 let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
-                ServiceContext.current?.logger?
+                Logger.current
                     .info(
                         "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                     )
             } catch let error as ClientError {
-                ServiceContext.current?.logger?
+                Logger.current
                     .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
             } catch {
-                ServiceContext.current?.logger?.warning("Failed to upload run metadata: \(String(describing: error))")
+                Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
             }
         } else {
             try asyncQueue.dispatch(event: commandEvent)

@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationUpdateSSOServicing {
@@ -58,7 +57,7 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
             ssoOrganization: ssoOrganization
         )
 
-        ServiceContext.current?.logger?
+        Logger.current
             .info(
                 "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). Users authenticated with the \(organizationId) SSO organization will automatically have access to the \(organizationName) projects."
             )

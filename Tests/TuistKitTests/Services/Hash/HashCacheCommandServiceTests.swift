@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
 import TuistCache
 import TuistCore
@@ -74,13 +73,18 @@ struct HashCacheCommandServiceTests {
                 destination: .any
             )
             .willReturn([:])
-        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(graph)
+        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(
+            graph
+        )
 
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(false)
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
+            .willReturn(false)
 
         // When
         await #expect(
-            throws: HashCacheCommandServiceError.generatedProjectNotFound(try AbsolutePath(validating: fullPath)),
+            throws: HashCacheCommandServiceError.generatedProjectNotFound(
+                try AbsolutePath(validating: fullPath)
+            ),
             performing: {
                 try await subject.run(path: fullPath, configuration: nil)
             }
@@ -110,7 +114,8 @@ struct HashCacheCommandServiceTests {
         given(generator)
             .load(path: .any)
             .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(true)
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
+            .willReturn(true)
 
         // When
         _ = try await subject.run(path: fullPath, configuration: nil)
@@ -183,7 +188,13 @@ struct HashCacheCommandServiceTests {
 
         // Then
         verify(generator)
-            .load(path: .value(try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)))
+            .load(
+                path: .value(
+                    try AbsolutePath(
+                        validating: "RelativePath", relativeTo: FileHandler.shared.currentPath
+                    )
+                )
+            )
             .called(1)
     }
 
@@ -251,7 +262,7 @@ struct HashCacheCommandServiceTests {
     }
 
     @Test func test_run_outputs_correct_hashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
             let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
@@ -283,8 +294,8 @@ struct HashCacheCommandServiceTests {
             _ = try await subject.run(path: path, configuration: nil)
 
             // Then
-            try ServiceContext.expectLogs("ShakiOne - hash1")
-            try ServiceContext.expectLogs("ShakiTwo - hash2")
+            try expectLogs("ShakiOne - hash1")
+            try expectLogs("ShakiTwo - hash2")
         }
     }
 

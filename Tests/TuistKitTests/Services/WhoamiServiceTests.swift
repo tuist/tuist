@@ -1,11 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
-import TuistServer
+import TuistServerCore
 import TuistSupport
 import XCTest
 
@@ -39,7 +38,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
     }
 
     func test_whoami_when_logged_in() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(serverSessionController)
                 .authenticatedHandle(serverURL: .value(serverURL))
@@ -54,13 +53,15 @@ final class WhoamiServiceTests: TuistUnitTestCase {
     }
 
     func test_whoami_when_logged_out() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(serverSessionController)
                 .authenticatedHandle(serverURL: .value(serverURL))
                 .willThrow(ServerSessionControllerError.unauthenticated)
 
-            await XCTAssertThrowsSpecific(try await subject.run(directory: nil), ServerSessionControllerError.unauthenticated)
+            await XCTAssertThrowsSpecific(
+                try await subject.run(directory: nil), ServerSessionControllerError.unauthenticated
+            )
         }
     }
 }

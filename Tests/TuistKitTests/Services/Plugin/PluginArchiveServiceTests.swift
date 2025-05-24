@@ -1,10 +1,10 @@
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
 import XCTest
+
 @testable import TuistKit
 
 final class PluginArchiveServiceTests: TuistUnitTestCase {
@@ -38,7 +38,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_no_task_products_defined() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(packageInfoLoader)
                 .loadPackageInfo(at: .any)
@@ -102,7 +102,9 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
             .willReturn(.test(name: "TestPlugin"))
 
         given(swiftPackageManagerController)
-            .buildFatReleaseBinary(packagePath: .any, product: .any, buildPath: .any, outputPath: .any)
+            .buildFatReleaseBinary(
+                packagePath: .any, product: .any, buildPath: .any, outputPath: .any
+            )
             .willReturn()
         let fileArchiver = MockFileArchiving()
         given(fileArchiverFactory).makeFileArchiver(for: .any).willReturn(fileArchiver)
@@ -121,13 +123,19 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
             .loadPackageInfo(at: .value(path))
             .called(1)
         verify(swiftPackageManagerController)
-            .buildFatReleaseBinary(packagePath: .any, product: .value("tuist-one"), buildPath: .any, outputPath: .any)
+            .buildFatReleaseBinary(
+                packagePath: .any, product: .value("tuist-one"), buildPath: .any, outputPath: .any
+            )
             .called(1)
         verify(swiftPackageManagerController)
-            .buildFatReleaseBinary(packagePath: .any, product: .value("tuist-two"), buildPath: .any, outputPath: .any)
+            .buildFatReleaseBinary(
+                packagePath: .any, product: .value("tuist-two"), buildPath: .any, outputPath: .any
+            )
             .called(1)
         verify(swiftPackageManagerController)
-            .buildFatReleaseBinary(packagePath: .any, product: .any, buildPath: .any, outputPath: .any)
+            .buildFatReleaseBinary(
+                packagePath: .any, product: .any, buildPath: .any, outputPath: .any
+            )
             .called(2)
 
         _ = verify(fileArchiver).zip(name: .value("TestPlugin.tuist-plugin.zip"))

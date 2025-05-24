@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import class TuistApp.MockServerURLServicing
-import TuistServer
+import TuistServerCore
 import TuistSupportTesting
 
 @testable import TuistApp

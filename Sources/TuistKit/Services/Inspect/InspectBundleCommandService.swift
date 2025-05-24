@@ -1,10 +1,11 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
 import Rosalind
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCLI
+import TuistServerCore
 import TuistSupport
 
 enum InspectBundleCommandServiceError: LocalizedError {
@@ -56,20 +57,23 @@ struct InspectBundleCommandService {
         )
         let path = try await self.path(path)
 
-        let config = try await configLoader
-            .loadConfig(path: path)
+        let config =
+            try await configLoader
+                .loadConfig(path: path)
 
         if json {
             let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
             let json = try appBundleReport.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(stringLiteral: json.toString(prettyPrint: true)),
                 metadata: .json
             )
             return
         }
 
-        guard let fullHandle = config.fullHandle else { throw InspectBundleCommandServiceError.missingFullHandle }
+        guard let fullHandle = config.fullHandle else {
+            throw InspectBundleCommandServiceError.missingFullHandle
+        }
 
         let gitCommitSHA: String?
         let gitBranch: String?
@@ -88,7 +92,7 @@ struct InspectBundleCommandService {
         }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        let serverBundle = try await ServiceContext.current!.ui!.progressStep(
+        let serverBundle = try await Noora.current.progressStep(
             message: "Analyzing bundle...",
             successMessage: "Bundle analyzed",
             errorMessage: nil,
@@ -105,16 +109,16 @@ struct InspectBundleCommandService {
                 gitRef: gitRef
             )
         }
-        ServiceContext.current?.ui?.success(
-            .alert(
-                "View the bundle analysis at \(serverBundle.url.absoluteString)"
-            )
+        AlertController.current.success(
+            .alert("View the bundle analysis at \(serverBundle.url.absoluteString)")
         )
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
         if let path {
-            return try await AbsolutePath(validating: path, relativeTo: fileSystem.currentWorkingDirectory())
+            return try await AbsolutePath(
+                validating: path, relativeTo: fileSystem.currentWorkingDirectory()
+            )
         } else {
             return try await fileSystem.currentWorkingDirectory()
         }

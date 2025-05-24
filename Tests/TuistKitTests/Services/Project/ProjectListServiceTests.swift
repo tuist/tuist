@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistKit
 
 final class ProjectListServiceTests: TuistUnitTestCase {
@@ -35,7 +35,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     }
 
     func test_project_list() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(listProjectsService)
                 .listProjects(serverURL: .value(serverURL))
@@ -50,16 +50,18 @@ final class ProjectListServiceTests: TuistUnitTestCase {
             try await subject.run(json: false, directory: nil)
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            Listing all your projects:
-              • tuist/test-one
-              • tuist/test-two
-            """)
+            XCTAssertPrinterOutputContains(
+                """
+                Listing all your projects:
+                  • tuist/test-one
+                  • tuist/test-two
+                """
+            )
         }
     }
 
     func test_project_list_when_none() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withTestingDependencies {
             // Given
             given(listProjectsService)
                 .listProjects(serverURL: .value(serverURL))

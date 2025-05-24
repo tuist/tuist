@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol OrganizationListServicing {
@@ -33,7 +32,9 @@ final class OrganizationListService: OrganizationListServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -46,18 +47,24 @@ final class OrganizationListService: OrganizationListServicing {
 
         if json {
             let json = organizations.toJSON()
-            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            Logger.current.info(
+                .init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json
+            )
             return
         }
 
         if organizations.isEmpty {
-            ServiceContext.current?.logger?
-                .info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
+            Logger.current
+                .info(
+                    "You currently have no Cloud organizations. Create one by running `tuist organization create`."
+                )
             return
         }
 
-        let organizationsString = "Listing all your organizations:\n" + organizations.map { "  • \($0)" }
-            .joined(separator: "\n")
-        ServiceContext.current?.logger?.info("\(organizationsString)")
+        let organizationsString =
+            "Listing all your organizations:\n"
+                + organizations.map { "  • \($0)" }
+                .joined(separator: "\n")
+        Logger.current.info("\(organizationsString)")
     }
 }

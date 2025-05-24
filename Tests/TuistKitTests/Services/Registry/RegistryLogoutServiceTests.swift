@@ -3,7 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 @testable import TuistKit

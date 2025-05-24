@@ -1,8 +1,7 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
-import TuistServer
+import TuistServerCore
 import TuistSupport
 
 protocol ProjectListServicing {
@@ -46,17 +45,17 @@ final class ProjectListService: ProjectListServicing {
 
         if json {
             let json = try projects.toJSON()
-            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            Logger.current.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
         if projects.isEmpty {
-            ServiceContext.current?.logger?
+            Logger.current
                 .info("You currently have no Tuist projects. Create one by running `tuist project create`.")
             return
         }
 
         let projectsString = "Listing all your projects:\n" + projects.map { "  • \($0.fullName)" }.joined(separator: "\n")
-        ServiceContext.current?.logger?.info("\(projectsString)")
+        Logger.current.info("\(projectsString)")
     }
 }
