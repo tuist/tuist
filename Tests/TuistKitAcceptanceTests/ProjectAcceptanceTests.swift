@@ -8,7 +8,7 @@ import XCTest
 
 final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectListCommand.self)
             XCTAssertStandardOutput(pattern: "Listing all your projects:")
@@ -19,7 +19,7 @@ final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectTokensCreateCommand.self, fullHandle)
             try await run(ProjectTokensListCommand.self, fullHandle)
@@ -41,7 +41,7 @@ final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase {
     func test_update_default_branch() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(
@@ -64,7 +64,7 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
 
 final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
     func test_update_visibility() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(
@@ -85,7 +85,7 @@ final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
 
 final class ProjectAcceptanceTestProjectRepository: ServerAcceptanceTestCase {
     func test_update_repository() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(ProjectShowCommand.self, fullHandle)
             XCTAssertStandardOutput(

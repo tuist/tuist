@@ -80,7 +80,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     }
 
     func test_authenticate_when_password_is_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(userInputReader)
                 .readString(asking: .value("Email:"))
@@ -131,7 +131,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     }
 
     func test_authenticate_when_email_is_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(userInputReader)
                 .readString(asking: .value("Password:"))
@@ -182,7 +182,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     }
 
     func test_authenticate_when_email_and_password_are_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(serverCredentialsStore)
                 .store(

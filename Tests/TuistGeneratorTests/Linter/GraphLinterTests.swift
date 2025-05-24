@@ -1284,7 +1284,7 @@ struct GraphLinterTests {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1330,7 +1330,7 @@ struct GraphLinterTests {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1471,7 +1471,7 @@ struct GraphLinterTests {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1539,7 +1539,7 @@ struct GraphLinterTests {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 

@@ -204,7 +204,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     }
 
     func test_run_with_remote() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let url = URL(string: "https://cloud.com")!
 

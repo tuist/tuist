@@ -61,6 +61,12 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     }
 }
 
+public func withMockedEnvironment(_ closure: () async throws -> Void) async throws {
+    try await Environment.$current.withValue(MockEnvironment()) {
+        try await closure()
+    }
+}
+
 extension Trait where Self == EnvironmentTestingTrait {
     /// When this trait is applied to a test, the environment will be mocked.
     public static var withMockedEnvironment: Self { Self() }

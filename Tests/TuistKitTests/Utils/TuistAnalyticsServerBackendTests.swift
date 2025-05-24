@@ -48,7 +48,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_not_ci() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.runs))
@@ -81,7 +81,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_ci() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.runs))
@@ -108,7 +108,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(ciChecker)
                 .isCI()

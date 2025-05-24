@@ -675,17 +675,17 @@ struct ProjectEditorMapperTests {
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
-        try await createFiles([
+        try await TuistTest.createFiles([
             "Unrelated/Source.swift",
             "Source.swift",
             "ProjectDescriptionHelpers/data.json",
             "Templates/strings.stencil",
         ])
-        let helperSources = try await createFiles([
+        let helperSources = try await TuistTest.createFiles([
             "ProjectDescriptionHelpers/HelperA.swift",
             "ProjectDescriptionHelpers/HelperB.swift",
         ])
-        let templateSources = try await createFiles([
+        let templateSources = try await TuistTest.createFiles([
             "Templates/custom.swift",
             "Templates/strings.stencil",
         ])

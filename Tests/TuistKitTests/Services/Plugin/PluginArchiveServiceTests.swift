@@ -38,7 +38,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_no_task_products_defined() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(packageInfoLoader)
                 .loadPackageInfo(at: .any)

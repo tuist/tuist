@@ -119,7 +119,7 @@ struct ServerAuthenticationControllerTests {
     }
 
     @Test(.withMockedEnvironment) func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
             mockEnvironment.tuistVariables[
@@ -137,14 +137,14 @@ struct ServerAuthenticationControllerTests {
                 got ==
                     .project("project-token")
             )
-            try expectLogs(
+            try TuistTest.expectLogs(
                 "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
             )
         }
     }
 
     @Test(.withMockedEnvironment) func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
             mockEnvironment.tuistVariables[
@@ -165,14 +165,14 @@ struct ServerAuthenticationControllerTests {
                 got ==
                     .project("project-token")
             )
-            doesntExpectLogs(
+            TuistTest.doesntExpectLogs(
                 "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
             )
         }
     }
 
     @Test(.withMockedEnvironment) func test_when_credentials_store_returns_legacy_token() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(ciChecker)
                 .isCI()
@@ -192,14 +192,14 @@ struct ServerAuthenticationControllerTests {
                 got ==
                     .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
             )
-            try expectLogs(
+            try TuistTest.expectLogs(
                 "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
             )
         }
     }
 
     func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(ciChecker)
                 .isCI()
@@ -233,7 +233,7 @@ struct ServerAuthenticationControllerTests {
                         )
                     )
             )
-            try expectLogs(
+            try TuistTest.expectLogs(
                 "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
             )
         }
