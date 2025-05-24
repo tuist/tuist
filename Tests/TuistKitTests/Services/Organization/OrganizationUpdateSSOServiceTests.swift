@@ -36,7 +36,7 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_update_sso() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(
@@ -64,7 +64,7 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_update_sso_with_okta() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(

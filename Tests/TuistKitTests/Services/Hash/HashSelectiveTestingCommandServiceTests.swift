@@ -55,7 +55,7 @@ struct HashSelectiveTestingCommandServiceTests {
     }
 
     @Test func run_outputsTheHashes_when_generatedProject() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -85,12 +85,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try expectLogs("Target - hash")
+            try TuistTest.expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_generatedProject_and_noHashes() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -124,7 +124,7 @@ struct HashSelectiveTestingCommandServiceTests {
     }
 
     @Test func run_outputsTheHashes_when_xcodeProject() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -148,12 +148,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try expectLogs("Target - hash")
+            try TuistTest.expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_xcodeProject_and_noHashes() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]

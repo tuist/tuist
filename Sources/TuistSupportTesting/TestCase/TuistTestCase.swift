@@ -106,19 +106,10 @@ public final class MockFileHandler: FileHandler {
 open class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
 
-    public var environment: MockEnvironment!
     public var fileHandler: MockFileHandler!
 
     override open func setUp() {
         super.setUp()
-
-        do {
-            // Environment
-            environment = try MockEnvironment()
-            Environment._shared.mutate { $0 = environment }
-        } catch {
-            XCTFail("Failed to setup environment")
-        }
 
         // FileHandler
         fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })

@@ -15,7 +15,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
     let fileSystem: FileSystem
     let environment: Environmenting
 
-    public init(fileSystem: FileSystem = FileSystem(), environment: Environmenting = Environment.shared) {
+    public init(fileSystem: FileSystem = FileSystem(), environment: Environmenting = Environment.current) {
         self.fileSystem = fileSystem
         self.environment = environment
     }

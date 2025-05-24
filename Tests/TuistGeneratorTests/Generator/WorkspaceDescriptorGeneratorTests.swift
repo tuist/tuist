@@ -1,44 +1,44 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
+struct WorkspaceDescriptorGeneratorTests {
     var subject: WorkspaceDescriptorGenerator!
 
-    override func setUp() {
-        super.setUp()
-
-        given(swiftVersionProvider)
+    init() throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
-
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .serial))
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
     // MARK: - Tests
 
-    func test_generate_workspaceStructure() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generate_workspaceStructure() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        try await createFiles([
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.createFiles([
             "README.md",
             "Documentation/README.md",
             "Website/index.html",
@@ -66,7 +66,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let xcworkspace = result.xcworkspace
-        XCTAssertEqual(xcworkspace.data.children, [
+        #expect(xcworkspace.data.children == [
             .group(.init(location: .group("Documentation"), name: "Documentation", children: [
                 .file(.init(location: .group("README.md"))),
             ])),
@@ -75,10 +75,14 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_workspaceStructure_noWorkspaceData() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generate_workspaceStructure_noWorkspaceData() async throws {
         // Given
         let name = "test"
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
         let workspace = Workspace.test(name: name)
         let graph = Graph.test(
@@ -91,13 +95,17 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         do {
             _ = try await subject.generate(graphTraverser: graphTraverser)
         } catch {
-            XCTFail("Should not throw")
+            Issue.record("Should not throw")
         }
     }
 
-    func test_generate_workspaceStructureWithProjects() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generate_workspaceStructureWithProjects() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget()
         let project = Project.test(
             path: temporaryPath,
@@ -124,14 +132,18 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let xcworkspace = result.xcworkspace
-        XCTAssertEqual(xcworkspace.data.children, [
+        #expect(xcworkspace.data.children == [
             .file(.init(location: .group("Test.xcodeproj"))),
         ])
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
@@ -146,12 +158,16 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
+        #expect(result.workspaceSettingsDescriptor == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
@@ -166,12 +182,16 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
+        #expect(result.workspaceSettingsDescriptor == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
@@ -186,7 +206,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertNil(result.workspaceSettingsDescriptor)
+        #expect(result.workspaceSettingsDescriptor == nil)
     }
 
     // MARK: - Helpers

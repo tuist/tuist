@@ -46,7 +46,7 @@ public final class MockEnvironment: Environmenting {
 }
 
 extension Environment {
-    public static var mocked: MockEnvironmenting? { current as? MockEnvironmenting }
+    public static var mocked: MockEnvironment? { current as? MockEnvironment }
 }
 
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
@@ -55,9 +55,15 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        try await Environment.$current.withValue(MockEnvironmenting()) {
+        try await Environment.$current.withValue(MockEnvironment()) {
             try await function()
         }
+    }
+}
+
+public func withMockedEnvironment(_ closure: () async throws -> Void) async throws {
+    try await Environment.$current.withValue(MockEnvironment()) {
+        try await closure()
     }
 }
 

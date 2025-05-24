@@ -28,7 +28,7 @@ public struct StandardLogHandler: LogHandler {
 
         let string: String
 
-        if Environment.shared.shouldOutputBeColoured {
+        if Environment.current.shouldOutputBeColoured {
             switch metadata?[Logger.Metadata.tuist] {
             case Logger.Metadata.successKey?:
                 string = message.description.green().bold()

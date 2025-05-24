@@ -270,7 +270,7 @@ public enum EnvKey: String, CaseIterable {
 
 extension EnvKey {
     var envValueString: String? {
-        Environment.shared.tuistVariables[rawValue]
+        Environment.current.tuistVariables[rawValue]
     }
 
     func envValue<T: ExpressibleByArgument>() -> T? {

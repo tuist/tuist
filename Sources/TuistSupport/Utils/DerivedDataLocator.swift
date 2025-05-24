@@ -13,7 +13,7 @@ public protocol DerivedDataLocating {
 public final class DerivedDataLocator: DerivedDataLocating {
     private let devEnvironment: DeveloperEnvironmenting
 
-    public init(devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared) {
+    public init(devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.current) {
         self.devEnvironment = devEnvironment
     }
 

@@ -6,7 +6,7 @@ import XCTest
 
 final class ListTargetsAcceptanceTestiOSWorkspaceWithMicrofeatureArchitecture: TuistAcceptanceTestCase {
     func test_ios_workspace_with_microfeature_architecture() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosWorkspaceWithMicrofeatureArchitecture)
             try await run(GenerateCommand.self)
             try await listTargets(for: "UIComponents")

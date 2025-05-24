@@ -296,7 +296,7 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_share_link_runs_app() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given
@@ -360,7 +360,7 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_preview_with_specifier_runs_app() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given
@@ -487,7 +487,7 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_share_link_runs_ipa() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given

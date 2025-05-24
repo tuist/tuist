@@ -667,7 +667,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
         // Given
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             givenGenerator()
             given(buildGraphInspector)
                 .testableSchemes(graphTraverser: .any)
@@ -790,7 +790,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
             var environment = MapperEnvironment()
@@ -828,7 +828,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_skips_running_tests_when_all_tests_are_cached() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
             var environment = MapperEnvironment()
@@ -864,7 +864,7 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
         async throws
     {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
             var environment = MapperEnvironment()
@@ -902,7 +902,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_tests_when_part_is_cached() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
             given(configLoader)
@@ -1201,7 +1201,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
 
@@ -1459,7 +1459,7 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_tests_when_no_project_schemes_present() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             givenGenerator()
 

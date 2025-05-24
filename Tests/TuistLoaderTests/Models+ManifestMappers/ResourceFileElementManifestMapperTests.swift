@@ -11,7 +11,7 @@ import XCTest
 
 final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -44,7 +44,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_outputs_a_warning_when_no_files_found() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -73,7 +73,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_outputs_a_warning_when_no_files_found_in_opaque_directory() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -107,7 +107,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_when_files_found_in_opaque_directory() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -147,7 +147,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -177,7 +177,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_resourceFileElement_warning_withMissingFolderReference() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath

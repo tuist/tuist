@@ -1,36 +1,36 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
-import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 @testable import XcodeProj
 
-final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
+struct ProjectDescriptorGeneratorTests {
     var subject: ProjectDescriptorGenerator!
 
-    override func setUp() {
-        super.setUp()
-        given(swiftVersionProvider)
+    init() throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
-
         subject = ProjectDescriptorGenerator()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_generate_testTargetIdentity() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_testTargetIdentity() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(
             name: "App",
             platform: .iOS,
@@ -65,7 +65,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -78,7 +79,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let nativeTargets = pbxproj.nativeTargets
         let attributes = pbxproject?.targetAttributes ?? [:]
         let appTarget = nativeTargets.first(where: { $0.name == "App" })
-        XCTAssertTrue(attributes.contains { attribute in
+        #expect(attributes.contains { attribute in
 
             guard case let .targetReference(testTargetID) = attribute.value["TestTargetID"] else {
                 return false
@@ -86,16 +87,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
             return attribute.key.name == "Tests" && testTargetID == appTarget
 
-        }, "Test target is missing from target attributes.")
+        } == true)
     }
 
-    func test_objectVersion_when_xcode11_and_spm() async throws {
-        given(xcodeController)
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode11_and_spm() async throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = Target.test(name: "A")
         let project = Project.test(
             path: temporaryPath,
@@ -125,17 +131,22 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        XCTAssertEqual(pbxproj.objectVersion, 55)
-        XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
+        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    func test_objectVersion_when_xcode11() async throws {
-        given(xcodeController)
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode11() async throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
@@ -151,17 +162,22 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        XCTAssertEqual(pbxproj.objectVersion, 55)
-        XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
+        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    func test_objectVersion_when_xcode10() async throws {
-        given(xcodeController)
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_objectVersion_when_xcode10() async throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(10, 2, 1))
 
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
@@ -177,13 +193,17 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        XCTAssertEqual(pbxproj.objectVersion, 55)
-        XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
+        #expect(pbxproj.objectVersion == 55)
+        #expect(pbxproj.archiveVersion == Xcode.LastKnown.archiveVersion)
     }
 
-    func test_knownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_knownRegions() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let resources = [
@@ -205,7 +225,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ]
         )
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -213,17 +234,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.knownRegions, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        #expect(pbxProject.knownRegions == [
             "Base",
             "en",
             "fr",
         ])
     }
 
-    func test_generate_setsDefaultKnownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsDefaultKnownRegions() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -235,16 +260,20 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.knownRegions, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        #expect(pbxProject.knownRegions == [
             "Base",
             "en",
         ])
     }
 
-    func test_generate_setsCustomDefaultKnownRegions() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsCustomDefaultKnownRegions() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(path: path, defaultKnownRegions: ["Base", "en-GB"], targets: [])
@@ -253,13 +282,17 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.knownRegions, ["Base", "en-GB"])
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        #expect(pbxProject.knownRegions == ["Base", "en-GB"])
     }
 
-    func test_generate_setsOrganizationName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsOrganizationName() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -272,17 +305,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes)
-        XCTAssertEqual(attributes, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = pbxProject.attributes
+        #expect(attributes == [
             "BuildIndependentTargetsInParallel": "YES",
             "ORGANIZATIONNAME": "tuist",
         ])
     }
 
-    func test_generate_setsClassPrefix() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsClassPrefix() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -295,17 +332,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes)
-        XCTAssertEqual(attributes, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = pbxProject.attributes
+        #expect(attributes == [
             "BuildIndependentTargetsInParallel": "YES",
             "CLASSPREFIX": "TUIST",
         ])
     }
 
-    func test_generate_setsResourcesTagsName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsResourcesTagsName() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let resources: [ResourceFileElement] = [
@@ -317,7 +358,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: [.test(resources: .init(resources))]
         )
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -325,17 +367,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes)
-        XCTAssertEqual(attributes, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = pbxProject.attributes
+        #expect(attributes == [
             "BuildIndependentTargetsInParallel": "YES",
             "KnownAssetTags": .array(["fileTag", "folderTag", "commonTag"].sorted()),
         ])
     }
 
-    func test_generate_setsDefaultDevelopmentRegion() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsDefaultDevelopmentRegion() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -347,13 +393,13 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.developmentRegion, "en")
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        #expect(pbxProject.developmentRegion == "en")
     }
 
     func test_generate_setsDevelopmentRegion() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -362,7 +408,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: []
         )
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -370,8 +417,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.developmentRegion, "de")
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        #expect(pbxProject.developmentRegion == "de")
     }
 
     func test_generate_localSwiftPackageGroup() async throws {
@@ -386,7 +433,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -395,13 +443,17 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
+        let rootGroup = try #require(try pbxproj.rootGroup())
         let packagesGroup = rootGroup.group(named: "Packages")
-        let packages = try XCTUnwrap(packagesGroup?.children)
-        XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
+        let packages = try #require(packagesGroup?.children)
+        #expect(packages.map(\.name) == ["LocalPackageA", "LocalPackageB"])
     }
 
-    func test_generate_localSwiftPackagePaths() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_localSwiftPackagePaths() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -429,7 +481,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -438,17 +491,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
-        let packageGroup = try XCTUnwrap(rootGroup.group(named: "Packages"))
+        let rootGroup = try #require(try pbxproj.rootGroup())
+        let packageGroup = try #require(rootGroup.group(named: "Packages"))
         let paths = packageGroup.children.compactMap(\.path)
-        XCTAssertEqual(paths, [
+        #expect(paths == [
             "../LocalPackages/LocalPackageA",
         ])
     }
 
-    func test_generate_setsLastUpgradeCheck() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_setsLastUpgradeCheck() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
         let project = Project.test(
@@ -457,7 +514,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             lastUpgradeCheck: .init(12, 5, 1)
         )
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -465,15 +523,19 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
-        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes)
-        XCTAssertEqual(attributes, [
+        let pbxProject = try #require(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = pbxProject.attributes
+        #expect(attributes == [
             "BuildIndependentTargetsInParallel": "YES",
             "LastUpgradeCheck": "1251",
         ])
     }
 
-    func test_generate_localSwiftPackages() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_localSwiftPackages() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -501,7 +563,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -510,29 +573,34 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let rootObject = try #require(pbxproj.rootObject)
         let pbxobjects = try rootObject.objects()
         let localPackagePaths = rootObject.localPackages.compactMap(\.relativePath)
         let localSwiftPackageReferencePaths = pbxobjects.localSwiftPackageReferences.values.compactMap(\.relativePath)
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
         let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
-        XCTAssertEqual(localPackagePaths, [
+        #expect(localPackagePaths == [
             "/LocalPackages/LocalPackageA",
         ])
-        XCTAssertEqual(localSwiftPackageReferencePaths, [
+        #expect(localSwiftPackageReferencePaths == [
             "/LocalPackages/LocalPackageA",
         ])
-        XCTAssert(remotePackageNames.isEmpty)
-        XCTAssert(remoteSwiftPackageReferenceNames.isEmpty)
+        #expect(remotePackageNames.isEmpty == true)
+        #expect(remoteSwiftPackageReferenceNames.isEmpty == true)
     }
 
-    func test_generate_remoteSwiftPackages() async throws {
-        given(xcodeController)
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_generate_remoteSwiftPackages() async throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = Target.test(name: "A")
         let project = Project.test(
             path: temporaryPath,
@@ -562,18 +630,18 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
-        let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let rootObject = try #require(pbxproj.rootObject)
         let pbxobjects = try rootObject.objects()
         let localPackagePaths = rootObject.localPackages.compactMap(\.relativePath)
         let localSwiftPackageReferencePaths = pbxobjects.localSwiftPackageReferences.values.compactMap(\.relativePath)
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
         let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
-        XCTAssert(localPackagePaths.isEmpty)
-        XCTAssert(localSwiftPackageReferencePaths.isEmpty)
-        XCTAssertEqual(remotePackageNames, [
+        #expect(localPackagePaths.isEmpty == true)
+        #expect(localSwiftPackageReferencePaths.isEmpty == true)
+        #expect(remotePackageNames == [
             "A",
         ])
-        XCTAssertEqual(remoteSwiftPackageReferenceNames, [
+        #expect(remoteSwiftPackageReferenceNames == [
             "A",
         ])
     }
