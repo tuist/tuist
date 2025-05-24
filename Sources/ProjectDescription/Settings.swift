@@ -117,6 +117,7 @@ public struct Settings: Equatable, Codable, Sendable {
     public var base: SettingsDictionary
     public var configurations: [Configuration]
     public var defaultSettings: DefaultSettings
+    public var defaultConfiguration: String?
 
     /// Creates settings with default.configurations `Debug` and `Release`
     ///
@@ -125,6 +126,7 @@ public struct Settings: Equatable, Codable, Sendable {
     ///   - debug: The debug configuration settings.
     ///   - release: The release configuration settings.
     ///   - defaultSettings: An enum specifying the set of default settings.
+    ///   - defaultConfiguration: The default configuration to be used when building the project from command-line.
     ///
     /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the
     /// alternate static method
@@ -136,7 +138,8 @@ public struct Settings: Equatable, Codable, Sendable {
         base: SettingsDictionary = [:],
         debug: SettingsDictionary = [:],
         release: SettingsDictionary = [:],
-        defaultSettings: DefaultSettings = .recommended
+        defaultSettings: DefaultSettings = .recommended,
+        defaultConfiguration: String? = nil
     ) -> Settings {
         Settings(
             base: base,
@@ -144,7 +147,8 @@ public struct Settings: Equatable, Codable, Sendable {
                 .debug(name: .debug, settings: debug, xcconfig: nil),
                 .release(name: .release, settings: release, xcconfig: nil),
             ],
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            defaultConfiguration: defaultConfiguration
         )
     }
 
@@ -154,6 +158,7 @@ public struct Settings: Equatable, Codable, Sendable {
     ///   - base: A dictionary with build settings that are inherited from all the configurations.
     ///   - configurations: A list of configurations.
     ///   - defaultSettings: An enum specifying the set of default settings.
+    ///   - defaultConfiguration: The default configuration to be used when building the project from command-line.
     ///
     /// - Note: Configurations shouldn't be empty, please use the alternate static method
     ///         `.settings(base:debug:release:defaultSettings:)` to leverage the default configurations
@@ -164,12 +169,14 @@ public struct Settings: Equatable, Codable, Sendable {
     public static func settings(
         base: SettingsDictionary = [:],
         configurations: [Configuration],
-        defaultSettings: DefaultSettings = .recommended
+        defaultSettings: DefaultSettings = .recommended,
+        defaultConfiguration: String? = nil
     ) -> Settings {
         Settings(
             base: base,
             configurations: configurations,
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            defaultConfiguration: defaultConfiguration
         )
     }
 }

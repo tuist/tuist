@@ -50,7 +50,7 @@ final class ConfigGenerator: ConfigGenerating {
             ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: project.settings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
 
@@ -82,7 +82,7 @@ final class ConfigGenerator: ConfigGenerating {
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: projectSettings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
