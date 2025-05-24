@@ -17,15 +17,15 @@ public final class MockSystem: Systeming {
     public init() {}
 
     public func succeedCommand(_ arguments: [String], output: String? = nil) {
-        captureStubs[arguments.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
+        captureStubs[command(from: arguments)] = (stderror: nil, stdout: output, exitstatus: 0)
     }
 
     public func errorCommand(_ arguments: [String], error: String? = nil) {
-        captureStubs[arguments.joined(separator: " ")] = (stderror: error, stdout: nil, exitstatus: 1)
+        captureStubs[command(from: arguments)] = (stderror: error, stdout: nil, exitstatus: 1)
     }
 
     public func called(_ args: [String]) -> Bool {
-        let command = args.joined(separator: " ")
+        let command = command(from: args)
         return calls.contains(command)
     }
 
@@ -38,7 +38,7 @@ public final class MockSystem: Systeming {
     }
 
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
-        let command = arguments.joined(separator: " ")
+        let command = command(from: arguments)
         guard let stub = captureStubs[command] ?? defaultCaptureStubs else {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
@@ -71,7 +71,7 @@ public final class MockSystem: Systeming {
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        let command = arguments.joined(separator: " ")
+        let command = command(from: arguments)
         guard let stub = captureStubs[command] else {
             throw TuistSupport.SystemError
                 .terminated(command: arguments.first!, code: 1, standardError: Data())
@@ -89,7 +89,7 @@ public final class MockSystem: Systeming {
     }
 
     public func async(_ arguments: [String]) throws {
-        let command = arguments.joined(separator: " ")
+        let command = command(from: arguments)
         guard let stub = captureStubs[command] else {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
@@ -113,5 +113,9 @@ public final class MockSystem: Systeming {
         options: Set<FileMode.Option>
     ) throws {
         try chmodStub?(mode, path, options)
+    }
+
+    private func command(from arguments: [String]) -> String {
+        arguments.map { $0.contains(" ") ? "\"\($0)\"" : $0 }.joined(separator: " ")
     }
 }
