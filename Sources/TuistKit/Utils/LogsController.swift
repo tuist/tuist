@@ -28,7 +28,7 @@ public struct LogsController {
             if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
                 LoggingConfig(
                     loggerType: .json,
-                    verbose: Environment.current.variables[Constants.EnvironmentVariables.verbose] != nil
+                    verbose: Environment.current.isVerbose
                 )
             } else {
                 LoggingConfig.default()

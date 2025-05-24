@@ -50,6 +50,8 @@ public protocol Environmenting: Sendable {
     func currentExecutablePath() -> AbsolutePath?
 }
 
+private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
+
 extension Environmenting {
     public var tuistVariables: [String: String] {
         variables.filter { $0.key.hasPrefix("TUIST_") }
@@ -57,7 +59,7 @@ extension Environmenting {
 
     public func isVariableTruthy(_ name: String) -> Bool {
         guard let value = variables[name] else { return false }
-        return ["1", "true", "TRUE", "yes", "YES"].contains(value)
+        return truthyValues.contains(value)
     }
 
     public var isCI: Bool {
@@ -85,25 +87,20 @@ public struct Environment: Environmenting {
     // MARK: - Attributes
 
     /// File handler instance.
-    public let variables: [String: String]
-    public let arguments: [String]
-
-    init() {
-        variables = ProcessInfo.processInfo.environment
-        arguments = ProcessInfo.processInfo.arguments
-    }
+    public var variables: [String: String] { ProcessInfo.processInfo.environment }
+    public var arguments: [String] { ProcessInfo.processInfo.arguments }
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
         let noColor =
-            if let noColorEnvVariable = ProcessInfo.processInfo.environment["NO_COLOR"] {
-                Constants.trueValues.contains(noColorEnvVariable)
+            if let noColorEnvVariable = variables["NO_COLOR"] {
+                truthyValues.contains(noColorEnvVariable)
             } else {
                 false
             }
         let ciColorForce =
-            if let ciColorForceEnvVariable = ProcessInfo.processInfo.environment["CLICOLOR_FORCE"] {
-                Constants.trueValues.contains(ciColorForceEnvVariable)
+            if let ciColorForceEnvVariable = variables["CLICOLOR_FORCE"] {
+                truthyValues.contains(ciColorForceEnvVariable)
             } else {
                 false
             }
@@ -119,8 +116,8 @@ public struct Environment: Environmenting {
 
     /// Returns true if the environment represents a GitHub Actions environment
     public var isGitHubActions: Bool {
-        if let githubActions = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] {
-            return Constants.trueValues.contains(githubActions)
+        if let githubActions = variables["GITHUB_ACTIONS"] {
+            return truthyValues.contains(githubActions)
         } else {
             return false
         }
@@ -128,7 +125,7 @@ public struct Environment: Environmenting {
 
     /// Returns true if the standard output is interactive.
     public var isStandardOutputInteractive: Bool {
-        let termType = ProcessInfo.processInfo.environment["TERM"]
+        let termType = variables["TERM"]
         if let t = termType, t.lowercased() != "dumb", isatty(fileno(stdout)) != 0 {
             return true
         }
@@ -136,25 +133,25 @@ public struct Environment: Environmenting {
     }
 
     public var isVerbose: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[
-            Constants.EnvironmentVariables.verbose
+        guard let variable = variables[
+            "TUIST_CONFIG_VERBOSE"
         ]
         else { return false }
-        return Constants.trueValues.contains(variable)
+        return truthyValues.contains(variable)
     }
 
     public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[
-            Constants.EnvironmentVariables.statsOptOut
+        guard let variable = variables[
+            "TUIST_CONFIG_STATS_OPT_OUT"
         ]
         else { return true }
-        let userOptedOut = Constants.trueValues.contains(variable)
+        let userOptedOut = truthyValues.contains(variable)
         return !userOptedOut
     }
 
     public var cacheDirectory: AbsolutePath {
         let baseCacheDirectory: AbsolutePath
-        if let cacheDirectoryPathString = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"],
+        if let cacheDirectoryPathString = variables["XDG_CACHE_HOME"],
            let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
         {
             baseCacheDirectory = cacheDirectory
@@ -169,7 +166,7 @@ public struct Environment: Environmenting {
 
     public var stateDirectory: AbsolutePath {
         let baseStateDirectory: AbsolutePath
-        if let stateDirectoryPathString = ProcessInfo.processInfo.environment["XDG_STATE_HOME"],
+        if let stateDirectoryPathString = variables["XDG_STATE_HOME"],
            let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
         {
             baseStateDirectory = stateDirectory
@@ -183,12 +180,12 @@ public struct Environment: Environmenting {
     }
 
     public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[
-            Constants.EnvironmentVariables.queueDirectory
+        if let envVariable = variables[
+            "TUIST_CONFIG_QUEUE_DIRECTORY"
         ] {
             return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
-            return cacheDirectory.appending(component: Constants.AsyncQueue.directoryName)
+            return cacheDirectory.appending(component: "Queue")
         }
     }
 
@@ -196,14 +193,14 @@ public struct Environment: Environmenting {
         let allowedVariableKeys = [
             "DEVELOPER_DIR",
         ]
-        let allowedVariables = ProcessInfo.processInfo.environment.filter {
+        let allowedVariables = variables.filter {
             allowedVariableKeys.contains($0.key)
         }
         return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
     }
 
     public var workspacePath: AbsolutePath? {
-        if let pathString = ProcessInfo.processInfo.environment["WORKSPACE_PATH"] {
+        if let pathString = variables["WORKSPACE_PATH"] {
             return try? AbsolutePath(validating: pathString)
         } else {
             return nil
@@ -211,7 +208,7 @@ public struct Environment: Environmenting {
     }
 
     public var schemeName: String? {
-        ProcessInfo.processInfo.environment["SCHEME_NAME"]
+        variables["SCHEME_NAME"]
     }
 
     public func currentExecutablePath() -> AbsolutePath? {

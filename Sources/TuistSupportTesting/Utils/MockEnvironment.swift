@@ -30,7 +30,7 @@ public final class MockEnvironment: Environmenting {
     }
 
     public var queueDirectory: AbsolutePath {
-        queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
+        queueDirectoryStub ?? directory.path.appending(component: "Queue")
     }
 
     public var workspacePath: AbsolutePath?

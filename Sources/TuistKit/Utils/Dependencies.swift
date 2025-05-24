@@ -44,7 +44,7 @@ private func initEnv() async throws {
     }
 
     if CommandLine.arguments.contains("--verbose") {
-        try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
+        try? ProcessEnv.setVar("TUIST_CONFIG_VERBOSE", value: "true")
     }
 
     if CommandLine.arguments.contains("--quiet") {

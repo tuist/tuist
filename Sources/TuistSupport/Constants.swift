@@ -12,7 +12,6 @@ public enum Constants {
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
     public static let bundleName: String = "tuist.zip"
-    public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
     public static let resultBundleName = "result-bundle"
 
@@ -53,19 +52,12 @@ public enum Constants {
         public static let dependenciesDerivedDirectory = "tuist-derived"
     }
 
-    public enum AsyncQueue {
-        public static let directoryName: String = "Queue"
-    }
-
     /// Pass these variables to make custom configuration of tuist
     /// These variables are not supposed to be used by end users
     /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
-        public static let verbose = "TUIST_CONFIG_VERBOSE"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
-        public static let queueDirectory = "TUIST_CONFIG_QUEUE_DIRECTORY"
         public static let cacheManifests = "TUIST_CONFIG_CACHE_MANIFESTS"
-        public static let statsOptOut = "TUIST_CONFIG_STATS_OPT_OUT"
         public static let githubAPIToken = "TUIST_CONFIG_GITHUB_API_TOKEN"
         public static let detailedLog = "TUIST_CONFIG_DETAILED_LOG"
         public static let osLog = "TUIST_CONFIG_OS_LOG"
