@@ -148,6 +148,7 @@ let targets: [Target] = [
             "Difference",
             "FileSystem",
             .product(name: "FileSystemTesting", package: "FileSystem"),
+            argumentParserDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),

@@ -679,8 +679,10 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
                     .external(name: "Logging"),
+                    .external(name: "ArgumentParser"),
                 ]
             case .kit:
                 []

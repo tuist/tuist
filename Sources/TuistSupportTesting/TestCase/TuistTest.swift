@@ -15,7 +15,10 @@ import XcodeProj
 /// - Parameters:
 ///   - forwardLogs: When true, it forwards the logs through the standard output and error.
 ///   - closure: The closure that will be executed with the task-local context set.
-func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async throws -> Void) async throws {
+// swiftlint:disable:next identifier_name
+func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async throws -> Void)
+    async throws
+{
     let (logger, logHandler) = Logger.initTestingLogger(forwardLogs: forwardLogs)
 
     try await Logger.$current.withValue(logger) {
@@ -31,14 +34,18 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
     }
 }
 
-public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () async throws -> Void) async throws {
+public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () async throws -> Void)
+    async throws
+{
     try await _withMockedDependencies(forwardLogs: forwardLogs, closure)
 }
 
 public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
 
-    public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
+    public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [])
+        async throws
+    {
         var parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }
@@ -64,7 +71,10 @@ public enum TuistTest {
             .filter { $0.contains(".framework") }
 
         if embededFrameworks.contains("\(framework).framework") {
-            Issue.record("Target \(targetName) embeds the framework \(framework)", sourceLocation: sourceLocation)
+            Issue.record(
+                "Target \(targetName) embeds the framework \(framework)",
+                sourceLocation: sourceLocation
+            )
             return
         }
     }
@@ -88,7 +98,9 @@ public enum TuistTest {
         #expect(output.contains(expected) == true, "\(message)", sourceLocation: sourceLocation)
     }
 
-    public static func doesntExpectLogs(_ pattern: String, sourceLocation: SourceLocation = #_sourceLocation) {
+    public static func doesntExpectLogs(
+        _ pattern: String, sourceLocation: SourceLocation = #_sourceLocation
+    ) {
         let standardOutput = Logger.testingLogHandler.collected[.info, <=]
 
         let message = """
@@ -101,11 +113,15 @@ public enum TuistTest {
         \(pattern)
         """
 
-        #expect(standardOutput.contains(pattern) == false, "\(message)", sourceLocation: sourceLocation)
+        #expect(
+            standardOutput.contains(pattern) == false, "\(message)", sourceLocation: sourceLocation
+        )
     }
 
     @discardableResult
-    public static func createFiles(_ files: [String], content: String? = nil) async throws -> [AbsolutePath] {
+    public static func createFiles(_ files: [String], content: String? = nil) async throws
+        -> [AbsolutePath]
+    {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let paths = try files.map { temporaryPath.appending(try RelativePath(validating: $0)) }
@@ -144,6 +160,7 @@ public struct TuistTestAcceptanceTestFixtureTrait: TestTrait, SuiteTrait, TestSc
     let fixturePath: AbsolutePath
 
     init(fixture: String) {
+        // swiftlint:disable:next force_try
         fixturePath = try! AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
@@ -158,7 +175,9 @@ public struct TuistTestAcceptanceTestFixtureTrait: TestTrait, SuiteTrait, TestSc
     ) async throws {
         let fileSystem = FileSystem()
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
-            let fixtureTemporaryDirectory = temporaryDirectory.appending(component: fixturePath.basename)
+            let fixtureTemporaryDirectory = temporaryDirectory.appending(
+                component: fixturePath.basename
+            )
             try await fileSystem.copy(fixturePath, to: fixtureTemporaryDirectory)
             try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
                 try await function()
