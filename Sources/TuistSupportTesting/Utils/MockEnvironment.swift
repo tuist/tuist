@@ -21,10 +21,6 @@ public final class MockEnvironment: Environmenting {
     public var variables: [String: String] = [:]
     public var arguments: [String] = []
 
-    public var automationPath: AbsolutePath? {
-        nil
-    }
-
     public var cacheDirectory: AbsolutePath {
         directory.path.appending(components: ".cache")
     }

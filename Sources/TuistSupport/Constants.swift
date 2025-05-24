@@ -63,7 +63,6 @@ public enum Constants {
     public enum EnvironmentVariables {
         public static let verbose = "TUIST_CONFIG_VERBOSE"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
-        public static let automationPath = "TUIST_CONFIG_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_CONFIG_QUEUE_DIRECTORY"
         public static let cacheManifests = "TUIST_CONFIG_CACHE_MANIFESTS"
         public static let statsOptOut = "TUIST_CONFIG_STATS_OPT_OUT"

@@ -11,10 +11,6 @@ public protocol Environmenting: Sendable {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
-    /// Returns automation path
-    /// Only to be used for acceptance tests
-    var automationPath: AbsolutePath? { get }
-
     /// Returns the environment variables.
     var variables: [String: String] { get }
 
@@ -184,11 +180,6 @@ public struct Environment: Environmenting {
         }
 
         return baseStateDirectory.appending(component: "tuist")
-    }
-
-    public var automationPath: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath]
-            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
     public var queueDirectory: AbsolutePath {
