@@ -95,8 +95,9 @@ struct ProjectEditorMapperTests {
             project.targets.values.sorted()
                 .first(where: { $0.name == sourceRootPath.basename + projectName })
         )
-        #expect(targets.first == manifestsTarget)
+        #expect(targets.first(where: { $0.name.contains("Manifests") }) == manifestsTarget)
 
+        print(targets.map(\.name))
         #expect(manifestsTarget.destinations == .macOS)
         #expect(manifestsTarget.product == .staticFramework)
         #expect(

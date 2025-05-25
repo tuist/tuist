@@ -172,13 +172,16 @@ struct ServerAuthenticationControllerTests {
                 got ==
                     .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
             )
-            try TuistTest.expectLogs(
+            TuistTest.expectLogs(
                 "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
             )
         }
     }
 
-    @Test func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
+    @Test(
+        .withMockedEnvironment,
+        .withMockedLogger()
+    ) func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
@@ -212,7 +215,7 @@ struct ServerAuthenticationControllerTests {
                         )
                     )
             )
-            try TuistTest.expectLogs(
+            TuistTest.doesntExpectLogs(
                 "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
             )
         }

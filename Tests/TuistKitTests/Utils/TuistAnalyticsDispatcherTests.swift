@@ -65,10 +65,14 @@ struct TuistAnalyticsDispatcherTests {
             .willReturn(try #require(FileSystem.temporaryTestDirectory))
 
         // When
-        try await confirmation { eventDispatched in
-            try subject.dispatch(event: Self.commandEvent, completion: {
-                eventDispatched()
-            })
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                try subject.dispatch(event: Self.commandEvent) {
+                    continuation.resume(returning: ())
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
         }
     }
 

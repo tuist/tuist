@@ -72,11 +72,15 @@ struct AsyncQueueTests {
         subject = makeSubject(queue: Queuer.shared)
 
         // When
-        try await confirmation { confirm in
-            mockPersistor.invokedDeleteCallBack = {
-                confirm()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockPersistor.invokedDeleteCallBack = {
+                    continuation.resume(returning: ())
+                }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
             }
-            try subject.dispatch(event: event)
         }
 
         // Then
@@ -102,11 +106,15 @@ struct AsyncQueueTests {
         subject = makeSubject(queue: Queuer.shared)
 
         // When
-        try await confirmation { confirmation in
-            mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-                confirmation()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    continuation.resume(returning: ())
+                }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
             }
-            try subject.dispatch(event: event)
         }
 
         // Then
@@ -125,15 +133,19 @@ struct AsyncQueueTests {
 
         // When
         var count = 0
-        try await confirmation { confirmation in
-            mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-                count += 1
-                if count == 3 {
-                    confirmation()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    count += 1
+                    if count == 3 {
+                        continuation.resume(returning: ())
+                    }
                 }
-            }
 
-            try subject.dispatch(event: event)
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
+            }
         }
 
         // Then
@@ -148,14 +160,18 @@ struct AsyncQueueTests {
 
         // When
         var count = 0
-        try await confirmation { confirmation in
-            mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-                count += 1
-                if count == 3 {
-                    confirmation()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    count += 1
+                    if count == 3 {
+                        continuation.resume()
+                    }
                 }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
             }
-            try subject.dispatch(event: event)
         }
 
         // Then
@@ -212,13 +228,13 @@ struct AsyncQueueTests {
         mockPersistor.stubbedReadAllResult = [eventTuple1]
 
         // When
-        await confirmation { confirmation in
+        await withCheckedContinuation { continuation in
             mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
-                confirmation()
+                continuation.resume(returning: ())
             }
 
-            subject = makeSubject(queue: Queuer.shared)
-            await subject.start()
+            let _subject = makeSubject(queue: Queuer.shared)
+            Task { await _subject.start() }
         }
 
         // Then
@@ -232,19 +248,14 @@ struct AsyncQueueTests {
     @Test(.withMockedEnvironment) mutating func test_start_sentPersistedEventIsThenDeleted() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = [:]
+        mockEnvironment.variables = ["CI": "0"]
         let id: UInt = 1
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: id)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
-        subject = makeSubject(queue: Queuer.shared)
+        let subject = makeSubject(queue: Queuer.shared)
 
         // When
-        await confirmation { confirmation in
-            mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
-                confirmation()
-            }
-            await subject.start()
-        }
+        await subject.start()
 
         // Then
         let filename = try #require(mockPersistor.invokedDeleteFilenameParameter)
