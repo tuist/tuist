@@ -179,7 +179,7 @@ struct AsyncQueueTests {
         #expect(mockPersistor.invokedDeleteEventCount == 0)
     }
 
-    @Test(.withMockedEnvironment) mutating func test_waits_for_queue_to_finish_when_CI() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_waits_for_queue_to_finish_when_CI() async throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
@@ -194,7 +194,7 @@ struct AsyncQueueTests {
         #expect(Queuer.shared.operationCount == 0)
     }
 
-    @Test(.withMockedEnvironment) mutating func test_start_readsPersistedEventsInitialization() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_readsPersistedEventsInitialization() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [:]
@@ -220,7 +220,7 @@ struct AsyncQueueTests {
         #expect(queuedOperation3.name == eventTuple3.id.uuidString)
     }
 
-    @Test(.withMockedEnvironment) mutating func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [:]
@@ -245,7 +245,7 @@ struct AsyncQueueTests {
         #expect(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount == 0)
     }
 
-    @Test(.withMockedEnvironment) mutating func test_start_sentPersistedEventIsThenDeleted() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_sentPersistedEventIsThenDeleted() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = ["CI": "0"]

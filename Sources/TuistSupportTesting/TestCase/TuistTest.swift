@@ -162,7 +162,7 @@ public struct TuistTestAcceptanceTestFixtureTrait: TestTrait, SuiteTrait, TestSc
     init(fixture: String) {
         // swiftlint:disable:next force_try
         fixturePath = try! AbsolutePath(
-            validating: Environment.current.variables[
+            validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
             ]!
         ).appending(component: "fixtures").appending(component: fixture)

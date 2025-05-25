@@ -12,7 +12,7 @@ struct TestAcceptanceTests {
     @Test(
         .withFixture("ios_app_with_frameworks"),
         .inTemporaryDirectory,
-        .withMockedEnvironment,
+        .withMockedEnvironment(),
         .withMockedLogger()
     ) func ios_app_with_frameworks() async throws {
         // Given
@@ -29,7 +29,7 @@ struct TestAcceptanceTests {
     @Test(
         .withFixture("app_with_framework_and_tests"),
         .inTemporaryDirectory,
-        .withMockedEnvironment,
+        .withMockedEnvironment(),
         .withMockedLogger()
     ) func app_with_framework_and_tests() async throws {
         // Given

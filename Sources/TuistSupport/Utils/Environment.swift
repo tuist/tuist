@@ -29,6 +29,9 @@ public protocol Environmenting: Sendable {
     /// Returns the path to the state directory. Configurable via the `XDG_STATE_HOME` environment variable
     var stateDirectory: AbsolutePath { get }
 
+    /// Returns the path to the config directory. Configurable via the `XDG_CONFIG_HOME` environment variable
+    var configDirectory: AbsolutePath { get }
+
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
 
@@ -179,6 +182,21 @@ public struct Environment: Environmenting {
         return baseStateDirectory.appending(component: "tuist")
     }
 
+    public var configDirectory: AbsolutePath {
+        let baseConfigDirectory: AbsolutePath
+        if let configDirectoryPathString = variables["XDG_CONFIG_HOME"],
+           let configDirectory = try? AbsolutePath(validating: configDirectoryPathString)
+        {
+            baseConfigDirectory = configDirectory
+        } else {
+            // swiftlint:disable:next force_try
+            let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
+            baseConfigDirectory = homeDirectory.appending(components: [".config"])
+        }
+
+        return baseConfigDirectory.appending(component: "tuist")
+    }
+
     public var queueDirectory: AbsolutePath {
         if let envVariable = variables[
             "TUIST_CONFIG_QUEUE_DIRECTORY"
@@ -212,11 +230,23 @@ public struct Environment: Environmenting {
     }
 
     public func currentExecutablePath() -> AbsolutePath? {
+        Self.currentExecutablePath()
+    }
+
+    public static func currentExecutablePath() -> AbsolutePath? {
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
         var pathLength = UInt32(buffer.count)
         if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
-            // swiftlint:disable:next force_try
-            return try? AbsolutePath(validating: String(cString: buffer))
+            let pathString = String(cString: buffer)
+            // When we run acceptance tests, where the CLI doesn't get compiled,
+            // this path returns the path to xctest:
+            // - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
+            // In those cases we want to return nil and let the caller manage that scenario.
+            if pathString.hasSuffix("xctest") {
+                return nil
+            } else {
+                return try? AbsolutePath(validating: pathString)
+            }
         } else {
             return nil
         }

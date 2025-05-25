@@ -11,7 +11,7 @@ struct BuildAcceptanceTests {
     @Test(
         .withFixture("multiplatform_app_with_extension"),
         .inTemporaryDirectory,
-        .withMockedEnvironment
+        .withMockedEnvironment()
     ) func multiplatform_app_with_extension() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

@@ -67,15 +67,12 @@ public protocol ServerCredentialsStoring: Sendable {
 
 enum ServerCredentialsStoreError: LocalizedError {
     case credentialsNotFound
-    case xcdgHomePathNotAbsolute(String)
     case invalidServerURL(String)
 
     var errorDescription: String? {
         switch self {
         case .credentialsNotFound:
             return "You are not authenticated. Authenticate by running 'tuist auth login'."
-        case let .xcdgHomePathNotAbsolute(path):
-            return "We expected the value of the XDG_CONFIG_HOME environment variable, \(path), to be an absolute path but it's not."
         case let .invalidServerURL(url):
             return "We couldn't obtain the host from the following URL because it seems invalid \(url)"
         }
@@ -136,27 +133,6 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         }
     }
 
-    // MARK: - Fileprivate
-
-    fileprivate static func configDirectory() throws -> AbsolutePath {
-        var directory: AbsolutePath!
-
-        if let xdgConfigHomeString = Environment.current.variables["XDG_CONFIG_HOME"] {
-            do {
-                directory = try AbsolutePath(validating: xdgConfigHomeString)
-            } catch {
-                throw ServerCredentialsStoreError.xcdgHomePathNotAbsolute(xdgConfigHomeString)
-            }
-        }
-
-        #if canImport(TuistSupport)
-            if directory == nil {
-                directory = FileHandler.shared.homeDirectory.appending(component: ".config")
-            }
-        #endif
-        return directory.appending(component: "tuist")
-    }
-
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
         guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
             throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
@@ -164,7 +140,7 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         let directory = if let configDirectory {
             configDirectory
         } else {
-            try ServerCredentialsStore.configDirectory()
+            Environment.current.configDirectory
         }
         // swiftlint:disable:next force_try
         return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))

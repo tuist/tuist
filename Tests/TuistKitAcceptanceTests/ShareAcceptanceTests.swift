@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -13,13 +14,12 @@ import XCTest
 
 struct ShareAcceptanceTests {
     @Test(
-        .withFixture("ios_app_with_frameworks"),
+        .withFixtureConnectedToCanary("ios_app_with_frameworks"),
         .inTemporaryDirectory,
-        .withMockedEnvironment,
         .withMockedNoora,
-        .withMockedLogger()
+        .withMockedLogger(forwardLogs: true)
     )
-    func ios_app_with_frameworks() async throws {
+    func share_ios_app_with_frameworks() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -36,167 +36,187 @@ struct ShareAcceptanceTests {
             ShareCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
+        let shareLink = try previewLink()
+        resetUI()
 
-//        XCTAssertTrue(
-//            ui()
-//                .contains("Share App with others using the following link:") == true
-//        )
-//        let shareLink = try previewLink()
-//        resetUI()
-    }
-}
-
-final class ShareXCTAcceptanceTests: ServerAcceptanceTestCase {
-    func test_share_ios_app_with_frameworks() async throws {
-        try await withMockedDependencies { @MainActor in
-            try await setUpFixture(.iosAppWithFrameworks)
-
-            // When: Build
-            try await run(BuildCommand.self, "App")
-            resetUI()
-
-            // When: Share
-            try await run(ShareCommand.self)
-            XCTAssertTrue(
-                ui()
-                    .contains("Share App with others using the following link:") == true
-            )
-            let shareLink = try previewLink()
-            resetUI()
-
-            // When: Run
-            try await run(RunCommand.self, shareLink, "-destination", "iPhone 16 Pro")
-            XCTAssertTrue(
-                ui()
-                    .contains("Launching App on iPhone 16 Pro") == true
-            )
-        }
+        // When: Run
+        try await TuistTest.run(
+            RunCommand.self,
+            [shareLink, "-destination", "iPhone 16 Pro"]
+        )
+        #expect(
+            ui()
+                .contains("Launching App on iPhone 16 Pro") == true
+        )
     }
 
-    func test_share_ios_app_with_appclip() async throws {
-        try await withMockedDependencies { @MainActor in
-            try await setUpFixture(.iosAppWithAppClip)
+    @Test(
+        .withFixtureConnectedToCanary("ios_app_with_appclip"),
+        .inTemporaryDirectory,
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true)
+    )
+    func share_and_run_ios_app_with_appclip() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-            // When: Build
-            try await run(BuildCommand.self)
-            resetUI()
+        // When: Build
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+        resetUI()
 
-            // When: Share App
-            try await run(ShareCommand.self, "App")
-            let shareLink = try previewLink("App")
-            XCTAssertTrue(
-                ui()
-                    .contains("Share App with others using the following link:") == true
-            )
-            resetUI()
+        // When: Share
+        try await TuistTest.run(
+            ShareCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+        let shareLink = try previewLink("App")
+        resetUI()
 
-            // When: Run App on iPhone 16
-            try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
-            XCTAssertTrue(
-                ui()
-                    .contains("Launching App on iPhone 16") == true
-            )
-            resetUI()
+        // When: Run
+        try await TuistTest.run(
+            RunCommand.self,
+            [shareLink, "-destination", "iPhone 16"]
+        )
+        #expect(
+            ui()
+                .contains("Launching App on iPhone 16") == true
+        )
 
-            // When: Share AppClip1
-            try await run(ShareCommand.self, "AppClip1")
-            let appClipShareLink = try previewLink("AppClip1")
-            XCTAssertTrue(
-                ui()
-                    .contains("Share AppClip1 with others using the following link:") == true
-            )
-            resetUI()
+        // When: Share AppClip1
+        try await TuistTest.run(
+            ShareCommand.self,
+            ["AppClip1", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+        let appClipShareLink = try previewLink("AppClip1")
+        resetUI()
 
-            // When: Run AppClip1
-            try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
-            XCTAssertTrue(
-                ui()
-                    .contains("Launching AppClip1 on iPhone 16") == true
-            )
-        }
+        // When: Run AppClip1
+        try await TuistTest.run(
+            RunCommand.self,
+            [appClipShareLink, "-destination", "iPhone 16"]
+        )
+        #expect(
+            ui()
+                .contains("Launching AppClip1 on iPhone 16") == true
+        )
     }
 
-    func test_share_xcode_app() async throws {
-        try await withMockedDependencies { @MainActor in
-            try await setUpFixture(.xcodeApp)
-            try System.shared.runAndPrint(
-                [
-                    "/usr/bin/xcrun",
-                    "xcodebuild",
-                    "clean",
-                    "build",
-                    "-project",
-                    fixturePath.appending(component: "App.xcodeproj").pathString,
-                    "-scheme",
-                    "App",
-                    "-sdk",
-                    "iphonesimulator",
-                    "-derivedDataPath",
-                    derivedDataPath.pathString,
-                ]
-            )
-            try await run(ShareCommand.self, "App", "--platforms", "ios")
-            XCTAssertTrue(
-                ui()
-                    .contains("Share App with others using the following link:") == true
-            )
-            let previewLink = try previewLink()
-            resetUI()
+    @Test(
+        .withFixtureConnectedToCanary("xcode_app"),
+        .inTemporaryDirectory,
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true)
+    )
+    func share_and_run_xcode_app() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-            try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
-            XCTAssertTrue(
-                ui()
-                    .contains("Launching App on iPhone 16 Plus") == true
-            )
-        }
+        // When: Build
+        try await CommandRunner().run(arguments: [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "build",
+            "-project",
+            fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+            "-scheme",
+            "App",
+            "-sdk",
+            "iphonesimulator",
+            "-derivedDataPath",
+            temporaryDirectory.pathString,
+        ]).pipedStream().awaitCompletion()
+
+        // When: Share
+        try await TuistTest.run(
+            ShareCommand.self,
+            [
+                "App",
+                "--platforms",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+        let previewLink = try previewLink()
+        resetUI()
+
+        // When: Run App
+        try await TuistTest.run(
+            RunCommand.self,
+            [previewLink, "-destination", "iPhone 16 Plus"]
+        )
+        #expect(
+            ui()
+                .contains("Launching App on iPhone 16 Plus") == true
+        )
     }
 
-    func test_share_xcode_app_files() async throws {
-        try await withMockedDependencies { @MainActor in
-            try await setUpFixture(.xcodeApp)
-            let buildDirectory = fixturePath.appending(component: "Build")
-            try System.shared.runAndPrint(
-                [
-                    "/usr/bin/xcrun",
-                    "xcodebuild",
-                    "clean",
-                    "build",
-                    "-project",
-                    fixturePath.appending(component: "App.xcodeproj").pathString,
-                    "-scheme",
-                    "App",
-                    "-sdk",
-                    "iphonesimulator",
-                    "-derivedDataPath",
-                    derivedDataPath.pathString,
-                    "CONFIGURATION_BUILD_DIR=\(buildDirectory)",
-                ]
-            )
+    @Test(
+        .withFixtureConnectedToCanary("xcode_app"),
+        .inTemporaryDirectory,
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true)
+    )
+    func share_xcode_app_files() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let buildDirectory = fixtureDirectory.appending(component: "Build")
 
-            // Testing sharing `.app` file directly
-            try await run(
-                ShareCommand.self,
+        // When: Build
+        try await CommandRunner().run(arguments: [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "build",
+            "-project",
+            fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+            "-scheme",
+            "App",
+            "-sdk",
+            "iphonesimulator",
+            "-derivedDataPath",
+            temporaryDirectory.pathString,
+            "CONFIGURATION_BUILD_DIR=\(buildDirectory)",
+        ]).pipedStream().awaitCompletion()
+
+        // When: Share
+        try await TuistTest.run(
+            ShareCommand.self,
+            [
                 buildDirectory.appending(component: "App.app").pathString,
-                "--platforms", "ios"
-            )
-            XCTAssertTrue(
-                ui()
-                    .contains("Share App with others using the following link:") == true
-            )
-            let previewLink = try previewLink()
-            resetUI()
-            try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
-            XCTAssertTrue(
-                ui()
-                    .contains("Launching App on iPhone 16 Plus") == true
-            )
-        }
-    }
-}
+                "--platforms",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+        let previewLink = try previewLink()
+        resetUI()
 
-extension ServerAcceptanceTestCase {
-    fileprivate func previewLink(_ displayName: String = "App") throws -> String {
-        try XCTUnwrap(
+        // When: Run App
+        try await TuistTest.run(
+            RunCommand.self,
+            [previewLink, "-destination", "iPhone 16 Plus"]
+        )
+        #expect(
+            ui()
+                .contains("Launching App on iPhone 16 Plus") == true
+        )
+    }
+
+    private func previewLink(_ displayName: String = "App") throws -> String {
+        try #require(
             ui()
                 .components(separatedBy: .newlines)
                 .first(where: { $0.contains("Share \(displayName) with others") })?

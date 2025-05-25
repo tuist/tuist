@@ -35,7 +35,7 @@ struct TuistAnalyticsServerBackendTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger(), .withMockedEnvironment) func test_send_when_is_not_ci() async throws {
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withMockedEnvironment()) func test_send_when_is_not_ci() async throws {
         try await withMockedDependencies {
             // Given
             given(cacheDirectoriesProvider)
@@ -65,7 +65,7 @@ struct TuistAnalyticsServerBackendTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment) func test_send_when_is_ci() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_send_when_is_ci() async throws {
         try await withMockedDependencies {
             // Given
             given(cacheDirectoriesProvider)
@@ -92,7 +92,7 @@ struct TuistAnalyticsServerBackendTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment) func test_send_when_is_ci_and_result_bundle_exists() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_send_when_is_ci_and_result_bundle_exists() async throws {
         try await withMockedDependencies {
             // Given
             let fileSystem = FileSystem()

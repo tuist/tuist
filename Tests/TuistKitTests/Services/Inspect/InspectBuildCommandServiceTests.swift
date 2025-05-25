@@ -82,7 +82,7 @@ struct InspectBuildCommandServiceTests {
             )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_createsBuild() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -146,7 +146,7 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_when_should_not_wait() async throws {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
@@ -171,7 +171,7 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_createsBuild_with_path_from_cli() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in
@@ -215,7 +215,7 @@ struct InspectBuildCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_createsBuild_with_path_from_cli_for_xcworkspace() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in
@@ -266,7 +266,7 @@ struct InspectBuildCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_when_no_project_exists_at_a_given_path() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in
@@ -285,7 +285,7 @@ struct InspectBuildCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_when_no_logs_exist() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in
@@ -312,7 +312,7 @@ struct InspectBuildCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment)
+    @Test(.withMockedEnvironment())
     func test_when_full_handle_not_specified() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in

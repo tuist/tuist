@@ -27,7 +27,7 @@ struct ServerClientAuthenticationMiddlewareTests {
         )
     }
 
-    @Test(.withMockedEnvironment) mutating func test_when_cirrus_env_variable_is_present() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_when_cirrus_env_variable_is_present() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [Constants.EnvironmentVariables.cirrusTuistCacheURL: "https://cirrus.dev"]
@@ -63,7 +63,7 @@ struct ServerClientAuthenticationMiddlewareTests {
         )
     }
 
-    @Test(.withMockedEnvironment) func test_when_authentication_token_is_nil() async throws {
+    @Test(.withMockedEnvironment()) func test_when_authentication_token_is_nil() async throws {
         let url = URL(string: "https://test.tuist.io")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         let response = HTTPResponse(

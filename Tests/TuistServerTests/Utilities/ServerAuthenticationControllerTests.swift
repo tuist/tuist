@@ -22,7 +22,7 @@ struct ServerAuthenticationControllerTests {
         )
     }
 
-    @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_ci() async throws {
+    @Test(.withMockedEnvironment()) func test_when_config_token_is_present_and_is_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -40,7 +40,7 @@ struct ServerAuthenticationControllerTests {
         )
     }
 
-    @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_not_ci() async throws {
+    @Test(.withMockedEnvironment()) func test_when_config_token_is_present_and_is_not_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -57,7 +57,7 @@ struct ServerAuthenticationControllerTests {
         #expect(got == nil)
     }
 
-    @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing()
+    @Test(.withMockedEnvironment()) func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing()
         async throws
     {
         // Given
@@ -83,7 +83,7 @@ struct ServerAuthenticationControllerTests {
         #expect(got?.value == credentials.token)
     }
 
-    @Test(.withMockedEnvironment) func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present()
+    @Test(.withMockedEnvironment()) func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present()
         async throws
     {
         // Given
@@ -105,7 +105,7 @@ struct ServerAuthenticationControllerTests {
         #expect(got?.value == credentials.token)
     }
 
-    @Test(.withMockedEnvironment) func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
+    @Test(.withMockedEnvironment()) func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
@@ -128,7 +128,7 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment) func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
+    @Test(.withMockedEnvironment()) func test_when_deprecated_and_current_config_tokens_are_present_and_is_ci() async throws {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
@@ -152,7 +152,7 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment) func test_when_credentials_store_returns_legacy_token() async throws {
+    @Test(.withMockedEnvironment()) func test_when_credentials_store_returns_legacy_token() async throws {
         try await withMockedDependencies {
             // Given
             let mockEnvironment = try #require(Environment.mocked)
@@ -179,7 +179,7 @@ struct ServerAuthenticationControllerTests {
     }
 
     @Test(
-        .withMockedEnvironment,
+        .withMockedEnvironment(),
         .withMockedLogger()
     ) func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
         try await withMockedDependencies {
@@ -221,7 +221,7 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment) func test_when_credentials_store_returns_jwt_tokens() async throws {
+    @Test(.withMockedEnvironment()) func test_when_credentials_store_returns_jwt_tokens() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [:]

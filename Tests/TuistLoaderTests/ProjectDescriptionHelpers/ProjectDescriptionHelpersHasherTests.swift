@@ -27,7 +27,7 @@ struct ProjectDescriptionHelpersHasherTests {
         )
     }
 
-    @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment, .inTemporaryDirectory) func hash() async throws {
+    @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment(), .inTemporaryDirectory) func hash() async throws {
         // Given
         let environmentMock = try #require(TuistSupport.Environment.mocked)
         let temporaryDir = try #require(FileSystem.temporaryTestDirectory)

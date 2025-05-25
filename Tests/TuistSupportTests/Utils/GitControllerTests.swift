@@ -136,7 +136,7 @@ struct GitControllerTests {
         #expect(urlOrigin == "https://github.com/tuist/tuist")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment) func test_ref_when_githubRef() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_githubRef() throws {
         // When
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -148,7 +148,7 @@ struct GitControllerTests {
         #expect(got == "refs/pull/1/merge")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment) func test_ref_when_codemagicPullRequestNumber() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_codemagicPullRequestNumber() throws {
         // When
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -160,7 +160,7 @@ struct GitControllerTests {
         #expect(got == "refs/pull/2/merge")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment) func test_ref_when_circle_pull_request() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_circle_pull_request() throws {
         // When
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [

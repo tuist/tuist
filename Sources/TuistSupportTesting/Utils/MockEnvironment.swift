@@ -5,10 +5,25 @@ import TuistSupport
 import XCTest
 
 public final class MockEnvironment: Environmenting {
-    fileprivate let directory: TemporaryDirectory
+    enum Directory {
+        case owned(TemporaryDirectory)
+        case notowned(AbsolutePath)
+        var path: AbsolutePath {
+            switch self {
+            case let .owned(directory): return directory.path
+            case let .notowned(path): return path
+            }
+        }
+    }
 
-    init() throws {
-        directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+    fileprivate let directory: Directory
+
+    init(temporaryDirectory: AbsolutePath? = nil) throws {
+        if let temporaryDirectory {
+            directory = .notowned(temporaryDirectory)
+        } else {
+            directory = .owned(try TemporaryDirectory(removeTreeOnDeinit: true))
+        }
     }
 
     public var isVerbose: Bool = false
@@ -20,6 +35,9 @@ public final class MockEnvironment: Environmenting {
     public var isGitHubActions: Bool = false
     public var variables: [String: String] = [:]
     public var arguments: [String] = []
+    public var workspacePath: AbsolutePath?
+    public var schemeName: String?
+    public func currentExecutablePath() -> AbsolutePath? { Environment.currentExecutablePath() }
 
     public var cacheDirectory: AbsolutePath {
         directory.path.appending(components: ".cache")
@@ -29,15 +47,13 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(component: "state")
     }
 
+    public var configDirectory: AbsolutePath {
+        directory.path.appending(component: "state")
+    }
+
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: "Queue")
     }
-
-    public var workspacePath: AbsolutePath?
-
-    public var schemeName: String?
-
-    public func currentExecutablePath() -> AbsolutePath? { nil }
 }
 
 extension Environment {
@@ -45,24 +61,28 @@ extension Environment {
 }
 
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
+    let temporaryDirectory: AbsolutePath?
+
     public func provideScope(
         for _: Test,
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        try await Environment.$current.withValue(MockEnvironment()) {
+        try await Environment.$current.withValue(MockEnvironment(temporaryDirectory: temporaryDirectory)) {
             try await function()
         }
     }
 }
 
-public func withMockedEnvironment(_ closure: () async throws -> Void) async throws {
-    try await Environment.$current.withValue(MockEnvironment()) {
+public func withMockedEnvironment(temporaryDirectory: AbsolutePath? = nil, _ closure: () async throws -> Void) async throws {
+    try await Environment.$current.withValue(MockEnvironment(temporaryDirectory: temporaryDirectory)) {
         try await closure()
     }
 }
 
 extension Trait where Self == EnvironmentTestingTrait {
     /// When this trait is applied to a test, the environment will be mocked.
-    public static var withMockedEnvironment: Self { Self() }
+    public static func withMockedEnvironment(temporaryDirectory: AbsolutePath? = nil) -> Self {
+        Self(temporaryDirectory: temporaryDirectory)
+    }
 }

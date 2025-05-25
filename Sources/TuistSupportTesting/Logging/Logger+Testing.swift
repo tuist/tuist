@@ -20,7 +20,7 @@ public class TestingLogHandler: LogHandler {
 
     public init(label: String, forwardLogs: Bool) {
         self.label = label
-        logLevel = .trace
+        logLevel = Environment.current.isVerbose ? .trace : .info
         standardLogHandler = StandardLogHandler(label: label, logLevel: logLevel)
         self.forwardLogs = forwardLogs
     }
