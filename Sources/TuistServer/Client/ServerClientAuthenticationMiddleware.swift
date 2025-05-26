@@ -1,6 +1,9 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
 public enum ServerClientAuthenticationError: LocalizedError, Equatable {
     case notAuthenticated

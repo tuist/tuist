@@ -27,6 +27,25 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
+
+    @Test(
+        .withFixture("framework_with_environment_variables"),
+        .withMockedLogger(),
+        .withMockedEnvironment()
+    ) func framework_with_environment_variables() async throws {
+        // Given
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["FrameworkA", "--path", fixtureDirectory.pathString])
+
+        mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["FrameworkB", "--path", fixtureDirectory.pathString])
+    }
 }
 
 final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
@@ -648,18 +667,6 @@ final class GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptan
         } catch let error as FatalError {
             XCTAssertTrue(error.description.contains("Found circular dependency between targets"))
         }
-    }
-}
-
-final class GenerateAcceptanceTestFrameworkWithEnvironmentVariables: TuistAcceptanceTestCase {
-    func test_framework_with_environment_variables() async throws {
-        try await setUpFixture(.frameworkWithEnvironmentVariables)
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "FrameworkA")
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "FrameworkB")
     }
 }
 

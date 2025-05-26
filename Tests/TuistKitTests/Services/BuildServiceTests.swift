@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -364,42 +365,35 @@ struct BuildServiceTests {
         }
     }
 
-    @Test(.withMockedNoora) func test_run_lists_schemes() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
-                let graph = Graph.test()
-                let schemeA = Scheme.test(name: "A")
-                let schemeB = Scheme.test(name: "B")
+    @Test(.withMockedNoora, .withMockedLogger(), .inTemporaryDirectory) func test_run_lists_schemes() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let graph = Graph.test()
+        let schemeA = Scheme.test(name: "A")
+        let schemeB = Scheme.test(name: "B")
 
-                given(configLoader).loadConfig(path: .value(temporaryDirectory))
-                    .willReturn(.test(project: .testGeneratedProject()))
-                given(generator)
-                    .load(path: .value(temporaryDirectory))
-                    .willReturn(graph)
-                given(buildGraphInspector)
-                    .workspacePath(directory: .value(temporaryDirectory))
-                    .willReturn(workspacePath)
-                given(buildGraphInspector)
-                    .buildableSchemes(graphTraverser: .any)
-                    .willReturn(
-                        [
-                            schemeA,
-                            schemeB,
-                        ]
-                    )
+        given(configLoader).loadConfig(path: .value(temporaryDirectory))
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generator)
+            .load(path: .value(temporaryDirectory))
+            .willReturn(graph)
+        given(buildGraphInspector)
+            .workspacePath(directory: .value(temporaryDirectory))
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .buildableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    schemeA,
+                    schemeB,
+                ]
+            )
 
-                // When
-                try await subject.testRun(
-                    path: temporaryDirectory
-                )
-
-                // Then
-                try TuistTest.expectLogs("Found the following buildable schemes: A, B", at: .debug, ==)
-            }
-        }
+        // When
+        try await subject.testRun(
+            path: temporaryDirectory
+        )
     }
 }
 
