@@ -3,7 +3,7 @@ import Foundation
 import Noora
 import Path
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum RegistryCommandSetupServiceError: Equatable, LocalizedError {

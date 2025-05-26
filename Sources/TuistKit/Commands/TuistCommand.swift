@@ -6,7 +6,7 @@ import Path
 import TuistAnalytics
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {

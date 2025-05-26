@@ -3,7 +3,7 @@ import Path
 import SwiftUI
 import TuistAutomation
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 struct DevicesView: View, ErrorViewHandling {

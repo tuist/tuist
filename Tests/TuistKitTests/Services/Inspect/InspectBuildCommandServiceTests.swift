@@ -4,7 +4,7 @@ import Mockable
 import Testing
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

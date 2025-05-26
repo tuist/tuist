@@ -1,8 +1,7 @@
 import FileSystem
 import Mockable
 import TuistCore
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XCTest
 

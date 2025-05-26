@@ -2,8 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 import TuistCore
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
