@@ -218,6 +218,14 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The status of the build run.",
                  enum: [:success, :failure]
+               },
+               git_commit_sha: %Schema{
+                 type: :string,
+                 description: "The commit SHA."
+               },
+               git_branch: %Schema{
+                 type: :string,
+                 description: "The git branch."
                }
              },
              required: [
@@ -280,7 +288,9 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, :success)
+          status: Map.get(params, :status, :success),
+          git_branch: Map.get(params, :git_branch),
+          git_commit_sha: Map.get(params, :git_commit_sha)
         })
     end
   end

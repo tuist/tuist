@@ -11,7 +11,7 @@ defmodule Tuist.Runs.Build do
     filterable: [
       :project_id
     ],
-    sortable: [:inserted_at]
+    sortable: [:inserted_at, :duration]
   }
 
   @primary_key {:id, UUIDv7, autogenerate: false}
@@ -23,6 +23,8 @@ defmodule Tuist.Runs.Build do
     field :model_identifier, :string
     field :scheme, :string
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
+    field :git_branch, :string
+    field :git_commit_sha, :string
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
 
@@ -42,7 +44,9 @@ defmodule Tuist.Runs.Build do
       :project_id,
       :account_id,
       :inserted_at,
-      :status
+      :status,
+      :git_branch,
+      :git_commit_sha
     ])
     |> validate_required([
       :id,

@@ -91,7 +91,7 @@
         legend_color="destructive"
         description={gettext("The number of builds that failed.")}
         value={@failed_builds_analytics.count}
-        id="widget-total-builds"
+        id="widget-failed-builds"
         patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics-selected-widget", "failed-builds"))}"}
         selected={@analytics_selected_widget == "failed-builds"}
         trend_value={@failed_builds_analytics.trend}

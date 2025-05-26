@@ -35,6 +35,8 @@ export default {
   context() {
     return {
       id: this.el.id,
+      disabled: getBooleanOption(this.el, "disabled"),
+      defaultOpen: getBooleanOption(this.el, "open"),
       onOpenChange: (details) => {
         if (this.el.dataset.onOpenChange) {
           this.pushEvent(this.el.dataset.onOpenChange, details);

@@ -433,6 +433,7 @@ msgstr ""
 msgid "Blog posts by the Tuist team."
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:55
 #: lib/tuist_web/live/bundle_live.html.heex:57
 #: lib/tuist_web/live/bundles_live.html.heex:234
 #: lib/tuist_web/live/cache_runs_live.html.heex:70
@@ -445,7 +446,7 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:83
+#: lib/tuist_web/components/app_layout_components.ex:84
 #: lib/tuist_web/live/builds_live.ex:20
 #: lib/tuist_web/live/builds_live.html.heex:2
 #: lib/tuist_web/live/overview_live.html.heex:459
@@ -571,6 +572,7 @@ msgstr ""
 msgid "Command"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:58
 #: lib/tuist_web/live/bundle_live.html.heex:131
 #: lib/tuist_web/live/bundles_live.html.heex:250
 #: lib/tuist_web/live/preview_live.html.heex:125
@@ -890,6 +892,9 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:9
+#: lib/tuist_web/live/build_runs_live.html.heex:17
+#: lib/tuist_web/live/build_runs_live.html.heex:69
 #: lib/tuist_web/live/builds_live.html.heex:596
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:17
@@ -1000,6 +1005,7 @@ msgstr ""
 msgid "FAQ"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:52
 #: lib/tuist_web/live/builds_live.html.heex:587
 #: lib/tuist_web/live/cache_runs_live.html.heex:67
 #: lib/tuist_web/live/generate_runs_live.html.heex:67
@@ -1512,6 +1518,7 @@ msgid "No credit card required"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:71
+#: lib/tuist_web/live/build_runs_live.html.heex:110
 #: lib/tuist_web/live/builds_live.html.heex:361
 #: lib/tuist_web/live/builds_live.html.heex:487
 #: lib/tuist_web/live/builds_live.html.heex:611
@@ -1639,6 +1646,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:50
 #: lib/tuist_web/live/builds_live.html.heex:585
 #: lib/tuist_web/live/cache_runs_live.html.heex:65
 #: lib/tuist_web/live/generate_runs_live.html.heex:65
@@ -1822,6 +1830,9 @@ msgstr ""
 msgid "QR code"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:10
+#: lib/tuist_web/live/build_runs_live.html.heex:25
+#: lib/tuist_web/live/build_runs_live.html.heex:87
 #: lib/tuist_web/live/builds_live.html.heex:604
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
 #: lib/tuist_web/live/cache_runs_live.html.heex:25
@@ -1836,6 +1847,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:64
 #: lib/tuist_web/live/builds_live.html.heex:593
 #: lib/tuist_web/live/cache_runs_live.html.heex:73
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
@@ -2143,6 +2155,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:13
 #: lib/tuist_web/live/bundle_live.html.heex:435
 #: lib/tuist_web/live/bundle_live.html.heex:562
 #: lib/tuist_web/live/bundles_live.html.heex:200
@@ -2518,8 +2531,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:108
-#: lib/tuist_web/components/app_layout_components.ex:133
+#: lib/tuist_web/components/app_layout_components.ex:126
+#: lib/tuist_web/components/app_layout_components.ex:151
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -3674,6 +3687,7 @@ msgstr ""
 msgid "Recent Builds"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.html.heex:45
 #: lib/tuist_web/live/builds_live.html.heex:580
 #, elixir-autogen, elixir-format
 msgid "Scheme"
@@ -3734,4 +3748,11 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "p99"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:100
+#: lib/tuist_web/live/build_runs_live.ex:16
+#: lib/tuist_web/live/build_runs_live.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Build Runs"
 msgstr ""

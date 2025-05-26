@@ -1,6 +1,7 @@
 .noora-sidebar {
   display: none;
   flex-direction: column;
+  align-items: stretch;
   gap: var(--noora-spacing-7);
   padding: var(--noora-spacing-7) var(--noora-spacing-4);
   width: 220px;
@@ -24,11 +25,18 @@
   & [data-part="collapsible-group"] {
     & [data-part="trigger"] {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
       gap: var(--noora-spacing-4);
       cursor: pointer;
       border-radius: var(--noora-radius-medium);
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      user-select: none;
+      text-decoration: unset;
+      &:not(a) {
+        flex-direction: row;
+        align-items: center;
+        padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      }
 
       & [data-part="label"] {
         flex-grow: 1;
