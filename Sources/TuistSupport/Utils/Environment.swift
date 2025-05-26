@@ -17,6 +17,9 @@ public protocol Environmenting: AnyObject, Sendable {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
+    
+    /// Returns all the raw environment variables.
+    var allVariables: [String: String] { get }
 
     /// Returns all the environment variables that can be included during the manifest loading process
     var manifestLoadingVariables: [String: String] { get }
@@ -192,6 +195,10 @@ public final class Environment: Environmenting {
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
         ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
+    }
+    
+    public var allVariables: [String: String] {
+        ProcessInfo.processInfo.environment
     }
 
     public var manifestLoadingVariables: [String: String] {
