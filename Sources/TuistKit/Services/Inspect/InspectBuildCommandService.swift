@@ -79,7 +79,7 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.executablePathMissing
         }
 
-        if Environment.current.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+        if Environment.current.allVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
            Environment.current.workspacePath != nil
         {
             var environment = Environment.current.allVariables
@@ -124,7 +124,7 @@ struct InspectBuildCommandService {
         guard let fullHandle = config.fullHandle else {
             throw InspectBuildCommandServiceError.missingFullHandle
         }
-        
+
         let gitCommitSHA: String?
         let gitBranch: String?
         if gitController.isInGitRepository(workingDirectory: projectPath) {
