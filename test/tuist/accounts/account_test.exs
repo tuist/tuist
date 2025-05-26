@@ -123,9 +123,11 @@ defmodule Tuist.AccountTest do
       end
     end
 
-    test "rejects names that are too short" do
-      changeset = Account.create_changeset(%Account{}, %{name: "sh", user_id: 1})
-      assert "should be at least 3 character(s)" in errors_on(changeset).name
+    test "name is valid if it contains just one character" do
+      changeset =
+        Account.create_changeset(%Account{}, %{name: "a", user_id: 1, billing_email: "#{UUIDv7.generate()}@tuist.dev"})
+
+      assert changeset.valid? == true
     end
 
     test "rejects names that are too long" do
