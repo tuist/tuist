@@ -364,7 +364,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test func test_run_lists_schemes() async throws {
+    @Test(.withMockedNoora) func test_run_lists_schemes() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
