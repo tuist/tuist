@@ -31,7 +31,13 @@ public final class ServerURLService: ServerURLServicing {
     }
 
     private func envVariableURL(_ envVariable: String) throws -> URL? {
-        guard let envVariableString = Environment.current.variables[envVariable] else {
+        #if canImport(TuistSupport)
+            let variables = Environment.current.variables
+        #else
+            let variables = ProcessInfo.processInfo.environment
+        #endif
+
+        guard let envVariableString = variables[envVariable] else {
             return nil
         }
         guard let envVariableURL = URL(string: envVariableString) else {

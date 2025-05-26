@@ -140,7 +140,11 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         let directory = if let configDirectory {
             configDirectory
         } else {
-            Environment.current.configDirectory
+            #if canImport(TuistSupport)
+                Environment.current.configDirectory
+            #else
+                fatalError("Can't obtain the configuration directory for the current destination.")
+            #endif
         }
         // swiftlint:disable:next force_try
         return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
