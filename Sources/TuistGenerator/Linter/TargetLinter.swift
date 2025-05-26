@@ -49,6 +49,7 @@ class TargetLinter: TargetLinting {
         try await issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
         issues.append(contentsOf: lintOnDemandResourcesTags(target: target))
+        issues.append(contentsOf: lintMissingConcreteFiles(target: target))
         for script in target.scripts {
             issues.append(contentsOf: try await targetScriptLinter.lint(script))
         }
@@ -373,6 +374,22 @@ class TargetLinter: TargetLinting {
                 severity: .warning
             )
         }
+    }
+
+    /// Warn if a concrete (non-glob) file path in sources/resources/copy files is missing. Do not warn for globs.
+    private func lintMissingConcreteFiles(target: Target) -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+        let allPaths: [AbsolutePath] =
+            target.sources.map { $0.path } +
+            target.resources.resources.map { $0.path } +
+            target.copyFiles.flatMap { $0.files.map { $0.path } }
+        for path in allPaths {
+            // Only check concrete (non-glob) paths
+            if !path.isGlobPath, !fileSystem.exists(path) {
+                issues.append(LintingIssue(reason: "No file found at: \(path.pathString)", severity: .warning))
+            }
+        }
+        return issues
     }
 }
 

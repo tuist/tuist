@@ -65,7 +65,8 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains(
+            // No warning should be printed for empty glob
+            XCTAssertPrinterOutputNotContains(
                 "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
             )
             XCTAssertEqual(model, [])
@@ -99,7 +100,8 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains(
+            // No warning should be printed for empty glob
+            XCTAssertPrinterOutputNotContains(
                 "No files found at: \(assetsDirectory.appending(components: "**"))"
             )
             XCTAssertEqual(model, [])

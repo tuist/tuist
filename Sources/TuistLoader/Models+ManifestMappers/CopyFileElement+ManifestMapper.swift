@@ -33,9 +33,6 @@ extension XcodeGraph.CopyFileElement {
                 if FileHandler.shared.isFolder(path) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else {
-                    // FIXME: This should be done in a linter.
-                    Logger.current.warning("No files found at: \(path.pathString)")
                 }
             }
 
