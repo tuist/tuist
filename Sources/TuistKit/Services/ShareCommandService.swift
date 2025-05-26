@@ -40,7 +40,7 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
                 "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         case let .appBundleInIPANotFound(ipaPath):
             return
-                "No app found in the in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
+                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }
     }
 
