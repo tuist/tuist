@@ -37,7 +37,8 @@ public final class MockEnvironment: Environmenting {
     public var arguments: [String] = []
     public var workspacePath: AbsolutePath?
     public var schemeName: String?
-    public func currentExecutablePath() -> AbsolutePath? { Environment.currentExecutablePath() }
+    public var currentExecutablePathStub: AbsolutePath?
+    public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub ?? Environment.currentExecutablePath() }
 
     public var cacheDirectory: AbsolutePath {
         directory.path.appending(components: ".cache")
