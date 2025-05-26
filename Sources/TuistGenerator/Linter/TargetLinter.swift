@@ -380,9 +380,9 @@ class TargetLinter: TargetLinting {
     private func lintMissingConcreteFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let allPaths: [AbsolutePath] =
-            target.sources.map { $0.path } +
-            target.resources.resources.map { $0.path } +
-            target.copyFiles.flatMap { $0.files.map { $0.path } }
+            target.sources.map(\.path) +
+            target.resources.resources.map(\.path) +
+            target.copyFiles.flatMap { $0.files.map(\.path) }
         for path in allPaths {
             // Only check concrete (non-glob) paths
             if !path.isGlobPath, !fileSystem.exists(path) {
