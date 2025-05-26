@@ -1,96 +1,164 @@
-import ArgumentParser
-import FileSystem
-import Foundation
 import Path
 import Testing
 import TuistSupport
-import TuistSupportTesting
-@testable import TuistKit
+import XcodeProj
 
-public struct TuistAcceptanceTestFixtureTrait: TestTrait, SuiteTrait, TestScoping {
-    let fixturePath: AbsolutePath
+public enum TuistAcceptanceTest {
+    public static func expectFrameworkLinked(
+        _ framework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
 
-    init(fixture: String) {
-        // swiftlint:disable:next force_try
-        fixturePath = try! AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
-                "TUIST_CONFIG_SRCROOT"
-            ]!
-        ).appending(component: "fixtures").appending(component: fixture)
-    }
-
-    public func provideScope(
-        for _: Test,
-        testCase _: Test.Case?,
-        performing function: @Sendable () async throws -> Void
-    ) async throws {
-        let fileSystem = FileSystem()
-        try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
-            try await TuistSupportTesting
-                .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
-                    let fixtureTemporaryDirectory = temporaryDirectory.appending(
-                        component: fixturePath.basename
-                    )
-                    try await fileSystem.copy(fixturePath, to: fixtureTemporaryDirectory)
-                    try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
-                        let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
-                        let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-                        let fullHandle = "\(organizationHandle)/\(projectHandle)"
-                        let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
-                        let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
-
-                        try await TuistTest.run(
-                            LoginCommand.self,
-                            ["--email", email, "--password", password, "--path", fixtureTemporaryDirectory.pathString]
-                        )
-                        try await TuistTest.run(
-                            OrganizationCreateCommand.self,
-                            [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                        )
-                        try await TuistTest.run(
-                            ProjectCreateCommand.self,
-                            [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                        )
-
-                        try await FileSystem().writeText("""
-                        import ProjectDescription
-
-                        let config = Config(
-                            fullHandle: "\(fullHandle)",
-                            url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
-                        )
-                        """, at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"), options: Set([.overwrite]))
-                        resetUI()
-
-                        let revert = {
-                            try await TuistTest.run(
-                                ProjectDeleteCommand.self,
-                                [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                            )
-                            try await TuistTest.run(
-                                OrganizationDeleteCommand.self,
-                                [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                            )
-                            try await TuistTest.run(
-                                LogoutCommand.self
-                            )
-                        }
-
-                        do {
-                            try await function()
-                        } catch {
-                            try await revert()
-                            throw error
-                        }
-                        try await revert()
-                    }
-                }
+        let frameworkDependencies = try target.frameworksBuildPhase()?.files?
+            .compactMap(\.file)
+            .map(\.nameOrPath)
+            .filter { $0.hasSuffix(".framework") } ?? []
+        guard frameworkDependencies.contains("\(framework).framework")
+        else {
+            Issue.record(
+                "Target \(targetName) doesn't link the framework \(framework). It links the frameworks: \(frameworkDependencies.joined())",
+                sourceLocation: sourceLocation
+            )
+            return
         }
     }
-}
 
-extension Trait where Self == TuistAcceptanceTestFixtureTrait {
-    public static func withFixtureConnectedToCanary(_ fixture: String) -> Self {
-        return Self(fixture: fixture)
+    public static func expectBundleCopiedFromCache(
+        _ bundle: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+        guard let buildFile = try target.resourcesBuildPhase()?.files?
+            .first(where: { $0.file?.nameOrPath == "\(bundle).bundle" })
+        else {
+            Issue.record("Target \(targetName) doesn't copy the bundle \(bundle)", sourceLocation: sourceLocation)
+            return
+        }
+        let bundlePath = try #require(try buildFile.file?.fullPath(sourceRoot: ""), sourceLocation: sourceLocation)
+        if !bundlePath.contains(Environment.current.cacheDirectory.basename) {
+            Issue.record(
+                "The bundle '\(bundle)' copied from target '\(targetName)' has a path outside the cache: \(bundlePath)",
+                sourceLocation: sourceLocation
+            )
+        }
+    }
+
+    public static func expectBundleCopiedFromBuildDirectory(
+        _ bundle: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+        guard let buildFile = try target.resourcesBuildPhase()?.files?
+            .first(where: { $0.file?.nameOrPath == "\(bundle).bundle" })
+        else {
+            Issue.record("Target \(targetName) doesn't copy the bundle \(bundle)", sourceLocation: sourceLocation)
+            return
+        }
+        let bundlePath = try buildFile.file?.fullPath(sourceRoot: "")
+        if let bundlePath, bundlePath.contains(Environment.current.cacheDirectory.basename) {
+            Issue.record(
+                "The bundle '\(bundle)' copied from target '\(targetName)' has a path inside the cache: \(bundlePath)",
+                sourceLocation: sourceLocation
+            )
+        }
+    }
+
+    public static func expectXCFrameworkEmbedded(
+        _ xcframework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+
+        let xcframeworkDependencies = target.embedFrameworksBuildPhases()
+            .filter { $0.dstSubfolderSpec == .frameworks }
+            .map(\.files)
+            .compactMap { $0 }
+            .flatMap { $0 }
+            .compactMap(\.file?.nameOrPath)
+            .filter { $0.contains(".xcframework") }
+        guard xcframeworkDependencies.contains("\(xcframework).xcframework")
+        else {
+            Issue.record("Target \(targetName) doesn't link the xcframework \(xcframework)", sourceLocation: sourceLocation)
+            return
+        }
+    }
+
+    public static func expectXCFrameworkNotEmbedded(
+        _ xcframework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+
+        let xcframeworkDependencies = target.embedFrameworksBuildPhases()
+            .filter { $0.dstSubfolderSpec == .frameworks }
+            .map(\.files)
+            .compactMap { $0 }
+            .flatMap { $0 }
+            .compactMap(\.file?.nameOrPath)
+            .filter { $0.contains(".xcframework") }
+        guard !xcframeworkDependencies.contains("\(xcframework).xcframework")
+        else {
+            Issue.record("Target \(targetName) links the xcframework \(xcframework)", sourceLocation: sourceLocation)
+            return
+        }
+    }
+
+    public static func expectXCFrameworkLinked(
+        _ framework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        else {
+            Issue.record("Target \(targetName) doesn't link the xcframework \(framework)", sourceLocation: sourceLocation)
+            return
+        }
+    }
+
+    public static func expectXCFrameworkNotLinked(
+        _ framework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+
+        if try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "\(framework).xcframework" }) == true
+        {
+            Issue.record("Target \(targetName) links the xcframework \(framework)", sourceLocation: sourceLocation)
+            return
+        }
+    }
+
+    public static func requireTarget(
+        _ targetName: String,
+        in xcodeproj: XcodeProj,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws -> PBXTarget {
+        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+        return try #require(targets.first(where: { $0.name == targetName }), sourceLocation: sourceLocation)
     }
 }
