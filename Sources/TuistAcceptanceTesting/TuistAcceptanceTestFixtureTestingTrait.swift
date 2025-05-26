@@ -7,20 +7,11 @@ import TuistSupport
 import TuistSupportTesting
 @testable import TuistKit
 
-public struct FixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
-    let fixturePath: AbsolutePath
+public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
+    let fixtureDirectory: AbsolutePath
 
-    init(fixture: String, fixturesDirectory: AbsolutePath = Self.defaultFixturesDirectory()) {
-        fixturePath = fixturesDirectory.appending(component: fixture)
-    }
-
-    public static func defaultFixturesDirectory() -> AbsolutePath {
-        // swiftlint:disable:next force_try
-        return try! AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
-                "TUIST_CONFIG_SRCROOT"
-            ]!
-        ).appending(component: "fixtures")
+    init(fixture: String, fixturesDirectory: AbsolutePath = Fixtures.directory) {
+        fixtureDirectory = fixturesDirectory.appending(component: fixture)
     }
 
     public func provideScope(
@@ -33,9 +24,9 @@ public struct FixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
             try await TuistSupportTesting
                 .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
-                        component: fixturePath.basename
+                        component: fixtureDirectory.basename
                     )
-                    try await fileSystem.copy(fixturePath, to: fixtureTemporaryDirectory)
+                    try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
                         let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
                         let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
@@ -56,7 +47,7 @@ public struct FixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
                             [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
                         )
 
-                        try await FileSystem().writeText("""
+                        try await fileSystem.writeText("""
                         import ProjectDescription
 
                         let config = Config(
@@ -93,10 +84,10 @@ public struct FixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
     }
 }
 
-extension Trait where Self == FixtureTestingTrait {
+extension Trait where Self == TuistAcceptanceTestFixtureTestingTrait {
     public static func withFixtureConnectedToCanary(
         _ fixture: String,
-        fixturesDirectory: AbsolutePath = FixtureTestingTrait.defaultFixturesDirectory()
+        fixturesDirectory: AbsolutePath = Fixtures.directory
     ) -> Self {
         return Self(fixture: fixture, fixturesDirectory: fixturesDirectory)
     }

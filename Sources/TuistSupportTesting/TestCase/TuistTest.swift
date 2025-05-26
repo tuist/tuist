@@ -156,42 +156,6 @@ public enum TuistTest {
     }
 }
 
-public struct TuistTestAcceptanceTestFixtureTrait: TestTrait, SuiteTrait, TestScoping {
-    let fixturePath: AbsolutePath
-
-    init(fixture: String) {
-        // swiftlint:disable:next force_try
-        fixturePath = try! AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
-                "TUIST_CONFIG_SRCROOT"
-            ]!
-        ).appending(component: "fixtures").appending(component: fixture)
-    }
-
-    public func provideScope(
-        for _: Test,
-        testCase _: Test.Case?,
-        performing function: @Sendable () async throws -> Void
-    ) async throws {
-        let fileSystem = FileSystem()
-        try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
-            let fixtureTemporaryDirectory = temporaryDirectory.appending(
-                component: fixturePath.basename
-            )
-            try await fileSystem.copy(fixturePath, to: fixtureTemporaryDirectory)
-            try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
-                try await function()
-            }
-        }
-    }
-}
-
-extension Trait where Self == TuistTestAcceptanceTestFixtureTrait {
-    public static func withFixture(_ fixture: String) -> Self {
-        return Self(fixture: fixture)
-    }
-}
-
 public struct TuistTestMockedDependenciesTrait: TestTrait, SuiteTrait, TestScoping {
     let forwardingLogs: Bool
 

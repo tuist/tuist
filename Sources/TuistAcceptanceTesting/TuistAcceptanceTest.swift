@@ -3,7 +3,7 @@ import Testing
 import TuistSupport
 import XcodeProj
 
-enum TuistAcceptanceTest {
+public enum TuistAcceptanceTest {
     public static func expectFrameworkLinked(
         _ framework: String,
         by targetName: String,
