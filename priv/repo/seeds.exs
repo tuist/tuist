@@ -47,8 +47,8 @@ organization =
   if Accounts.get_organization_by_handle("tuist") do
     Accounts.get_organization_by_handle("tuist")
   else
-    organization =
-      Accounts.create_organization!(%{name: "tuist", creator: user}, setup_billing: false)
+    {:ok, organization} =
+      Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
 
     organization.account
   end

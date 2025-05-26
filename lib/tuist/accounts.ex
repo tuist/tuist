@@ -234,18 +234,6 @@ defmodule Tuist.Accounts do
     end
   end
 
-  @doc """
-  Creates an organization with the given attributes.
-  """
-  def create_organization!(attrs, opts \\ []) do
-    {:ok, %{organization: organization}} =
-      attrs
-      |> create_organization_multi(opts)
-      |> Repo.transaction()
-
-    Repo.preload(organization, :account)
-  end
-
   defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)

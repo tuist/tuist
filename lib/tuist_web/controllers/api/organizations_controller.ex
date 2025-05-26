@@ -109,10 +109,20 @@ defmodule TuistWeb.API.OrganizationsController do
         })
 
       is_nil(existing_account) ->
-        organization =
-          Accounts.create_organization!(%{name: organization_name, creator: user})
+        create_organization(conn, organization_name, user)
 
-        organization_account = Accounts.get_account_from_organization(organization)
+      !is_nil(existing_account) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          message: "A user or organization with the handle #{organization_name} already exists"
+        })
+    end
+  end
+
+  defp create_organization(conn, organization_name, user) do
+    case Accounts.create_organization(%{name: organization_name, creator: user}) do
+      {:ok, organization} ->
         Tuist.Analytics.organization_create(organization_name, user)
 
         conn
@@ -120,16 +130,22 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization_account),
+          plan: get_plan(organization.account),
           members: [],
           invitations: []
         })
 
-      !is_nil(existing_account) ->
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+          |> Enum.flat_map(fn {_key, value} -> value end)
+          |> Enum.join(", ")
+
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message: "A user or organization with the handle #{organization_name} already exists"
+          message: "Organization #{message}"
         })
     end
   end

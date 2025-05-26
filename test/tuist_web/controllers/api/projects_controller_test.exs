@@ -75,7 +75,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
-      organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist-org", creator: user})
       Accounts.add_user_to_organization(user, organization)
 
       # When
@@ -102,7 +102,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
-      organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist-org", creator: user})
       Accounts.add_user_to_organization(user, organization)
 
       # When
@@ -268,7 +268,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       user_account = Accounts.get_account_from_user(user)
 
-      organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist-org", creator: user})
       organization_account = Accounts.get_account_from_organization(organization)
       Accounts.add_user_to_organization(user, organization)
 
@@ -326,7 +326,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       user_account = Accounts.get_account_from_user(user)
 
-      organization = Accounts.create_organization!(%{name: "tuist-org", creator: user})
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist-org", creator: user})
 
       Accounts.update_organization(organization, %{
         sso_provider: :google,

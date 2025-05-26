@@ -47,16 +47,17 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
-    %{name: name, creator: creator}
-    |> Accounts.create_organization!(
-      sso_provider: sso_provider,
-      sso_organization_id: sso_organization_id,
-      created_at: created_at,
-      customer_id: customer_id,
-      setup_billing: setup_billing,
-      current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-    )
-    |> Tuist.Repo.preload(preload)
+    {:ok, organization} =
+      Accounts.create_organization(%{name: name, creator: creator},
+        sso_provider: sso_provider,
+        sso_organization_id: sso_organization_id,
+        created_at: created_at,
+        customer_id: customer_id,
+        setup_billing: setup_billing,
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+      )
+
+    Tuist.Repo.preload(organization, preload)
   end
 
   def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"

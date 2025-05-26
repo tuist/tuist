@@ -333,6 +333,23 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["message"] ==
                "Organization name can't contain a dot. Please use a different name, such as tuist-org."
     end
+
+    test "returns bad request when organization contains a space", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations", name: "tuist org")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response["message"] ==
+               "Organization must contain only alphanumeric characters"
+    end
   end
 
   describe "PUT /api/organizations/:organization_name" do
