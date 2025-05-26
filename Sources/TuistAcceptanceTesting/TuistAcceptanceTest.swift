@@ -41,7 +41,7 @@ enum TuistAcceptanceTest {
             Issue.record("Target \(targetName) doesn't copy the bundle \(bundle)", sourceLocation: sourceLocation)
             return
         }
-        let bundlePath = try #require(buildFile.file?.fullPath(sourceRoot: ""), sourceLocation: sourceLocation)
+        let bundlePath = try #require(try buildFile.file?.fullPath(sourceRoot: ""), sourceLocation: sourceLocation)
         if !bundlePath.contains(Environment.current.cacheDirectory.basename) {
             Issue.record(
                 "The bundle '\(bundle)' copied from target '\(targetName)' has a path outside the cache: \(bundlePath)",
