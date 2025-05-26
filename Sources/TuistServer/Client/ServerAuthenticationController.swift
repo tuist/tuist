@@ -58,20 +58,12 @@ enum ServerAuthenticationControllerError: LocalizedError {
 
 public final class ServerAuthenticationController: ServerAuthenticationControlling {
     private let credentialsStore: ServerCredentialsStoring
-    #if canImport(TuistSupport)
-        private let ciChecker: CIChecking
-        private let environment: Environmenting
-    #endif
 
     #if canImport(TuistSupport)
         public init(
-            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
-            ciChecker: CIChecking = CIChecker(),
-            environment: Environmenting = Environment.shared
+            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
         ) {
             self.credentialsStore = credentialsStore
-            self.ciChecker = ciChecker
-            self.environment = environment
         }
     #else
         public init(
@@ -83,12 +75,12 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
     public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
-            if ciChecker.isCI() {
-                if let configToken = environment.tuistVariables[
+            if Environment.current.isCI {
+                if let configToken = Environment.current.tuistVariables[
                     Constants.EnvironmentVariables.token
                 ] {
                     return .project(configToken)
-                } else if let deprecatedToken = environment.tuistVariables[
+                } else if let deprecatedToken = Environment.current.tuistVariables[
                     Constants.EnvironmentVariables.deprecatedToken
                 ] {
                     Logger.current

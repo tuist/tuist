@@ -3,9 +3,6 @@ import Path
 import TSCBasic
 
 public protocol Systeming {
-    /// System environment.
-    var env: [String: String] { get }
-
     /// Runs a command without collecting output nor printing anything.
     ///
     /// - Parameter arguments: Command.

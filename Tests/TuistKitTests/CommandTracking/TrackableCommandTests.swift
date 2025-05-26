@@ -32,7 +32,7 @@ final class TrackableCommandTests: TuistTestCase {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn(nil)
     }
 

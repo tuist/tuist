@@ -35,18 +35,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
         fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 
         sourceRootPath = try AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
+            validating: Environment.current.variables[
                 "TUIST_CONFIG_SRCROOT"
             ]!
         )
-
-        do {
-            // Environment
-            environment = try MockEnvironment()
-            Environment._shared.mutate { $0 = environment }
-        } catch {
-            XCTFail("Failed to setup environment")
-        }
     }
 
     override open func tearDown() async throws {

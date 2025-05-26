@@ -103,7 +103,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -134,7 +134,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_project_is_public() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -163,7 +163,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_project_is_private() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -192,7 +192,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_repositoryURL_is_defined() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -225,7 +225,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_not_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

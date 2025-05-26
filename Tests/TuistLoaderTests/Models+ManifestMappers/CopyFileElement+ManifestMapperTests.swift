@@ -11,7 +11,7 @@ import XCTest
 
 final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -44,7 +44,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -74,7 +74,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
     }
 
     func test_copyFileElement_warning_withMissingFolderReference() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath

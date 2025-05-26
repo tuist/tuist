@@ -135,7 +135,7 @@ struct GenerateServiceTests {
     }
 
     @Test func test_run_timeIsPrinted() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
@@ -165,7 +165,7 @@ struct GenerateServiceTests {
             )
 
             // Then
-            try expectLogs("Total time taken: 0.234s")
+            try TuistTest.expectLogs("Total time taken: 0.234s")
         }
     }
 }

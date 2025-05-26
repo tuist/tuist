@@ -54,7 +54,7 @@ final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.appWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -70,7 +70,7 @@ final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceT
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -116,7 +116,7 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithSpmDependencies)
             try await run(InstallCommand.self)
             let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
@@ -177,7 +177,7 @@ final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase
 
 final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.packageWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)
@@ -204,7 +204,7 @@ final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcc
 
 final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_xcode_project_with_registry_and_alamofire() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
             try await run(RegistrySetupCommand.self)
             try await run(RegistryLoginCommand.self)

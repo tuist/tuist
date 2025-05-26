@@ -36,7 +36,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_table_format() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
             let expectedOutput = """
@@ -65,7 +65,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_json_format() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
             let expectedOutput = """
@@ -100,7 +100,7 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_with_plugins() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
             let expectedOutput = """

@@ -308,7 +308,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath

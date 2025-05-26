@@ -14,18 +14,15 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
     /// Tuist version.
     private let tuistVersion: String
     private let machineEnvironment: MachineEnvironmentRetrieving
-    private let swiftVersionProvider: SwiftVersionProviding
     private let fileSystem: FileSysteming
 
     public init(
         tuistVersion: String = Constants.version,
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.tuistVersion = tuistVersion
         self.machineEnvironment = machineEnvironment
-        self.swiftVersionProvider = swiftVersionProvider
         self.fileSystem = fileSystem
     }
 
@@ -38,8 +35,8 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
             .sorted()
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
-        let tuistEnvVariables = Environment.shared.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try swiftVersionProvider.swiftVersion()
+        let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
         let macosVersion = machineEnvironment.macOSVersion
         #if DEBUG
             let debug = true

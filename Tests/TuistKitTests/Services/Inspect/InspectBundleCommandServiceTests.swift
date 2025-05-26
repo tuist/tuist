@@ -28,8 +28,7 @@ struct InspectBundleCommandServiceTests {
             createBundleService: createBundleService,
             configLoader: configLoader,
             serverURLService: serverURLService,
-            gitController: gitController,
-            environment: [:]
+            gitController: gitController
         )
 
         given(configLoader)
@@ -41,7 +40,7 @@ struct InspectBundleCommandServiceTests {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn("refs/pull/1/merge")
 
         given(serverURLService)
@@ -75,7 +74,7 @@ struct InspectBundleCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory) func analyzeAppBundle() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let bundlePath = temporaryDirectory.appending(component: "App.ipa")

@@ -2,22 +2,20 @@ import Foundation
 import HTTPTypes
 import Mockable
 import OpenAPIRuntime
+import Testing
 import TuistSupport
 import TuistSupportTesting
-import XCTest
 
 @testable import TuistServer
 
-final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
+struct ServerClientAuthenticationMiddlewareTests {
     private var subject: ServerClientAuthenticationMiddleware!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var serverCredentialsStore: MockServerCredentialsStoring!
     private var refreshAuthTokenService: MockRefreshAuthTokenServicing!
     private var cachedValueStore: MockCachedValueStoring!
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         serverAuthenticationController = .init()
         serverCredentialsStore = .init()
         refreshAuthTokenService = .init()
@@ -25,27 +23,19 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             serverAuthenticationController: serverAuthenticationController,
             serverCredentialsStore: serverCredentialsStore,
             refreshAuthTokenService: refreshAuthTokenService,
-            cachedValueStore: CachedValueStore(),
-            envVariables: [:]
+            cachedValueStore: CachedValueStore()
         )
     }
 
-    override func tearDown() {
-        serverAuthenticationController = nil
-        serverCredentialsStore = nil
-        refreshAuthTokenService = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_when_cirrus_env_variable_is_present() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_when_cirrus_env_variable_is_present() async throws {
         // Given
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [Constants.EnvironmentVariables.cirrusTuistCacheURL: "https://cirrus.dev"]
         subject = .init(
             serverAuthenticationController: serverAuthenticationController,
             serverCredentialsStore: serverCredentialsStore,
             refreshAuthTokenService: refreshAuthTokenService,
-            cachedValueStore: CachedValueStore(),
-            envVariables: [Constants.EnvironmentVariables.cirrusTuistCacheURL: "https://cirrus.dev"]
+            cachedValueStore: CachedValueStore()
         )
         let url = URL(string: "https://test.tuist.io")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
@@ -66,14 +56,14 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(
-            gotRequest.headerFields,
-            [:]
+        #expect(gotResponse == response)
+        #expect(
+            gotRequest.headerFields ==
+                [:]
         )
     }
 
-    func test_when_authentication_token_is_nil() async throws {
+    @Test(.withMockedEnvironment()) func test_when_authentication_token_is_nil() async throws {
         let url = URL(string: "https://test.tuist.io")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         let response = HTTPResponse(
@@ -85,7 +75,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             .willReturn(nil)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
+        await #expect(throws: ServerClientAuthenticationError.notAuthenticated, performing: {
             try await subject.intercept(
                 request,
                 body: nil,
@@ -93,12 +83,11 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
                 operationID: "123"
             ) { _, _, _ in
                 (response, nil)
-            },
-            ServerClientAuthenticationError.notAuthenticated
-        )
+            }
+        })
     }
 
-    func test_when_using_project_token() async throws {
+    @Test func test_when_using_project_token() async throws {
         let url = URL(string: "https://test.tuist.io")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         let response = HTTPResponse(
@@ -123,16 +112,16 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(
-            gotRequest.headerFields,
-            [
-                .authorization: "Bearer project-token",
-            ]
+        #expect(gotResponse == response)
+        #expect(
+            gotRequest.headerFields ==
+                [
+                    .authorization: "Bearer project-token",
+                ]
         )
     }
 
-    func test_when_using_legacy_token() async throws {
+    @Test func test_when_using_legacy_token() async throws {
         let url = URL(string: "https://test.tuist.io")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
         let response = HTTPResponse(
@@ -157,16 +146,16 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(
-            gotRequest.headerFields,
-            [
-                .authorization: "Bearer legacy-token",
-            ]
+        #expect(gotResponse == response)
+        #expect(
+            gotRequest.headerFields ==
+                [
+                    .authorization: "Bearer legacy-token",
+                ]
         )
     }
 
-    func test_when_using_valid_access_token() async throws {
+    @Test func test_when_using_valid_access_token() async throws {
         try await Date.$now.withValue({ Date(timeIntervalSince1970: 0) }) {
             let url = URL(string: "https://test.tuist.io")!
             let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
@@ -201,17 +190,17 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             }
 
             // Then
-            XCTAssertEqual(gotResponse, response)
-            XCTAssertEqual(
-                gotRequest.headerFields,
-                [
-                    .authorization: "Bearer access-token",
-                ]
+            #expect(gotResponse == response)
+            #expect(
+                gotRequest.headerFields ==
+                    [
+                        .authorization: "Bearer access-token",
+                    ]
             )
         }
     }
 
-    func test_when_access_token_is_expired() async throws {
+    @Test func test_when_access_token_is_expired() async throws {
         try await Date.$now.withValue({ Date(timeIntervalSince1970: 90) }) {
             let url = URL(string: "https://test.tuist.io")!
             let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
@@ -275,12 +264,12 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
                 )
                 .called(1)
 
-            XCTAssertEqual(gotResponse, response)
-            XCTAssertEqual(
-                gotRequest.headerFields,
-                [
-                    .authorization: "Bearer new-access-token",
-                ]
+            #expect(gotResponse == response)
+            #expect(
+                gotRequest.headerFields ==
+                    [
+                        .authorization: "Bearer new-access-token",
+                    ]
             )
         }
     }

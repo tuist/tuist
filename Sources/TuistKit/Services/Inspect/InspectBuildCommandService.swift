@@ -32,7 +32,6 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
 struct InspectBuildCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
-    private let ciChecker: CIChecking
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
@@ -46,7 +45,6 @@ struct InspectBuildCommandService {
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
-        ciChecker: CIChecking = CIChecker(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
@@ -59,7 +57,6 @@ struct InspectBuildCommandService {
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
-        self.ciChecker = ciChecker
         self.machineEnvironment = machineEnvironment
         self.xcodeBuildController = xcodeBuildController
         self.createBuildService = createBuildService
@@ -79,10 +76,10 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.executablePathMissing
         }
 
-        if Environment.current.allVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+        if Environment.current.variables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
            Environment.current.workspacePath != nil
         {
-            var environment = Environment.current.allVariables
+            var environment = Environment.current.variables
             environment["TUIST_INSPECT_BUILD_WAIT"] = "YES"
             // We don't want to prolongue the build action for analytics reasons.
             // Additionally, the `.xcactivitylog` might not be immediately available.
@@ -147,7 +144,7 @@ struct InspectBuildCommandService {
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
-            isCI: ciChecker.isCI(),
+            isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: Environment.current.schemeName,
