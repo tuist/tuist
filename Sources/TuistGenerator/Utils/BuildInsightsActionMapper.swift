@@ -15,25 +15,18 @@ protocol BuildInsightsActionMapping {
 }
 
 struct BuildInsightsActionMapper: BuildInsightsActionMapping {
-    private let environment: Environmenting
-
-    init(
-        environment: Environmenting = Environment.shared
-    ) {
-        self.environment = environment
-    }
-
     func map(
         _ buildAction: BuildAction,
         buildInsightsDisabled: Bool
     ) async throws -> BuildAction {
-        guard !buildInsightsDisabled else { return buildAction }
+        guard !buildInsightsDisabled,
+              let currentExecutablePath = Environment.current.currentExecutablePath() else { return buildAction }
 
         var buildAction = buildAction
         buildAction.postActions.append(
             ExecutionAction(
                 title: "Push build insights",
-                scriptText: "\(environment.currentExecutablePath()?.pathString ?? "tuist") inspect build",
+                scriptText: "\(currentExecutablePath.pathString) inspect build",
                 target: nil,
                 shellPath: nil
             )

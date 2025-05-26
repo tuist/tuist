@@ -49,7 +49,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         help: "Don't open the project after generating it.",
         envKey: .generateOpen
     )
-    var open: Bool = !CIChecker().isCI()
+    var open: Bool = !Environment.current.isCI
 
     @Flag(
         help: "Ignore binary cache and use sources only.",

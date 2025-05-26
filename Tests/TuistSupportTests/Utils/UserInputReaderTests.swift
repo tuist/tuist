@@ -87,7 +87,7 @@ class UserInputReaderTests: TuistUnitTestCase {
     }
 
     func test_read_value_when_multiple_values_provided() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             var fakeReadLine = StringReader(input: "1")
             let reader: UserInputReader = .init { _ in

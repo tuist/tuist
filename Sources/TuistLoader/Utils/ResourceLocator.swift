@@ -65,7 +65,7 @@ public final class ResourceLocator: ResourceLocating {
                 */
             bundlePath.parentDirectory.appending(component: "lib"),
         ]
-        if let frameworkSearchPaths = ProcessInfo.processInfo.environment["TUIST_FRAMEWORK_SEARCH_PATHS"]?
+        if let frameworkSearchPaths = Environment.current.variables["TUIST_FRAMEWORK_SEARCH_PATHS"]?
             .components(separatedBy: " ")
             .filter({ !$0.isEmpty })
         {

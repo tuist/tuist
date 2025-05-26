@@ -1,19 +1,20 @@
+import FileSystem
+import FileSystemTesting
 import Mockable
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
-import XCTest
-
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
+struct ProjectDescriptionHelpersHasherTests {
     private var subject: ProjectDescriptionHelpersHasher!
     private var machineEnvironment: MockMachineEnvironmentRetrieving!
 
-    override func setUp() {
-        super.setUp()
-        given(swiftVersionProvider)
+    init() throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.2")
         machineEnvironment = .init()
@@ -22,27 +23,22 @@ final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
             .willReturn("15.2.4")
         subject = ProjectDescriptionHelpersHasher(
             tuistVersion: "3.2.1",
-            machineEnvironment: machineEnvironment,
-            swiftVersionProvider: swiftVersionProvider
+            machineEnvironment: machineEnvironment
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_hash() async throws {
+    @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment(), .inTemporaryDirectory) func hash() async throws {
         // Given
-        let temporaryDir = try temporaryPath()
+        let environmentMock = try #require(TuistSupport.Environment.mocked)
+        let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
         try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
-        environment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
+        environmentMock.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
         for _ in 0 ..< 20 {
             let got = try await subject.hash(helpersDirectory: temporaryDir)
-            XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
+            #expect(got == "5032b92c268cb7283c91ee37ec935c73")
         }
     }
 }

@@ -20,7 +20,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
     }
 
     func test_extract_when_target() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let xcodeprojPath = fixturePath(
@@ -65,7 +65,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
     }
 
     func test_extract_when_project() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let xcodeprojPath = fixturePath(

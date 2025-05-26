@@ -83,7 +83,7 @@ let project = Project(
         .target(
             name: "TuistPreviews",
             destinations: .iOS,
-            product: .framework,
+            product: .staticFramework,
             bundleId: "io.tuist.previews",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistPreviews/**"],
@@ -94,7 +94,7 @@ let project = Project(
         .target(
             name: "TuistMenuBar",
             destinations: .macOS,
-            product: .framework,
+            product: .staticFramework,
             bundleId: "io.tuist.menu-bar",
             deploymentTargets: .macOS("14.0.0"),
             sources: ["Sources/TuistMenuBar/**"],

@@ -1,41 +1,30 @@
 import FileSystem
+import FileSystemTesting
+import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistServer
 import TuistSupport
-import XCTest
-
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
+struct TuistAnalyticsDispatcherTests {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
-    private var ciChecker: MockCIChecking!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         createCommandEventService = .init()
-        ciChecker = .init()
         cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
-    override func tearDown() {
-        subject = nil
-        createCommandEventService = nil
-        ciChecker = nil
-        cacheDirectoriesProvider = nil
-        analyticsArtifactUploadService = nil
-        super.tearDown()
-    }
-
-    func testDispatch_sendsToServer() throws {
+    @Test(.withMockedEnvironment(), .inTemporaryDirectory) mutating func testDispatch_sendsToServer() async throws {
         // Given
         let fullHandle = "project"
         let url = URL.test()
@@ -43,8 +32,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             fullHandle: fullHandle,
             url: url,
             createCommandEventService: createCommandEventService,
-            fileHandler: fileHandler,
-            ciChecker: ciChecker,
+            fileHandler: FileHandler.shared,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: FileSystem()
@@ -52,10 +40,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         subject = TuistAnalyticsDispatcher(
             backend: backend
         )
-
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .matching { commandEvent in
@@ -76,14 +62,18 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
-            .willReturn(try temporaryPath())
+            .willReturn(try #require(FileSystem.temporaryTestDirectory))
 
         // When
-        let expectation = XCTestExpectation(description: "completion is called")
-        try subject.dispatch(event: Self.commandEvent, completion: { expectation.fulfill() })
-
-        // Then
-        _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                try subject.dispatch(event: Self.commandEvent) {
+                    continuation.resume(returning: ())
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
     }
 
     static var commandEvent: CommandEvent {

@@ -36,7 +36,7 @@ final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_remove_sso() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(

@@ -30,10 +30,8 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
 }
 
 struct InspectBuildCommandService {
-    private let environment: Environmenting
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
-    private let ciChecker: CIChecking
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
@@ -44,10 +42,8 @@ struct InspectBuildCommandService {
     private let serverURLService: ServerURLServicing
 
     init(
-        environment: Environmenting = Environment.shared,
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
-        ciChecker: CIChecking = CIChecker(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
@@ -57,10 +53,8 @@ struct InspectBuildCommandService {
         dateService: DateServicing = DateService(),
         serverURLService: ServerURLServicing = ServerURLService()
     ) {
-        self.environment = environment
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
-        self.ciChecker = ciChecker
         self.machineEnvironment = machineEnvironment
         self.xcodeBuildController = xcodeBuildController
         self.createBuildService = createBuildService
@@ -79,10 +73,10 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.executablePathMissing
         }
 
-        if environment.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
-           environment.workspacePath != nil
+        if Environment.current.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+           Environment.current.workspacePath != nil
         {
-            var environment = ProcessInfo.processInfo.environment
+            var environment = Environment.current.variables
             environment["TUIST_INSPECT_BUILD_WAIT"] = "YES"
             // We don't want to prolongue the build action for analytics reasons.
             // Additionally, the `.xcactivitylog` might not be immediately available.
@@ -130,10 +124,10 @@ struct InspectBuildCommandService {
             id: xcactivityLog.mainSection.uniqueIdentifier,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
-            isCI: ciChecker.isCI(),
+            isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
-            scheme: environment.schemeName,
+            scheme: Environment.current.schemeName,
             xcodeVersion: try await xcodeBuildController.version()?.description,
             status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
@@ -141,7 +135,7 @@ struct InspectBuildCommandService {
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
-        if let workspacePath = environment.workspacePath {
+        if let workspacePath = Environment.current.workspacePath {
             if workspacePath.parentDirectory.extension == "xcodeproj" {
                 return workspacePath.parentDirectory
             } else {

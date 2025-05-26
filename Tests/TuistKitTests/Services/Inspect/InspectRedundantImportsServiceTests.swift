@@ -41,7 +41,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test()

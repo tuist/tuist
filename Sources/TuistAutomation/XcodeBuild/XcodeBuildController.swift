@@ -316,6 +316,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     public func run(arguments: [String]) async throws {
+        let logger = Logger.current
+        
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if Environment.current.isVerbose == true {
@@ -329,26 +331,25 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    Logger.current.error("\(line)")
+                    logger.error("\(line)")
                 } else {
-                    Logger.current.info("\(line)")
+                    logger.info("\(line)")
                 }
             }
         }
         
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
-        Logger.current.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,
-                       environment: system.env,
+                       environment: Environment.current.variables,
                        redirection: .stream(stdout: { bytes in
             log(bytes)
         }, stderr: { bytes in
             log(bytes, isError: true)
         }))
-       
     }
     
     public func version() async throws -> Version? {

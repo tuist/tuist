@@ -93,7 +93,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 path: directory.appending(component: "Project.swift")
             ),
         ]
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
         let configPath = directory.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
@@ -191,7 +191,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let pluginManifest = directory.appending(component: "Plugin.swift")
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
@@ -244,7 +244,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             try await fileSystem.makeDirectory(at: pluginManifest.parentDirectory)
             try await fileSystem.touch(pluginManifest)
         }
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
@@ -304,7 +304,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let pluginManifestPath = pluginDirectory.appending(component: "Plugin.swift")
         try FileHandler.shared.touch(pluginManifestPath)
 
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         given(manifestFilesLocator)
@@ -365,7 +365,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Local plugin
         let pluginManifestPath = rootPath.appending(component: "Plugin.swift")
 
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         given(manifestFilesLocator)
@@ -422,7 +422,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 path: directory.appending(component: "Project.swift")
             ),
         ]
-        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         given(manifestFilesLocator)

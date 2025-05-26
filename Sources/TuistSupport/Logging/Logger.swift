@@ -92,12 +92,12 @@ extension Logger {
 
 extension LoggingConfig {
     public static func `default`() -> LoggingConfig {
-        let env = ProcessInfo.processInfo.environment
+        let env = Environment.current.variables
 
         let quiet = env[Constants.EnvironmentVariables.quiet] != nil
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = quiet ? false : env[Constants.EnvironmentVariables.verbose] != nil
+        let verbose = quiet ? false : Environment.current.isVerbose
 
         if quiet {
             return .init(loggerType: .quiet, verbose: verbose)

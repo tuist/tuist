@@ -1,36 +1,30 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import struct TSCUtility.Version
+import TuistSupport
 import TuistSupportTesting
-import XCTest
 
 @testable import TuistSupport
 
-final class XCResultControllerTests: TuistUnitTestCase {
+struct XCResultControllerTests {
     private var subject: XCResultToolController!
+    private let system = MockSystem()
 
-    override func setUp() {
-        super.setUp()
-
-        given(xcodeController)
+    init() throws {
+        let mockXcodeController = try #require(XcodeController.mocked)
+        given(mockXcodeController)
             .selectedVersion()
             .willReturn(Version(16, 0, 0))
 
-        subject = XCResultToolController(
-            system: system,
-            xcodeController: xcodeController
-        )
+        subject = XCResultToolController(system: system)
     }
 
-    override func tearDown() {
-        subject = nil
-
-        super.tearDown()
-    }
-
-    func test_resultBundleObject() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject() async throws {
         // Given
-        let resultBundlePath = try temporaryPath()
+        let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand(
             [
@@ -46,16 +40,18 @@ final class XCResultControllerTests: TuistUnitTestCase {
         let got = try await subject.resultBundleObject(resultBundlePath)
 
         // Then
-        XCTAssertEqual(got, "{some: 'json'}")
+        #expect(got == "{some: 'json'}")
     }
 
-    func test_resultBundleObject_when_xcode_15() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_when_xcode_15() async throws {
         // Given
-        xcodeController.reset()
-        given(xcodeController)
+        let mockXcodeController = try #require(XcodeController.mocked)
+
+        mockXcodeController.reset()
+        given(mockXcodeController)
             .selectedVersion()
             .willReturn(Version(15, 3, 0))
-        let resultBundlePath = try temporaryPath()
+        let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand(
             [
@@ -70,12 +66,12 @@ final class XCResultControllerTests: TuistUnitTestCase {
         let got = try await subject.resultBundleObject(resultBundlePath)
 
         // Then
-        XCTAssertEqual(got, "{some: 'json'}")
+        #expect(got == "{some: 'json'}")
     }
 
-    func test_resultBundleObject_with_id() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_with_id() async throws {
         // Given
-        let resultBundlePath = try temporaryPath()
+        let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand(
             [
@@ -95,16 +91,18 @@ final class XCResultControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, "{some: 'json'}")
+        #expect(got == "{some: 'json'}")
     }
 
-    func test_resultBundleObject_with_id_when_xcode_15() async throws {
+    @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject_with_id_when_xcode_15() async throws {
         // Given
-        xcodeController.reset()
-        given(xcodeController)
+        let mockXcodeController = try #require(XcodeController.mocked)
+
+        mockXcodeController.reset()
+        given(mockXcodeController)
             .selectedVersion()
             .willReturn(Version(15, 3, 0))
-        let resultBundlePath = try temporaryPath()
+        let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand(
             [
@@ -123,6 +121,6 @@ final class XCResultControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, "{some: 'json'}")
+        #expect(got == "{some: 'json'}")
     }
 }

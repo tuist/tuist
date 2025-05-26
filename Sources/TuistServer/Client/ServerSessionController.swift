@@ -65,7 +65,6 @@ public final class ServerSessionController: ServerSessionControlling {
     private let serverAuthenticationController: ServerAuthenticationControlling
 
     #if canImport(TuistSupport)
-        private let ciChecker: CIChecking
         private let opener: Opening
         private let uniqueIDGenerator: UniqueIDGenerating
 
@@ -73,7 +72,6 @@ public final class ServerSessionController: ServerSessionControlling {
             let credentialsStore = ServerCredentialsStore()
             self.init(
                 credentialsStore: credentialsStore,
-                ciChecker: CIChecker(),
                 opener: Opener(),
                 getAuthTokenService: GetAuthTokenService(),
                 uniqueIDGenerator: UniqueIDGenerator(),
@@ -85,14 +83,12 @@ public final class ServerSessionController: ServerSessionControlling {
 
         init(
             credentialsStore: ServerCredentialsStoring,
-            ciChecker: CIChecking,
             opener: Opening,
             getAuthTokenService: GetAuthTokenServicing,
             uniqueIDGenerator: UniqueIDGenerating,
             serverAuthenticationController: ServerAuthenticationControlling
         ) {
             self.credentialsStore = credentialsStore
-            self.ciChecker = ciChecker
             self.opener = opener
             self.getAuthTokenService = getAuthTokenService
             self.uniqueIDGenerator = uniqueIDGenerator

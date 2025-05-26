@@ -17,7 +17,6 @@ struct RegistryLoginCommandServiceTests {
     private let fileSystem = FileSystem()
     private let fullHandleService = MockFullHandleServicing()
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
-    private let ciChecker = MockCIChecking()
     private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let securityController = MockSecurityControlling()
     private let manifestFilesLocator = MockManifestFilesLocating()
@@ -31,7 +30,6 @@ struct RegistryLoginCommandServiceTests {
             fileSystem: fileSystem,
             fullHandleService: fullHandleService,
             swiftPackageManagerController: swiftPackageManagerController,
-            ciChecker: ciChecker,
             serverAuthenticationController: serverAuthenticationController,
             securityController: securityController,
             manifestFilesLocator: manifestFilesLocator,
@@ -43,8 +41,8 @@ struct RegistryLoginCommandServiceTests {
             .willReturn()
     }
 
-    @Test func test_login() async throws {
-        try await withTestingDependencies {
+    @Test(.withMockedEnvironment()) func test_login() async throws {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -55,9 +53,8 @@ struct RegistryLoginCommandServiceTests {
             given(serverURLService)
                 .url(configServerURL: .any)
                 .willReturn(.test())
-            given(ciChecker)
-                .isCI()
-                .willReturn(false)
+            let mockEnvironment = try #require(Environment.mocked)
+            mockEnvironment.variables = [:]
             given(createAccountTokenService)
                 .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
                 .willReturn("token")
@@ -81,8 +78,8 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test func test_login_when_ci() async throws {
-        try await withTestingDependencies {
+    @Test(.withMockedEnvironment()) func test_login_when_ci() async throws {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
                 // Given
                 given(configLoader)
@@ -94,9 +91,8 @@ struct RegistryLoginCommandServiceTests {
                 given(serverURLService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
-                given(ciChecker)
-                    .isCI()
-                    .willReturn(true)
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["CI": "1"]
                 given(serverAuthenticationController)
                     .authenticationToken(serverURL: .any)
                     .willReturn(.project("project-token"))
@@ -118,8 +114,8 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test func test_login_when_ci_and_xcode_project() async throws {
-        try await withTestingDependencies {
+    @Test(.withMockedEnvironment()) func test_login_when_ci_and_xcode_project() async throws {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -130,9 +126,8 @@ struct RegistryLoginCommandServiceTests {
             given(serverURLService)
                 .url(configServerURL: .any)
                 .willReturn(.test())
-            given(ciChecker)
-                .isCI()
-                .willReturn(true)
+            let mockEnvironment = try #require(Environment.mocked)
+            mockEnvironment.variables = ["CI": "1"]
             given(serverAuthenticationController)
                 .authenticationToken(serverURL: .any)
                 .willReturn(.project("project-token"))
@@ -167,7 +162,7 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test func test_login_when_full_handle_is_missing() async throws {
+    @Test(.withMockedEnvironment()) func test_login_when_full_handle_is_missing() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)

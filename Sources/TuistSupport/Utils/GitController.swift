@@ -49,7 +49,7 @@ public protocol GitControlling {
     func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool
 
     /// - Returns: A git ref based on the CI environment value. Returns `nil` in non-CI environments.
-    func ref(environment: [String: String]) -> String?
+    func ref() -> String?
 
     /// - Returns: `true` if we recognize that we're in a `git` repository
     func isInGitRepository(workingDirectory: AbsolutePath) -> Bool
@@ -69,7 +69,7 @@ public final class GitController: GitControlling {
 
     public init(
         system: Systeming = System.shared,
-        environment: Environmenting = Environment.shared
+        environment: Environmenting = Environment.current
     ) {
         self.system = system
         self.environment = environment
@@ -159,7 +159,8 @@ public final class GitController: GitControlling {
         "BUILDKITE_PULL_REQUEST",
     ]
 
-    public func ref(environment: [String: String]) -> String? {
+    public func ref() -> String? {
+        let environment = Environment.current.variables
         if let githubRef = environment["GITHUB_REF"] {
             return githubRef
         } else if let circleCIRef = environment["CIRCLE_PULL_REQUEST"] {
@@ -180,7 +181,7 @@ public final class GitController: GitControlling {
 
     private func run(command: String...) throws {
         if environment.isVerbose {
-            try system.runAndPrint(command, verbose: true, environment: System.shared.env)
+            try system.runAndPrint(command, verbose: true, environment: Environment.current.variables)
         } else {
             try system.run(command)
         }
@@ -188,7 +189,7 @@ public final class GitController: GitControlling {
 
     private func capture(command: String...) throws -> String {
         if environment.isVerbose {
-            return try system.capture(command, verbose: true, environment: System.shared.env)
+            return try system.capture(command, verbose: true, environment: Environment.current.variables)
         } else {
             return try system.capture(command)
         }

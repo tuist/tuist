@@ -25,7 +25,7 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     public convenience init() {
         self.init(
             fileHandler: FileHandler.shared,
-            environment: Environment.shared
+            environment: Environment.current
         )
     }
 
