@@ -14,15 +14,18 @@ import XCTest
 
 struct ShareAcceptanceTests {
     @Test(
-        .withFixtureConnectedToCanary("ios_app_with_frameworks"),
         .inTemporaryDirectory,
+        .withMockedEnvironment(),
         .withMockedNoora,
-        .withMockedLogger(forwardLogs: true)
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("ios_app_with_frameworks"),
+        .withTestingSimulator("iPhone 16 Pro")
     )
     func share_ios_app_with_frameworks() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
 
         // When: Build
         try await TuistTest.run(
@@ -42,24 +45,27 @@ struct ShareAcceptanceTests {
         // When: Run
         try await TuistTest.run(
             RunCommand.self,
-            [shareLink, "-destination", "iPhone 16 Pro"]
+            [shareLink, "-destination", simulator]
         )
         #expect(
             ui()
-                .contains("Launching App on iPhone 16 Pro") == true
+                .contains("Launching App on \(simulator)") == true
         )
     }
 
     @Test(
-        .withFixtureConnectedToCanary("ios_app_with_appclip"),
         .inTemporaryDirectory,
+        .withMockedEnvironment(),
         .withMockedNoora,
-        .withMockedLogger(forwardLogs: true)
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("ios_app_with_appclip"),
+        .withTestingSimulator("iPhone 16")
     )
     func share_and_run_ios_app_with_appclip() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
 
         // When: Build
         try await TuistTest.run(
@@ -79,11 +85,11 @@ struct ShareAcceptanceTests {
         // When: Run
         try await TuistTest.run(
             RunCommand.self,
-            [shareLink, "-destination", "iPhone 16"]
+            [shareLink, "-destination", simulator]
         )
         #expect(
             ui()
-                .contains("Launching App on iPhone 16") == true
+                .contains("Launching App on \(simulator)") == true
         )
 
         // When: Share AppClip1
@@ -97,24 +103,27 @@ struct ShareAcceptanceTests {
         // When: Run AppClip1
         try await TuistTest.run(
             RunCommand.self,
-            [appClipShareLink, "-destination", "iPhone 16"]
+            [appClipShareLink, "-destination", simulator]
         )
         #expect(
             ui()
-                .contains("Launching AppClip1 on iPhone 16") == true
+                .contains("Launching AppClip1 on \(simulator)") == true
         )
     }
 
     @Test(
-        .withFixtureConnectedToCanary("xcode_app"),
         .inTemporaryDirectory,
+        .withMockedEnvironment(),
         .withMockedNoora,
-        .withMockedLogger(forwardLogs: true)
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_app"),
+        .withTestingSimulator("iPhone 16 Plus")
     )
     func share_and_run_xcode_app() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
 
         // When: Build
         try await CommandRunner().run(arguments: [
@@ -151,25 +160,28 @@ struct ShareAcceptanceTests {
         // When: Run App
         try await TuistTest.run(
             RunCommand.self,
-            [previewLink, "-destination", "iPhone 16 Plus"]
+            [previewLink, "-destination", simulator]
         )
         #expect(
             ui()
-                .contains("Launching App on iPhone 16 Plus") == true
+                .contains("Launching App on \(simulator)") == true
         )
     }
 
     @Test(
-        .withFixtureConnectedToCanary("xcode_app"),
         .inTemporaryDirectory,
+        .withMockedEnvironment(),
         .withMockedNoora,
-        .withMockedLogger(forwardLogs: true)
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_app"),
+        .withTestingSimulator("iPhone 16 Plus"),
     )
     func share_xcode_app_files() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let buildDirectory = fixtureDirectory.appending(component: "Build")
+        let simulator = try #require(Simulator.testing)
 
         // When: Build
         try await CommandRunner().run(arguments: [
@@ -207,11 +219,11 @@ struct ShareAcceptanceTests {
         // When: Run App
         try await TuistTest.run(
             RunCommand.self,
-            [previewLink, "-destination", "iPhone 16 Plus"]
+            [previewLink, "-destination", simulator]
         )
         #expect(
             ui()
-                .contains("Launching App on iPhone 16 Plus") == true
+                .contains("Launching App on \(simulator)") == true
         )
     }
 
