@@ -16,7 +16,7 @@ enum TuistAcceptanceTest {
         let frameworkDependencies = try target.frameworksBuildPhase()?.files?
             .compactMap(\.file)
             .map(\.nameOrPath)
-            .filter { $0.contains(".framework") } ?? []
+            .filter { $0.hasSuffix(".framework") } ?? []
         guard frameworkDependencies.contains("\(framework).framework")
         else {
             Issue.record(
