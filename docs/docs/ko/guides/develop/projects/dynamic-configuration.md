@@ -47,7 +47,7 @@ func appName() -> String {
 ::: code-group
 
 ```swift [String]
-Environment.appName.getString(default: "TuistServerCore")
+Environment.appName.getString(default: "TuistServer")
 ```
 
 ```swift [Boolean]
