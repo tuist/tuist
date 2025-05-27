@@ -72,6 +72,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithSpmDependenciesForceResolvedVersions
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
+    case iosAppWithSandboxDisabled
     case iosAppWithStaticFrameworks
     case iosAppWithStaticLibraries
     case iosAppWithStaticLibraryAndPackage
@@ -83,7 +84,6 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
-    case iosWorkspaceWithSandboxDisabled
     case iosAppWithCatalyst
     case macosAppWithCopyFiles
     case macosAppWithExtensions
@@ -259,6 +259,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_remote_binary_swift_package"
         case .iosAppWithRemoteSwiftPackage:
             return "ios_app_with_remote_swift_package"
+        case .iosAppWithSandboxDisabled:
+            return "ios_app_with_sandbox_disabled"
         case .iosAppWithStaticFrameworks:
             return "ios_app_with_static_frameworks"
         case .iosAppWithStaticLibraries:
@@ -281,8 +283,6 @@ public enum TuistAcceptanceFixtures {
             return "ios_workspace_with_dependency_cycle"
         case .iosWorkspaceWithMicrofeatureArchitecture:
             return "ios_workspace_with_microfeature_architecture"
-        case .iosWorkspaceWithSandboxDisabled:
-            return "ios_workspace_with_sandbox_disabled"
         case .iosAppWithCatalyst:
             return "ios_app_with_catalyst"
         case .macosAppWithCopyFiles:

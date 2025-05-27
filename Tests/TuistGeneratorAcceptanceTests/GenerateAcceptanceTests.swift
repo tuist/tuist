@@ -1301,43 +1301,31 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
-final class GenerateAcceptanceTestiOSWorkspaceWithSandboxDisabled: TuistAcceptanceTestCase {
-    func test_ios_workspace_with_sandbox_disabled() async throws {
-        try await setUpFixture(.iosWorkspaceWithSandboxDisabled)
-        try await withDirectory(fixturePath.pathString) {
-            try await run(GenerateCommand.self)
-        }
-
-        let workspacePath = fixturePath.appending(component: "Workspace.xcworkspace")
-        let workspaceExists = try await fileSystem.exists(workspacePath)
-        XCTAssertTrue(workspaceExists)
-
-        let projectPath = fixturePath.appending(components: "App", "App.xcodeproj")
-        let projectExists = try await fileSystem.exists(projectPath)
-        XCTAssertTrue(projectExists)
+final class GenerateAcceptanceTestiOSAppWithSandboxDisabled: TuistAcceptanceTestCase {
+    func test_sandbox_disabled() async throws {
+        try await setUpFixture(.iosAppWithSandboxDisabled)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
     }
 
-    func test_ios_workspace_with_sandbox_enabled_fails() async throws {
-        try await setUpFixture(.iosWorkspaceWithSandboxDisabled)
-        try await fileSystem.modifyTextFile(at: fixturePath.appending(components: "Tuist", "Config.swift")) {
-            $0.replacingOccurrences(of: "disableSandbox: true", with: "disableSandbox: false")
-        }
-        await withDirectory(fixturePath.pathString) {
-            do {
-                try await run(GenerateCommand.self)
-                XCTFail("Generate should have failed with sandbox error")
-            } catch {
-                XCTAssertTrue(String(describing: error).contains("The '/usr/bin/sandbox-exec' was interrupted with a signal 5"))
-            }
-        }
+    func test_sandbox_enabled_fails() async throws {
+        try await setUpFixture(.iosAppWithSandboxDisabled)
 
-        let workspacePath = fixturePath.appending(component: "Workspace.xcworkspace")
-        let workspaceExists = try await fileSystem.exists(workspacePath)
-        XCTAssertFalse(workspaceExists)
+        let configPath = fixturePath.appending(component: "Tuist.swift")
+        try await fileSystem.writeText(
+            try await fileSystem.readTextFile(at: configPath)
+                .replacingOccurrences(of: "disableSandbox: true", with: "disableSandbox: false"),
+            at: configPath,
+            encoding: .utf8,
+            options: [.overwrite]
+        )
 
-        let projectPath = fixturePath.appending(components: "App", "App.xcodeproj")
-        let projectExists = try await fileSystem.exists(projectPath)
-        XCTAssertFalse(projectExists)
+        do {
+            try await run(GenerateCommand.self)
+            XCTFail("Generate should have failed with sandbox error")
+        } catch {
+            XCTAssertTrue(String(describing: error).contains("Caught sandbox policy violation while loading manifest."))
+        }
     }
 }
 
@@ -1532,24 +1520,5 @@ extension TuistAcceptanceTestCase {
                 line: line
             )
         }
-    }
-
-    fileprivate func withDirectory(_ path: String, _ perform: () async throws -> Void) async rethrows {
-        let originalPath = FileManager.default.currentDirectoryPath
-        FileManager.default.changeCurrentDirectoryPath(path)
-        defer { FileManager.default.changeCurrentDirectoryPath(originalPath) }
-        try await perform()
-    }
-}
-
-extension FileSysteming {
-    fileprivate func modifyTextFile(
-        at path: AbsolutePath,
-        encoding: String.Encoding = .utf8,
-        modify: (String) -> String
-    ) async throws {
-        let content = try await readTextFile(at: path, encoding: encoding)
-        let modifiedContent = modify(content)
-        try await writeText(modifiedContent, at: path, encoding: encoding, options: [.overwrite])
     }
 }
