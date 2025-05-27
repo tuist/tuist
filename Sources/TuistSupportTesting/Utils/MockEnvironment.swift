@@ -63,13 +63,16 @@ extension Environment {
 
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let temporaryDirectory: AbsolutePath?
+    let inheritedVariables: [String]
 
     public func provideScope(
         for _: Test,
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        try await Environment.$current.withValue(MockEnvironment(temporaryDirectory: temporaryDirectory)) {
+        let mockEnvironment = try MockEnvironment(temporaryDirectory: temporaryDirectory)
+        mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
+        try await Environment.$current.withValue(mockEnvironment) {
             try await function()
         }
     }
@@ -83,7 +86,10 @@ public func withMockedEnvironment(temporaryDirectory: AbsolutePath? = nil, _ clo
 
 extension Trait where Self == EnvironmentTestingTrait {
     /// When this trait is applied to a test, the environment will be mocked.
-    public static func withMockedEnvironment(temporaryDirectory: AbsolutePath? = nil) -> Self {
-        Self(temporaryDirectory: temporaryDirectory)
+    public static func withMockedEnvironment(
+        temporaryDirectory: AbsolutePath? = nil,
+        inheritingVariables inheritedVariables: [String] = []
+    ) -> Self {
+        Self(temporaryDirectory: temporaryDirectory, inheritedVariables: inheritedVariables)
     }
 }
