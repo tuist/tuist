@@ -19,7 +19,7 @@ env:
 jobs:
   release:
     name: Release
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -84,10 +84,6 @@ jobs:
             org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
             org.opencontainers.image.source=https://github.com/tuist/registry
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          version: v0.22.0
       - name: Build and push
         uses: docker/build-push-action@v6
         with:

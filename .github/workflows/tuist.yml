@@ -21,7 +21,7 @@ env:
 jobs:
   check_locales_extraction:
     name: Check locales extraction
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
         run: echo "Run 'mix gettext.extract --merge --locale en'"
   test:
     name: Test
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     services:
       postgres:
@@ -88,7 +88,7 @@ jobs:
         run: mix test
   analyze-migrations:
     name: Analyze migrations
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     services:
       postgres:
@@ -127,7 +127,7 @@ jobs:
         run: mix excellent_migrations.migrate
   credo:
     name: Credo
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -152,7 +152,7 @@ jobs:
         run: mix credo
   format:
     name: Format
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -177,7 +177,7 @@ jobs:
         run: mise run format --check
   esbuild:
     name: esbuild
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4 # v4
@@ -211,7 +211,7 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -236,7 +236,7 @@ jobs:
         run: mise run security
   docker_build:
     name: Docker build
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -257,10 +257,6 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          version: v0.22.0
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -275,7 +271,7 @@ jobs:
             MIX_ENV=prod
   seed:
     name: Seed
-    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     services:
       postgres:

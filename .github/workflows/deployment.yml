@@ -29,7 +29,7 @@ jobs:
     name: Canary Deployment
     env:
       DOCKER_BUILDKIT: 1
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: namespace-profile-default
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -110,7 +110,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: namespace-profile-default
     timeout-minutes: 60
     if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
     needs: acceptance-tests
@@ -162,7 +162,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: namespace-profile-default
     timeout-minutes: 60
     if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
     steps:
