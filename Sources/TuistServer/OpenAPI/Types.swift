@@ -1959,6 +1959,17 @@ internal enum Components {
         internal enum RunParams: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunParams/case1`.
             internal struct Case1Payload: Codable, Hashable, Sendable {
+                /// The category of the build run, can be clean or incremental.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
+                internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case clean = "clean"
+                    case incremental = "incremental"
+                }
+                /// The category of the build run, can be clean or incremental.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
+                internal var category: Components.Schemas.RunParams.Case1Payload.categoryPayload?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
@@ -2019,6 +2030,7 @@ internal enum Components {
                 /// Creates a new `Case1Payload`.
                 ///
                 /// - Parameters:
+                ///   - category: The category of the build run, can be clean or incremental.
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - git_branch: The git branch.
                 ///   - git_commit_sha: The commit SHA.
@@ -2031,6 +2043,7 @@ internal enum Components {
                 ///   - _type: The type of the run, which is 'build' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 internal init(
+                    category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
                     duration: Swift.Int,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
@@ -2043,6 +2056,7 @@ internal enum Components {
                     _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
+                    self.category = category
                     self.duration = duration
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
@@ -2056,6 +2070,7 @@ internal enum Components {
                     self.xcode_version = xcode_version
                 }
                 internal enum CodingKeys: String, CodingKey {
+                    case category
                     case duration
                     case git_branch
                     case git_commit_sha
@@ -2839,6 +2854,17 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/BuildRun`.
         internal struct BuildRun: Codable, Hashable, Sendable {
+            /// The category of the build run, can be clean or incremental.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
+            internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case clean = "clean"
+                case incremental = "incremental"
+            }
+            /// The category of the build run, can be clean or incremental.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
+            internal var category: Components.Schemas.BuildRun.categoryPayload?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
@@ -2899,6 +2925,7 @@ internal enum Components {
             /// Creates a new `BuildRun`.
             ///
             /// - Parameters:
+            ///   - category: The category of the build run, can be clean or incremental.
             ///   - duration: Duration of the run in milliseconds.
             ///   - git_branch: The git branch.
             ///   - git_commit_sha: The commit SHA.
@@ -2911,6 +2938,7 @@ internal enum Components {
             ///   - _type: The type of the run, which is 'build' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             internal init(
+                category: Components.Schemas.BuildRun.categoryPayload? = nil,
                 duration: Swift.Int,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -2923,6 +2951,7 @@ internal enum Components {
                 _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
+                self.category = category
                 self.duration = duration
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -2936,6 +2965,7 @@ internal enum Components {
                 self.xcode_version = xcode_version
             }
             internal enum CodingKeys: String, CodingKey {
+                case category
                 case duration
                 case git_branch
                 case git_commit_sha
@@ -15687,6 +15717,17 @@ internal enum Operations {
                 internal enum jsonPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1`.
                     internal struct Case1Payload: Codable, Hashable, Sendable {
+                        /// The category of the build run, can be clean or incremental.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
+                        internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case clean = "clean"
+                            case incremental = "incremental"
+                        }
+                        /// The category of the build run, can be clean or incremental.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
+                        internal var category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
@@ -15747,6 +15788,7 @@ internal enum Operations {
                         /// Creates a new `Case1Payload`.
                         ///
                         /// - Parameters:
+                        ///   - category: The category of the build run, can be clean or incremental.
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - git_branch: The git branch.
                         ///   - git_commit_sha: The commit SHA.
@@ -15759,6 +15801,7 @@ internal enum Operations {
                         ///   - _type: The type of the run, which is 'build' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         internal init(
+                            category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
                             duration: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -15771,6 +15814,7 @@ internal enum Operations {
                             _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.category = category
                             self.duration = duration
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -15784,6 +15828,7 @@ internal enum Operations {
                             self.xcode_version = xcode_version
                         }
                         internal enum CodingKeys: String, CodingKey {
+                            case category
                             case duration
                             case git_branch
                             case git_commit_sha

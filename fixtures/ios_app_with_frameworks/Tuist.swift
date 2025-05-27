@@ -1,10 +1,12 @@
 import ProjectDescription
 
-let config = Config(
+let tuist = Tuist(
     fullHandle: "tuist/ios_app_with_frameworks",
     url: "https://canary.tuist.dev",
-    generationOptions: .options(
-        optionalAuthentication: true,
-        buildInsightsDisabled: false
+    project: .tuist(
+        generationOptions: .options(
+            optionalAuthentication: true,
+            buildInsightsDisabled: false
+        )
     )
 )
