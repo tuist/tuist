@@ -127,8 +127,6 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
     RecentPathRememberableCommand
 {
     public init() {}
-    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
-    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -178,8 +176,8 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await BuildService(
-            generatorFactory: Self.generatorFactory,
-            cacheStorageFactory: Self.cacheStorageFactory
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
         ).run(
             schemeName: buildOptions.scheme,
             generate: buildOptions.generate,

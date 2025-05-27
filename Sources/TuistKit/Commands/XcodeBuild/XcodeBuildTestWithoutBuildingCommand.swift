@@ -26,9 +26,9 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
 
     public func run() async throws {
         try await XcodeBuildTestCommandService(
-            cacheStorageFactory: XcodeBuildCommand.cacheStorageFactory,
-            selectiveTestingGraphHasher: XcodeBuildCommand.selectiveTestingGraphHasher,
-            selectiveTestingService: XcodeBuildCommand.selectiveTestingService
+            cacheStorageFactory: Extension.cacheStorageFactory,
+            selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher,
+            selectiveTestingService: Extension.selectiveTestingService
         )
         .run(
             passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments
