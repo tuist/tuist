@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupportTesting
 import XCTest
 
@@ -35,7 +35,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     }
 
     func test_project_list() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listProjectsService)
                 .listProjects(serverURL: .value(serverURL))
@@ -61,7 +61,7 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     }
 
     func test_project_list_when_none() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listProjectsService)
                 .listProjects(serverURL: .value(serverURL))

@@ -40,6 +40,12 @@ public struct DeveloperEnvironmentTestingTrait: TestTrait, SuiteTrait, TestScopi
     }
 }
 
+public func withMockedDeveloperEnvironment(_ closure: () async throws -> Void) async throws {
+    try await DeveloperEnvironment.$current.withValue(MockDeveloperEnvironment()) {
+        try await closure()
+    }
+}
+
 extension Trait where Self == DeveloperEnvironmentTestingTrait {
     /// When this trait is applied to a test, the environment will be mocked.
     public static var withMockedDeveloperEnvironment: Self { Self() }

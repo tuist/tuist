@@ -268,8 +268,8 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintDuplicateDependency(target: Target) -> [LintingIssue] {
-        typealias Occurence = Int
-        var seen: [TargetDependency: Occurence] = [:]
+        typealias Occurrence = Int
+        var seen: [TargetDependency: Occurrence] = [:]
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {

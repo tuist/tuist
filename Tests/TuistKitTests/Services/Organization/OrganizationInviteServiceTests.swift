@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -36,7 +36,7 @@ final class OrganizationInviteServiceTests: TuistUnitTestCase {
     }
 
     func test_invite() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(createOrganizationInviteService)
                 .createOrganizationInvite(

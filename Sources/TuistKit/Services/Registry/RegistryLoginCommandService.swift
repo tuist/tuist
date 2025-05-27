@@ -3,7 +3,7 @@ import Foundation
 import Noora
 import Path
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 enum RegistryLoginCommandServiceError: Equatable, LocalizedError {
@@ -32,7 +32,6 @@ struct RegistryLoginCommandService {
     private let fileSystem: FileSysteming
     private let fullHandleService: FullHandleServicing
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let ciChecker: CIChecking
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let securityController: SecurityControlling
     private let manifestFilesLocator: ManifestFilesLocating
@@ -47,7 +46,6 @@ struct RegistryLoginCommandService {
         fullHandleService: FullHandleServicing = FullHandleService(),
         swiftPackageManagerController: SwiftPackageManagerControlling =
             SwiftPackageManagerController(),
-        ciChecker: CIChecking = CIChecker(),
         serverAuthenticationController: ServerAuthenticationControlling =
             ServerAuthenticationController(),
         securityController: SecurityControlling = SecurityController(),
@@ -61,7 +59,6 @@ struct RegistryLoginCommandService {
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.ciChecker = ciChecker
         self.serverAuthenticationController = serverAuthenticationController
         self.securityController = securityController
         self.manifestFilesLocator = manifestFilesLocator
@@ -91,7 +88,7 @@ struct RegistryLoginCommandService {
                 path: "api/accounts/\(accountHandle)/registry/swift"
             )
 
-            if ciChecker.isCI() {
+            if Environment.current.isCI {
                 try await registryCILogin(
                     registryURL: registryURL,
                     serverURL: serverURL,

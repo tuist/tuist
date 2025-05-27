@@ -6,7 +6,7 @@ import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 
@@ -34,7 +34,6 @@ public class TrackableCommand {
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
     private let fileHandler: FileHandling
-    private let ciChecker: CIChecking
 
     public init(
         command: ParsableCommand,
@@ -43,7 +42,6 @@ public class TrackableCommand {
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
         fileHandler: FileHandling = FileHandler.shared,
-        ciChecker: CIChecking = CIChecker()
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -51,7 +49,6 @@ public class TrackableCommand {
         self.commandEventFactory = commandEventFactory
         self.asyncQueue = asyncQueue
         self.fileHandler = fileHandler
-        self.ciChecker = ciChecker
     }
 
     public func run(
@@ -133,7 +130,7 @@ public class TrackableCommand {
             from: info,
             path: path
         )
-        if (command as? TrackableParsableCommand)?.analyticsRequired == true || ciChecker.isCI() {
+        if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
                 let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)

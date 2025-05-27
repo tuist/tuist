@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 protocol WhoamiServicing: AnyObject {

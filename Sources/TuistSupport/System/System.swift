@@ -74,11 +74,6 @@ public final class System: Systeming {
     // swiftlint:disable:next identifier_name
     static let _shared: ThreadSafe<Systeming> = ThreadSafe(System())
 
-    /// Convenience shortcut to the environment.
-    public var env: [String: String] {
-        ProcessInfo.processInfo.environment
-    }
-
     func escaped(arguments: [String]) -> String {
         arguments.map { $0.spm_shellEscaped() }.joined(separator: " ")
     }
@@ -92,7 +87,7 @@ public final class System: Systeming {
     }
 
     public func capture(_ arguments: [String]) throws -> String {
-        try capture(arguments, verbose: false, environment: env)
+        try capture(arguments, verbose: false, environment: Environment.current.variables)
     }
 
     public func capture(
@@ -122,7 +117,7 @@ public final class System: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try run(arguments, verbose: false, environment: env, redirection: streamToStandardOutputs)
+        try run(arguments, verbose: false, environment: Environment.current.variables, redirection: streamToStandardOutputs)
     }
 
     public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
@@ -140,7 +135,7 @@ public final class System: Systeming {
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
         let process = Process(
             arguments: arguments,
-            environment: env,
+            environment: Environment.current.variables,
             outputRedirection: .collect,
             startNewProcessGroup: false
         )
@@ -158,7 +153,7 @@ public final class System: Systeming {
     public func async(_ arguments: [String]) throws {
         let process = Process(
             arguments: arguments,
-            environment: env,
+            environment: Environment.current.variables,
             outputRedirection: .none,
             startNewProcessGroup: true
         )
@@ -185,7 +180,7 @@ public final class System: Systeming {
     public func run(
         _ arguments: [String],
         verbose: Bool = false,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
+        environment: [String: String] = Environment.current.variables,
         redirection: TSCBasic.Process.OutputRedirection = .none
     ) throws {
         // We have to collect both stderr and stdout because we want to stream the output

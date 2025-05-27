@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "64889f0c732f210a935a0ad7cda38f77f876262d",
+        "version" : "509.1.1"
+      }
+    },
+    {
+      "identity" : "swiftandtipsmacros",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/JaroVoltix/SwiftAndTipsMacros",
+      "state" : {
+        "revision" : "a8040d8e2b1f84eaf7f2a87de2deb90328b9303b",
+        "version" : "1.0.3"
+      }
+    }
+  ],
+  "version" : 2
+}

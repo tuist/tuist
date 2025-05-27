@@ -3,7 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 
@@ -44,7 +44,7 @@ struct RegistrySetupCommandServiceTests {
     }
 
     @Test func test_setup_when_a_package_manifest_is_found() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)
@@ -111,7 +111,7 @@ struct RegistrySetupCommandServiceTests {
     }
 
     @Test func test_setup_when_an_xcode_project_is_found() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)
@@ -160,7 +160,7 @@ struct RegistrySetupCommandServiceTests {
     }
 
     @Test func test_setup_when_an_xcode_workspace_is_found() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)

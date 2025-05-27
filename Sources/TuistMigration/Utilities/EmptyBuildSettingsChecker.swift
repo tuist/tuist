@@ -25,7 +25,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
         case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
         case .missingProject: return "The project's pbxproj file contains no projects."
         case let .targetNotFound(name): return "Couldn't find target with name '\(name)' in the project."
-        case let .nonEmptyBuildSettings(configurations): return "The following configurations have non-empty build setttings: \(configurations.joined(separator: ", "))"
+        case let .nonEmptyBuildSettings(configurations): return "The following configurations have non-empty build settings: \(configurations.joined(separator: ", "))"
         }
     }
 

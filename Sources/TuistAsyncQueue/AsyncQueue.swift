@@ -32,7 +32,6 @@ public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
 
     private let queue: Queuing
-    private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
     private var dispatchers: [String: AsyncQueueDispatching] = [:]
 
@@ -42,11 +41,9 @@ public class AsyncQueue: AsyncQueuing {
 
     init(
         queue: Queuing = Queuer.shared,
-        ciChecker: CIChecking = CIChecker(),
         persistor: AsyncQueuePersisting = AsyncQueuePersistor()
     ) {
         self.queue = queue
-        self.ciChecker = ciChecker
         self.persistor = persistor
     }
 
@@ -63,7 +60,7 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     public func waitIfCI() {
-        if !ciChecker.isCI() { return }
+        if !Environment.current.isCI { return }
         wait()
     }
 

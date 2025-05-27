@@ -301,7 +301,7 @@ public class GraphLinter: GraphLinting {
 
         let version: Version
         do {
-            version = try await XcodeController.shared.selectedVersion()
+            version = try await XcodeController.current.selectedVersion()
         } catch {
             return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }
