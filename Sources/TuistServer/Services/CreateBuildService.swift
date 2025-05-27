@@ -9,6 +9,8 @@ public protocol CreateBuildServicing {
         serverURL: URL,
         id: String,
         duration: Int,
+        gitBranch: String?,
+        gitCommitSHA: String?,
         isCI: Bool,
         modelIdentifier: String?,
         macOSVersion: String,
@@ -53,6 +55,8 @@ public final class CreateBuildService: CreateBuildServicing {
         serverURL: URL,
         id: String,
         duration: Int,
+        gitBranch: String?,
+        gitCommitSHA: String?,
         isCI: Bool,
         modelIdentifier: String?,
         macOSVersion: String,
@@ -79,6 +83,8 @@ public final class CreateBuildService: CreateBuildServicing {
                     .case1(
                         .init(
                             duration: duration,
+                            git_branch: gitBranch,
+                            git_commit_sha: gitCommitSHA,
                             id: id,
                             is_ci: isCI,
                             macos_version: macOSVersion,

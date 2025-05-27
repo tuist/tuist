@@ -40,6 +40,7 @@ struct InspectBuildCommandService {
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let dateService: DateServicing
     private let serverURLService: ServerURLServicing
+    private let gitController: GitControlling
 
     init(
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -51,7 +52,8 @@ struct InspectBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
-        serverURLService: ServerURLServicing = ServerURLService()
+        serverURLService: ServerURLServicing = ServerURLService(),
+        gitController: GitControlling = GitController()
     ) {
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
@@ -63,6 +65,7 @@ struct InspectBuildCommandService {
         self.backgroundProcessRunner = backgroundProcessRunner
         self.dateService = dateService
         self.serverURLService = serverURLService
+        self.gitController = gitController
     }
 
     func run(
@@ -73,7 +76,7 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.executablePathMissing
         }
 
-        if Environment.current.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+        if Environment.current.variables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
            Environment.current.workspacePath != nil
         {
             var environment = Environment.current.variables
@@ -118,12 +121,29 @@ struct InspectBuildCommandService {
         guard let fullHandle = config.fullHandle else {
             throw InspectBuildCommandServiceError.missingFullHandle
         }
+
+        let gitCommitSHA: String?
+        let gitBranch: String?
+        if gitController.isInGitRepository(workingDirectory: projectPath) {
+            if gitController.hasCurrentBranchCommits(workingDirectory: projectPath) {
+                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: projectPath)
+            } else {
+                gitCommitSHA = nil
+            }
+
+            gitBranch = try gitController.currentBranch(workingDirectory: projectPath)
+        } else {
+            gitCommitSHA = nil
+            gitBranch = nil
+        }
         try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
+            gitBranch: gitBranch,
+            gitCommitSHA: gitCommitSHA,
             isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
