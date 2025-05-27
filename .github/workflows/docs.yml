@@ -19,13 +19,14 @@ env:
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: cc0237353f2f825680b0463629cd4a86
 
 concurrency:
   group: docs-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  build_docs:
+  docs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +52,11 @@ jobs:
 
       - name: Build the documentation
         run: mise run docs:build
+
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
 
       - name: Save cache
         id: cache-save
