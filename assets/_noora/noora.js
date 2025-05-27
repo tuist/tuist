@@ -1,5 +1,6 @@
 import "./noora.css";
 
+export { PlaceCursorAtEnd } from "./js/hooks.js";
 export { default as NooraAvatar } from "./js/Avatar.js";
 export { default as NooraChart } from "./js/Chart.js";
 export { default as NooraCheckbox } from "./js/Checkbox.js";

@@ -143,9 +143,7 @@ export default {
   },
 
   destroyed() {
-    if (this.handleOpenDropdown) {
-      window.removeEventListener("phx:open-dropdown", this.handleOpenDropdown);
-      window.removeEventListener("phx:close-dropdown", this.handleCloseDropdown);
-    }
+    window.removeEventListener("phx:open-dropdown", this.handleOpenDropdown);
+    window.removeEventListener("phx:close-dropdown", this.handleCloseDropdown);
   },
 };

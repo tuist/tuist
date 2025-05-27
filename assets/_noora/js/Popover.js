@@ -32,6 +32,19 @@ export default {
     };
     this.popover = new Popover(this.el, this.context);
     this.popover.init();
+
+    this.handleOpenPopover = (event) => {
+      if (event.detail.id == this.el.id) {
+        this.popover.api.setOpen(true);
+      }
+    };
+    this.handleClosePopover = (event) => {
+      if (event.detail.all || event.detail.id === this.el.id) {
+        this.popover.api.setOpen(false);
+      }
+    };
+    window.addEventListener("phx:open-popover", this.handleOpenPopover);
+    window.addEventListener("phx:close-popover", this.handleClosePopover);
   },
 
   updated() {
@@ -40,5 +53,10 @@ export default {
 
   beforeDestroy() {
     this.popover.destroy();
+  },
+
+  destroyed() {
+    window.removeEventListener("phx:open-popover", this.handleOpenPopover);
+    window.removeEventListener("phx:close-popover", this.handleClosePopover);
   },
 };

@@ -3,9 +3,12 @@ defmodule TuistWeb.Noora.Filter do
 
   use Phoenix.Component
 
+  import TuistWeb.Noora.Button
   import TuistWeb.Noora.Dropdown
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.TextInput
+
+  alias Phoenix.LiveView.JS
 
   defmodule Filter do
     @moduledoc false
@@ -25,8 +28,8 @@ defmodule TuistWeb.Noora.Filter do
     alias TuistWeb.Noora.Filter.Filter
 
     def update_filters(current_filters, :change_value, params) do
-      filter_id = params["payload-filter-id"] || params["payloadFilterId"]
-      new_value = params["value"] || params["payloadFieldValue"]
+      filter_id = params["payload_filter_id"]
+      new_value = params["value"]
 
       Enum.map(current_filters, fn filter ->
         if filter.id == filter_id do
@@ -38,8 +41,8 @@ defmodule TuistWeb.Noora.Filter do
     end
 
     def update_filters(current_filters, :change_operator, params) do
-      filter_id = params["payload-filter-id"] || params["payloadFilterId"]
-      new_operator_str = params["value"] || params["payloadFieldValue"]
+      filter_id = params["payload_filter_id"]
+      new_operator_str = params["value"]
 
       new_operator =
         if is_binary(new_operator_str),
@@ -56,7 +59,7 @@ defmodule TuistWeb.Noora.Filter do
     end
 
     def update_filters(current_filters, :delete, params) do
-      filter_id = params["payload-filter-id"]
+      filter_id = params["payload_filter_id"]
       Enum.reject(current_filters, &(&1.id == filter_id))
     end
 
@@ -80,7 +83,7 @@ defmodule TuistWeb.Noora.Filter do
       filter_params = encode_filters_to_query(updated_filters)
 
       if action == :delete do
-        filter_id = params["payload-filter-id"]
+        filter_id = params["payload_filter_id"]
 
         Map.drop(query_params, [
           "filter_#{filter_id}_op",
@@ -252,7 +255,7 @@ defmodule TuistWeb.Noora.Filter do
         data-part="dropdown"
         data-on-select="update_filter"
         data-meta-type="change_operator"
-        data-meta-payload-filter-id={@filter.id}
+        data-meta-payload_filter_id={@filter.id}
       >
         <div data-part="trigger">
           <span data-part="label">
@@ -284,11 +287,14 @@ defmodule TuistWeb.Noora.Filter do
         data-part="dropdown"
         data-on-select="update_filter"
         data-meta-type="change_value"
-        data-meta-payload-filter-id={@filter.id}
+        data-meta-payload_filter_id={@filter.id}
       >
         <div data-part="trigger">
-          <span data-part="badge">
+          <span :if={!is_nil(@filter.value)} data-part="badge">
             {get_display_value(@filter)}
+          </span>
+          <span :if={is_nil(@filter.value)} data-part="placeholder">
+            Enter value
           </span>
           <div data-part="indicator">
             <div data-part="indicator-down">
@@ -316,24 +322,42 @@ defmodule TuistWeb.Noora.Filter do
         data-part="popover"
       >
         <div data-part="trigger">
-          <span data-part="badge">
+          <span :if={!is_nil(@filter.value)} data-part="badge">
             {get_display_value(@filter)}
+          </span>
+          <span :if={is_nil(@filter.value)} data-part="placeholder">
+            Enter value
           </span>
           <div data-part="indicator">
             <.chevron_down />
           </div>
         </div>
         <div data-part="positioner">
-          <div class="noora-dropdown-content" data-part="content">
-            <.text_input
-              name="value"
-              type="basic"
-              value={@filter.value}
-              phx-blur="update_filter"
-              phx-value-target-type="update_filter"
-              phx-value-type="change_value"
-              phx-value-payload-filter-id={@filter.id}
-            />
+          <div data-part="content">
+            <span>Filter by {@filter.display_name}</span>
+            <form phx-submit="update_filter">
+              <input type="hidden" name="type" value="change_value" />
+              <input type="hidden" name="payload_filter_id" value={@filter.id} />
+              <.text_input
+                name="value"
+                type="basic"
+                value={@filter.value}
+                phx-hook="PlaceCursorAtEnd"
+              />
+              <div data-part="actions">
+                <.button
+                  type="button"
+                  variant="secondary"
+                  label="Cancel"
+                  phx-click={
+                    JS.dispatch("phx:close-popover",
+                      detail: %{id: "filter-#{@filter.id}-value-popover"}
+                    )
+                  }
+                />
+                <.button type="submit" label="Continue" />
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -341,7 +365,7 @@ defmodule TuistWeb.Noora.Filter do
         data-part="delete-icon"
         phx-click="update_filter"
         phx-value-type="delete"
-        phx-value-payload-filter-id={@filter.id}
+        phx-value-payload_filter_id={@filter.id}
       >
         <.trash_x />
       </button>

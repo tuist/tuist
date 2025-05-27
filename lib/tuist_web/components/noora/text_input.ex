@@ -78,7 +78,7 @@ defmodule TuistWeb.Noora.TextInput do
       assigns
       |> assign_new(:value, fn -> "" end)
       |> assign_new(:error, fn -> nil end)
-      |> assign_new(:id, fn -> "" end)
+      |> assign_new(:id, fn -> "text-input-#{System.unique_integer([:positive])}" end)
 
     ~H"""
     <div class="noora-text-input">
@@ -89,7 +89,12 @@ defmodule TuistWeb.Noora.TextInput do
         required={@required and @show_required}
         data-part="label"
       />
-      <div data-part="wrapper" data-type={@type} data-error={@error}>
+      <div
+        data-part="wrapper"
+        data-type={@type}
+        data-error={@error}
+        phx-click={JS.focus(to: "##{@id}")}
+      >
         <span
           :if={(@show_prefix and @type != "basic") or has_slot_content?(@prefix, assigns)}
           data-part="prefix"
@@ -97,6 +102,7 @@ defmodule TuistWeb.Noora.TextInput do
           <.prefix type={@type} prefix={@prefix} />
         </span>
         <input
+          id={@id}
           name={@name}
           value={@value}
           type={type(@type)}

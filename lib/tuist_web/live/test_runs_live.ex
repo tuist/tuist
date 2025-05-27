@@ -94,10 +94,13 @@ defmodule TuistWeb.TestRunsLive do
     updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
 
     {:noreply,
-     push_patch(socket,
+     socket
+     |> push_patch(
        to:
          ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs?#{updated_params}"
-     )}
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do
@@ -110,7 +113,8 @@ defmodule TuistWeb.TestRunsLive do
          ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-runs?#{updated_query_params}"
      )
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
-     |> push_event("close-dropdown", %{id: "all", all: true})}
+     |> push_event("close-dropdown", %{all: true})
+     |> push_event("close-popover", %{all: true})}
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do

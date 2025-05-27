@@ -19,7 +19,13 @@
   & [data-part="label"] {
     display: flex;
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+
+  & [data-part="placeholder"] {
+    display: flex;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
   }
 
   & > [data-part="dropdown"],
@@ -75,6 +81,36 @@
 
       &[data-state="open"] [data-part="indicator-down"] {
         display: none;
+      }
+    }
+  }
+
+  & > [data-part="popover"] {
+    & [data-part="content"] {
+      display: none;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+      z-index: var(--noora-z-index-10);
+      box-shadow: var(--noora-border-medium);
+      border-radius: var(--noora-radius-large);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-5);
+      width: 300px;
+
+      & > span {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & [data-part="actions"] {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--noora-spacing-6);
+        margin-top: var(--noora-spacing-8);
+      }
+
+      &[data-state="open"] {
+        display: flex;
       }
     }
   }

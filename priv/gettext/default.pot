@@ -289,7 +289,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.ex:287
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:468
-#: lib/tuist_web/live/test_runs_live.ex:233
+#: lib/tuist_web/live/test_runs_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -334,7 +334,7 @@ msgstr ""
 msgid "Average time it takes to test a project when using the 'tuist test' command."
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:172
+#: lib/tuist_web/live/test_runs_live.ex:176
 #: lib/tuist_web/live/test_runs_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Avg. test run duration"
@@ -471,7 +471,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.ex:295
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:484
-#: lib/tuist_web/live/test_runs_live.ex:241
+#: lib/tuist_web/live/test_runs_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -1024,7 +1024,7 @@ msgstr ""
 msgid "Failed builds"
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:160
+#: lib/tuist_web/live/test_runs_live.ex:164
 #: lib/tuist_web/live/test_runs_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Failed run count"
@@ -1366,7 +1366,7 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:476
 #: lib/tuist_web/live/run_detail_live.html.heex:238
 #: lib/tuist_web/live/run_detail_live.html.heex:327
-#: lib/tuist_web/live/test_runs_live.ex:237
+#: lib/tuist_web/live/test_runs_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
@@ -2353,7 +2353,7 @@ msgstr ""
 msgid "Test Runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_runs_live.ex:152
+#: lib/tuist_web/live/test_runs_live.ex:156
 #: lib/tuist_web/live/test_runs_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Test run count"
@@ -3080,7 +3080,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.ex:212
 #: lib/tuist_web/live/bundles_live.ex:169
 #: lib/tuist_web/live/overview_live.ex:282
-#: lib/tuist_web/live/test_runs_live.ex:228
+#: lib/tuist_web/live/test_runs_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
@@ -3088,7 +3088,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.ex:214
 #: lib/tuist_web/live/bundles_live.ex:171
 #: lib/tuist_web/live/overview_live.ex:284
-#: lib/tuist_web/live/test_runs_live.ex:230
+#: lib/tuist_web/live/test_runs_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
@@ -3096,7 +3096,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.ex:213
 #: lib/tuist_web/live/bundles_live.ex:170
 #: lib/tuist_web/live/overview_live.ex:283
-#: lib/tuist_web/live/test_runs_live.ex:229
+#: lib/tuist_web/live/test_runs_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
