@@ -1025,6 +1025,22 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     }
 }
 
+final class GenerateAcceptanceTestAppWithDefaultConfigurationSettings: TuistAcceptanceTestCase {
+    func test_app_with_custom_default_configuration_settings() async throws {
+        try await setUpFixture(.appWithCustomDefaultConfigurationSettings)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+
+        let project = try XCTUnwrap(xcodeproj.pbxproj.projects.first)
+        XCTAssertEqual(project.buildConfigurationList.defaultConfigurationName, "CustomDebug")
+
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
     func test_app_with_custom_scheme() async throws {
         try await setUpFixture(.appWithCustomScheme)
