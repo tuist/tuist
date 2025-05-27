@@ -41,7 +41,7 @@ final class SHA256Digest {
         while true {
             let bytesRead = inputStream.read(buffer, maxLength: bufferSize)
             if bytesRead < 0 {
-                // Stream error occured
+                // Stream error occurred
                 throw (inputStream.streamError ?? InputStreamError.readFailed)
             } else if bytesRead == 0 {
                 // EOF

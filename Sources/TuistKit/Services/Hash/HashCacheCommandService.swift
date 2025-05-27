@@ -102,7 +102,7 @@ final class HashCacheCommandService {
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
 
         if sortedHashes.isEmpty {
-            AlertController.current.warning(.alert("The project contains no hasheable targets."))
+            AlertController.current.warning(.alert("The project contains no hashable targets."))
         } else {
             for (target, hash) in sortedHashes {
                 Logger.current.info("\(target.target.name) - \(hash)")
