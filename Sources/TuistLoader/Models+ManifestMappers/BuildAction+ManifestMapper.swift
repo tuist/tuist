@@ -30,6 +30,7 @@ extension XcodeGraph.BuildAction {
             targets: targets,
             preActions: preActions,
             postActions: postActions,
+            parallelizeBuild: manifest.parallelizeBuild,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure,
             findImplicitDependencies: manifest.findImplicitDependencies
         )
