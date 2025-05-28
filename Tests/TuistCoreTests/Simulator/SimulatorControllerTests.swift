@@ -420,14 +420,14 @@ struct SimulatorControllerTests {
 
         if runtimes {
             system.succeedCommand(
-                ["/usr/bin/xcrun", "simctl list runtimes", "--json"],
+                ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"],
                 output: stubs.runtimesJsonResponse
             )
         }
 
         if devices {
             system.succeedCommand(
-                ["/usr/bin/xcrun", "simctl list devices", "--json"],
+                ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"],
                 output: stubs.devicesJsonResponse
             )
         }

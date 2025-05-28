@@ -17,7 +17,7 @@ struct GitControllerTests {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(["git", "-C \(path.pathString)", "clone \(url)"])
+        system.succeedCommand(["git", "-C", "\(path.pathString)", "clone", "\(url)"])
 
         try subject.clone(url: url, into: path)
         #expect(system.called(["git", "-C", path.pathString, "clone", url]) == true)
@@ -26,7 +26,7 @@ struct GitControllerTests {
     @Test(.inTemporaryDirectory) func test_cloneTo() throws {
         let url = "https://some/url/to/repo.git"
 
-        system.succeedCommand(["git", "clone \(url)"])
+        system.succeedCommand(["git", "clone", "\(url)"])
 
         try subject.clone(url: url)
         #expect(system.called(["git", "clone", url]) == true)
@@ -36,7 +36,7 @@ struct GitControllerTests {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(["git", "clone \(url)", path.pathString])
+        system.succeedCommand(["git", "clone", "\(url)", path.pathString])
 
         try subject.clone(url: url, to: path)
         #expect(system.called(["git", "clone", url, path.pathString]) == true)
@@ -45,7 +45,7 @@ struct GitControllerTests {
     @Test(.inTemporaryDirectory) func test_checkout() throws {
         let id = "main"
 
-        system.succeedCommand(["git", "checkout \(id)"])
+        system.succeedCommand(["git", "checkout", "\(id)"])
 
         try subject.checkout(id: id, in: nil)
     }
