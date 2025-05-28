@@ -7,7 +7,6 @@ public protocol MachineEnvironmentRetrieving: Sendable {
     var clientId: String { get }
     var macOSVersion: String { get }
     var hardwareName: String { get }
-    var isCI: Bool { get }
     func modelIdentifier() -> String?
 }
 
@@ -43,11 +42,6 @@ public final class MachineEnvironment: MachineEnvironmentRetrieving {
 
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
     public let hardwareName = ProcessInfo.processInfo.machineHardwareName
-
-    /// Indicates whether Tuist is running in Continuous Integration (CI) environment
-    public var isCI: Bool {
-        CIChecker().isCI()
-    }
 
     // Taken from: https://github.com/open-telemetry/opentelemetry-swift/blob/b1323295a67c7cf9b7c59a505d197432abe8a88a/Sources/Instrumentation/SDKResourceExtension/DataSource/DeviceDataSource.swift#L17
     public func modelIdentifier() -> String? {

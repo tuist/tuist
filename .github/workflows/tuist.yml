@@ -1,0 +1,136 @@
+name: tuist
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/tuist.yml"
+      - "mise/tasks/lint"
+      - "mise/tasks/lint-fix"
+      - "mise.toml"
+      - "fixtures/**"
+      - "Tuist/**"
+
+permissions:
+  contents: read
+
+env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: tuist-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Lint
+        run: mise run lint
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  spm_build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Build
+        run: swift build --configuration debug
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  cache:
+    runs-on: macos-15
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Cache
+        run: mise x -- tuist cache
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  unit_tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Run tests
+        run: mise x -- tuist test TuistUnitTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

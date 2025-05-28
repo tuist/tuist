@@ -5,7 +5,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .external(name: "Path", condition: .when([.macos])),
         .project(target: "TuistSupport", path: "../", condition: .when([.macos])),
         .project(target: "TuistCore", path: "../", condition: .when([.macos])),
-        .project(target: "TuistServerCore", path: "../", condition: .when([.macos])),
+        .project(target: "TuistServer", path: "../", condition: .when([.macos])),
         .project(target: "TuistAutomation", path: "../", condition: .when([.macos])),
         .external(name: "XcodeGraph", condition: .when([.macos])),
         .external(name: "Command", condition: .when([.macos])),
@@ -83,18 +83,18 @@ let project = Project(
         .target(
             name: "TuistPreviews",
             destinations: .iOS,
-            product: .framework,
+            product: .staticFramework,
             bundleId: "io.tuist.previews",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
-                .project(target: "TuistServerCore", path: "../"),
+                .project(target: "TuistServer", path: "../"),
             ]
         ),
         .target(
             name: "TuistMenuBar",
             destinations: .macOS,
-            product: .framework,
+            product: .staticFramework,
             bundleId: "io.tuist.menu-bar",
             deploymentTargets: .macOS("14.0.0"),
             sources: ["Sources/TuistMenuBar/**"],

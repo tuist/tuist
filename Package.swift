@@ -80,8 +80,7 @@ let targets: [Target] = [
             "TuistPlugin",
             "XcodeGraph",
             "Mockable",
-            "TuistServerCore",
-            "TuistServerCLI",
+            "TuistServer",
             "TuistSimulator",
             "FileSystem",
             "TuistCache",
@@ -148,6 +147,8 @@ let targets: [Target] = [
             pathDependency,
             "Difference",
             "FileSystem",
+            .product(name: "FileSystemTesting", package: "FileSystem"),
+            argumentParserDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -338,32 +339,11 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistServerCore",
+        name: "TuistServer",
         dependencies: [
             "TuistCore",
             "TuistSupport",
             "TuistCache",
-            "FileSystem",
-            "XcodeGraph",
-            "Mockable",
-            pathDependency,
-            .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-        ],
-        exclude: ["OpenAPI/server.yml"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistServerCLI",
-        dependencies: [
-            "TuistCore",
-            "TuistSupport",
-            "TuistCache",
-            "TuistServerCore",
-            "TuistSimulator",
             "FileSystem",
             "XcodeGraph",
             "Mockable",
@@ -373,6 +353,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             .product(name: "Rosalind", package: "Rosalind"),
         ],
+        exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -504,8 +485,8 @@ let package = Package(
             targets: ["TuistAcceptanceTesting"]
         ),
         .library(
-            name: "TuistServerCore",
-            targets: ["TuistServerCore"]
+            name: "TuistServer",
+            targets: ["TuistServer"]
         ),
         .library(
             name: "TuistHasher",

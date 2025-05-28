@@ -1,8 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistServerCLI
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

@@ -44,7 +44,7 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given
@@ -125,7 +125,7 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load_when_dependency_via_scm_and_registry() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given
@@ -219,7 +219,7 @@ struct SwiftPackageManagerGraphLoaderTests {
 
     @Test
     func test_load_warnOutdatedDependencies() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
                 // Given

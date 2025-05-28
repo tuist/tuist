@@ -25,7 +25,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_project_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             import ProjectDescription
@@ -96,7 +96,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_workspace_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             import ProjectDescription
@@ -150,7 +150,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_config_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             import ProjectDescription
@@ -216,7 +216,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_template_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             import ProjectDescription
@@ -251,7 +251,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_plugin_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             import ProjectDescription
@@ -278,7 +278,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_package_manifest() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             // swift-tools-version: 5.9
@@ -349,7 +349,7 @@ final class DumpServiceTests: TuistTestCase {
     }
 
     func test_prints_the_manifest_when_package_manifest_without_package_settings() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
             // swift-tools-version: 5.9

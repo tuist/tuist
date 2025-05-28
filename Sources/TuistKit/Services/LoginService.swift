@@ -3,7 +3,7 @@ import Mockable
 import Path
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 @Mockable

@@ -6,7 +6,7 @@ import Path
 import TuistAnalytics
 import TuistCore
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -258,7 +258,7 @@ public struct TuistCommand: AsyncParsableCommand {
     // MARK: - Helpers
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
-        let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
+        let arguments = arguments ?? Array(Environment.current.arguments)
         return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
     }
 }

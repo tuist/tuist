@@ -212,7 +212,7 @@ public class ManifestLinter: ManifestLinting {
 
         return currentVersions.map {
             LintingIssue(
-                reason: "The current core data model version '\(String(describing: $0))' will be infered automatically in '\(declarationLocation)' settings. It is not need it to set the current version anymore.",
+                reason: "The current core data model version '\(String(describing: $0))' will be inferred automatically in '\(declarationLocation)' settings. It is not need it to set the current version anymore.",
                 severity: .warning
             )
         }

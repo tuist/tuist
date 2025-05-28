@@ -8,13 +8,10 @@ import XcodeGraph
 @testable import TuistGenerator
 
 struct BuildInsightsActionMapperTests {
-    private let environment = MockEnvironmenting()
     private let subject: BuildInsightsActionMapper
 
     init() {
-        subject = BuildInsightsActionMapper(
-            environment: environment
-        )
+        subject = BuildInsightsActionMapper()
     }
 
     @Test func map_when_disabled() async throws {
@@ -31,12 +28,11 @@ struct BuildInsightsActionMapperTests {
         #expect(got == buildAction)
     }
 
-    @Test func map() async throws {
+    @Test(.withMockedEnvironment()) func map() async throws {
         // Given
         let buildAction: BuildAction = .test()
-        given(environment)
-            .currentExecutablePath()
-            .willReturn("/mise/tuist")
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.currentExecutablePathStub = "/mise/tuist"
 
         // When
         let got = try await subject.map(

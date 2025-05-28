@@ -1,0 +1,66 @@
+name: docs
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+      - "Sources/**"
+      - "Package.swift"
+      - "Package.resolved"
+      - "mise/tasks/docs"
+
+permissions:
+  contents: read
+
+env:
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: cc0237353f2f825680b0463629cd4a86
+
+concurrency:
+  group: docs-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
+
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.3
+          experimental: true
+
+      - name: Generate manifest docs
+        run: mise run docs:generate-manifests-docs
+
+      - name: Build the documentation
+        run: mise run docs:build
+
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
+
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

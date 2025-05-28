@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -40,7 +40,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_show() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)
@@ -104,7 +104,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_show_when_has_google_as_sso_provider() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)
@@ -139,7 +139,7 @@ final class OrganizationShowServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_show_when_has_okta_as_sso_provider() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(getOrganizationService)
                 .getOrganization(organizationName: .any, serverURL: .any)

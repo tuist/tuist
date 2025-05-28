@@ -1,12 +1,13 @@
 import Foundation
 import Path
+import TuistSupport
 
 enum SwiftTestingHelper {
     public static func fixturePath(path: RelativePath) -> AbsolutePath {
         // swiftlint:disable:next force_try
         try! AbsolutePath(
-            validating: ProcessInfo.processInfo
-                .environment["TUIST_CONFIG_SRCROOT"]!
+            validating: Environment.current
+                .variables["TUIST_CONFIG_SRCROOT"]!
         )
         .appending(components: "Tests", "Fixtures")
         .appending(path)

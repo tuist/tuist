@@ -13,22 +13,18 @@ import XcodeGraph
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
-    private let swiftVersionProvider: SwiftVersionProviding
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitController: GitControlling = GitController(),
-        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared
+        gitController: GitControlling = GitController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.gitController = gitController
-        self.swiftVersionProvider = swiftVersionProvider
     }
 
     public func make(
         from info: TrackableCommandInfo,
-        path: AbsolutePath,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        path: AbsolutePath
     ) throws -> CommandEvent {
         var gitCommitSHA: String?
         var gitRemoteURLOrigin: String?
@@ -60,13 +56,13 @@ public final class CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: try swiftVersionProvider.swiftVersion(),
+            swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
-            isCI: machineEnvironment.isCI,
+            isCI: Environment.current.isCI,
             status: info.status,
             gitCommitSHA: gitCommitSHA,
-            gitRef: gitController.ref(environment: environment),
+            gitRef: gitController.ref(),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
             graph: graph,

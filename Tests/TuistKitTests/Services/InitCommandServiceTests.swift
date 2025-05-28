@@ -4,7 +4,7 @@ import Foundation
 import Mockable
 import Noora
 import Testing
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
 
@@ -57,7 +57,7 @@ struct InitCommandServiceTests {
     }
 
     @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
                 .createGeneratedProject
             )
@@ -120,7 +120,7 @@ struct InitCommandServiceTests {
     }
 
     @Test func generatesTheRightConfiguration_when_generatedAndNotConnectedToServer() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
                 .createGeneratedProject
             )
@@ -162,7 +162,7 @@ struct InitCommandServiceTests {
         generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_connectedToServer()
         async throws
     {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let projectName = UUID().uuidString
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
                 .willReturn(.connectProjectOrSwiftPackage(projectName))
@@ -223,7 +223,7 @@ struct InitCommandServiceTests {
         generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_NotConnectedToServer()
         async throws
     {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let projectName = UUID().uuidString
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
                 .willReturn(.connectProjectOrSwiftPackage(projectName))
@@ -262,7 +262,7 @@ struct InitCommandServiceTests {
     @Test func generatesTheRightConfiguration_whenGeneratedForOrganization_andConnectedToServer()
         async throws
     {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             let organizationName = UUID().uuidString
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
                 .createGeneratedProject

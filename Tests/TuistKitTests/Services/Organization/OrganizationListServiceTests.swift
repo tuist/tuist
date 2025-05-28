@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupportTesting
 import XCTest
 
@@ -35,7 +35,7 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_list() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listOrganizationsService).listOrganizations(serverURL: .any)
                 .willReturn(
@@ -60,7 +60,7 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_list_when_none() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listOrganizationsService).listOrganizations(serverURL: .any)
                 .willReturn([])

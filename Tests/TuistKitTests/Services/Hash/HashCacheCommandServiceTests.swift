@@ -263,7 +263,7 @@ struct HashCacheCommandServiceTests {
     }
 
     @Test func test_run_outputs_correct_hashes() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
             let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
@@ -295,8 +295,8 @@ struct HashCacheCommandServiceTests {
             _ = try await subject.run(path: path, configuration: nil)
 
             // Then
-            try expectLogs("ShakiOne - hash1")
-            try expectLogs("ShakiTwo - hash2")
+            try TuistTest.expectLogs("ShakiOne - hash1")
+            try TuistTest.expectLogs("ShakiTwo - hash2")
         }
     }
 

@@ -5,7 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -32,7 +32,7 @@ final class TrackableCommandTests: TuistTestCase {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
+            .ref()
             .willReturn(nil)
     }
 

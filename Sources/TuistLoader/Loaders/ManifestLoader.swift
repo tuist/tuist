@@ -122,7 +122,6 @@ public class ManifestLoader: ManifestLoading {
     private var plugins: Plugins = .none
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
-    private let xcodeController: XcodeControlling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
@@ -131,12 +130,11 @@ public class ManifestLoader: ManifestLoading {
 
     public convenience init() {
         self.init(
-            environment: Environment.shared,
+            environment: Environment.current,
             resourceLocator: ResourceLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
-            xcodeController: XcodeController.shared,
             swiftPackageManagerController: SwiftPackageManagerController(),
             packageInfoLoader: PackageInfoLoader()
         )
@@ -148,7 +146,6 @@ public class ManifestLoader: ManifestLoading {
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
-        xcodeController: XcodeControlling,
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
         fileSystem: FileSysteming = FileSystem()
@@ -158,7 +155,6 @@ public class ManifestLoader: ManifestLoading {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
-        self.xcodeController = xcodeController
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
@@ -417,7 +413,7 @@ public class ManifestLoader: ManifestLoading {
 
         let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
-                let xcode = try await xcodeController.selected()
+                let xcode = try await XcodeController.current.selected()
                 let packageVersion = try swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
@@ -446,7 +442,7 @@ public class ManifestLoader: ManifestLoading {
                     readOnlyPaths: Set(
                         [
                             path,
-                            try await xcodeController.selected().path,
+                            try await XcodeController.current.selected().path,
                             searchPaths.includeSearchPath,
                             searchPaths.librarySearchPath,
                             searchPaths.frameworkSearchPath,

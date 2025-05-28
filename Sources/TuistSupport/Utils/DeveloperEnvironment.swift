@@ -12,16 +12,6 @@ public protocol DeveloperEnvironmenting {
 public final class DeveloperEnvironment: DeveloperEnvironmenting {
     @TaskLocal public static var current: DeveloperEnvironmenting = DeveloperEnvironment()
 
-    /// Shared instance to be used publicly.
-    /// Since the environment doesn't change during the execution of Tuist, we can cache
-    /// state internally to speed up future access to environment attributes.
-    public static var shared: DeveloperEnvironmenting {
-        _shared.value
-    }
-
-    // swiftlint:disable identifier_name
-    static let _shared: ThreadSafe<DeveloperEnvironmenting> = ThreadSafe(DeveloperEnvironment())
-
     /// File handler instance.
     let fileHandler: FileHandling
 

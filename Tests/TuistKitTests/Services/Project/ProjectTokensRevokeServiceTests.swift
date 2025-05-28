@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
-import TuistServerCore
+import TuistServer
 import TuistSupportTesting
 import XCTest
 
@@ -45,7 +45,7 @@ final class ProjectTokensRevokeServiceTests: TuistUnitTestCase {
     }
 
     func test_revoke_project_token() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(revokeProjectTokenService)
                 .revokeProjectToken(

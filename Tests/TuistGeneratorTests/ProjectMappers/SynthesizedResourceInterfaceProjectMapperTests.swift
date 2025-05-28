@@ -33,7 +33,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     }
 
     func test_map() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             var templateStrings: [String] = []
             var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]

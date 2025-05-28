@@ -1,49 +1,53 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
 import Mockable
 import Path
+import Testing
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
 import XcodeProj
-import XCTest
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
-final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
-    override func setUp() {
-        super.setUp()
-        do {
-            given(swiftVersionProvider)
-                .swiftVersion()
-                .willReturn("5.2")
+final class MultipleConfigurationsIntegrationTests {
+    init() async throws {
+        let mockSwiftVersionProvider = try #require(SwiftVersionProvider.mocked)
+        given(mockSwiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
 
-            given(xcodeController)
-                .selectedVersion()
-                .willReturn(TSCUtility.Version(11, 0, 0))
-            try setupTestProject()
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        let mockXcodeController = try #require(XcodeController.mocked)
+        given(mockXcodeController)
+            .selectedVersion()
+            .willReturn(TSCUtility.Version(11, 0, 0))
+        try await setupTestProject()
     }
 
-    func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
         // Given
         let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
 
         // When / Then
-        var _error: Error?
-        do {
-            try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
-        } catch {
-            _error = error
-        }
-        XCTAssertNotNil(_error)
+        await #expect(throws: Error.self, performing: {
+            try await self.generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
+        })
     }
 
-    func testGenerateWhenSingleDebugConfigurationInProject() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenSingleDebugConfigurationInProject() async throws {
         // Given
         let projectSettings = Settings(
             base: ["A": "A"],
@@ -54,14 +58,18 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug"])
-        assertTarget(expectedConfigurations: ["Debug"])
+        try assertProject(expectedConfigurations: ["Debug"])
+        try assertTarget(expectedConfigurations: ["Debug"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
-        XCTAssertTrue(debug.contains("A", "A")) // from base
+        #expect(debug.contains("A", "A") == true) // from base
     }
 
-    func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -77,16 +85,20 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug"])
-        assertTarget(expectedConfigurations: ["Debug"])
+        try assertProject(expectedConfigurations: ["Debug"])
+        try assertTarget(expectedConfigurations: ["Debug"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
-        XCTAssertTrue(debug.contains("A", "A")) // from settings overriding .xcconfig
-        XCTAssertTrue(debug.contains("B", "B_XCCONFIG")) // from .xcconfig
-        XCTAssertTrue(debug.contains("C", "C")) // from settings
+        #expect(debug.contains("A", "A") == true) // from settings overriding .xcconfig
+        #expect(debug.contains("B", "B_XCCONFIG") == true) // from .xcconfig
+        #expect(debug.contains("C", "C") == true) // from settings
     }
 
-    func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
         // Given
         let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -98,16 +110,20 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug"])
-        assertTarget(expectedConfigurations: ["Debug"])
+        try assertProject(expectedConfigurations: ["Debug"])
+        try assertTarget(expectedConfigurations: ["Debug"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
-        XCTAssertTrue(debug.contains("A", "A")) // from configuration settings overriding base
-        XCTAssertTrue(debug.contains("B", "B_BASE")) // from base
-        XCTAssertTrue(debug.contains("C", "C")) // from settings
+        #expect(debug.contains("A", "A") == true) // from configuration settings overriding base
+        #expect(debug.contains("B", "B_BASE") == true) // from base
+        #expect(debug.contains("C", "C") == true) // from settings
     }
 
-    func testGenerateWhenBuildConfigurationWithCustomName() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenBuildConfigurationWithCustomName() async throws {
         // Given
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -122,21 +138,25 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
-        assertProject(expectedConfigurations: ["Custom", "Release"])
-        assertTarget(expectedConfigurations: ["Custom", "Release"])
+        try assertProject(expectedConfigurations: ["Custom", "Release"])
+        try assertTarget(expectedConfigurations: ["Custom", "Release"])
 
         let custom = try extractWorkspaceSettings(configuration: "Custom")
-        XCTAssertTrue(custom.contains("A", "A")) // from custom settings overriding base
-        XCTAssertTrue(custom.contains("B", "B_BASE")) // from base
-        XCTAssertTrue(custom.contains("C", "C")) // from custom settings
+        #expect(custom.contains("A", "A") == true) // from custom settings overriding base
+        #expect(custom.contains("B", "B_BASE") == true) // from base
+        #expect(custom.contains("C", "C") == true) // from custom settings
 
         let release = try extractWorkspaceSettings(configuration: "Release")
-        XCTAssertTrue(release.contains("A", "A_BASE")) // from base
-        XCTAssertTrue(release.contains("B", "B_BASE")) // from base
-        XCTAssertFalse(release.contains("C", "C")) // non-existing, only defined in Custom
+        #expect(release.contains("A", "A_BASE") == true) // from base
+        #expect(release.contains("B", "B_BASE") == true) // from base
+        #expect(release.contains("C", "C") == false) // non-existing, only defined in Custom
     }
 
-    func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -153,16 +173,20 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug"])
-        assertTarget(expectedConfigurations: ["Debug"])
+        try assertProject(expectedConfigurations: ["Debug"])
+        try assertTarget(expectedConfigurations: ["Debug"])
 
         let debug = try extractWorkspaceSettings(configuration: "Custom")
-        XCTAssertTrue(debug.contains("A", "A")) // from target settings overriding target .xcconfig
-        XCTAssertTrue(debug.contains("B", "B_XCCONFIG")) // from target .xcconfig
-        XCTAssertTrue(debug.contains("C", "C")) // from target settings
+        #expect(debug.contains("A", "A") == true) // from target settings overriding target .xcconfig
+        #expect(debug.contains("B", "B_XCCONFIG") == true) // from target .xcconfig
+        #expect(debug.contains("C", "C") == true) // from target settings
     }
 
-    func testGenerateWhenMultipleConfigurations() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenMultipleConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -189,22 +213,22 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug", "ProjectRelease"])
-        assertTarget(expectedConfigurations: ["Debug", "ProjectRelease", "Staging"])
+        try assertProject(expectedConfigurations: ["Debug", "ProjectRelease"])
+        try assertTarget(expectedConfigurations: ["Debug", "ProjectRelease", "Staging"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
-        XCTAssertTrue(debug.contains("A", "A_PROJECT_DEBUG")) // from project debug settings
-        XCTAssertTrue(debug.contains("B", "B_TARGET_DEBUG")) // from target debug settings
+        #expect(debug.contains("A", "A_PROJECT_DEBUG") == true) // from project debug settings
+        #expect(debug.contains("B", "B_TARGET_DEBUG") == true) // from target debug settings
 
         let release = try extractWorkspaceSettings(configuration: "ProjectRelease")
-        XCTAssertTrue(release.contains("A", "A_PROJECT_RELEASE")) // from project debug settings
-        XCTAssertTrue(release.contains("C", "C_PROJECT_RELEASE")) // from project debug settings
-        XCTAssertFalse(release.containsKey("B")) // non-existing
+        #expect(release.contains("A", "A_PROJECT_RELEASE") == true) // from project debug settings
+        #expect(release.contains("C", "C_PROJECT_RELEASE") == true) // from project debug settings
+        #expect(release.containsKey("B") == false) // non-existing
 
         let staging = try extractWorkspaceSettings(configuration: "Staging")
-        XCTAssertTrue(staging.contains("B", "B_TARGET_STAGING")) // from target staging settings
-        XCTAssertFalse(staging.containsKey("A")) // non-existing
-        XCTAssertFalse(staging.containsKey("C")) // non-existing
+        #expect(staging.contains("B", "B_TARGET_STAGING") == true) // from target staging settings
+        #expect(staging.containsKey("A") == false) // non-existing
+        #expect(staging.containsKey("C") == false) // non-existing
     }
 
     /**
@@ -216,7 +240,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
      - target base
      - target configuraiton settings
      */
-    func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
         // Given
         let projectDebugFilePath = try createFile(path: "Configs/project_debug.xcconfig", content: """
         A=A_PROJECT_XCCONFIG
@@ -277,25 +305,29 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
 
         // Then
-        assertProject(expectedConfigurations: ["Debug"])
-        assertTarget(expectedConfigurations: ["Debug"])
+        try assertProject(expectedConfigurations: ["Debug"])
+        try assertTarget(expectedConfigurations: ["Debug"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
-        XCTAssertTrue(debug.contains("A", "A_PROJECT_XCCONFIG")) // from project .xcconfig
-        XCTAssertTrue(debug.contains("B", "B_PROJECT_BASE")) // from project base
-        XCTAssertTrue(debug.contains("C", "C_PROJECT")) // from project settings
-        XCTAssertTrue(debug.contains("D", "D_TARGET_XCCONFIG")) // from target .xcconfig
-        XCTAssertTrue(debug.contains("E", "E_TARGET_BASE")) // from target base
-        XCTAssertTrue(debug.contains("F", "F_TARGET")) // from target settings
-        XCTAssertTrue(debug.contains("PROJECT_XCCONFIG", "YES")) // from project .xcconfig
-        XCTAssertTrue(debug.contains("PROJECT_BASE", "YES")) // from project base
-        XCTAssertTrue(debug.contains("PROJECT", "YES")) // from project settings
-        XCTAssertTrue(debug.contains("TARGET_XCCONFIG", "YES")) // from target .xcconfig
-        XCTAssertTrue(debug.contains("TARGET_BASE", "YES")) // from target base
-        XCTAssertTrue(debug.contains("TARGET", "YES")) // from target settings
+        #expect(debug.contains("A", "A_PROJECT_XCCONFIG") == true) // from project .xcconfig
+        #expect(debug.contains("B", "B_PROJECT_BASE") == true) // from project base
+        #expect(debug.contains("C", "C_PROJECT") == true) // from project settings
+        #expect(debug.contains("D", "D_TARGET_XCCONFIG") == true) // from target .xcconfig
+        #expect(debug.contains("E", "E_TARGET_BASE") == true) // from target base
+        #expect(debug.contains("F", "F_TARGET") == true) // from target settings
+        #expect(debug.contains("PROJECT_XCCONFIG", "YES") == true) // from project .xcconfig
+        #expect(debug.contains("PROJECT_BASE", "YES") == true) // from project base
+        #expect(debug.contains("PROJECT", "YES") == true) // from project settings
+        #expect(debug.contains("TARGET_XCCONFIG", "YES") == true) // from target .xcconfig
+        #expect(debug.contains("TARGET_BASE", "YES") == true) // from target base
+        #expect(debug.contains("TARGET", "YES") == true) // from target settings
     }
 
-    func testGenerateWhenCustomConfigurations() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func testGenerateWhenCustomConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -318,27 +350,27 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
 
         // Then
-        assertProject(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
-        assertTarget(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
+        try assertProject(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
+        try assertTarget(expectedConfigurations: ["CustomDebug", "CustomRelease", "Debug", "Release"])
 
         let debug = try extractWorkspaceSettings(configuration: "Debug")
         let customDebug = try extractWorkspaceSettings(configuration: "CustomDebug")
         let release = try extractWorkspaceSettings(configuration: "Release")
         let customRelease = try extractWorkspaceSettings(configuration: "CustomRelease")
 
-        XCTAssertTrue(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
-        XCTAssertTrue(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
+        #expect(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1") == true)
+        #expect(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1") == true)
 
         // These include a prefix space because $(inherited)
-        XCTAssertTrue(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG"))
-        XCTAssertTrue(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG"))
-        XCTAssertFalse(release.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
-        XCTAssertFalse(customRelease.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        #expect(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG") == true)
+        #expect(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG") == true)
+        #expect(release.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG") == false)
+        #expect(customRelease.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG") == false)
 
-        XCTAssertTrue(debug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
-        XCTAssertTrue(customDebug.contains("SWIFT_COMPILATION_MODE", "singlefile"))
-        XCTAssertTrue(release.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
-        XCTAssertTrue(customRelease.contains("SWIFT_COMPILATION_MODE", "wholemodule"))
+        #expect(debug.contains("SWIFT_COMPILATION_MODE", "singlefile") == true)
+        #expect(customDebug.contains("SWIFT_COMPILATION_MODE", "singlefile") == true)
+        #expect(release.contains("SWIFT_COMPILATION_MODE", "wholemodule") == true)
+        #expect(customRelease.contains("SWIFT_COMPILATION_MODE", "wholemodule") == true)
     }
 
     // MARK: - Helpers
@@ -361,13 +393,13 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         try await writer.write(workspace: descriptor)
     }
 
-    private func setupTestProject() throws {
-        try createFolders(["App/Sources"])
+    private func setupTestProject() async throws {
+        try await TuistTest.makeDirectories(["App/Sources"])
     }
 
     @discardableResult
     private func createFile(path relativePath: String, content: String) throws -> Path.AbsolutePath {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let absolutePath = temporaryPath.appending(try RelativePath(validating: relativePath))
         try FileHandler.shared.touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
@@ -375,7 +407,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createModels(projectSettings: Settings, targetSettings: Settings?) throws -> WorkspaceWithProjects {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let appTarget = try createAppTarget(settings: targetSettings)
         let project = createProject(
             path: try pathTo("App"),
@@ -441,12 +473,12 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func pathTo(_ relativePath: String) throws -> Path.AbsolutePath {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         return temporaryPath.appending(try RelativePath(validating: relativePath))
     }
 
     private func extractWorkspaceSettings(configuration: String) throws -> ExtractedBuildSettings {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         return try extractBuildSettings(path: .workspace(
             path: temporaryPath.appending(component: "Workspace.xcworkspace").pathString,
             scheme: "AppTarget",
@@ -455,7 +487,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func loadXcodeProj(_ relativePath: String) throws -> XcodeProj {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let appProjectPath = temporaryPath.appending(try RelativePath(validating: relativePath))
         return try XcodeProj(pathString: appProjectPath.pathString)
     }
@@ -464,44 +496,21 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func assertTarget(
         _ target: String = "AppTarget",
-        expectedConfigurations: Set<String>,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let proj: XcodeProj
-        do {
-            proj = try loadXcodeProj("App/App.xcodeproj")
-        } catch {
-            XCTFail(error.localizedDescription, file: file, line: line)
-            return
-        }
-
-        guard let nativeTarget = proj.pbxproj.nativeTargets.first(where: { $0.name == target }) else {
-            XCTFail("Target \(target) not found", file: file, line: line)
-            return
-        }
-
+        expectedConfigurations: Set<String>
+    ) throws {
+        let proj: XcodeProj = try loadXcodeProj("App/App.xcodeproj")
+        let nativeTarget = try #require(proj.pbxproj.nativeTargets.first(where: { $0.name == target }))
         let configurationNames = Set(nativeTarget.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
-        XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
+        #expect(configurationNames == expectedConfigurations)
     }
 
     private func assertProject(
-        expectedConfigurations: Set<String>,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let proj: XcodeProj
-        let rootProject: PBXProject?
-        do {
-            proj = try loadXcodeProj("App/App.xcodeproj")
-            rootProject = try proj.pbxproj.rootProject()
-        } catch {
-            XCTFail(error.localizedDescription, file: file, line: line)
-            return
-        }
-
+        expectedConfigurations: Set<String>
+    ) throws {
+        let proj: XcodeProj = try loadXcodeProj("App/App.xcodeproj")
+        let rootProject: PBXProject? = try proj.pbxproj.rootProject()
         let configurationNames = Set(rootProject?.buildConfigurationList?.buildConfigurations.map(\.name) ?? [])
-        XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
+        #expect(configurationNames == expectedConfigurations)
     }
 }
 

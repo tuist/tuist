@@ -82,7 +82,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         try system.run(
             arguments,
             verbose: false,
-            environment: System.shared.env,
+            environment: Environment.current.variables,
             redirection: .stream(stdout: { bytes in
                 let output = String(decoding: bytes, as: Unicode.UTF8.self)
                 Logger.current.debug("\(output)")

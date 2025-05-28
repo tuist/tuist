@@ -4,7 +4,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
-import TuistServerCore
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -38,7 +38,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
     }
 
     func test_whoami_when_logged_in() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(serverSessionController)
                 .authenticatedHandle(serverURL: .value(serverURL))
@@ -53,7 +53,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
     }
 
     func test_whoami_when_logged_out() async throws {
-        try await withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(serverSessionController)
                 .authenticatedHandle(serverURL: .value(serverURL))
