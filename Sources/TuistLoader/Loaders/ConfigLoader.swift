@@ -5,6 +5,7 @@ import Path
 import struct ProjectDescription.Config
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol ConfigLoading {

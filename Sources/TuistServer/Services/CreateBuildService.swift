@@ -3,6 +3,7 @@ import Mockable
 import OpenAPIURLSession
 #if canImport(TuistSupport)
     import TuistSupport
+    import TuistXCActivityLog
 
     @Mockable
     public protocol CreateBuildServicing {
@@ -99,6 +100,7 @@ import OpenAPIURLSession
                                 git_commit_sha: gitCommitSHA,
                                 id: id,
                                 is_ci: isCI,
+                                issues: [.init(title: "Some title")],
                                 macos_version: macOSVersion,
                                 model_identifier: modelIdentifier,
                                 scheme: scheme,

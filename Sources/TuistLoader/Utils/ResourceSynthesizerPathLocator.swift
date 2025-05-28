@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 public protocol ResourceSynthesizerPathLocating {
     func locate(at: AbsolutePath) async throws -> AbsolutePath?

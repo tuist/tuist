@@ -6,6 +6,7 @@ import TuistCore
 import TuistSupport
 import struct XcodeGraph.PackageInfo
 import XCTest
+import TuistRootDirectoryLocator
 
 @testable import TuistLoader
 @testable import TuistSupportTesting

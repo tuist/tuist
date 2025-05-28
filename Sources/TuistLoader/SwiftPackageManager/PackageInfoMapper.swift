@@ -8,6 +8,7 @@ import TuistCore
 import TuistSimulator
 import TuistSupport
 import XcodeGraph
+import TuistRootDirectoryLocator
 
 // MARK: - PackageInfo Mapper Errors
 

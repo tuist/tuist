@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol TemplateLoading {

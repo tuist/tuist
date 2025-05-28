@@ -5,6 +5,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol GraphContentHashing {

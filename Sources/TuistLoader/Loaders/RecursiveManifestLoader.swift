@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {

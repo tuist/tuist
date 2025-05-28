@@ -6,6 +6,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {
     case projectNotFound(AbsolutePath)
@@ -103,7 +104,7 @@ struct InspectBuildCommandService {
         else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try xcActivityLogController.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath

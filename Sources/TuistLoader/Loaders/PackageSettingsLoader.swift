@@ -4,6 +4,7 @@ import ProjectDescription
 import TSCUtility
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {

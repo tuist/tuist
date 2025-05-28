@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 public protocol HelpersDirectoryLocating {
     /// Returns the path to the helpers directory if it exists.

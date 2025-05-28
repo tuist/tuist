@@ -6,6 +6,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import TuistRootDirectoryLocator
 
 /// A component responsible for converting Manifests (`ProjectDescription`) to Models (`TuistCore`)
 public protocol ManifestModelConverting {

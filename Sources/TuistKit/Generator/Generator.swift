@@ -10,6 +10,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol Generating {
