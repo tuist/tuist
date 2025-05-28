@@ -92,12 +92,12 @@ public final class BuildService {
         if generate || workspacePath == nil {
             graph = try await generator.generateWithGraph(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             ).1
         } else {
             graph = try await generator.load(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             )
         }
 

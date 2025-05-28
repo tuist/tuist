@@ -254,7 +254,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         Logger.current.notice("Generating project for testing", metadata: .section)
         let (_, graph, mapperEnvironment) = try await testGenerator.generateWithGraph(
             path: path,
-            disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            options: config.project.generatedProject?.generationOptions
         )
 
         if generateOnly {

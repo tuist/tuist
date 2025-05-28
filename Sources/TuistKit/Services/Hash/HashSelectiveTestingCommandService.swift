@@ -72,7 +72,7 @@ final class HashSelectiveTestingCommandService {
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
             graph = try await generator.load(
                 path: absolutePath,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             )
         } else {
             graph = try await xcodeGraphMapper.map(at: absolutePath)

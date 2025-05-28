@@ -60,7 +60,7 @@ final class GenerateService {
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,
-            disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            options: config.project.generatedProject?.generationOptions
         )
         if !noOpen {
             try await opener.open(path: workspacePath)

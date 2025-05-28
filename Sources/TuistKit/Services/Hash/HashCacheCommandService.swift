@@ -86,7 +86,7 @@ final class HashCacheCommandService {
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
             graph = try await generator.load(
                 path: absolutePath,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             )
             defaultConfiguration = config.project.generatedProject?.generationOptions.defaultConfiguration
         } else {

@@ -25,7 +25,7 @@ final class InspectRedundantImportsService {
         let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
         let graph = try await generator.load(
             path: path,
-            disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            options: config.project.generatedProject?.generationOptions
         )
         let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .redundant)
         if !issues.isEmpty {

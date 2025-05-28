@@ -238,12 +238,12 @@ struct RunCommandService {
             Logger.current.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             ).1
         } else {
             graph = try await generator.load(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+                options: config.project.generatedProject?.generationOptions
             )
         }
 
