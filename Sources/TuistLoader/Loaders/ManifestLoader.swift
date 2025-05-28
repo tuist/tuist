@@ -503,7 +503,7 @@ public class ManifestLoader: ManifestLoading {
             context: """
             Caught sandbox policy violation while loading manifest. This typically happens when the manifest attempts to access file system or network resources. To resolve this, you can:
             1. Modify your manifest to avoid accessing file system or network resources, or
-            2. Disable the sandbox by setting `disableSandbox: true` in your Config.swift:
+            2. (not recommended) Disable the sandbox by setting `disableSandbox: true` in your Tuist.swift:
                ```swift
                let config = Config(project: .tuist(generationOptions: .options(disableSandbox: true)))
                ```

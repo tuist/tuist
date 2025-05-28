@@ -45,7 +45,10 @@ extension Tuist {
         public var buildInsightsDisabled: Bool
 
         /// Disables building manifests in a sandboxed environment.
-        /// This is discouraged and should only be used if absolutely necessary.
+        ///
+        /// - Warning: This is discouraged and should only be used if absolutely necessary. It guards against using file system operations which:
+        ///   - Make generation slow
+        ///   - Cause issues with manifest caching
         public var disableSandbox: Bool
 
         public static func options(
