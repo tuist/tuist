@@ -37,6 +37,38 @@ defmodule Tuist.BundlesTest do
       # Then
       assert bundle.id == id
     end
+
+    test "raises if an artifact type is invalid" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # When
+      assert_raise RuntimeError, fn ->
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [
+            :ios,
+            :ios_simulator
+          ],
+          version: "1.0.0",
+          git_branch: "main",
+          project_id: project_id,
+          artifacts: [
+            %{
+              "artifact_type" => "invalid",
+              "path" => "Tuist.app/Tuist.bundle",
+              "shasum" => "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
+              "size" => 1183
+            }
+          ]
+        })
+      end
+    end
   end
 
   describe "get_bundle/1" do
@@ -135,7 +167,11 @@ defmodule Tuist.BundlesTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      BundlesFixtures.bundle_fixture(project: project, install_size: 1024, inserted_at: ~U[2024-01-01 01:00:00Z])
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1024,
+        inserted_at: ~U[2024-01-01 01:00:00Z]
+      )
 
       bundle =
         BundlesFixtures.bundle_fixture(
@@ -159,7 +195,11 @@ defmodule Tuist.BundlesTest do
       project = ProjectsFixtures.project_fixture()
 
       last_bundle =
-        BundlesFixtures.bundle_fixture(project: project, install_size: 1024, inserted_at: ~U[2024-01-01 02:00:00Z])
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1024,
+          inserted_at: ~U[2024-01-01 02:00:00Z]
+        )
 
       bundle =
         BundlesFixtures.bundle_fixture(
@@ -180,7 +220,11 @@ defmodule Tuist.BundlesTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      BundlesFixtures.bundle_fixture(project: project, install_size: 1024, inserted_at: ~U[2024-01-01 02:00:00Z])
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1024,
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
 
       bundle =
         BundlesFixtures.bundle_fixture(

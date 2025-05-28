@@ -18,6 +18,8 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
+  tags ["Bundles"]
+
   operation :create,
     summary: "Create a new bundle with artifacts",
     operation_id: "createBundle",
@@ -75,7 +77,14 @@ defmodule TuistWeb.API.BundlesController do
                  items: BundleArtifact
                }
              },
-             required: [:bundle_id, :name, :supported_platforms, :version, :install_size, :artifacts]
+             required: [
+               :bundle_id,
+               :name,
+               :supported_platforms,
+               :version,
+               :install_size,
+               :artifacts
+             ]
            }
          },
          required: [:bundle]
@@ -97,10 +106,14 @@ defmodule TuistWeb.API.BundlesController do
     responses: %{
       ok: {"The bundle was created", "application/json", TuistWeb.API.Schemas.Bundle},
       bad_request: {"An error occurred while updating the account.", "application/json", Error},
-      unauthorized: {"You need to be authenticated to update your account.", "application/json", Error}
+      unauthorized:
+        {"You need to be authenticated to update your account.", "application/json", Error}
     }
 
-  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, params) do
+  def create(
+        %{assigns: %{selected_project: selected_project}, body_params: body_params} = conn,
+        params
+      ) do
     bundle = params["bundle"]
     id = UUIDv7.generate()
 
@@ -120,7 +133,7 @@ defmodule TuistWeb.API.BundlesController do
            download_size: bundle["download_size"],
            supported_platforms: bundle["supported_platforms"],
            version: bundle["version"],
-           artifacts: Enum.map(bundle["artifacts"], &map_artifact(&1, id)),
+           artifacts: bundle["artifacts"],
            git_branch: bundle["git_branch"],
            git_commit_sha: bundle["git_commit_sha"],
            git_ref: bundle["git_ref"],
@@ -131,7 +144,10 @@ defmodule TuistWeb.API.BundlesController do
         |> put_status(:ok)
         |> json(%{
           id: bundle.id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
+          url:
+            url(
+              ~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}"
+            )
         })
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -141,16 +157,6 @@ defmodule TuistWeb.API.BundlesController do
           |> Enum.map_join(", ", fn {key, value} -> "#{Atom.to_string(key)} field #{value}" end)
 
         conn |> put_status(:bad_request) |> json(%Error{message: message})
-    end
-  end
-
-  defp map_artifact(artifact, bundle_id) do
-    artifact = Map.put(artifact, "bundle_id", bundle_id)
-
-    if is_nil(artifact["children"]) do
-      artifact
-    else
-      Map.put(artifact, "children", Enum.map(artifact["children"], &map_artifact(&1, bundle_id)))
     end
   end
 end

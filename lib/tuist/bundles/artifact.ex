@@ -28,6 +28,5 @@ defmodule Tuist.Bundles.Artifact do
     |> validate_inclusion(:artifact_type, Ecto.Enum.values(__MODULE__, :artifact_type))
     |> foreign_key_constraint(:bundle_id)
     |> foreign_key_constraint(:artifact_id)
-    |> cast_assoc(:children)
   end
 end

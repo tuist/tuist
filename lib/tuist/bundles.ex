@@ -15,9 +15,50 @@ defmodule Tuist.Bundles do
   Creates a bundle with associated artifacts.
   """
   def create_bundle(attrs \\ %{}) do
-    %Bundle{}
-    |> Bundle.changeset(attrs)
-    |> Repo.insert()
+    {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
+    bundle_id = Map.fetch!(attrs, :id)
+
+    Ecto.Multi.new()
+    |> create_bundle_multi(bundle_attrs)
+    |> create_artifacts_multi(artifacts, bundle_id)
+    |> execute_bundle_transaction()
+  end
+
+  defp create_bundle_multi(multi, bundle_attrs) do
+    Ecto.Multi.insert(multi, :bundle, Bundle.changeset(%Bundle{}, bundle_attrs))
+  end
+
+  defp create_artifacts_multi(multi, artifacts, bundle_id) do
+    Ecto.Multi.run(multi, :artifacts, fn repo, _changes ->
+      insert_artifacts_in_batches(repo, artifacts, bundle_id)
+    end)
+  end
+
+  defp execute_bundle_transaction(multi) do
+    case Repo.transaction(multi) do
+      {:ok, %{bundle: bundle}} -> {:ok, bundle}
+      {:error, _operation, changeset, _changes} -> {:error, changeset}
+    end
+  end
+
+  defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do
+    artifacts
+    |> flatten_artifacts(bundle_id)
+    |> batch_insert_artifacts(repo)
+  end
+
+  defp batch_insert_artifacts(flattened_artifacts, repo) do
+    # Each artifact has ~10 fields, so 6000 artifacts per batch keeps us under 65535 params
+    batch_size = 6000
+
+    flattened_artifacts
+    |> Enum.chunk_every(batch_size)
+    |> Enum.reduce_while({:ok, []}, fn batch, {:ok, acc} ->
+      case repo.insert_all(Artifact, batch, returning: true) do
+        {_count, artifacts} -> {:cont, {:ok, acc ++ artifacts}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   @doc """
@@ -54,7 +95,8 @@ defmodule Tuist.Bundles do
       )
 
     # Filter top-level artifacts (those with no parent)
-    top_level_artifacts = Enum.filter(all_artifacts, fn artifact -> is_nil(artifact.artifact_id) end)
+    top_level_artifacts =
+      Enum.filter(all_artifacts, fn artifact -> is_nil(artifact.artifact_id) end)
 
     # Group child artifacts by their parent ID for efficient lookup
     artifacts_by_parent =
@@ -76,7 +118,9 @@ defmodule Tuist.Bundles do
       build_tree, parent_id ->
         # Get direct children of this parent
         children =
-          artifacts_by_parent |> Map.get(parent_id, []) |> Enum.map(fn child -> Map.put(child, :children, []) end)
+          artifacts_by_parent
+          |> Map.get(parent_id, [])
+          |> Enum.map(fn child -> Map.put(child, :children, []) end)
 
         parent = Map.get(artifacts_by_id, parent_id)
 
@@ -102,7 +146,9 @@ defmodule Tuist.Bundles do
           end
 
         children = Enum.take(children, 100)
-        size_without_small_children = Enum.reduce(children, 0, fn child, sum -> sum + child.size end)
+
+        size_without_small_children =
+          Enum.reduce(children, 0, fn child, sum -> sum + child.size end)
 
         children =
           if !Enum.empty?(children) && size_without_small_children < parent.size do
@@ -368,7 +414,44 @@ defmodule Tuist.Bundles do
     if Enum.empty?(apps) do
       nil
     else
-      (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() || List.first(apps)).name
+      (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() ||
+         List.first(apps)).name
     end
+  end
+
+  defp flatten_artifacts(
+         artifacts,
+         bundle_id,
+         parent_id \\ nil,
+         current_timestamp \\ DateTime.truncate(DateTime.utc_now(), :second)
+       ) do
+    valid_artifact_types =
+      Artifact |> Ecto.Enum.values(:artifact_type) |> Enum.map(&Atom.to_string/1)
+
+    Enum.flat_map(artifacts, fn artifact ->
+      artifact_id = UUIDv7.generate()
+      artifact_type = artifact["artifact_type"]
+
+      if !Enum.member?(valid_artifact_types, artifact_type) do
+        raise "Invalid artifact type: #{artifact_type}. Must be one of #{inspect(valid_artifact_types)}."
+      end
+
+      current_artifact = %{
+        id: artifact_id,
+        artifact_type: String.to_atom(artifact["artifact_type"]),
+        path: artifact["path"],
+        size: artifact["size"],
+        shasum: artifact["shasum"],
+        bundle_id: bundle_id,
+        artifact_id: parent_id,
+        inserted_at: current_timestamp,
+        updated_at: current_timestamp
+      }
+
+      children = artifact["children"] || []
+      child_artifacts = flatten_artifacts(children, bundle_id, artifact_id, current_timestamp)
+
+      [current_artifact | child_artifacts]
+    end)
   end
 end

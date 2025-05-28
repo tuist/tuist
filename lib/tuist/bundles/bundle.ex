@@ -75,6 +75,5 @@ defmodule Tuist.Bundles.Bundle do
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> foreign_key_constraint(:project_id)
-    |> cast_assoc(:artifacts)
   end
 end
