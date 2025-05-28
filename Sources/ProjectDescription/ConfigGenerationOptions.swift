@@ -46,7 +46,8 @@ extension Tuist {
 
         /// Disables building manifests in a sandboxed environment.
         ///
-        /// - Warning: This is discouraged and should only be used if absolutely necessary. It guards against using file system operations which:
+        /// - Warning: This is discouraged and should only be used if absolutely necessary. It guards against using file system
+        /// operations which:
         ///   - Make generation slow
         ///   - Cause issues with manifest caching
         public var disableSandbox: Bool

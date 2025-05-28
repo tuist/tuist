@@ -16,7 +16,8 @@ public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph
     func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> (AbsolutePath, Graph, MapperEnvironment)
+    func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws
+        -> (AbsolutePath, Graph, MapperEnvironment)
 }
 
 public class Generator: Generating {
@@ -44,7 +45,10 @@ public class Generator: Generating {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    public func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath {
+    public func generate(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> AbsolutePath {
         let (generatedPath, _, _) = try await generateWithGraph(path: path, options: options)
         return generatedPath
     }
@@ -88,7 +92,11 @@ public class Generator: Generating {
         try await load(path: path, options: options).0
     }
 
-    func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    func load(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions
+            .GenerationOptions?
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current.notice("Loading and constructing the graph", metadata: .section)
         Logger.current.notice("It might take a while if the cache is empty")
 
