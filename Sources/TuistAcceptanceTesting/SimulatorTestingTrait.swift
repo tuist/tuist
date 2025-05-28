@@ -17,9 +17,9 @@ public struct SimulatorTestingTrait: TestTrait, SuiteTrait, TestScoping {
         let commandRunner = CommandRunner()
         let simulatorId = UUID().uuidString
         try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, simulator]).awaitCompletion()
-        try await Simulator.$testing.withValue(simulatorId) {
+        try await Simulator.$testing.withValue("'name=\(simulatorId)'") {
             let clean = {
-                try? await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]).awaitCompletion()
+                try? await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "delete", "'name=\(simulatorId)'"]).awaitCompletion()
             }
             do {
                 try await function()
