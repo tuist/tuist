@@ -140,6 +140,7 @@ struct InspectBuildCommandService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
+            category: xcactivityLog.category,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
             gitBranch: gitBranch,

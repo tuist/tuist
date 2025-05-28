@@ -4,6 +4,7 @@ public struct XCActivityLog {
     public let version: Int8
     public let mainSection: XCActivityLogSection
     public let buildStep: XCActivityBuildStep
+    public let category: XCActivityBuildCategory
 }
 
 #if DEBUG
@@ -11,12 +12,14 @@ public struct XCActivityLog {
         public static func test(
             version: Int8 = 1,
             mainSection: XCActivityLogSection = .test(),
-            buildStep: XCActivityBuildStep = .test()
+            buildStep: XCActivityBuildStep = .test(),
+            category: XCActivityBuildCategory = .clean
         ) -> XCActivityLog {
             XCActivityLog(
                 version: version,
                 mainSection: mainSection,
-                buildStep: buildStep
+                buildStep: buildStep,
+                category: category
             )
         }
     }

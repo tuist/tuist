@@ -645,6 +645,14 @@ components:
       description: Parameters to create a single run.
       oneOf:
         - properties:
+            category:
+              description: The category of the build run, can be clean or incremental.
+              enum:
+                - clean
+                - incremental
+              type: string
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -1229,6 +1237,14 @@ components:
       x-validate:
     BuildRun:
       properties:
+        category:
+          description: The category of the build run, can be clean or incremental.
+          enum:
+            - clean
+            - incremental
+          type: string
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
@@ -4269,6 +4285,14 @@ paths:
               description: Parameters to create a single run.
               oneOf:
                 - properties:
+                    category:
+                      description: The category of the build run, can be clean or incremental.
+                      enum:
+                        - clean
+                        - incremental
+                      type: string
+                      x-struct:
+                      x-validate:
                     duration:
                       description: Duration of the run in milliseconds.
                       type: integer

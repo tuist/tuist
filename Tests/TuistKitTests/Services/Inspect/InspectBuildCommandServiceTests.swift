@@ -55,6 +55,7 @@ struct InspectBuildCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 id: .any,
+                category: .any,
                 duration: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
@@ -130,7 +131,8 @@ struct InspectBuildCommandServiceTests {
                 .test(
                     buildStep: .test(
                         errorCount: 1
-                    )
+                    ),
+                    category: .incremental
                 )
             )
         given(xcActivityLogController).mostRecentActivityLogPath(
@@ -161,6 +163,7 @@ struct InspectBuildCommandServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 id: .any,
+                category: .value(.incremental),
                 duration: .value(10000),
                 gitBranch: .value("branch"),
                 gitCommitSHA: .value("sha"),
