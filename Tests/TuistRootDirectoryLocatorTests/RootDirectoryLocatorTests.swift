@@ -2,9 +2,10 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
-@testable import TuistSupportTesting
+@testable import TuistRootDirectoryLocator
 
 final class RootDirectoryLocatorTests: TuistTestCase {
     var subject: RootDirectoryLocator!

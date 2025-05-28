@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 

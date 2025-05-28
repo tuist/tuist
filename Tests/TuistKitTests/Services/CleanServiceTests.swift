@@ -5,6 +5,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import XCTest

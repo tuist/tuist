@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 import XCTest

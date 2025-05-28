@@ -3,6 +3,7 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting

@@ -7,6 +7,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
+import TuistXCActivityLog
 import XcodeGraph
 
 @testable import TuistKit
@@ -60,6 +61,7 @@ struct InspectBuildCommandServiceTests {
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 isCI: .any,
+                issues: .any,
                 modelIdentifier: .any,
                 macOSVersion: .any,
                 scheme: .any,
@@ -93,6 +95,8 @@ struct InspectBuildCommandServiceTests {
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
+
+        Matcher.register([XCActivityIssue].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -132,7 +136,10 @@ struct InspectBuildCommandServiceTests {
                     buildStep: .test(
                         errorCount: 1
                     ),
-                    category: .incremental
+                    category: .incremental,
+                    issues: [
+                        .test(),
+                    ]
                 )
             )
         given(xcActivityLogController).mostRecentActivityLogPath(
@@ -168,6 +175,7 @@ struct InspectBuildCommandServiceTests {
                 gitBranch: .value("branch"),
                 gitCommitSHA: .value("sha"),
                 isCI: .value(false),
+                issues: .value([.test()]),
                 modelIdentifier: .value("Mac15,3"),
                 macOSVersion: .value("13.2.0"),
                 scheme: .value("App"),

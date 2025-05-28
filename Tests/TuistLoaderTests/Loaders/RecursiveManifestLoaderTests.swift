@@ -3,6 +3,7 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import struct XcodeGraph.PackageInfo
 import XCTest

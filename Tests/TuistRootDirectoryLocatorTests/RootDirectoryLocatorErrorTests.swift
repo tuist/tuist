@@ -2,7 +2,7 @@ import Path
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistCore
+@testable import TuistRootDirectoryLocator
 
 final class RootDirectoryLocatorErrorTests: TuistUnitTestCase {
     func test_type_when_rootDirectoryNotFound() {

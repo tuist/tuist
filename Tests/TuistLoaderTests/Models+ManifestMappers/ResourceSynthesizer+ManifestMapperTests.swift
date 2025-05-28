@@ -3,6 +3,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistLoaderTesting
+import TuistRootDirectoryLocator
 import TuistSupportTesting
 import XcodeGraph
 import XCTest
