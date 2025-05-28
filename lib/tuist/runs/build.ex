@@ -9,7 +9,9 @@ defmodule Tuist.Runs.Build do
   @derive {
     Flop.Schema,
     filterable: [
-      :project_id
+      :project_id,
+      :scheme,
+      :category
     ],
     sortable: [:inserted_at, :duration]
   }
@@ -23,6 +25,7 @@ defmodule Tuist.Runs.Build do
     field :model_identifier, :string
     field :scheme, :string
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
+    field :category, Ecto.Enum, values: [clean: 0, incremental: 1]
     field :git_branch, :string
     field :git_commit_sha, :string
     belongs_to :project, Tuist.Projects.Project
@@ -45,6 +48,7 @@ defmodule Tuist.Runs.Build do
       :account_id,
       :inserted_at,
       :status,
+      :category,
       :git_branch,
       :git_commit_sha
     ])

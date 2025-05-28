@@ -231,7 +231,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           is_ci: false,
           model_identifier: "machine-123",
           scheme: "App",
-          status: :failure
+          status: :failure,
+          category: :incremental
         )
 
       # Then
@@ -247,6 +248,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
       assert build.status == :failure
+      assert build.category == :incremental
 
       assert response == %{
                "id" => build.id,

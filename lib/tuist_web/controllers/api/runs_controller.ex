@@ -219,6 +219,11 @@ defmodule TuistWeb.API.RunsController do
                  description: "The status of the build run.",
                  enum: [:success, :failure]
                },
+               category: %Schema{
+                 type: :string,
+                 description: "The category of the build run, can be clean or incremental.",
+                 enum: [:clean, :incremental]
+               },
                git_commit_sha: %Schema{
                  type: :string,
                  description: "The commit SHA."
@@ -289,6 +294,7 @@ defmodule TuistWeb.API.RunsController do
           project_id: params.project.id,
           account_id: params.account.id,
           status: Map.get(params, :status, :success),
+          category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha)
         })

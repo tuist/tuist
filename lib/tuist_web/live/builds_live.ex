@@ -33,7 +33,8 @@ defmodule TuistWeb.BuildsLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
-              "analytics-build-scheme"
+              "analytics-build-scheme",
+              "analytics-build-category"
             ])
           )
       )
@@ -55,6 +56,7 @@ defmodule TuistWeb.BuildsLive do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_date_range = params["analytics-date-range"] || "last-30-days"
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
+    analytics_build_category = params["analytics-build-category"] || "any"
 
     start_date = start_date(analytics_date_range)
 
@@ -63,7 +65,10 @@ defmodule TuistWeb.BuildsLive do
       start_date: start_date
     ]
 
-    opts = opts_with_analytics_build_scheme(opts, analytics_build_scheme)
+    opts =
+      opts
+      |> opts_with_analytics_build_scheme(analytics_build_scheme)
+      |> opts_with_analytics_build_category(analytics_build_category)
 
     opts =
       case analytics_environment do
@@ -108,6 +113,7 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_date_range, analytics_date_range)
     |> assign(:analytics_build_scheme, analytics_build_scheme)
+    |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:build_schemes, Tuist.Runs.project_build_schemes(project))
   end
 
@@ -115,6 +121,13 @@ defmodule TuistWeb.BuildsLive do
     case analytics_build_scheme do
       "any" -> opts
       scheme -> Keyword.put(opts, :scheme, scheme)
+    end
+  end
+
+  defp opts_with_analytics_build_category(opts, analytics_build_category) do
+    case analytics_build_category do
+      "any" -> opts
+      category -> Keyword.put(opts, :category, category)
     end
   end
 
@@ -175,12 +188,12 @@ defmodule TuistWeb.BuildsLive do
     {recent_builds, _meta} =
       Runs.list_build_runs(
         %{
-          last: 40,
+          first: 40,
           filters: [
             %{field: :project_id, op: :==, value: project.id}
           ],
           order_by: [:inserted_at],
-          order_directions: [:asc]
+          order_directions: [:desc]
         },
         preload: [:ran_by_account]
       )

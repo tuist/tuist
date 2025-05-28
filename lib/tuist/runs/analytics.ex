@@ -695,6 +695,14 @@ defmodule Tuist.Runs.Analytics do
         _ -> where(query, [e], e.scheme == ^scheme)
       end
 
+    category = Keyword.get(opts, :category)
+
+    query =
+      case category do
+        nil -> query
+        _ -> where(query, [e], e.category == ^category)
+      end
+
     status = Keyword.get(opts, :status)
 
     query =

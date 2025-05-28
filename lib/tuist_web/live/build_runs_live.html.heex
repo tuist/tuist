@@ -82,6 +82,15 @@
               icon="history"
             />
           </:col>
+          <:col :let={build_run} label={gettext("Category")}>
+            <.badge_cell
+              label={
+                (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+                  gettext("Unknown")
+              }
+              style="light-fill"
+            />
+          </:col>
           <:col
             :let={build_run}
             label={gettext("Ran at")}
@@ -93,6 +102,18 @@
           >
             <.text_cell sublabel={
               TuistWeb.Utilities.DateFormatter.from_now(build_run.inserted_at)
+            } />
+          </:col>
+          <:col :let={build_run} label={gettext("Xcode version")}>
+            <.text_cell label={build_run.xcode_version || gettext("Unknown")} />
+          </:col>
+          <:col :let={build_run} label={gettext("macOS version")}>
+            <.text_cell label={build_run.macos_version || gettext("Unknown")} />
+          </:col>
+          <:col :let={build_run} label={gettext("Device")}>
+            <.text_cell label={
+              (build_run.model_identifier && Tuist.Apple.devices()[build_run.model_identifier]) ||
+                gettext("Unknown")
             } />
           </:col>
         </.table>

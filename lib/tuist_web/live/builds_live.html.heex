@@ -26,6 +26,36 @@
         <% end %>
       </.dropdown>
       <.dropdown
+        id="builds-analytics-category-dropdown"
+        label={@analytics_build_category |> String.capitalize()}
+        secondary_text={gettext("Build:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={gettext("Any")}
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics-build-category", "any"))}"}
+          data-selected={@analytics_build_category == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="incremental"
+          label={gettext("Incremental")}
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics-build-category", "incremental"))}"}
+          data-selected={@analytics_build_category == "incremental"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="clean"
+          label={gettext("Clean")}
+          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics-build-category", "clean"))}"}
+          data-selected={@analytics_build_category == "clean"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.dropdown
         id="builds-analytics-environment-dropdown"
         label={environment_label(@analytics_environment)}
         secondary_text={gettext("Environment:")}
@@ -599,6 +629,15 @@
               TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(build.duration)
             }
             icon="history"
+          />
+        </:col>
+        <:col :let={build_run} label={gettext("Category")}>
+          <.badge_cell
+            label={
+              (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+                gettext("Unknown")
+            }
+            style="light-fill"
           />
         </:col>
         <:col :let={build} label={gettext("Ran at")}>
