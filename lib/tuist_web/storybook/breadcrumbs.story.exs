@@ -64,6 +64,16 @@ defmodule TuistWeb.Storybook.Breadcrumbs do
           </.breadcrumb>
           """
         ]
+      },
+      %Variation{
+        id: :without_dropdown,
+        attributes: %{style: "arrow"},
+        slots: [
+          """
+          <.breadcrumb id="with-avatar" label="tuist" />
+          <.breadcrumb id="project-breadcrumb" label="tuist" />
+          """
+        ]
       }
     ]
   end

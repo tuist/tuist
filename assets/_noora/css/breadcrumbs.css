@@ -50,6 +50,10 @@
       padding: var(--noora-spacing-2) var(--noora-spacing-2) var(--noora-spacing-2) var(--noora-spacing-4);
     }
 
+    &:not(:has([data-part="icon"], [data-part="avatar"], [data-part="selector"])) {
+      padding: var(--noora-spacing-2);
+    }
+
     & [data-part="icon"] {
       flex-shrink: 0;
       width: var(--noora-icon-size-medium);
