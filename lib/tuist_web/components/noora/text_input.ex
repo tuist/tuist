@@ -23,6 +23,8 @@ defmodule TuistWeb.Noora.TextInput do
     default: "basic",
     doc: "Type of the input"
 
+  attr :input_type, :string, default: "text", doc: "HTML input type when type is `basic`."
+
   attr :label, :string, default: nil, doc: "Label to be rendered in the input."
   attr :sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input."
   attr :hint, :string, default: nil, doc: "Hint text to be rendered below the input."
@@ -105,7 +107,7 @@ defmodule TuistWeb.Noora.TextInput do
           id={@id}
           name={@name}
           value={@value}
-          type={type(@type)}
+          type={type(@type, @input_type)}
           required={@required}
           placeholder={if @placeholder, do: @placeholder, else: placeholder(@type)}
           {@rest}
@@ -143,9 +145,9 @@ defmodule TuistWeb.Noora.TextInput do
     """
   end
 
-  defp type("card_number"), do: "tel"
-  defp type("search"), do: "text"
-  defp type(type), do: type || "text"
+  defp type("card_number", _input_type), do: "tel"
+  defp type("search", _input_type), do: "text"
+  defp type(type, input_type), do: input_type || "text"
 
   defp placeholder("password"), do: "• • • • • • • • • •"
   defp placeholder(_), do: nil

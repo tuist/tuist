@@ -907,4 +907,274 @@ defmodule Tuist.CommandEventsTest do
       assert got == []
     end
   end
+
+  describe "hit rate sorting and filtering" do
+    setup do
+      project = ProjectsFixtures.project_fixture()
+
+      # Event with 0% hit rate (no cache hits)
+      event_0_percent =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["Target1", "Target2", "Target3"],
+          local_cache_target_hits: [],
+          remote_cache_target_hits: [],
+          created_at: ~N[2024-01-01 01:00:00]
+        )
+
+      # Event with 50% hit rate (1 local + 1 remote out of 4 targets)
+      event_50_percent =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
+          local_cache_target_hits: ["Target1"],
+          remote_cache_target_hits: ["Target2"],
+          created_at: ~N[2024-01-01 02:00:00]
+        )
+
+      # Event with 75% hit rate (1 local + 2 remote out of 4 targets)
+      event_75_percent =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
+          local_cache_target_hits: ["Target1"],
+          remote_cache_target_hits: ["Target2", "Target3"],
+          created_at: ~N[2024-01-01 03:00:00]
+        )
+
+      # Event with 100% hit rate (all targets cached)
+      event_100_percent =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["Target1", "Target2"],
+          local_cache_target_hits: ["Target1"],
+          remote_cache_target_hits: ["Target2"],
+          created_at: ~N[2024-01-01 04:00:00]
+        )
+
+      # Event with no cacheable targets (should have NULL hit rate)
+      event_no_targets =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: [],
+          local_cache_target_hits: [],
+          remote_cache_target_hits: [],
+          created_at: ~N[2024-01-01 05:00:00]
+        )
+
+      %{
+        project: project,
+        event_0_percent: event_0_percent,
+        event_50_percent: event_50_percent,
+        event_75_percent: event_75_percent,
+        event_100_percent: event_100_percent,
+        event_no_targets: event_no_targets
+      }
+    end
+
+    test "sorts by hit rate in descending order", %{
+      project: project,
+      event_0_percent: event_0_percent,
+      event_50_percent: event_50_percent,
+      event_75_percent: event_75_percent,
+      event_100_percent: event_100_percent,
+      event_no_targets: event_no_targets
+    } do
+      # When
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:desc]
+        })
+
+      # Then - should be ordered: 100%, 75%, 50%, 0%, NULL
+      event_ids = Enum.map(events, & &1.id)
+
+      assert event_ids == [
+               event_100_percent.id,
+               event_75_percent.id,
+               event_50_percent.id,
+               event_0_percent.id,
+               event_no_targets.id
+             ]
+
+      # Verify hit rates are calculated correctly
+      assert Enum.at(events, 0).hit_rate == 100.0
+      assert Enum.at(events, 1).hit_rate == 75.0
+      assert Enum.at(events, 2).hit_rate == 50.0
+      assert Enum.at(events, 3).hit_rate == 0.0
+      assert Enum.at(events, 4).hit_rate == nil
+    end
+
+    test "sorts by hit rate in ascending order", %{
+      project: project,
+      event_0_percent: event_0_percent,
+      event_50_percent: event_50_percent,
+      event_75_percent: event_75_percent,
+      event_100_percent: event_100_percent,
+      event_no_targets: event_no_targets
+    } do
+      # When
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:asc]
+        })
+
+      # Then - should be ordered: NULL, 0%, 50%, 75%, 100%
+      event_ids = Enum.map(events, & &1.id)
+
+      assert event_ids == [
+               event_no_targets.id,
+               event_0_percent.id,
+               event_50_percent.id,
+               event_75_percent.id,
+               event_100_percent.id
+             ]
+    end
+
+    test "filters by hit rate greater than", %{
+      project: project,
+      event_50_percent: event_50_percent,
+      event_75_percent: event_75_percent,
+      event_100_percent: event_100_percent
+    } do
+      # When - filter for hit rate > 60%
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :hit_rate, op: :>, value: 60}
+          ]
+        })
+
+      # Then - should only include 75% and 100% events
+      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
+      expected_ids = Enum.sort([event_75_percent.id, event_100_percent.id])
+      assert event_ids == expected_ids
+    end
+
+    test "filters by hit rate greater than or equal to", %{
+      project: project,
+      event_50_percent: event_50_percent,
+      event_75_percent: event_75_percent,
+      event_100_percent: event_100_percent
+    } do
+      # When - filter for hit rate >= 50%
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :hit_rate, op: :>=, value: 50}
+          ]
+        })
+
+      # Then - should include 50%, 75%, and 100% events
+      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
+      expected_ids = Enum.sort([event_50_percent.id, event_75_percent.id, event_100_percent.id])
+      assert event_ids == expected_ids
+    end
+
+    test "filters by hit rate less than", %{
+      project: project,
+      event_0_percent: event_0_percent,
+      event_50_percent: event_50_percent,
+      event_no_targets: event_no_targets
+    } do
+      # When - filter for hit rate < 60%
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :hit_rate, op: :<, value: 60}
+          ]
+        })
+
+      # Then - should include 0%, 50%, and NULL events
+      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
+      expected_ids = Enum.sort([event_0_percent.id, event_50_percent.id, event_no_targets.id])
+      assert event_ids == expected_ids
+    end
+
+    test "filters by hit rate less than or equal to", %{
+      project: project,
+      event_0_percent: event_0_percent,
+      event_50_percent: event_50_percent,
+      event_75_percent: event_75_percent,
+      event_no_targets: event_no_targets
+    } do
+      # When - filter for hit rate <= 75%
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :hit_rate, op: :<=, value: 75}
+          ]
+        })
+
+      # Then - should include 0%, 50%, 75%, and NULL events
+      event_ids = events |> Enum.map(& &1.id) |> Enum.sort()
+
+      expected_ids =
+        Enum.sort([
+          event_0_percent.id,
+          event_50_percent.id,
+          event_75_percent.id,
+          event_no_targets.id
+        ])
+
+      assert event_ids == expected_ids
+    end
+
+    test "filters by hit rate equal to", %{
+      project: project,
+      event_75_percent: event_75_percent
+    } do
+      # When - filter for hit rate == 75%
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :hit_rate, op: :==, value: 75}
+          ]
+        })
+
+      # Then - should only include the 75% event
+      assert length(events) == 1
+      assert hd(events).id == event_75_percent.id
+    end
+
+    test "handles empty arrays correctly in hit rate calculation", %{project: project} do
+      # Given - event with empty local_cache_target_hits but non-empty remote_cache_target_hits
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["Target1", "Target2", "Target3", "Target4", "Target5"],
+          local_cache_target_hits: [],
+          remote_cache_target_hits: ["Target1", "Target2", "Target3", "Target4"],
+          created_at: ~N[2024-01-01 06:00:00]
+        )
+
+      # When
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :id, op: :==, value: event.id}
+          ]
+        })
+
+      # Then - should calculate 80% hit rate (4 out of 5 targets)
+      assert length(events) == 1
+      assert hd(events).hit_rate == 80.0
+    end
+  end
 end

@@ -74,7 +74,7 @@ msgstr ""
 msgid "%{duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.html.heex:49
+#: lib/tuist_web/live/cache_runs_live.html.heex:77
 #: lib/tuist_web/live/generate_runs_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
@@ -90,7 +90,7 @@ msgstr ""
 msgid "%{month}/%{year}"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.html.heex:87
+#: lib/tuist_web/live/cache_runs_live.html.heex:113
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/run_detail_live.html.heex:126
 #, elixir-autogen, elixir-format
@@ -437,7 +437,8 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:55
 #: lib/tuist_web/live/bundle_live.html.heex:57
 #: lib/tuist_web/live/bundles_live.html.heex:234
-#: lib/tuist_web/live/cache_runs_live.html.heex:70
+#: lib/tuist_web/live/cache_runs_live.ex:49
+#: lib/tuist_web/live/cache_runs_live.html.heex:96
 #: lib/tuist_web/live/generate_runs_live.html.heex:70
 #: lib/tuist_web/live/preview_live.html.heex:118
 #: lib/tuist_web/live/previews_live.html.heex:50
@@ -483,7 +484,7 @@ msgid "CI and local environments"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:40
-#: lib/tuist_web/live/cache_runs_live.ex:15
+#: lib/tuist_web/live/cache_runs_live.ex:20
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #: lib/tuist_web/live/run_detail_live.html.heex:16
 #, elixir-autogen, elixir-format
@@ -564,7 +565,8 @@ msgstr ""
 msgid "Close menu"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.html.heex:44
+#: lib/tuist_web/live/cache_runs_live.ex:30
+#: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/generate_runs_live.html.heex:44
 #: lib/tuist_web/live/run_detail_live.html.heex:95
 #: lib/tuist_web/live/test_runs_live.ex:31
@@ -898,8 +900,8 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:69
 #: lib/tuist_web/live/builds_live.html.heex:626
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
-#: lib/tuist_web/live/cache_runs_live.html.heex:17
-#: lib/tuist_web/live/cache_runs_live.html.heex:78
+#: lib/tuist_web/live/cache_runs_live.html.heex:26
+#: lib/tuist_web/live/cache_runs_live.html.heex:104
 #: lib/tuist_web/live/generate_runs_live.html.heex:9
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #: lib/tuist_web/live/generate_runs_live.html.heex:78
@@ -1008,7 +1010,8 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:52
 #: lib/tuist_web/live/builds_live.html.heex:617
-#: lib/tuist_web/live/cache_runs_live.html.heex:67
+#: lib/tuist_web/live/cache_runs_live.ex:42
+#: lib/tuist_web/live/cache_runs_live.html.heex:93
 #: lib/tuist_web/live/generate_runs_live.html.heex:67
 #: lib/tuist_web/live/run_detail_live.html.heex:109
 #: lib/tuist_web/live/test_runs_live.ex:43
@@ -1203,7 +1206,10 @@ msgstr ""
 msgid "Hit"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.html.heex:47
+#: lib/tuist_web/live/cache_runs_live.ex:56
+#: lib/tuist_web/live/cache_runs_live.html.heex:10
+#: lib/tuist_web/live/cache_runs_live.html.heex:18
+#: lib/tuist_web/live/cache_runs_live.html.heex:69
 #: lib/tuist_web/live/generate_runs_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
@@ -1523,7 +1529,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:391
 #: lib/tuist_web/live/builds_live.html.heex:517
 #: lib/tuist_web/live/builds_live.html.heex:650
-#: lib/tuist_web/live/cache_runs_live.html.heex:117
+#: lib/tuist_web/live/cache_runs_live.html.heex:144
 #: lib/tuist_web/live/generate_runs_live.html.heex:117
 #: lib/tuist_web/live/test_runs_live.html.heex:172
 #: lib/tuist_web/live/test_runs_live.html.heex:251
@@ -1649,7 +1655,8 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:50
 #: lib/tuist_web/live/builds_live.html.heex:615
-#: lib/tuist_web/live/cache_runs_live.html.heex:65
+#: lib/tuist_web/live/cache_runs_live.ex:41
+#: lib/tuist_web/live/cache_runs_live.html.heex:91
 #: lib/tuist_web/live/generate_runs_live.html.heex:65
 #: lib/tuist_web/live/run_detail_live.html.heex:107
 #: lib/tuist_web/live/test_runs_live.ex:42
@@ -1835,9 +1842,9 @@ msgstr ""
 #: lib/tuist_web/live/build_runs_live.html.heex:25
 #: lib/tuist_web/live/build_runs_live.html.heex:96
 #: lib/tuist_web/live/builds_live.html.heex:643
-#: lib/tuist_web/live/cache_runs_live.html.heex:10
-#: lib/tuist_web/live/cache_runs_live.html.heex:25
-#: lib/tuist_web/live/cache_runs_live.html.heex:97
+#: lib/tuist_web/live/cache_runs_live.html.heex:11
+#: lib/tuist_web/live/cache_runs_live.html.heex:34
+#: lib/tuist_web/live/cache_runs_live.html.heex:123
 #: lib/tuist_web/live/generate_runs_live.html.heex:10
 #: lib/tuist_web/live/generate_runs_live.html.heex:25
 #: lib/tuist_web/live/generate_runs_live.html.heex:97
@@ -1850,7 +1857,8 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:64
 #: lib/tuist_web/live/builds_live.html.heex:623
-#: lib/tuist_web/live/cache_runs_live.html.heex:73
+#: lib/tuist_web/live/cache_runs_live.ex:71
+#: lib/tuist_web/live/cache_runs_live.html.heex:99
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
 #: lib/tuist_web/live/previews_live.html.heex:66
 #: lib/tuist_web/live/run_detail_live.html.heex:113
@@ -2160,7 +2168,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:435
 #: lib/tuist_web/live/bundle_live.html.heex:562
 #: lib/tuist_web/live/bundles_live.html.heex:200
-#: lib/tuist_web/live/cache_runs_live.html.heex:13
+#: lib/tuist_web/live/cache_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
@@ -2228,6 +2236,7 @@ msgstr ""
 msgid "Start for free, pay as you benefit"
 msgstr ""
 
+#: lib/tuist_web/live/cache_runs_live.ex:37
 #: lib/tuist_web/live/members_live.ex:128
 #: lib/tuist_web/live/run_detail_live.html.heex:105
 #: lib/tuist_web/live/test_runs_live.ex:38
@@ -3333,6 +3342,7 @@ msgstr ""
 msgid "The preview archive doesn't exist or has expired."
 msgstr ""
 
+#: lib/tuist_web/live/cache_runs_live.html.heex:43
 #: lib/tuist_web/live/test_runs_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Filter"

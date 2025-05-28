@@ -169,12 +169,10 @@ defmodule TuistWeb.Noora.Filter do
       end
     end
 
-    # Normalize empty values to nil
     defp normalize_value(nil), do: nil
     defp normalize_value(""), do: nil
     defp normalize_value(val), do: val
 
-    # Process option values (convert to proper type if needed)
     defp process_option_value(nil, _), do: nil
 
     defp process_option_value(val, %{type: :option} = filter) do
@@ -187,15 +185,20 @@ defmodule TuistWeb.Noora.Filter do
       end
     end
 
+    defp process_option_value(val, %{type: :number}) do
+      case Float.parse(val) do
+        {float_val, ""} -> float_val
+        _ -> val
+      end
+    end
+
     defp process_option_value(val, _), do: val
 
-    # Try to convert string to atom if it's in the options list
     defp try_convert_to_atom(val, filter) do
       atom_val = String.to_existing_atom(val)
       if Enum.member?(filter.options, atom_val), do: atom_val, else: val
     end
 
-    # Create the final filter if valid
     defp create_filter(base_filter, operator, val) do
       if base_filter.type == :option && !is_nil(val) && !Enum.member?(base_filter.options, val) do
         []
@@ -243,7 +246,6 @@ defmodule TuistWeb.Noora.Filter do
   end
 
   attr :filter, Filter, required: true
-  attr :on_change, :string, default: nil
 
   def active_filter(assigns) do
     ~H"""
@@ -341,6 +343,10 @@ defmodule TuistWeb.Noora.Filter do
               <.text_input
                 name="value"
                 type="basic"
+                input_type={@filter.type == :number && "number"}
+                min={@filter.type == :number && 0}
+                max={@filter.type == :number && 100}
+                step={@filter.type == :number && 0.1}
                 value={@filter.value}
                 phx-hook="PlaceCursorAtEnd"
               />
@@ -355,7 +361,7 @@ defmodule TuistWeb.Noora.Filter do
                     )
                   }
                 />
-                <.button type="submit" label="Continue" />
+                <.button type="submit" label="Apply" />
               </div>
             </form>
           </div>
@@ -375,13 +381,15 @@ defmodule TuistWeb.Noora.Filter do
 
   defp operators(:option), do: [:==, :!=]
   defp operators(:text), do: [:==, :=~]
-  defp operators(:number), do: [:==, :<, :>]
+  defp operators(:number), do: [:==, :<, :>, :<=, :>=]
 
   def operator_text(:==), do: "is"
   def operator_text(:!=), do: "is not"
   def operator_text(:=~), do: "contains"
   def operator_text(:<), do: "less than"
   def operator_text(:>), do: "greater than"
+  def operator_text(:<=), do: "less than or equal to"
+  def operator_text(:>=), do: "greater than or equal to"
   def operator_text(operator), do: to_string(operator)
 
   defp get_display_value(%Filter{type: :option, value: value, options_display_names: display_names})

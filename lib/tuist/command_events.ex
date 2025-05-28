@@ -66,7 +66,10 @@ defmodule Tuist.CommandEvents do
   end
 
   def list_command_events(attrs, opts \\ []) do
-    query = preload(Event, user: :account)
+    query =
+      Event
+      |> preload(^Keyword.get(opts, :preload, user: :account))
+      |> Event.with_hit_rate()
 
     preload_preview = opts |> Keyword.get(:preload, []) |> Enum.member?(:preview)
 
@@ -85,6 +88,10 @@ defmodule Tuist.CommandEvents do
       if not preload_preview or is_nil(preview_supported_platforms) do
         query
       else
+        # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
+        # && operator finds rows where arrays have any elements in common.
+        # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
+        # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
         where(
           query,
           [e, p],
@@ -97,11 +104,6 @@ defmodule Tuist.CommandEvents do
             )
           )
         )
-
-        # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
-        # && operator finds rows where arrays have any elements in common.
-        # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
-        # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
       end
 
     distinct_preview_bundle_identifier =
@@ -117,7 +119,176 @@ defmodule Tuist.CommandEvents do
         query
       end
 
-    Flop.validate_and_run!(query, attrs, for: Event)
+    {hit_rate_filter, other_filters} = extract_hit_rate_filter(attrs)
+
+    query =
+      if hit_rate_filter do
+        apply_hit_rate_filter_to_query(query, hit_rate_filter)
+      else
+        query
+      end
+
+    {modified_attrs, query} = handle_hit_rate_sort(other_filters, query)
+
+    Flop.validate_and_run!(query, modified_attrs, for: Event)
+  end
+
+  defp extract_hit_rate_filter(%{filters: filters} = attrs) when is_list(filters) do
+    {hit_rate_filters, other_filters} = Enum.split_with(filters, &(&1.field == :hit_rate))
+
+    hit_rate_filter =
+      Enum.find_value(hit_rate_filters, fn
+        %{value: value, op: op} when not is_nil(value) -> {op, value}
+        _ -> nil
+      end)
+
+    {hit_rate_filter, %{attrs | filters: other_filters}}
+  end
+
+  defp extract_hit_rate_filter(attrs), do: {nil, attrs}
+
+  defp handle_hit_rate_sort(%{order_by: order_by, order_directions: directions} = attrs, query)
+       when is_list(order_by) and is_list(directions) do
+    hit_rate_index = Enum.find_index(order_by, &(&1 == :hit_rate))
+
+    if hit_rate_index && hit_rate_index < length(directions) do
+      direction = Enum.at(directions, hit_rate_index)
+
+      {new_order_by, new_directions} =
+        remove_hit_rate_from_ordering(order_by, directions, hit_rate_index)
+
+      modified_query = apply_hit_rate_ordering(query, direction)
+
+      {%{attrs | order_by: new_order_by, order_directions: new_directions}, modified_query}
+    else
+      {attrs, query}
+    end
+  end
+
+  defp handle_hit_rate_sort(attrs, query), do: {attrs, query}
+
+  defp remove_hit_rate_from_ordering(order_by, directions, hit_rate_index) do
+    new_order_by = List.delete_at(order_by, hit_rate_index)
+    new_directions = List.delete_at(directions, hit_rate_index)
+
+    if Enum.empty?(new_order_by) do
+      {[:ran_at], [:desc]}
+    else
+      {new_order_by, new_directions}
+    end
+  end
+
+  defp apply_hit_rate_ordering(query, :desc) do
+    order_by(
+      query,
+      [e],
+      fragment(
+        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END DESC NULLS LAST",
+        e.cacheable_targets,
+        e.local_cache_target_hits,
+        e.remote_cache_target_hits,
+        e.cacheable_targets
+      )
+    )
+  end
+
+  defp apply_hit_rate_ordering(query, _direction) do
+    order_by(
+      query,
+      [e],
+      fragment(
+        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END ASC NULLS FIRST",
+        e.cacheable_targets,
+        e.local_cache_target_hits,
+        e.remote_cache_target_hits,
+        e.cacheable_targets
+      )
+    )
+  end
+
+  defp apply_hit_rate_filter_to_query(query, {op, value}) do
+    case op do
+      :> ->
+        where(
+          query,
+          [e],
+          fragment(
+            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) > TRUNC(CAST(? AS NUMERIC), 1)",
+            e.cacheable_targets,
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets,
+            ^value
+          )
+        )
+
+      :>= ->
+        where(
+          query,
+          [e],
+          fragment(
+            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) >= TRUNC(CAST(? AS NUMERIC), 1)",
+            e.cacheable_targets,
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets,
+            ^value
+          )
+        )
+
+      :< ->
+        where(
+          query,
+          [e],
+          fragment(
+            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) < TRUNC(CAST(? AS NUMERIC), 1)",
+            e.cacheable_targets,
+            fragment(
+              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
+              e.cacheable_targets,
+              e.local_cache_target_hits,
+              e.remote_cache_target_hits,
+              e.cacheable_targets
+            ),
+            ^value
+          )
+        )
+
+      :<= ->
+        where(
+          query,
+          [e],
+          fragment(
+            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) <= TRUNC(CAST(? AS NUMERIC), 1)",
+            e.cacheable_targets,
+            fragment(
+              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
+              e.cacheable_targets,
+              e.local_cache_target_hits,
+              e.remote_cache_target_hits,
+              e.cacheable_targets
+            ),
+            ^value
+          )
+        )
+
+      :== ->
+        where(
+          query,
+          [e],
+          fragment(
+            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) = TRUNC(CAST(? AS NUMERIC), 1)",
+            e.cacheable_targets,
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets,
+            ^value
+          )
+        )
+
+      _ ->
+        query
+    end
   end
 
   def list_test_runs(attrs) do

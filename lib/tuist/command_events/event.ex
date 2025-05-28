@@ -14,6 +14,7 @@ defmodule Tuist.CommandEvents.Event do
   @derive {
     Flop.Schema,
     filterable: [
+      :id,
       :project_id,
       :name,
       :git_commit_sha,
@@ -21,9 +22,10 @@ defmodule Tuist.CommandEvents.Event do
       :git_branch,
       :status,
       :is_ci,
-      :user_id
+      :user_id,
+      :hit_rate
     ],
-    sortable: [:created_at, :ran_at, :duration]
+    sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }
 
   schema "command_events" do
@@ -42,6 +44,7 @@ defmodule Tuist.CommandEvents.Event do
     field :git_ref, :string
     field :git_branch, :string
     field :ran_at, :utc_datetime
+    field :hit_rate, :float, virtual: true
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -124,5 +127,19 @@ defmodule Tuist.CommandEvents.Event do
       changeset |> get_field(:remote_cache_target_hits) |> length()
     )
     |> validate_inclusion(:status, [:success, :failure])
+  end
+
+  def with_hit_rate(query) do
+    from e in query,
+      select_merge: %{
+        hit_rate:
+          fragment(
+            "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END",
+            e.cacheable_targets,
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets
+          )
+      }
   end
 end
