@@ -330,7 +330,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             false,
         ])
     }
-    
+
     func test_buildAction_runPostActionsOnFailure() throws {
         // Given
         let schemeA = Scheme(
