@@ -10,6 +10,7 @@ let project = Project(
             bundleId: "io.tuist.app",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
+            resources: ["CoreData/Users1_2.xcmappingmodel"],
             coreDataModels: [
                 .coreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
                 .coreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
