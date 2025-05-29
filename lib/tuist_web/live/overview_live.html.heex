@@ -17,7 +17,7 @@
         <.dropdown_item
           value="any"
           label={gettext("Any")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "any"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
           data-selected={@analytics_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -25,7 +25,7 @@
         <.dropdown_item
           value="local"
           label={gettext("Local")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "local"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
           data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -33,7 +33,7 @@
         <.dropdown_item
           value="ci"
           label={gettext("CI")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "ci"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -41,17 +41,17 @@
       </.dropdown>
       <.button_group size="large">
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_7_days"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
           label={gettext("7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_30_days"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
           label={gettext("30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_12_months"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
           label={gettext("12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
@@ -359,7 +359,7 @@
           <.dropdown_item
             value={app}
             label={app}
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-app", app))}"}
+            patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
             data-selected={@bundle_size_selected_app == app}
           >
             <:right_icon><.check /></:right_icon>
@@ -368,17 +368,17 @@
       </.dropdown>
       <.button_group size="large">
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-7-days"))}"}
+          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
           label={gettext("7 days")}
           data-selected={@bundle_size_date_range == "last-7-days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-30-days"))}"}
+          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
           label={gettext("30 days")}
           data-selected={@bundle_size_date_range == "last-30-days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-12-months"))}"}
+          patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
           label={gettext("12 months")}
           data-selected={@bundle_size_date_range == "last-12-months"}
         />
@@ -466,7 +466,7 @@
         <.dropdown_item
           value="any"
           label={gettext("Any")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_environment", "any"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_environment", "any")}"}
           data-selected={@builds_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -474,7 +474,7 @@
         <.dropdown_item
           value="local"
           label={gettext("Local")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_environment", "local"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_environment", "local")}"}
           data-selected={@builds_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -482,7 +482,7 @@
         <.dropdown_item
           value="ci"
           label={gettext("CI")}
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_environment", "ci"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_environment", "ci")}"}
           data-selected={@builds_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -490,17 +490,17 @@
       </.dropdown>
       <.button_group size="large">
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_date_range", "last_7_days"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_7_days")}"}
           label={gettext("7 days")}
           data-selected={@builds_date_range == "last_7_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_date_range", "last_30_days"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_30_days")}"}
           label={gettext("30 days")}
           data-selected={@builds_date_range == "last_30_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("builds_date_range", "last_12_months"))}"}
+          patch={"?#{Query.put(@uri.query, "builds_date_range", "last_12_months")}"}
           label={gettext("12 months")}
           data-selected={@builds_date_range == "last_12_months"}
         />

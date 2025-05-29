@@ -143,17 +143,17 @@
     <.tab_menu_horizontal_item
       label={gettext("Overview")}
       selected={@selected_tab == "overview"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "overview"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
       label={gettext("File Breakdown")}
       selected={@selected_tab == "file-breakdown"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "file-breakdown"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "file-breakdown")}"}
     />
     <.tab_menu_horizontal_item
       label={gettext("Module Breakdown")}
       selected={@selected_tab == "module-breakdown"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "module-breakdown"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "module-breakdown")}"}
     />
   </.tab_menu_horizontal>
   <.card
@@ -266,7 +266,7 @@
             number_of_pages={@bundle_size_analysis_sunburst_chart_table_page_count}
             page_patch={
               fn page ->
-                "?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-analysis-table-page", page))}"
+                "?#{Query.put(@uri.query, "bundle-size-analysis-table-page", page)}"
               end
             }
           />
@@ -526,7 +526,7 @@
         number_of_pages={@file_breakdown_page_count}
         page_patch={
           fn page ->
-            "?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("file-breakdown-page", page))}"
+            "?#{Query.put(@uri.query, "file-breakdown-page", page)}"
           end
         }
       />
@@ -625,7 +625,7 @@
         number_of_pages={@module_breakdown_page_count}
         page_patch={
           fn page ->
-            "?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("module-breakdown-page", page))}"
+            "?#{Query.put(@uri.query, "module-breakdown-page", page)}"
           end
         }
       />

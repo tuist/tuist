@@ -22,6 +22,7 @@ defmodule TuistWeb.AppComponents do
   import TuistWeb.Components.TrendBadge
 
   alias Phoenix.LiveView.JS
+  alias TuistWeb.Utilities.Query
 
   attr :id, :string, required: true, doc: "The id of the widget."
   attr :title, :string, required: true, doc: "The title of the widget."
@@ -142,7 +143,7 @@ defmodule TuistWeb.AppComponents do
         variant="secondary"
         label={gettext("Prev")}
         disabled={not @has_previous_page}
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("before", @start_cursor) |> Map.delete("after"))}"}
+        patch={"?#{@uri.query |> Query.drop("after") |> Query.put("before", @start_cursor)}"}
       >
         <:icon_left><.chevron_left /></:icon_left>
       </.button>
@@ -150,7 +151,7 @@ defmodule TuistWeb.AppComponents do
         variant="secondary"
         disabled={not @has_next_page}
         label={gettext("Next")}
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("after", @end_cursor) |> Map.delete("before"))}"}
+        patch={"?#{@uri.query |> Query.drop("before") |> Query.put("after", @end_cursor)}"}
       >
         <:icon_right><.chevron_right /></:icon_right>
       </.button>

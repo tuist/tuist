@@ -12,6 +12,7 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,

@@ -9,7 +9,7 @@
         <.dropdown_item
           value="any"
           label="Any"
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "any"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
           data-selected={@analytics_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -17,7 +17,7 @@
         <.dropdown_item
           value="local"
           label="Local"
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "local"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
           data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -25,7 +25,7 @@
         <.dropdown_item
           value="ci"
           label="CI"
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_environment", "ci"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -33,17 +33,17 @@
       </.dropdown>
       <.button_group size="large">
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_7_days"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
           label={gettext("7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_30_days"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
           label={gettext("30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_date_range", "last_12_months"))}"}
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
           label={gettext("12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
@@ -61,7 +61,7 @@
         id="widget-test-run-count"
         trend_value={@test_runs_analytics.trend}
         trend_label={@analytics_trend_label}
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "test_run_count"))}"}
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_count")}"}
         selected={@analytics_selected_widget == "test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -77,7 +77,7 @@
         trend_value={@failed_test_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "failed_test_run_count"))}"}
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "failed_test_run_count")}"}
         selected={@analytics_selected_widget == "failed_test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -100,7 +100,7 @@
         trend_value={@test_runs_duration_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_inverse
-        patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("analytics_selected_widget", "test_run_duration"))}"}
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_duration")}"}
         selected={@analytics_selected_widget == "test_run_duration"}
         empty={@test_runs_analytics.count == 0}
       />

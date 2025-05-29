@@ -7,6 +7,7 @@ defmodule TuistWeb.RunDetailLive do
 
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias TuistWeb.Utilities.Query
 
   @table_page_size 20
 
@@ -169,7 +170,7 @@ defmodule TuistWeb.RunDetailLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("selective-testing-filter", search) |> URI.encode_query()}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{Query.put(socket.assigns.uri.query, "selective-testing-filter", search)}"
       )
 
     {:noreply, socket}
@@ -180,7 +181,7 @@ defmodule TuistWeb.RunDetailLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("binary-cache-filter", search) |> URI.encode_query()}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{Query.put(socket.assigns.uri.query, "binary-cache-filter", search)}"
       )
 
     {:noreply, socket}

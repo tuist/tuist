@@ -71,19 +71,19 @@
     <.tab_menu_horizontal_item
       label={gettext("Overview")}
       selected={@selected_tab == "overview"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "overview"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
       :if={not Enum.empty?(@selective_testing_analytics.test_modules)}
       label={gettext("Test Optimizations")}
       selected={@selected_tab == "test-optimizations"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "test-optimizations"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
     />
     <.tab_menu_horizontal_item
       :if={not Enum.empty?(@binary_cache_analytics.cacheable_targets)}
       label={gettext("Compilation Optimizations")}
       selected={@selected_tab == "compilation-optimizations"}
-      patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("tab", "compilation-optimizations"))}"}
+      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
@@ -222,7 +222,12 @@
           <:col
             :let={test_module}
             label={gettext("Module")}
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("selective-testing-sort-by", "module") |> Map.put("selective-testing-sort-order", sort_order_patch_value("module", @selective_testing_sort_by, @selective_testing_sort_order)) |> Map.delete("selective-testing-page"))}"}
+            patch={
+              "?#{@uri.query
+              |> Query.put("selective-testing-sort-by", "module")
+              |> Query.put("selective-testing-sort-order", sort_order_patch_value("module", @selective_testing_sort_by, @selective_testing_sort_order))
+              |> Query.drop("selective-testing-page")}"
+            }
             icon={
               @selective_testing_sort_by == "module" &&
                 sort_icon(@selective_testing_sort_order)
@@ -257,7 +262,7 @@
           number_of_pages={@selective_testing_page_count}
           page_patch={
             fn page ->
-              "?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("selective-testing-page", page))}"
+              "?#{Query.put(@uri.query, "selective-testing-page", page)}"
             end
           }
         />
@@ -311,7 +316,12 @@
           <:col
             :let={binary_cache_module}
             label={gettext("Module")}
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("binary-cache-sort-by", "module") |> Map.put("binary-cache-sort-order", sort_order_patch_value("module", @binary_cache_sort_by, @binary_cache_sort_order)) |> Map.delete("binary-cache-page")) }"}
+            patch={
+              "?#{@uri.query
+              |> Query.put("binary-cache-sort-by", "module")
+              |> Query.put("binary-cache-sort-order", sort_order_patch_value("module", @binary_cache_sort_by, @binary_cache_sort_order))
+              |> Query.drop("binary-cache-page")}"
+            }
             icon={
               @binary_cache_sort_by == "module" &&
                 sort_icon(@binary_cache_sort_order)
@@ -346,7 +356,7 @@
           number_of_pages={@binary_cache_page_count}
           page_patch={
             fn page ->
-              "?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("binary-cache-page", page))}"
+              "?#{Query.put(@uri.query, "binary-cache-page", page)}"
             end
           }
         />

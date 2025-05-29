@@ -30,7 +30,7 @@
             <.dropdown_item
               value={app}
               label={app}
-              patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-app", app))}"}
+              patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
               data-selected={@bundle_size_selected_app == app}
             >
               <:right_icon><.check /></:right_icon>
@@ -39,17 +39,17 @@
         </.dropdown>
         <.button_group size="large">
           <.button_group_item
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-7-days"))}"}
+            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}
             label={gettext("7 days")}
             data-selected={@bundle_size_date_range == "last-7-days"}
           />
           <.button_group_item
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-30-days"))}"}
+            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-30-days")}"}
             label={gettext("30 days")}
             data-selected={@bundle_size_date_range == "last-30-days"}
           />
           <.button_group_item
-            patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-date-range", "last-12-months"))}"}
+            patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-12-months")}"}
             label={gettext("12 months")}
             data-selected={@bundle_size_date_range == "last-12-months"}
           />
@@ -65,7 +65,7 @@
           }
           value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)}
           id="widget-install-size"
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-selected-widget", "install-size"))}"}
+          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "install-size")}"}
           selected={@bundle_size_selected_widget == "install-size"}
           trend_value={
             (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
@@ -91,7 +91,7 @@
                format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
           }
           id="widget-bundle-size"
-          patch={"?#{URI.encode_query(URI.decode_query(@uri.query) |> Map.put("bundle-size-selected-widget", "download-size"))}"}
+          patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "download-size")}"}
           selected={@bundle_size_selected_widget == "download-size"}
           trend_value={
             (@bundle_size_last_bundle && @bundle_size_previous_bundle &&

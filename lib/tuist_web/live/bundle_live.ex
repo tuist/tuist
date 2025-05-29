@@ -12,6 +12,7 @@ defmodule TuistWeb.BundleLive do
   alias Tuist.Previews
   alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Query
 
   @table_page_size 20
 
@@ -91,7 +92,11 @@ defmodule TuistWeb.BundleLive do
       children:
         bundle.artifacts
         |> Enum.map(
-          &%{value: &1.size, name: &1.path |> String.split("/") |> List.last(), artifact_type: &1.artifact_type}
+          &%{
+            value: &1.size,
+            name: &1.path |> String.split("/") |> List.last(),
+            artifact_type: &1.artifact_type
+          }
         )
         |> Enum.sort_by(& &1.value, :desc)
     }
@@ -159,7 +164,13 @@ defmodule TuistWeb.BundleLive do
     module_breakdown_filtered_artifacts =
       all_artifacts
       |> Enum.filter(&String.ends_with?(&1.path, ".framework"))
-      |> Enum.map(&Map.put(&1, :name, &1.path |> String.split("/") |> List.last() |> String.split(".") |> List.first()))
+      |> Enum.map(
+        &Map.put(
+          &1,
+          :name,
+          &1.path |> String.split("/") |> List.last() |> String.split(".") |> List.first()
+        )
+      )
       |> Enum.filter(&String.contains?(String.downcase(&1.name), String.downcase(module_breakdown_filter)))
 
     module_breakdown_page_count =
@@ -196,7 +207,7 @@ defmodule TuistWeb.BundleLive do
     {:noreply,
      push_patch(socket,
        to:
-         "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{uri.query |> URI.decode_query() |> Map.put("filter", filter) |> URI.encode_query()}"
+         "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.put(uri.query, "filter", filter)}"
      )}
   end
 
@@ -205,7 +216,7 @@ defmodule TuistWeb.BundleLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("file-breakdown-filter", search) |> Map.delete("file-breakdown-page") |> URI.encode_query()}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{socket.assigns.uri.query |> Query.put("file-breakdown-filter", search) |> Query.drop("file-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -216,7 +227,7 @@ defmodule TuistWeb.BundleLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{socket.assigns.uri.query |> URI.decode_query() |> Map.put("module-breakdown-filter", search) |> Map.delete("module-breakdown-page") |> URI.encode_query()}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{socket.assigns.uri.query |> Query.put("module-breakdown-filter", search) |> Query.drop("module-breakdown-page")}"
       )
 
     {:noreply, socket}
@@ -237,7 +248,10 @@ defmodule TuistWeb.BundleLive do
         socket
       ) do
     children =
-      Enum.map(artifact["children"] || [], &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]})
+      Enum.map(
+        artifact["children"] || [],
+        &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]}
+      )
 
     artifact = %{
       name: name,
@@ -270,7 +284,11 @@ defmodule TuistWeb.BundleLive do
       children:
         bundle.artifacts
         |> Enum.map(
-          &%{value: &1.size, name: &1.path |> String.split("/") |> List.last(), artifact_type: &1.artifact_type}
+          &%{
+            value: &1.size,
+            name: &1.path |> String.split("/") |> List.last(),
+            artifact_type: &1.artifact_type
+          }
         )
         |> Enum.sort_by(& &1.value, :desc)
     }
@@ -313,7 +331,11 @@ defmodule TuistWeb.BundleLive do
           children:
             bundle.artifacts
             |> Enum.map(
-              &%{value: &1.size, name: &1.path |> String.split("/") |> List.last(), artifact_type: &1.artifact_type}
+              &%{
+                value: &1.size,
+                name: &1.path |> String.split("/") |> List.last(),
+                artifact_type: &1.artifact_type
+              }
             )
             |> Enum.sort_by(& &1.value, :desc)
         }
@@ -327,7 +349,11 @@ defmodule TuistWeb.BundleLive do
           children:
             artifact.children
             |> Enum.map(
-              &%{value: &1.size, name: &1.path |> String.split("/") |> List.last(), artifact_type: &1.artifact_type}
+              &%{
+                value: &1.size,
+                name: &1.path |> String.split("/") |> List.last(),
+                artifact_type: &1.artifact_type
+              }
             )
             |> Enum.sort_by(& &1.value, :desc)
         }
@@ -391,7 +417,10 @@ defmodule TuistWeb.BundleLive do
         socket
       ) do
     children =
-      Enum.map(artifact["children"] || [], &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]})
+      Enum.map(
+        artifact["children"] || [],
+        &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]}
+      )
 
     artifact = %{name: name, value: value, artifact_id: artifact_id, children: children}
 
@@ -731,7 +760,9 @@ defmodule TuistWeb.BundleLive do
   end
 
   defp assign_table_artifact(socket, artifact, params) do
-    bundle_size_analysis_sunburst_chart_table_page = String.to_integer(params["bundle-size-analysis-table-page"] || "1")
+    bundle_size_analysis_sunburst_chart_table_page =
+      String.to_integer(params["bundle-size-analysis-table-page"] || "1")
+
     table_page_size = 5
 
     current_page_children =
@@ -746,8 +777,14 @@ defmodule TuistWeb.BundleLive do
 
     socket
     |> assign(:bundle_size_analysis_sunburst_chart_table_artifact, artifact)
-    |> assign(:bundle_size_analysis_sunburst_chart_table_page, bundle_size_analysis_sunburst_chart_table_page)
-    |> assign(:bundle_size_analysis_sunburst_chart_table_page_count, bundle_size_analysis_sunburst_chart_table_page_count)
+    |> assign(
+      :bundle_size_analysis_sunburst_chart_table_page,
+      bundle_size_analysis_sunburst_chart_table_page
+    )
+    |> assign(
+      :bundle_size_analysis_sunburst_chart_table_page_count,
+      bundle_size_analysis_sunburst_chart_table_page_count
+    )
     |> assign(
       :bundle_size_analysis_sunburst_chart_table_current_page_artifacts,
       current_page_children
