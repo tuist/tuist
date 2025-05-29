@@ -1,3 +1,4 @@
 import ProjectDescription
 
-let config = Config(project: .tuist(generationOptions: .options(disableSandbox: true)))
+let disableSandbox = Environment.disableSandbox.getBoolean(default: true)
+let config = Config(project: .tuist(generationOptions: .options(disableSandbox: disableSandbox)))

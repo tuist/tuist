@@ -347,7 +347,6 @@ public class ManifestLoader: ManifestLoading {
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
         } catch {
-            try mapErrorIfNeeded(in: path, error: error)
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error
@@ -485,27 +484,6 @@ public class ManifestLoader: ManifestLoading {
         ; Allow reading from specified paths
         \(readOnlyPaths.map { "(allow file-read* (subpath \"\($0)\"))" }.joined(separator: "\n"))
         """
-    }
-
-    private func mapErrorIfNeeded(in path: AbsolutePath, error: Error) throws {
-        guard case let TuistSupport.SystemError.signalled(command, code, standardError) = error,
-              command == "sandbox-exec",
-              code == 5,
-              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
-
-        throw ManifestLoaderError.manifestLoadingFailed(
-            path: path,
-            data: Data(),
-            context: """
-            Caught sandbox policy violation while loading manifest. This typically happens when the manifest attempts to access file system or network resources. To resolve this, you can:
-            1. Modify your manifest to avoid accessing file system or network resources, or
-            2. (not recommended) Disable the sandbox by setting `disableSandbox: true` in your Tuist.swift:
-               ```swift
-               let config = Config(project: .tuist(generationOptions: .options(disableSandbox: true)))
-               ```
-            \(errorMessage)
-            """
-        )
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
