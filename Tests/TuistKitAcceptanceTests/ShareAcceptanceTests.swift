@@ -45,11 +45,11 @@ struct ShareAcceptanceTests {
         // When: Run
         try await TuistTest.run(
             RunCommand.self,
-            [shareLink, "-destination", simulator]
+            [shareLink, "-destination", simulator.name]
         )
         #expect(
             ui()
-                .contains("Launching App on \(simulator)") == true
+                .contains("Launching App on \(simulator.name)") == true
         )
     }
 
@@ -85,11 +85,11 @@ struct ShareAcceptanceTests {
         // When: Run
         try await TuistTest.run(
             RunCommand.self,
-            [shareLink, "-destination", simulator]
+            [shareLink, "-destination", simulator.name]
         )
         #expect(
             ui()
-                .contains("Launching App on \(simulator)") == true
+                .contains("Launching App on \(simulator.name)") == true
         )
 
         // When: Share AppClip1
@@ -103,11 +103,11 @@ struct ShareAcceptanceTests {
         // When: Run AppClip1
         try await TuistTest.run(
             RunCommand.self,
-            [appClipShareLink, "-destination", simulator]
+            [appClipShareLink, "-destination", simulator.name]
         )
         #expect(
             ui()
-                .contains("Launching AppClip1 on \(simulator)") == true
+                .contains("Launching AppClip1 on \(simulator.name)") == true
         )
     }
 
@@ -160,11 +160,11 @@ struct ShareAcceptanceTests {
         // When: Run App
         try await TuistTest.run(
             RunCommand.self,
-            [previewLink, "-destination", simulator]
+            [previewLink, "-destination", simulator.name]
         )
         #expect(
             ui()
-                .contains("Launching App on \(simulator)") == true
+                .contains("Launching App on \(simulator.name)") == true
         )
     }
 
@@ -219,11 +219,11 @@ struct ShareAcceptanceTests {
         // When: Run App
         try await TuistTest.run(
             RunCommand.self,
-            [previewLink, "-destination", simulator]
+            [previewLink, "-destination", simulator.name]
         )
         #expect(
             ui()
-                .contains("Launching App on \(simulator)") == true
+                .contains("Launching App on \(simulator.name)") == true
         )
     }
 

@@ -1,20 +1,66 @@
 import Command
+import FileSystem
+import Testing
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeProj
 import XCTest
+
 @testable import TuistKit
 
-final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test_app_spm_dependencies() async throws {
-        try await setUpFixture(.appWithSpmDependencies)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-        try await run(BuildCommand.self, "VisionOSApp")
-        try await run(TestCommand.self, "AppKit")
+struct DependenciesAcceptanceTests {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("app_with_spm_dependencies"),
+        .withTestingSimulator("iPhone 16 Pro")
+    )
+    func app_with_spm_dependencies() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
+
+        // When: Build
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--path", fixtureDirectory.pathString, "--no-open"]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--platform",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "AppKit",
+                "--device",
+                simulator.name,
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
     }
 }
 
