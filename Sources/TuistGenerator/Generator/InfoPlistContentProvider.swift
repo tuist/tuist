@@ -102,7 +102,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         var packageType: String?
 
         switch target.product {
-        case .app, .appClip:
+        case .app, .appClip, .loginItem:
             packageType = "APPL"
         case .staticLibrary, .dynamicLibrary:
             packageType = nil

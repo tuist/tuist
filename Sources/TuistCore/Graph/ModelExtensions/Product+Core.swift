@@ -52,6 +52,8 @@ extension Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .loginItem:
+            return .application
         }
     }
 }
