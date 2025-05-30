@@ -783,6 +783,7 @@ struct ConfigGeneratorTests {
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
             .release("CustomRelease"): nil,
+            .release("AnotherRelease"): nil,
         ])
         let project = Project.test(settings: settings)
 
@@ -794,7 +795,7 @@ struct ConfigGeneratorTests {
         )
 
         // Then
-        #expect(result.defaultConfigurationName == "CustomRelease")
+        #expect(result.defaultConfigurationName == "AnotherRelease")
     }
 
     @Test(
@@ -819,6 +820,30 @@ struct ConfigGeneratorTests {
         #expect(result.defaultConfigurationName == "AnotherDebug")
     }
 
+    func test_generateProjectConfig_defaultConfigurationName_whenDefaultConfigurationNameIsProvided() async throws {
+        // Given
+        let settings = Settings(
+            configurations: [
+                .debug("CustomDebug"): nil,
+                .debug("AnotherDebug"): nil,
+                .release("CustomRelease"): nil,
+                .release("AnotherRelease"): nil,
+            ],
+            defaultConfiguration: "CustomDebug"
+        )
+        let project = Project.test(settings: settings)
+
+        // When
+        let result = try await subject.generateProjectConfig(
+            project: project,
+            pbxproj: pbxproj,
+            fileElements: ProjectFileElements()
+        )
+
+        // Then
+        #expect(result.defaultConfigurationName == "CustomDebug")
+    }
+
     @Test(
         .withMockedXcodeController,
         .inTemporaryDirectory
@@ -828,6 +853,7 @@ struct ConfigGeneratorTests {
             .debug("CustomDebug"): nil,
             .debug("AnotherDebug"): nil,
             .release("CustomRelease"): nil,
+            .release("AnotherRelease"): nil,
         ])
         let project = Project.test()
         let target = Target.test()
@@ -848,7 +874,7 @@ struct ConfigGeneratorTests {
 
         // Then
         let result = pbxTarget.buildConfigurationList
-        #expect(result?.defaultConfigurationName == "CustomRelease")
+        #expect(result?.defaultConfigurationName == "AnotherRelease")
     }
 
     @Test(
@@ -880,6 +906,39 @@ struct ConfigGeneratorTests {
         // Then
         let result = pbxTarget.buildConfigurationList
         #expect(result?.defaultConfigurationName == "AnotherDebug")
+    }
+
+    func test_generateTargetConfig_defaultConfigurationName_whenDefaultConfigurationNameIsProvided() async throws {
+        // Given
+        let projectSettings = Settings(
+            configurations: [
+                .debug("CustomDebug"): nil,
+                .debug("AnotherDebug"): nil,
+                .release("CustomRelease"): nil,
+                .release("AnotherRelease"): nil,
+            ],
+            defaultConfiguration: "CustomDebug"
+        )
+        let project = Project.test()
+        let target = Target.test()
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let result = pbxTarget.buildConfigurationList
+        #expect(result?.defaultConfigurationName == "CustomDebug")
     }
 
     @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_generateTargetConfigWithDuplicateValues() async throws {
