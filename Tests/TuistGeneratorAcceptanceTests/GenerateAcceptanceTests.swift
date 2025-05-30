@@ -1340,7 +1340,10 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
             try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
             Issue.record("Generate should have failed with crash")
         } catch {
-            #expect(String(describing: error).contains("The file “hosts” couldn’t be opened because you don’t have permission to view it."))
+            #expect(
+                String(describing: error)
+                    .contains("The file “hosts” couldn’t be opened because you don’t have permission to view it.")
+            )
         }
     }
 }
