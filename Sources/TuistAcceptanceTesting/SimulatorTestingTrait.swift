@@ -22,19 +22,21 @@ public struct SimulatorTestingTrait: TestTrait, SuiteTrait, TestScoping {
     ) async throws {
         let commandRunner = CommandRunner()
         let simulatorId = UUID().uuidString
-        try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, simulator]).awaitCompletion()
+        try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, simulator]).pipedStream()
+            .awaitCompletion()
         try await Simulator.$testing.withValue(Simulator(name: simulatorId)) {
             let clean = {
-                try? await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "delete", "name=\(simulatorId)"])
+                try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId])
+                    .pipedStream()
                     .awaitCompletion()
             }
             do {
                 try await function()
             } catch {
-                await clean()
+                try await clean()
                 throw error
             }
-            await clean()
+            try await clean()
         }
     }
 }
