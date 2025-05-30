@@ -7,7 +7,6 @@ defmodule Tuist.Bundles do
 
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
-  alias Tuist.Bundles.SummaryWorker
   alias Tuist.Projects.Project
   alias Tuist.Repo
 

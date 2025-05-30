@@ -207,7 +207,7 @@
       data-part="selective-testing"
     >
       <.card_section data-part="selective-testing-section">
-        <.form phx-change="search-selective-testing" phx-debounce="200">
+        <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
           <.text_input
             type="search"
             id="search-selective-testing"
@@ -301,7 +301,7 @@
     </.card>
     <.card title={gettext("Binary Cache")} icon="database" data-part="binary-cache">
       <.card_section data-part="binary-cache-section">
-        <.form phx-change="search-binary-cache" phx-debounce="200">
+        <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
           <.text_input
             type="search"
             id="search-binary-cache"

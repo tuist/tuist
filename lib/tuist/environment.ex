@@ -32,15 +32,15 @@ defmodule Tuist.Environment do
   def all_envs, do: [:dev, :test, :can, :stag, :prod]
 
   def test? do
-    env() == :test
+    @env == :test
   end
 
   def dev? do
-    env() == :dev
+    @env == :dev
   end
 
   def prod? do
-    env() == :prod
+    @env == :prod
   end
 
   defmacro run_if_error_tracking_enabled(block) do
@@ -119,7 +119,7 @@ defmodule Tuist.Environment do
   end
 
   def analytics_enabled? do
-    not on_premise?() and env() == :prod
+    not on_premise?() and @env == :prod
   end
 
   def error_tracking_enabled? do
@@ -445,7 +445,7 @@ defmodule Tuist.Environment do
   It decrypts the secrets and returns them.
   """
   def decrypt_secrets do
-    if env() == :test do
+    if @env == :test do
       {:ok, secrets_map} =
         "priv/secrets/test.yml"
         |> File.read!()

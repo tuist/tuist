@@ -4,7 +4,6 @@ defmodule TuistWeb.Noora.Select do
 
   import TuistWeb.Noora.Dropdown
   import TuistWeb.Noora.Icon
-  import TuistWeb.Noora.Utils
 
   alias Phoenix.HTML.FormField
 

@@ -27,7 +27,6 @@ defmodule TuistWeb.Components.EmptyCardSection do
         target="_blank"
         href={@get_started_href}
         label={gettext("Get started")}
-        icon_position="right"
         size="medium"
         underline
       >

@@ -6,7 +6,6 @@ defmodule TuistWeb.AppLayoutComponents do
   use TuistWeb.Noora
 
   import TuistWeb.AccountDropdown
-  import TuistWeb.AppComponents, except: [icon: 1]
   import TuistWeb.Noora.Breadcrumbs
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.LineDivider
@@ -209,13 +208,5 @@ defmodule TuistWeb.AppLayoutComponents do
       :breadcrumbs,
       Map.get(socket.assigns, :breadcrumbs, []) ++ [breadcrumb]
     )
-  end
-
-  defp show_dashboard? do
-    if Tuist.Environment.on_premise?() do
-      Tuist.Repo.timescale_available?()
-    else
-      true
-    end
   end
 end

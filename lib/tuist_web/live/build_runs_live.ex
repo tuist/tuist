@@ -6,7 +6,6 @@ defmodule TuistWeb.BuildRunsLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Accounts
   alias Tuist.Projects
   alias Tuist.Runs
 

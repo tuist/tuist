@@ -222,7 +222,7 @@ defmodule TuistWeb.Noora.Table do
   end
 
   attr :status, :string,
-    values: ~w(success error warning disabled),
+    values: ~w(success error warning disabled attention),
     required: true,
     doc: "The status of the badge"
 
@@ -295,7 +295,7 @@ defmodule TuistWeb.Noora.Table do
   end
 
   attr :icon, :string, default: nil, doc: "Icon to show in the empty state."
-  attr :title, :string, required: true, doc: "Title of the empty state."
+  attr :title, :string, default: nil, doc: "Title of the empty state."
   attr :subtitle, :string, default: nil, doc: "Subtitle of the empty state."
 
   slot :inner_block, doc: "Custom empty state content. Supersedes all attributes."
@@ -309,7 +309,7 @@ defmodule TuistWeb.Noora.Table do
         <div :if={@icon} data-part="icon">
           <.icon name={@icon} />
         </div>
-        <div data-part="title">
+        <div :if={@title} data-part="title">
           {@title}
         </div>
         <div :if={@subtitle} data-part="subtitle">

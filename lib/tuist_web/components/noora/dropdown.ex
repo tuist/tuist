@@ -65,13 +65,7 @@ defmodule TuistWeb.Noora.Dropdown do
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
     >
-      <button
-        :if={!@icon_only}
-        size="trigger_size"
-        data-part="trigger"
-        disabled={@disabled}
-        type="button"
-      >
+      <button :if={!@icon_only} data-part="trigger" disabled={@disabled} type="button">
         <div data-part="label-wrapper">
           <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
             {render_slot(@icon)}

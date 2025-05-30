@@ -71,10 +71,7 @@ RUN mix marketing.gen.og_images;
 
 # Compile the release
 
-# There are some type-checking warnings that we don't know how to address
-# https://elixirforum.com/t/set-theoretic-types-and-compile-time-types/68318
-# RUN mix compile --warnings-as-errors
-RUN mix compile
+RUN mix compile --warnings-as-errors
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/

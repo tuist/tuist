@@ -71,10 +71,12 @@ defmodule TuistWeb.BillingLive do
     {:ok, socket}
   end
 
+  @impl true
   def handle_params(_params, uri, socket) do
     {:noreply, assign(socket, :uri, uri)}
   end
 
+  @impl true
   def handle_event("change_plan", %{"plan" => plan}, socket) do
     plan = String.to_atom(plan)
 
@@ -91,6 +93,7 @@ defmodule TuistWeb.BillingLive do
     {:noreply, socket}
   end
 
+  @impl true
   def handle_info(:change_plan, %{assigns: %{new_plan: new_plan, selected_account: selected_account, uri: uri}} = socket) do
     socket =
       case Billing.update_plan(%{

@@ -106,14 +106,10 @@ defmodule TuistWeb.API.BundlesController do
     responses: %{
       ok: {"The bundle was created", "application/json", TuistWeb.API.Schemas.Bundle},
       bad_request: {"An error occurred while updating the account.", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to update your account.", "application/json", Error}
+      unauthorized: {"You need to be authenticated to update your account.", "application/json", Error}
     }
 
-  def create(
-        %{assigns: %{selected_project: selected_project}, body_params: body_params} = conn,
-        params
-      ) do
+  def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
     bundle = params["bundle"]
     id = UUIDv7.generate()
 
@@ -144,10 +140,7 @@ defmodule TuistWeb.API.BundlesController do
         |> put_status(:ok)
         |> json(%{
           id: bundle.id,
-          url:
-            url(
-              ~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}"
-            )
+          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
         })
 
       {:error, %Ecto.Changeset{} = changeset} ->

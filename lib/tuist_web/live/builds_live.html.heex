@@ -596,17 +596,7 @@
           bar_radius={2}
         />
       </div>
-      <.table
-        id="build-runs-table"
-        rows={@recent_builds |> Enum.take(7)}
-        row_navigate={
-          fn build ->
-            url(
-              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
-            )
-          end
-        }
-      >
+      <.table id="build-runs-table" rows={@recent_builds |> Enum.take(7)}>
         <:col :let={build} label={gettext("Scheme")}>
           <.text_and_description_cell label={build.scheme || gettext("Unknown")} />
         </:col>

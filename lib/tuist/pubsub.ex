@@ -14,6 +14,4 @@ defmodule Tuist.PubSub do
 
     {:ok, payload}
   end
-
-  def broadcast(error, _channel, _event), do: error
 end

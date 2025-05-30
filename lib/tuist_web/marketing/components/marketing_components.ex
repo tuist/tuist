@@ -9,12 +9,13 @@ defmodule TuistWeb.Marketing.MarketingComponents do
 
   embed_templates "marketing_layout_components/*"
 
+  attr :href, :string, default: nil
   attr :rest, :global
   slot :inner_block, required: true
 
   def marketing_link(assigns) do
     rest = Map.get(assigns, :rest, %{})
-    href = Map.get(rest, :href) || ""
+    href = assigns.href || Map.get(rest, :href) || ""
     local = String.starts_with?(href, "/")
 
     href =

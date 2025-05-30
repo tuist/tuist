@@ -76,9 +76,6 @@ defmodule TuistWeb.CreateProjectLive do
                   value={@selected_account}
                   on_value_change="select_account"
                 >
-                  <:icon>
-                    <.user />
-                  </:icon>
                   <:item
                     :for={account <- @accounts}
                     value={account.id}
@@ -88,7 +85,7 @@ defmodule TuistWeb.CreateProjectLive do
                 </.select>
               </div>
 
-              <.button type="primary" label={gettext("Continue")} type="submit" />
+              <.button variant="primary" label={gettext("Continue")} type="submit" />
               <.line_divider text={gettext("Or set up a new organization")} />
               <.button
                 label={gettext("Create organization")}

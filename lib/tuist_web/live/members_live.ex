@@ -3,7 +3,6 @@ defmodule TuistWeb.MembersLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
 
-  alias Phoenix.LiveView.JS
   alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Authorization
@@ -31,7 +30,7 @@ defmodule TuistWeb.MembersLive do
     <div id="members">
       <h2 data-part="title">{gettext("Members")}</h2>
       <div data-part="row">
-        <.form :if={@selected_inner_tab == "members"} phx-change="search">
+        <.form :if={@selected_inner_tab == "members"} for={%{}} phx-change="search">
           <.text_input
             id="search-members"
             name="search"
@@ -129,7 +128,7 @@ defmodule TuistWeb.MembersLive do
                 <.status_badge_cell label={gettext("Pending")} status="attention" />
               </:col>
               <:col :let={invitation}>
-                <.dropdown id={"invite-actions-#{invitation.id}"} trigger_size="small" icon_only>
+                <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
                   <:icon><.dots_vertical /></:icon>
                   <.dropdown_item
                     label={gettext("Revoke invite")}
@@ -147,7 +146,6 @@ defmodule TuistWeb.MembersLive do
                   <.cards_light />
                   <.background_grid_dark />
                   <.cards_dark />
-
                   <div data-part="title">
                     {gettext("No invitations created")}
                   </div>

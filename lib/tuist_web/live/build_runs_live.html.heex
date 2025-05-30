@@ -31,17 +31,7 @@
         </.dropdown>
       </div>
       <div :if={not Enum.empty?(@build_runs)} data-part="build-runs-table">
-        <.table
-          id="build-runs-table"
-          rows={@build_runs}
-          row_navigate={
-            fn build_run ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build_run.id}"
-              )
-            end
-          }
-        >
+        <.table id="build-runs-table" rows={@build_runs}>
           <:col :let={build_run} label={gettext("Scheme")}>
             <.text_cell label={build_run.scheme || "None"} />
           </:col>

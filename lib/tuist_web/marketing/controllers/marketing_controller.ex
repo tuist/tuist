@@ -179,7 +179,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
 
     newsletter_issue_urls =
-      Enum.map(Newsletter.issues(), &Tuist.Environment.app_url(path: ~p"/newsletter/issue/#{&1.number}"))
+      Enum.map(Newsletter.issues(), &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}"))
 
     entries =
       [

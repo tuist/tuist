@@ -53,6 +53,8 @@ defmodule Tuist do
       Previews.Preview,
       Projects,
       Projects.Project,
+      Projects.Workers.CleanProjectWorker,
+      Apple,
       Xcode,
       Xcode.XcodeGraph,
       Xcode.XcodeProject,

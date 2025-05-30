@@ -22,7 +22,7 @@ msgid "\"We approach openness with curiosity, not fear.\""
 msgstr ""
 
 #: lib/tuist/billing.ex:54
-#: lib/tuist_web/live/billing_live.ex:206
+#: lib/tuist_web/live/billing_live.ex:209
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:46
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
 #, elixir-autogen, elixir-format
@@ -63,7 +63,7 @@ msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/preview_live.ex:41
+#: lib/tuist_web/live/preview_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
@@ -233,7 +233,7 @@ msgid "Add payment method"
 msgstr ""
 
 #: lib/tuist/billing.ex:35
-#: lib/tuist_web/live/billing_live.ex:181
+#: lib/tuist_web/live/billing_live.ex:184
 #: lib/tuist_web/live/billing_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Air"
@@ -251,7 +251,7 @@ msgid "All billing correspondence will go to this email"
 msgstr ""
 
 #: lib/tuist/billing.ex:42
-#: lib/tuist_web/live/billing_live.ex:186
+#: lib/tuist_web/live/billing_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr ""
@@ -282,12 +282,12 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:230
-#: lib/tuist_web/live/builds_live.ex:238
+#: lib/tuist_web/live/builds_live.ex:228
+#: lib/tuist_web/live/builds_live.ex:236
 #: lib/tuist_web/live/builds_live.html.heex:11
 #: lib/tuist_web/live/builds_live.html.heex:35
 #: lib/tuist_web/live/builds_live.html.heex:65
-#: lib/tuist_web/live/overview_live.ex:288
+#: lib/tuist_web/live/overview_live.ex:284
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:468
 #: lib/tuist_web/live/test_runs_live.ex:238
@@ -434,7 +434,7 @@ msgstr ""
 msgid "Blog posts by the Tuist team."
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:55
+#: lib/tuist_web/live/build_runs_live.html.heex:45
 #: lib/tuist_web/live/bundle_live.html.heex:57
 #: lib/tuist_web/live/bundles_live.html.heex:234
 #: lib/tuist_web/live/cache_runs_live.ex:49
@@ -448,8 +448,8 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:84
-#: lib/tuist_web/live/builds_live.ex:21
+#: lib/tuist_web/components/app_layout_components.ex:83
+#: lib/tuist_web/live/builds_live.ex:19
 #: lib/tuist_web/live/builds_live.html.heex:2
 #: lib/tuist_web/live/overview_live.html.heex:459
 #, elixir-autogen, elixir-format
@@ -468,9 +468,9 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:14
 #: lib/tuist_web/components/runs/ran_by_badge.ex:41
-#: lib/tuist_web/live/builds_live.ex:232
+#: lib/tuist_web/live/builds_live.ex:230
 #: lib/tuist_web/live/builds_live.html.heex:81
-#: lib/tuist_web/live/overview_live.ex:296
+#: lib/tuist_web/live/overview_live.ex:292
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:484
 #: lib/tuist_web/live/test_runs_live.ex:246
@@ -483,7 +483,7 @@ msgstr ""
 msgid "CI and local environments"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:40
+#: lib/tuist_web/components/app_layout_components.ex:39
 #: lib/tuist_web/live/cache_runs_live.ex:20
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #: lib/tuist_web/live/run_detail_live.html.heex:16
@@ -575,7 +575,7 @@ msgstr ""
 msgid "Command"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:58
+#: lib/tuist_web/live/build_runs_live.html.heex:48
 #: lib/tuist_web/live/bundle_live.html.heex:131
 #: lib/tuist_web/live/bundles_live.html.heex:250
 #: lib/tuist_web/live/preview_live.html.heex:125
@@ -596,7 +596,7 @@ msgstr ""
 msgid "Community support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:187
+#: lib/tuist_web/live/billing_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr ""
@@ -677,12 +677,12 @@ msgid "Contact"
 msgstr ""
 
 #: lib/tuist/billing.ex:72
-#: lib/tuist_web/live/billing_live.ex:237
+#: lib/tuist_web/live/billing_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:91
+#: lib/tuist_web/live/create_project_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -718,12 +718,12 @@ msgid "Create an organization account to continue"
 msgstr ""
 
 #: lib/tuist_web/live/create_organization_live.ex:50
-#: lib/tuist_web/live/create_project_live.ex:94
+#: lib/tuist_web/live/create_project_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:228
+#: lib/tuist_web/live/billing_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr ""
@@ -744,22 +744,22 @@ msgstr ""
 msgid "Cube outline icon"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:191
-#: lib/tuist_web/live/billing_live.ex:215
+#: lib/tuist_web/live/billing_live.ex:194
+#: lib/tuist_web/live/billing_live.ex:218
 #: lib/tuist_web/live/billing_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr ""
 
 #: lib/tuist/billing.ex:71
-#: lib/tuist_web/live/billing_live.ex:229
+#: lib/tuist_web/live/billing_live.ex:232
 #: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr ""
 
 #: lib/tuist/billing.ex:74
-#: lib/tuist_web/live/billing_live.ex:231
+#: lib/tuist_web/live/billing_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr ""
@@ -874,7 +874,7 @@ msgstr ""
 msgid "Don’t have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:194
+#: lib/tuist_web/live/billing_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr ""
@@ -897,8 +897,8 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:9
 #: lib/tuist_web/live/build_runs_live.html.heex:17
-#: lib/tuist_web/live/build_runs_live.html.heex:69
-#: lib/tuist_web/live/builds_live.html.heex:626
+#: lib/tuist_web/live/build_runs_live.html.heex:59
+#: lib/tuist_web/live/builds_live.html.heex:616
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
 #: lib/tuist_web/live/cache_runs_live.html.heex:104
@@ -920,12 +920,12 @@ msgid "Effortlessly share your app with a single URL."
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:282
-#: lib/tuist_web/live/members_live.ex:125
+#: lib/tuist_web/live/members_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:180
+#: lib/tuist_web/live/members_live.ex:178
 #: lib/tuist_web/live/user_forgot_password_live.ex:47
 #: lib/tuist_web/live/user_login_live.ex:103
 #: lib/tuist_web/live/user_registration_live.ex:114
@@ -959,7 +959,7 @@ msgid "Enter your username to confirm"
 msgstr ""
 
 #: lib/tuist/billing.ex:68
-#: lib/tuist_web/live/billing_live.ex:227
+#: lib/tuist_web/live/billing_live.ex:230
 #: lib/tuist_web/live/billing_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
@@ -1008,8 +1008,8 @@ msgstr ""
 msgid "FAQ"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:52
-#: lib/tuist_web/live/builds_live.html.heex:617
+#: lib/tuist_web/live/build_runs_live.html.heex:42
+#: lib/tuist_web/live/builds_live.html.heex:607
 #: lib/tuist_web/live/cache_runs_live.ex:42
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
 #: lib/tuist_web/live/generate_runs_live.html.heex:67
@@ -1086,7 +1086,7 @@ msgid "Founder & CTO"
 msgstr ""
 
 #: lib/tuist/billing.ex:38
-#: lib/tuist_web/live/billing_live.ex:183
+#: lib/tuist_web/live/billing_live.ex:186
 #: lib/tuist_web/live/billing_live.html.heex:61
 #: lib/tuist_web/live/billing_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -1098,7 +1098,7 @@ msgstr ""
 msgid "Free tier exceeded"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:185
+#: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr ""
@@ -1108,7 +1108,7 @@ msgstr ""
 msgid "Frequently paired with"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:50
+#: lib/tuist_web/components/app_layout_components.ex:49
 #: lib/tuist_web/live/generate_runs_live.ex:15
 #: lib/tuist_web/live/generate_runs_live.html.heex:2
 #: lib/tuist_web/live/run_detail_live.html.heex:30
@@ -1157,7 +1157,7 @@ msgstr ""
 msgid "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:182
+#: lib/tuist_web/live/billing_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr ""
@@ -1366,9 +1366,9 @@ msgstr ""
 msgid "Like, totally free: All features, no credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:231
+#: lib/tuist_web/live/builds_live.ex:229
 #: lib/tuist_web/live/builds_live.html.heex:73
-#: lib/tuist_web/live/overview_live.ex:292
+#: lib/tuist_web/live/overview_live.ex:288
 #: lib/tuist_web/live/overview_live.html.heex:27
 #: lib/tuist_web/live/overview_live.html.heex:476
 #: lib/tuist_web/live/run_detail_live.html.heex:243
@@ -1429,7 +1429,7 @@ msgid "Measure"
 msgstr ""
 
 #: lib/tuist_web/components/layouts/account.html.heex:20
-#: lib/tuist_web/live/members_live.ex:32
+#: lib/tuist_web/live/members_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
@@ -1456,12 +1456,12 @@ msgstr ""
 msgid "Module"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:143
+#: lib/tuist_web/live/billing_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_components.ex:350
+#: lib/tuist_web/marketing/components/marketing_components.ex:351
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""
@@ -1474,7 +1474,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
-#: lib/tuist_web/live/projects_live.ex:108
+#: lib/tuist_web/live/projects_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1525,10 +1525,10 @@ msgid "No credit card required"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:72
-#: lib/tuist_web/live/build_runs_live.html.heex:131
+#: lib/tuist_web/live/build_runs_live.html.heex:121
 #: lib/tuist_web/live/builds_live.html.heex:391
 #: lib/tuist_web/live/builds_live.html.heex:517
-#: lib/tuist_web/live/builds_live.html.heex:650
+#: lib/tuist_web/live/builds_live.html.heex:640
 #: lib/tuist_web/live/cache_runs_live.html.heex:144
 #: lib/tuist_web/live/generate_runs_live.html.heex:117
 #: lib/tuist_web/live/test_runs_live.html.heex:172
@@ -1567,7 +1567,7 @@ msgid "OR"
 msgstr ""
 
 #: lib/tuist/billing.ex:75
-#: lib/tuist_web/live/billing_live.ex:232
+#: lib/tuist_web/live/billing_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr ""
@@ -1614,7 +1614,7 @@ msgstr ""
 msgid "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:92
+#: lib/tuist_web/live/create_project_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Or set up a new organization"
 msgstr ""
@@ -1645,7 +1645,7 @@ msgstr ""
 msgid "Our principles"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:25
+#: lib/tuist_web/components/app_layout_components.ex:24
 #: lib/tuist_web/live/bundle_live.html.heex:144
 #: lib/tuist_web/live/overview_live.ex:26
 #: lib/tuist_web/live/run_detail_live.html.heex:72
@@ -1653,8 +1653,8 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:50
-#: lib/tuist_web/live/builds_live.html.heex:615
+#: lib/tuist_web/live/build_runs_live.html.heex:40
+#: lib/tuist_web/live/builds_live.html.heex:605
 #: lib/tuist_web/live/cache_runs_live.ex:41
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
 #: lib/tuist_web/live/generate_runs_live.html.heex:65
@@ -1692,13 +1692,13 @@ msgid "Passwords don't match"
 msgstr ""
 
 #: lib/tuist/billing.ex:58
-#: lib/tuist_web/live/billing_live.ex:209
+#: lib/tuist_web/live/billing_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr ""
 
 #: lib/tuist/billing.ex:59
-#: lib/tuist_web/live/billing_live.ex:210
+#: lib/tuist_web/live/billing_live.ex:213
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr ""
@@ -1755,7 +1755,7 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:60
+#: lib/tuist_web/components/app_layout_components.ex:59
 #: lib/tuist_web/live/overview_live.html.heex:321
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/previews_live.ex:26
@@ -1794,7 +1794,7 @@ msgstr ""
 msgid "Priority support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:233
+#: lib/tuist_web/live/billing_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr ""
@@ -1810,7 +1810,7 @@ msgid "Privacy policy"
 msgstr ""
 
 #: lib/tuist/billing.ex:51
-#: lib/tuist_web/live/billing_live.ex:204
+#: lib/tuist_web/live/billing_live.ex:207
 #: lib/tuist_web/live/billing_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Pro"
@@ -1822,8 +1822,8 @@ msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
-#: lib/tuist_web/live/projects_live.ex:39
-#: lib/tuist_web/live/projects_live.ex:47
+#: lib/tuist_web/live/projects_live.ex:37
+#: lib/tuist_web/live/projects_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -1840,8 +1840,8 @@ msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.html.heex:10
 #: lib/tuist_web/live/build_runs_live.html.heex:25
-#: lib/tuist_web/live/build_runs_live.html.heex:96
-#: lib/tuist_web/live/builds_live.html.heex:643
+#: lib/tuist_web/live/build_runs_live.html.heex:86
+#: lib/tuist_web/live/builds_live.html.heex:633
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
 #: lib/tuist_web/live/cache_runs_live.html.heex:123
@@ -1855,8 +1855,8 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:64
-#: lib/tuist_web/live/builds_live.html.heex:623
+#: lib/tuist_web/live/build_runs_live.html.heex:54
+#: lib/tuist_web/live/builds_live.html.heex:613
 #: lib/tuist_web/live/cache_runs_live.ex:71
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
 #: lib/tuist_web/live/generate_runs_live.html.heex:73
@@ -2204,7 +2204,7 @@ msgstr ""
 msgid "Standard support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:211
+#: lib/tuist_web/live/billing_live.ex:214
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr ""
@@ -2237,7 +2237,7 @@ msgid "Start for free, pay as you benefit"
 msgstr ""
 
 #: lib/tuist_web/live/cache_runs_live.ex:37
-#: lib/tuist_web/live/members_live.ex:128
+#: lib/tuist_web/live/members_live.ex:127
 #: lib/tuist_web/live/run_detail_live.html.heex:105
 #: lib/tuist_web/live/test_runs_live.ex:39
 #, elixir-autogen, elixir-format
@@ -2355,7 +2355,7 @@ msgstr ""
 msgid "Test Optimizations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:30
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #: lib/tuist_web/live/test_runs_live.ex:22
 #: lib/tuist_web/live/test_runs_live.html.heex:179
@@ -2417,7 +2417,7 @@ msgstr ""
 
 #: lib/tuist_web/authorization.ex:73
 #: lib/tuist_web/authorization.ex:89
-#: lib/tuist_web/live/projects_live.ex:22
+#: lib/tuist_web/live/projects_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -2541,8 +2541,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:126
-#: lib/tuist_web/components/app_layout_components.ex:151
+#: lib/tuist_web/components/app_layout_components.ex:125
+#: lib/tuist_web/components/app_layout_components.ex:150
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -2639,14 +2639,14 @@ msgid "Unauthorized"
 msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:28
-#: lib/tuist_web/live/build_runs_live.html.heex:89
-#: lib/tuist_web/live/build_runs_live.html.heex:108
-#: lib/tuist_web/live/build_runs_live.html.heex:111
-#: lib/tuist_web/live/build_runs_live.html.heex:116
-#: lib/tuist_web/live/builds_live.ex:246
+#: lib/tuist_web/live/build_runs_live.html.heex:79
+#: lib/tuist_web/live/build_runs_live.html.heex:98
+#: lib/tuist_web/live/build_runs_live.html.heex:101
+#: lib/tuist_web/live/build_runs_live.html.heex:106
+#: lib/tuist_web/live/builds_live.ex:244
+#: lib/tuist_web/live/builds_live.html.heex:601
 #: lib/tuist_web/live/builds_live.html.heex:611
-#: lib/tuist_web/live/builds_live.html.heex:621
-#: lib/tuist_web/live/builds_live.html.heex:638
+#: lib/tuist_web/live/builds_live.html.heex:628
 #: lib/tuist_web/live/bundle_live.html.heex:59
 #: lib/tuist_web/live/bundle_live.html.heex:134
 #: lib/tuist_web/live/bundle_live.html.heex:198
@@ -2699,7 +2699,7 @@ msgstr ""
 msgid "Updating your username can have unintended consequences."
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:218
+#: lib/tuist_web/live/billing_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr ""
@@ -2739,7 +2739,7 @@ msgstr ""
 msgid "Usage-based pricing"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:205
+#: lib/tuist_web/live/billing_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr ""
@@ -3053,7 +3053,7 @@ msgid "above free tier"
 msgstr ""
 
 #: lib/tuist/billing.ex:55
-#: lib/tuist_web/live/billing_live.ex:207
+#: lib/tuist_web/live/billing_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr ""
@@ -3074,8 +3074,8 @@ msgstr ""
 msgid "homebrew"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:110
-#: lib/tuist_web/live/builds_live.ex:235
+#: lib/tuist_web/live/build_runs_live.html.heex:100
+#: lib/tuist_web/live/builds_live.ex:233
 #: lib/tuist_web/live/builds_live.html.heex:428
 #: lib/tuist_web/live/run_detail_live.html.heex:155
 #, elixir-autogen, elixir-format
@@ -3093,25 +3093,25 @@ msgstr ""
 msgid "read more"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:226
-#: lib/tuist_web/live/bundles_live.ex:170
-#: lib/tuist_web/live/overview_live.ex:283
+#: lib/tuist_web/live/builds_live.ex:224
+#: lib/tuist_web/live/bundles_live.ex:169
+#: lib/tuist_web/live/overview_live.ex:279
 #: lib/tuist_web/live/test_runs_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:228
-#: lib/tuist_web/live/bundles_live.ex:172
-#: lib/tuist_web/live/overview_live.ex:285
+#: lib/tuist_web/live/builds_live.ex:226
+#: lib/tuist_web/live/bundles_live.ex:171
+#: lib/tuist_web/live/overview_live.ex:281
 #: lib/tuist_web/live/test_runs_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/builds_live.ex:227
-#: lib/tuist_web/live/bundles_live.ex:171
-#: lib/tuist_web/live/overview_live.ex:284
+#: lib/tuist_web/live/builds_live.ex:225
+#: lib/tuist_web/live/bundles_live.ex:170
+#: lib/tuist_web/live/overview_live.ex:280
 #: lib/tuist_web/live/test_runs_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -3127,99 +3127,94 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:80
+#: lib/tuist_web/plugs/loader_plug.ex:82
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:27
+#: lib/tuist_web/plugs/loader_plug.ex:25
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:171
-#: lib/tuist_web/live/projects_live.ex:96
+#: lib/tuist_web/live/members_live.ex:169
+#: lib/tuist_web/live/projects_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:85
+#: lib/tuist_web/live/projects_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:80
+#: lib/tuist_web/live/projects_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:98
+#: lib/tuist_web/live/projects_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:62
+#: lib/tuist_web/live/members_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "All members"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:76
+#: lib/tuist_web/live/members_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:84
+#: lib/tuist_web/live/members_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "Member"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:129
+#: lib/tuist_web/live/members_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:99
+#: lib/tuist_web/live/members_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "Role"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:39
+#: lib/tuist_web/live/members_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Search members..."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:96
+#: lib/tuist_web/live/members_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "E-mail"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:106
+#: lib/tuist_web/live/members_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "No members found"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:135
+#: lib/tuist_web/live/members_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:519
 #: lib/tuist_web/live/bundle_live.html.heex:618
-#: lib/tuist_web/live/members_live.ex:107
+#: lib/tuist_web/live/members_live.ex:106
 #: lib/tuist_web/live/run_detail_live.html.heex:255
 #: lib/tuist_web/live/run_detail_live.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:155
+#: lib/tuist_web/live/members_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
-msgstr ""
-
-#: lib/tuist_web/live/members_live.ex:152
-#, elixir-autogen, elixir-format
-msgid "No invitations created"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:72
@@ -3257,12 +3252,12 @@ msgstr ""
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:103
+#: lib/tuist_web/live/projects_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:173
+#: lib/tuist_web/live/members_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""
@@ -3327,7 +3322,7 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:49
+#: lib/tuist_web/plugs/loader_plug.ex:47
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -3423,8 +3418,8 @@ msgstr ""
 msgid "Bundle not found."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:71
-#: lib/tuist_web/live/bundles_live.ex:20
+#: lib/tuist_web/components/app_layout_components.ex:70
+#: lib/tuist_web/live/bundles_live.ex:19
 #: lib/tuist_web/live/bundles_live.html.heex:189
 #: lib/tuist_web/live/overview_live.html.heex:351
 #, elixir-autogen, elixir-format
@@ -3652,7 +3647,7 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:84
+#: lib/tuist_web/plugs/loader_plug.ex:86
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
@@ -3693,8 +3688,8 @@ msgstr ""
 msgid "Configuration Insights"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:113
-#: lib/tuist_web/live/builds_live.ex:236
+#: lib/tuist_web/live/build_runs_live.html.heex:103
+#: lib/tuist_web/live/builds_live.ex:234
 #: lib/tuist_web/live/builds_live.html.heex:420
 #, elixir-autogen, elixir-format
 msgid "Device"
@@ -3705,8 +3700,8 @@ msgstr ""
 msgid "Recent Builds"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:45
-#: lib/tuist_web/live/builds_live.html.heex:610
+#: lib/tuist_web/live/build_runs_live.html.heex:35
+#: lib/tuist_web/live/builds_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr ""
@@ -3746,10 +3741,10 @@ msgstr ""
 msgid "Type:"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:107
-#: lib/tuist_web/live/builds_live.ex:234
+#: lib/tuist_web/live/build_runs_live.html.heex:97
+#: lib/tuist_web/live/builds_live.ex:232
 #: lib/tuist_web/live/builds_live.html.heex:412
-#: lib/tuist_web/live/builds_live.html.heex:620
+#: lib/tuist_web/live/builds_live.html.heex:610
 #, elixir-autogen, elixir-format
 msgid "Xcode version"
 msgstr ""
@@ -3769,8 +3764,8 @@ msgstr ""
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:100
-#: lib/tuist_web/live/build_runs_live.ex:16
+#: lib/tuist_web/components/app_layout_components.ex:99
+#: lib/tuist_web/live/build_runs_live.ex:15
 #: lib/tuist_web/live/build_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
@@ -3781,8 +3776,8 @@ msgstr ""
 msgid "Build:"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:85
-#: lib/tuist_web/live/builds_live.html.heex:634
+#: lib/tuist_web/live/build_runs_live.html.heex:75
+#: lib/tuist_web/live/builds_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr ""
@@ -3795,4 +3790,9 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Incremental"
+msgstr ""
+
+#: lib/tuist_web/live/members_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "No invitations created"
 msgstr ""

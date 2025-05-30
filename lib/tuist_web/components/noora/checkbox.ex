@@ -7,16 +7,20 @@ defmodule TuistWeb.Noora.Checkbox do
 
   import TuistWeb.Noora.Icon
 
+  alias Phoenix.HTML.FormField
+
   attr :label, :string, required: true, doc: "The label of the checkbox."
   attr :description, :string, default: nil, doc: "An optional description."
   attr :indeterminate, :boolean, default: false, doc: "Whether the checkbox is indeterminate."
   attr :disabled, :boolean, default: false, doc: "Whether the checkbox is disabled."
+  attr :id, :string, default: nil, doc: "The id of the checkbox."
+  attr :field, FormField, default: nil, doc: "A Phoenix form field."
 
   attr :multiple, :boolean,
     default: false,
     doc: "Whether the checkbox is part of a multiple checkbox group."
 
-  def checkbox(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def checkbox(%{field: %FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
     |> assign_new(:name, fn -> if assigns.multiple, do: field.name <> "[]", else: field.name end)

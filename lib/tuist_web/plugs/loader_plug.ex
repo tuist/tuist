@@ -8,8 +8,6 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
-  alias Tuist.Projects.Project
-  alias Tuist.Repo
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
 
@@ -63,6 +61,10 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     assign_selected_project(conn, project_slug)
   end
 
+  def call(conn, _opts) do
+    conn
+  end
+
   def assign_selected_project(conn, project_slug) do
     project =
       cached(conn, ["project", project_slug], fn ->
@@ -88,10 +90,6 @@ defmodule TuistWeb.Plugs.LoaderPlug do
                 }
               )
     end
-  end
-
-  def call(conn, _opts) do
-    conn
   end
 
   defp cached(conn, cache_key, fetch_value) do

@@ -190,6 +190,8 @@ defmodule TuistWeb.ConnectLive do
     """
   end
 
+  attr :id, :string, required: true
+
   slot :tab do
     attr :id, :string
     attr :label, :string
@@ -242,6 +244,7 @@ defmodule TuistWeb.ConnectLive do
     """
   end
 
+  @impl true
   def handle_info({:show, %{user: user}}, socket) do
     socket =
       if user.id == socket.assigns.current_user.id do

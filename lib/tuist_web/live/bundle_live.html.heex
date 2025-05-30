@@ -413,7 +413,7 @@
   >
     <.card_section data-part="file-breakdown-card-section">
       <div data-part="filters">
-        <.form phx-change="search-file-breakdown" phx-debounce="200">
+        <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
           <.text_input
             type="search"
             id="search-file-breakdown"
@@ -540,7 +540,7 @@
   >
     <.card_section data-part="module-breakdown-card-section">
       <div data-part="filters">
-        <.form phx-change="search-module-breakdown" phx-debounce="200">
+        <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
           <.text_input
             type="search"
             id="search-module-breakdown"

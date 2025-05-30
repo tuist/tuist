@@ -16,7 +16,8 @@ defmodule TuistWeb.PreviewLive do
       get_current_preview(preview_id)
 
     layout =
-      if TuistWeb.Authentication.authenticated?(socket.assigns) or selected_project.visibility == :public do
+      if TuistWeb.Authentication.authenticated?(socket.assigns) or
+           selected_project.visibility == :public do
         {TuistWeb.Layouts, :project}
       else
         false
@@ -95,12 +96,7 @@ defmodule TuistWeb.PreviewLive do
 
   def platform_tag(assigns) do
     ~H"""
-    <.tag
-      label={Previews.platform_string(@platform)}
-      color="neutral"
-      style="light"
-      icon={platform_icon_name(@platform)}
-    />
+    <.tag label={Previews.platform_string(@platform)} icon={platform_icon_name(@platform)} />
     """
   end
 

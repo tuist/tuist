@@ -323,9 +323,7 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :read, :ops) do
-    env = Tuist.Environment.env()
-
-    if env == :dev do
+    if Mix.env() == :dev do
       true
     else
       user.account.name in Tuist.Environment.ops_user_handles()

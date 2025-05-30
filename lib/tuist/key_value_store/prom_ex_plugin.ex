@@ -2,8 +2,6 @@ defmodule Tuist.KeyValueStore.PromExPlugin do
   @moduledoc false
   use PromEx.Plugin
 
-  alias Tuist.Telemetry
-
   @impl true
   def event_metrics(_opts) do
     [

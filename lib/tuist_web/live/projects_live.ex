@@ -5,8 +5,6 @@ defmodule TuistWeb.ProjectsLive do
 
   import TuistWeb.Previews.PlatformIcon
 
-  alias Tuist.Accounts.Account
-  alias Tuist.Accounts.ProjectAccount
   alias Tuist.Authorization
   alias Tuist.Previews
   alias Tuist.Projects

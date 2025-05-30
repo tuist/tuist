@@ -5,7 +5,6 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   """
 
   alias Tuist.Bundles
-  alias Tuist.Bundles.Bundle
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @doc """

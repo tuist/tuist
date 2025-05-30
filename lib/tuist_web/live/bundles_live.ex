@@ -8,7 +8,6 @@ defmodule TuistWeb.BundlesLive do
   import TuistWeb.Previews.PlatformIcon
 
   alias Tuist.Bundles
-  alias Tuist.Previews
   alias Tuist.Projects
   alias TuistWeb.Utilities.Query
 

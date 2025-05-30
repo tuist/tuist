@@ -4,8 +4,6 @@ defmodule TuistWeb.BuildsLive do
   use TuistWeb.Noora
 
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.EmptyState
-  import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Projects

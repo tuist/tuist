@@ -53,6 +53,9 @@ defmodule TuistWeb.Noora.TextInput do
   attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
   attr :required, :boolean, default: false, doc: "Whether the input is required."
   attr :show_required, :boolean, default: false, doc: "Whether the required indicator is shown."
+  attr :min, :any, default: nil, doc: "Minimum value for number inputs."
+  attr :max, :any, default: nil, doc: "Maximum value for number inputs."
+  attr :step, :any, default: nil, doc: "Step value for number inputs."
 
   attr :rest, :global
 
@@ -110,6 +113,9 @@ defmodule TuistWeb.Noora.TextInput do
           type={type(@type, @input_type)}
           required={@required}
           placeholder={if @placeholder, do: @placeholder, else: placeholder(@type)}
+          min={@min}
+          max={@max}
+          step={@step}
           {@rest}
         />
         {# Suffix hint tooltip #}
@@ -147,7 +153,7 @@ defmodule TuistWeb.Noora.TextInput do
 
   defp type("card_number", _input_type), do: "tel"
   defp type("search", _input_type), do: "text"
-  defp type(type, input_type), do: input_type || "text"
+  defp type(_type, input_type), do: input_type || "text"
 
   defp placeholder("password"), do: "• • • • • • • • • •"
   defp placeholder(_), do: nil

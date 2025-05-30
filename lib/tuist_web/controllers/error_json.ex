@@ -5,7 +5,7 @@ defmodule TuistWeb.ErrorJSON do
     %{message: message}
   end
 
-  def render(template, assigns) do
+  def render(template, _assigns) do
     %{message: Phoenix.Controller.status_message_from_template(template)}
   end
 end

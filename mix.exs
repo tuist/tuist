@@ -82,7 +82,9 @@ defmodule Tuist.MixProject do
       {:sweet_xml, "~> 0.7.4"},
       {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.26.0"},
-      {:timex, "~> 3.7"},
+      # TODO: Use official release once > 3.7.11 is released.
+      {:timex,
+       git: "https://github.com/bitwalker/timex.git", ref: "cc649c7a586f1266b17d57aff3c6eb1a56116ca2", override: true},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},

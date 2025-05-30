@@ -126,10 +126,6 @@ defmodule TuistWeb.OverviewLive do
     |> assign(:bundle_size_analytics, bundle_size_analytics)
   end
 
-  defp format_bytes(bytes) when is_integer(bytes) do
-    Bundles.format_bytes(bytes)
-  end
-
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
     builds_date_range = params["builds_date_range"] || "last_30_days"
 

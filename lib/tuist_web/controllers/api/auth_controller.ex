@@ -205,7 +205,7 @@ defmodule TuistWeb.API.AuthController do
 
   def authenticate(conn, params) do
     case TuistWeb.RateLimit.Auth.hit(conn) do
-      {:allow, count} ->
+      {:allow, _count} ->
         do_authenticate(conn, params)
 
       {:deny, _limit} ->
