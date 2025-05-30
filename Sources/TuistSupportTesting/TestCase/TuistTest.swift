@@ -46,8 +46,18 @@ public enum TuistTest {
     public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [])
         async throws
     {
-        var parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        if let mockEnvironment = Environment.mocked {
+            mockEnvironment.processId = UUID().uuidString
+        }
+
+        let run = {
+            var parsedCommand = try command.parse(arguments)
+            try await parsedCommand.run()
+        }
+        if let mockEnvironment = Environment.mocked {
+            mockEnvironment.processId = UUID().uuidString
+        }
+        try await run()
     }
 
     public static func expectFrameworkNotEmbedded(

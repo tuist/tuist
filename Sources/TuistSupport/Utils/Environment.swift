@@ -8,6 +8,9 @@ import Path
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 @Mockable
 public protocol Environmenting: Sendable {
+    /// It returns an ID that uniquely identifies the process.
+    var processId: String { get }
+
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
 
@@ -86,6 +89,7 @@ extension Environmenting {
 /// Local environment controller.
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
+    public var processId = UUID().uuidString
 
     // MARK: - Attributes
 

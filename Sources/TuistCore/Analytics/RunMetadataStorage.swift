@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistSupport
 import XcodeGraph
 
 /// Storage for run metadata, such as binary cache.
@@ -9,7 +10,7 @@ public actor RunMetadataStorage {
     public init() {}
 
     /// A unique ID associated with a specific run
-    public var runId = UUID().uuidString
+    public var runId: String { Environment.current.processId }
     /// Graph associated with the current run
     public private(set) var graph: Graph?
     public func update(graph: Graph?) {

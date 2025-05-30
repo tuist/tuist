@@ -26,6 +26,7 @@ public final class MockEnvironment: Environmenting {
         }
     }
 
+    public var processId: String = UUID().uuidString
     public var isVerbose: Bool = false
     public var queueDirectoryStub: AbsolutePath?
     public var shouldOutputBeColoured: Bool = false
