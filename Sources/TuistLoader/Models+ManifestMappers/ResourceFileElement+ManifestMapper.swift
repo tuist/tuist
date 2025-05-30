@@ -40,7 +40,7 @@ extension XcodeGraph.ResourceFileElement {
                 if FileHandler.shared.isFolder(path) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else {
+                } else if !path.isGlobPath {
                     // FIXME: This should be done in a linter.
                     Logger.current.warning("No files found at: \(path.pathString)")
                 }

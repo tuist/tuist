@@ -307,7 +307,36 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         )
     }
 
-    func test_loadWorkspace_withInvalidProjectsPaths() async throws {
+    func test_loadWorkspace_withInvalidProjectPath() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
+
+            try await fileSystem.makeDirectory(at: rootDirectory.appending(component: "Resources"))
+
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/Image.png")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains(
+                "No files found at: \(rootDirectory.appending(components: "Resources", "Image.png"))"
+            )
+            XCTAssertEqual(model, [])
+        }
+    }
+
+    func test_loadWorkspace_withUnmatchedProjectGlob() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -329,7 +358,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains(
+            XCTAssertPrinterOutputNotContains(
                 "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
             )
             XCTAssertEqual(model, [])
