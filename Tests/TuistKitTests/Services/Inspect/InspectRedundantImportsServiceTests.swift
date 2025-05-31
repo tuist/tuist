@@ -102,7 +102,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
     }
 
-    func test_run_doesntThrowAnyErrorsWithBundle_when_thereAreNoIssues() async throws {
+    func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -125,35 +125,33 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
     }
 
-    func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
-        try await withMockedDependencies {
-            // Given
-            let path = try AbsolutePath(validating: "/project")
-            let config = Tuist.test()
-            let bundleFramework = Target.test(
-                name: "Core_Framework",
-                product: .bundle
-            )
+    func test_run_doesntThrowAnyErrorsWithBundle_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let bundleFramework = Target.test(
+            name: "Core_Framework",
+            product: .bundle
+        )
 
-            let framework = Target.test(
-                name: "Framework",
-                product: .framework,
-                dependencies: [TargetDependency.target(name: "Core_Framework")]
-            )
-            let project = Project.test(path: path, targets: [bundleFramework, framework])
-            let graph = Graph.test(path: path, projects: [path: project], dependencies: [
-                .target(name: framework.name, path: project.path): [
-                    .target(name: bundleFramework.name, path: project.path),
-                ],
-            ])
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework,
+            dependencies: [TargetDependency.target(name: "Core_Framework")]
+        )
+        let project = Project.test(path: path, targets: [bundleFramework, framework])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: framework.name, path: project.path): [
+                .target(name: bundleFramework.name, path: project.path),
+            ],
+        ])
 
-            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-            given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
-            given(generator).load(path: .value(path), options: .any).willReturn(graph)
-            given(targetScanner).imports(for: .value(bundleFramework)).willReturn(Set([]))
-            given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(bundleFramework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-            try await subject.run(path: path.pathString)
-        }
+        try await subject.run(path: path.pathString)
     }
 }
