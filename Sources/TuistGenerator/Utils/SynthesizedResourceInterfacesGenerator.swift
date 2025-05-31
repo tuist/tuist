@@ -75,7 +75,11 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         }
     }
 
-    private func makeParams(name: String, bundleName: String?, userParameters: [String: ResourceSynthesizer.Template.Parameter]) -> [String: Any] {
+    private func makeParams(
+        name: String,
+        bundleName: String?,
+        userParameters: [String: ResourceSynthesizer.Template.Parameter]
+    ) -> [String: Any] {
         var params: [String: Any] = [:]
         params["publicAccess"] = true
         params["name"] = name
@@ -84,24 +88,24 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         }
 
         // user might want to override some default behavior (at their own risk)
-        params.merge(userParameters.compactMapValues(eraseParameter)) { (_, new) in new }
+        params.merge(userParameters.compactMapValues(eraseParameter)) { _, new in new }
 
         return params
     }
 
     private func eraseParameter(_ parameter: ResourceSynthesizer.Template.Parameter) -> Any {
         switch parameter {
-        case .string(let value):
+        case let .string(value):
             return value
-        case .boolean(let value):
+        case let .boolean(value):
             return value
-        case .integer(let value):
+        case let .integer(value):
             return value
-        case .double(let value):
+        case let .double(value):
             return value
-        case .dictionary(let value):
+        case let .dictionary(value):
             return value.compactMapValues { eraseParameter($0) }
-        case .array(let value):
+        case let .array(value):
             return value.compactMap { eraseParameter($0) }
         }
     }
