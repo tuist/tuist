@@ -338,28 +338,37 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     // MARK: - JSON
 
     /// JSON synthesizer defined in a plugin
-    public static func json(plugin: String, parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func json(
+        plugin: String,
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .json(
             template: .plugin(
                 name: plugin,
                 resourceName: "JSON"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// JSON synthesizer with a template defined in `Tuist/{ProjectName}`
-    public static func json(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func json(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .json(
             template: .defaultTemplate(resourceName: "JSON"),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func json(
         template: Template,
-        parserOptions: [String: Parser.Option] = [:],
-        templateParameters: [String: Template.Parameter] = [:]
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
             template: template,
