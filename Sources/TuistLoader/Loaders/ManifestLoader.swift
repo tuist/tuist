@@ -335,6 +335,18 @@ public class ManifestLoader: ManifestLoading {
         do {
             let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
 
+            let manifestLogMessages: [ManifestLogging.Message] = try string.substrings(between: ManifestLoader.startManifestLoggingToken, and: ManifestLoader.endManifestToken).map {
+                let data = Data($0.utf8)
+                return try decoder.decode(ManifestLogging.self, from: data).message
+            }
+
+            for message in manifestLogMessages {
+                // Do something with the messages
+            }
+
+            // This doesn't capture anything yet
+            print("LOGS: \(manifestLogMessages)")
+            
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
             else {
@@ -516,9 +528,10 @@ public class ManifestLoader: ManifestLoading {
 
         Logger.current.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
     }
+}
 
 private extension String {
-    func substringsBetween(start: String, end: String) -> [String] {
+    func substrings(between start: String, and end: String) -> [String] {
         let pattern = "\(NSRegularExpression.escapedPattern(for: start))(.*?)\(NSRegularExpression.escapedPattern(for: end))"
 
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
