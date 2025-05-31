@@ -73,7 +73,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadProject(at: temporaryPath)
+        let got = try await subject.loadProject(at: temporaryPath, disableSandbox: false)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -188,7 +188,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: false)
 
         // Then
         XCTAssertEqual(
@@ -228,7 +228,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: false)
 
         // Then
         XCTAssertEqual(
@@ -253,7 +253,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadWorkspace(at: temporaryPath)
+        let got = try await subject.loadWorkspace(at: temporaryPath, disableSandbox: false)
 
         // Then
         XCTAssertEqual(got.name, "tuist")
@@ -304,7 +304,7 @@ final class ManifestLoaderTests: TuistTestCase {
         // When / Then
         var _error: Error?
         do {
-            _ = try await subject.loadProject(at: temporaryPath)
+            _ = try await subject.loadProject(at: temporaryPath, disableSandbox: false)
         } catch {
             _error = error
         }
@@ -314,7 +314,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_load_missingManifest() async throws {
         let temporaryPath = try temporaryPath()
         await XCTAssertThrowsSpecific(
-            { try await self.subject.loadProject(at: temporaryPath) },
+            { try await self.subject.loadProject(at: temporaryPath, disableSandbox: false) },
             ManifestLoaderError.manifestNotFound(.project, temporaryPath)
         )
     }

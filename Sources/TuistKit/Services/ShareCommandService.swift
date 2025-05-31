@@ -176,7 +176,10 @@ struct ShareCommandService {
         } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
 
-            let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+            let (graph, _, _, _) = try await manifestGraphLoader.load(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
             let graphTraverser = GraphTraverser(graph: graph)
             let shareableTargets =
                 graphTraverser

@@ -380,8 +380,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()
         given(manifestLoader)
-            .loadProject(at: .any)
-            .willProduce { path in
+            .loadProject(at: .any, disableSandbox: .any)
+            .willProduce { path, _ in
                 guard let manifest = projects[path] else {
                     throw ManifestLoaderError.manifestNotFound(path)
                 }
@@ -417,8 +417,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()
         given(manifestLoader)
-            .loadWorkspace(at: .any)
-            .willProduce { path in
+            .loadWorkspace(at: .any, disableSandbox: .any)
+            .willProduce { path, _ in
                 guard let manifest = workspaces[path] else {
                     throw ManifestLoaderError.manifestNotFound(path)
                 }

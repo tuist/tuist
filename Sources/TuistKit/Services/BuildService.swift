@@ -89,9 +89,15 @@ public final class BuildService {
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {
-            graph = try await generator.generateWithGraph(path: path).1
+            graph = try await generator.generateWithGraph(
+                path: path,
+                options: config.project.generatedProject?.generationOptions
+            ).1
         } else {
-            graph = try await generator.load(path: path)
+            graph = try await generator.load(
+                path: path,
+                options: config.project.generatedProject?.generationOptions
+            )
         }
 
         if generateOnly {

@@ -45,8 +45,8 @@ class CachedManifestLoaderTests {
         subject = try createSubject()
 
         given(manifestLoader)
-            .loadWorkspace(at: .any)
-            .willProduce { [unowned self] path in
+            .loadWorkspace(at: .any, disableSandbox: .any)
+            .willProduce { [unowned self] path, _ in
                 guard let manifest = workspaceManifests[path] else {
                     throw ManifestLoaderError.manifestNotFound(.workspace, path)
                 }
@@ -55,8 +55,8 @@ class CachedManifestLoaderTests {
             }
 
         given(manifestLoader)
-            .loadProject(at: .any)
-            .willProduce { [unowned self] path in
+            .loadProject(at: .any, disableSandbox: .any)
+            .willProduce { [unowned self] path, _ in
                 guard let manifest = projectManifests[path] else {
                     throw ManifestLoaderError.manifestNotFound(.project, path)
                 }
@@ -94,7 +94,7 @@ class CachedManifestLoaderTests {
         try await stubProject(project, at: path)
 
         // When
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == project)
@@ -108,10 +108,10 @@ class CachedManifestLoaderTests {
         try await stubProject(project, at: path)
 
         // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == project)
@@ -123,12 +123,12 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let originalProject = Project.test(name: "Original")
         try await stubProject(originalProject, at: path)
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         let modifiedProject = Project.test(name: "Modified")
         try await stubProject(modifiedProject, at: path)
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == modifiedProject)
@@ -142,12 +142,12 @@ class CachedManifestLoaderTests {
         try await stubProject(project, at: path)
         try stubHelpers(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try stubHelpers(withHash: "updatedHash")
         subject = try createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(recordedLoadProjectCalls == 2)
@@ -163,12 +163,12 @@ class CachedManifestLoaderTests {
             .willReturn()
         try stubPlugins(withHash: "hash")
 
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try stubPlugins(withHash: "updatedHash")
         subject = try createSubject() // we need to re-create the subject as it internally caches hashes
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(recordedLoadProjectCalls == 2)
@@ -183,10 +183,10 @@ class CachedManifestLoaderTests {
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        _ = try await subject.loadProject(at: path)
-        let result = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == project)
@@ -200,11 +200,11 @@ class CachedManifestLoaderTests {
         try await stubProject(project, at: path)
         let mockEnvironment = try #require(TuistSupport.Environment.mocked)
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         mockEnvironment.manifestLoadingVariables = ["NAME": "B"]
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(recordedLoadProjectCalls == 2)
@@ -216,11 +216,11 @@ class CachedManifestLoaderTests {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
         subject = try createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         subject = try createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(recordedLoadProjectCalls == 1)
@@ -232,11 +232,11 @@ class CachedManifestLoaderTests {
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
         subject = try createSubject(tuistVersion: "1.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         subject = try createSubject(tuistVersion: "2.0")
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(recordedLoadProjectCalls == 2)
@@ -247,11 +247,11 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        _ = try await subject.loadProject(at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
         try corruptFiles(at: cacheDirectory)
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == project)
@@ -264,7 +264,7 @@ class CachedManifestLoaderTests {
 
         // When / Then
         await #expect(throws: ManifestLoaderError.manifestNotFound(.project, path), performing: {
-            try await self.subject.loadProject(at: path)
+            try await self.subject.loadProject(at: path, disableSandbox: false)
         })
     }
 
@@ -328,7 +328,7 @@ class CachedManifestLoaderTests {
         try await stubProject(project, at: path)
 
         // When
-        let result = try await subject.loadProject(at: path)
+        let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
         #expect(result == project)
@@ -356,7 +356,7 @@ class CachedManifestLoaderTests {
 
         // When/Then
         await #expect(throws: expectedError, performing: {
-            try await self.subject.loadProject(at: path)
+            try await self.subject.loadProject(at: path, disableSandbox: false)
         })
     }
 

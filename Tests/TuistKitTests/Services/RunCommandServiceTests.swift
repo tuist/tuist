@@ -80,7 +80,7 @@ struct RunCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test())
         given(generator)
-            .generateWithGraph(path: .any)
+            .generateWithGraph(path: .any, options: .any)
             .willReturn(
                 (
                     try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test(),
@@ -107,13 +107,13 @@ struct RunCommandServiceTests {
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             given(generator)
-                .generateWithGraph(path: .any)
+                .generateWithGraph(path: .any, options: .any)
                 .willReturn((workspacePath, .test(), MapperEnvironment()))
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(.test())
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(buildGraphInspector)
                 .workspacePath(directory: .any)
@@ -149,7 +149,7 @@ struct RunCommandServiceTests {
                     #expect(_configuration == configuration)
                 }
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(configLoader)
                 .loadConfig(path: .any)
@@ -202,7 +202,7 @@ struct RunCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test())
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
         targetRunner.assertCanRunTargetStub = { _ in }
         given(buildGraphInspector)
@@ -231,7 +231,7 @@ struct RunCommandServiceTests {
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(configLoader)
                 .loadConfig(path: .any)

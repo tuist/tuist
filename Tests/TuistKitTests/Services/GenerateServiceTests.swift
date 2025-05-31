@@ -80,7 +80,7 @@ struct GenerateServiceTests {
             .test(project: .testGeneratedProject())
         )
         given(generator)
-            .generateWithGraph(path: .any)
+            .generateWithGraph(path: .any, options: .any)
             .willThrow(expectedError)
 
         await #expect(
@@ -106,7 +106,7 @@ struct GenerateServiceTests {
             .test(project: .testGeneratedProject())
         )
         given(generator)
-            .generateWithGraph(path: .any)
+            .generateWithGraph(path: .any, options: .any)
             .willReturn(
                 (
                     workspacePath,
@@ -148,7 +148,7 @@ struct GenerateServiceTests {
                 .willReturn()
 
             given(generator)
-                .generateWithGraph(path: .any)
+                .generateWithGraph(path: .any, options: .any)
                 .willReturn((workspacePath, .test(), MapperEnvironment()))
             clock.assertOnUnexpectedCalls = true
             clock.primedTimers = [

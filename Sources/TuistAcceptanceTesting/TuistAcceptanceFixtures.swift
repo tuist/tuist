@@ -73,6 +73,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithSpmDependenciesForceResolvedVersions
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
+    case iosAppWithSandboxDisabled
     case iosAppWithStaticFrameworks
     case iosAppWithStaticLibraries
     case iosAppWithStaticLibraryAndPackage
@@ -261,6 +262,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_remote_binary_swift_package"
         case .iosAppWithRemoteSwiftPackage:
             return "ios_app_with_remote_swift_package"
+        case .iosAppWithSandboxDisabled:
+            return "ios_app_with_sandbox_disabled"
         case .iosAppWithStaticFrameworks:
             return "ios_app_with_static_frameworks"
         case .iosAppWithStaticLibraries:

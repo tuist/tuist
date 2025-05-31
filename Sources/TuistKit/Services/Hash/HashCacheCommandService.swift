@@ -84,7 +84,10 @@ final class HashCacheCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            graph = try await generator.load(path: absolutePath)
+            graph = try await generator.load(
+                path: absolutePath,
+                options: config.project.generatedProject?.generationOptions
+            )
             defaultConfiguration = config.project.generatedProject?.generationOptions.defaultConfiguration
         } else {
             defaultConfiguration = nil

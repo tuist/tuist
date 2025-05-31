@@ -57,7 +57,10 @@ final class GenerateService {
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        let (workspacePath, _, _) = try await generator.generateWithGraph(path: path)
+        let (workspacePath, _, _) = try await generator.generateWithGraph(
+            path: path,
+            options: config.project.generatedProject?.generationOptions
+        )
         if !noOpen {
             try await opener.open(path: workspacePath)
         }

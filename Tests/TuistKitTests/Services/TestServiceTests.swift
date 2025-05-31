@@ -262,7 +262,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testXcodeProject()))
         given(generator)
-            .generateWithGraph(path: .value(path))
+            .generateWithGraph(path: .value(path), options: .any)
             .willReturn((path, .test(), MapperEnvironment()))
 
         // When
@@ -285,7 +285,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let path = try temporaryPath()
         given(generator)
-            .generateWithGraph(path: .value(path))
+            .generateWithGraph(path: .value(path), options: .any)
             .willReturn((path, .test(), MapperEnvironment()))
         given(configLoader)
             .loadConfig(path: .any)
@@ -321,8 +321,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             }
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
                     MapperEnvironment()
@@ -365,8 +365,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
                     MapperEnvironment()
@@ -450,8 +450,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             }
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
                     MapperEnvironment()
@@ -490,8 +490,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
         try fileHandler.touch(
@@ -568,8 +568,8 @@ final class TestServiceTests: TuistUnitTestCase {
             ],
         ]
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     .test(
@@ -632,8 +632,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     .test(
@@ -672,8 +672,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .testableSchemes(graphTraverser: .any)
                 .willReturn([])
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(
@@ -713,8 +713,8 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         givenGenerator()
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     .test(
@@ -766,8 +766,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     .test(),
@@ -802,8 +802,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .loadConfig(path: .any)
                 .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(),
@@ -840,8 +840,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .loadConfig(path: .any)
                 .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(),
@@ -876,8 +876,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .loadConfig(path: .any)
                 .willReturn(.test(project: .testGeneratedProject()))
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(),
@@ -1004,8 +1004,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ],
             ]
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(
@@ -1120,8 +1120,8 @@ final class TestServiceTests: TuistUnitTestCase {
         ]
 
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, graph, environment)
             }
 
@@ -1296,8 +1296,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ],
             ]
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (
                         path,
                         .test(
@@ -1373,8 +1373,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([])
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])),
                     MapperEnvironment()
@@ -1403,8 +1403,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
@@ -1466,8 +1466,8 @@ final class TestServiceTests: TuistUnitTestCase {
             var environment = MapperEnvironment()
             environment.initialGraph = graph
             given(generator)
-                .generateWithGraph(path: .any)
-                .willProduce { path in
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
                     (path, .test(), environment)
                 }
             given(configLoader)
@@ -1499,8 +1499,8 @@ final class TestServiceTests: TuistUnitTestCase {
             to: expectedResourceBundlePath.parentDirectory.appending(component: "bundle.xcresult")
         )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
@@ -1554,8 +1554,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
@@ -1603,8 +1603,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .appending(components: "run-id", Constants.resultBundleName)
 
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
         given(buildGraphInspector)
@@ -1675,8 +1675,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(.test(project: .testGeneratedProject()))
 
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme2")])),
                     MapperEnvironment()
@@ -1750,8 +1750,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])),
                     MapperEnvironment()
@@ -1804,8 +1804,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])),
                     MapperEnvironment()
@@ -1942,8 +1942,8 @@ final class TestServiceTests: TuistUnitTestCase {
             ],
         ]
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     graph,
@@ -2083,8 +2083,8 @@ final class TestServiceTests: TuistUnitTestCase {
             ],
         ]
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     graph,
@@ -2227,8 +2227,8 @@ final class TestServiceTests: TuistUnitTestCase {
             ],
         ]
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path,
                     graph,
@@ -2315,8 +2315,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ]
             )
         given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
                 (
                     path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
                     MapperEnvironment()

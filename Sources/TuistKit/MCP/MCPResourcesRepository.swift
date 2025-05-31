@@ -94,8 +94,12 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         guard try await fileSystem.exists(path) else { return .init(contents: []) }
 
         let graph: XcodeGraph.Graph
-        if try await configLoader.loadConfig(path: path).project.isGenerated {
-            (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+        let config = try await configLoader.loadConfig(path: path)
+        if let generatedProjectOptions = config.project.generatedProject {
+            (graph, _, _, _) = try await manifestGraphLoader.load(
+                path: path,
+                disableSandbox: generatedProjectOptions.generationOptions.disableSandbox
+            )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
         }

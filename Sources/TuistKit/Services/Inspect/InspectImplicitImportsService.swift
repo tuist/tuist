@@ -50,7 +50,10 @@ final class InspectImplicitImportsService {
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-        let graph = try await generator.load(path: path)
+        let graph = try await generator.load(
+            path: path,
+            options: config.project.generatedProject?.generationOptions
+        )
         let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .implicit)
         if !issues.isEmpty {
             Logger.current.log(

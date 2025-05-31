@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import Testing
 import TuistAcceptanceTesting
@@ -1331,7 +1332,37 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
-// frameworkWithMacroAndPluginPackages
+struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
+    @Test(
+        .withFixture("ios_app_with_sandbox_disabled")
+    )
+    func test_sandbox_disabled() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["App", "--path", fixtureDirectory.pathString])
+    }
+
+    @Test(
+        .withFixture("ios_app_with_sandbox_disabled"),
+        .withMockedEnvironment()
+    )
+    func test_sandbox_enabled_fails() async throws {
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.manifestLoadingVariables["TUIST_DISABLE_SANDBOX"] = "NO"
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        do {
+            try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+            Issue.record("Generate should have failed with crash")
+        } catch {
+            #expect(
+                String(describing: error)
+                    .contains("The file “hosts” couldn’t be opened because you don’t have permission to view it.")
+            )
+        }
+    }
+}
 
 extension TuistAcceptanceTestCase {
     private func resourcePath(

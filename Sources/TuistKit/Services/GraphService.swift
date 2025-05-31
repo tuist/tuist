@@ -19,6 +19,7 @@ final class GraphService {
     private let fileSystem: FileSystem
     private let manifestLoader: ManifestLoading
     private let xcodeGraphMapper: XcodeGraphMapping
+    private let configLoader: ConfigLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -29,10 +30,12 @@ final class GraphService {
             graphMapper: SequentialGraphMapper([])
         )
         let graphVizMapper = GraphToGraphVizMapper()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
             graphVizGenerator: graphVizMapper,
             manifestGraphLoader: manifestGraphLoader,
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            configLoader: configLoader
         )
     }
 
@@ -41,13 +44,15 @@ final class GraphService {
         manifestGraphLoader: ManifestGraphLoading,
         manifestLoader: ManifestLoading,
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSystem = FileSystem(),
+        configLoader: ConfigLoading
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
         self.manifestLoader = manifestLoader
         self.xcodeGraphMapper = xcodeGraphMapper
         self.fileSystem = fileSystem
+        self.configLoader = configLoader
     }
 
     func run(
@@ -61,9 +66,13 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
+        let config = try await configLoader.loadConfig(path: path)
         let graph: XcodeGraph.Graph
         if try await manifestLoader.hasRootManifest(at: path) {
-            (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+            (graph, _, _, _) = try await manifestGraphLoader.load(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
         }
