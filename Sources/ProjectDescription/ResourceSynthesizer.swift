@@ -385,7 +385,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     public static func yaml(
         plugin: String,
         parserOptions: [String: Parser.Option] = [:],
-        templateParameters: [String: Template.Parameter]
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .yaml(
             template: .plugin(
@@ -400,7 +400,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     /// YAML synthesizer with a template defined in `Tuist/{ProjectName}`
     public static func yaml(
         parserOptions: [String: Parser.Option] = [:],
-        templateParameters: [String: Template.Parameter]
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .yaml(
             template: .defaultTemplate(resourceName: "YAML"),
@@ -411,7 +411,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
 
     private static func yaml(
         template: Template,
-        parserOptions: [String: Parser.Option] = [:],
+        parserOptions: [String: Parser.Option],
         templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
