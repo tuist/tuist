@@ -113,6 +113,9 @@ public class ManifestLoader: ManifestLoading {
     static let startManifestToken = "TUIST_MANIFEST_START"
     static let endManifestToken = "TUIST_MANIFEST_END"
 
+    static let startManifestLoggingToken = "TUIST_MANIFEST_LOGGING_START"
+    static let endManifestLoggingToken = "TUIST_MANIFEST_LOGGING_END"
+
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -512,5 +515,24 @@ public class ManifestLoader: ManifestLoading {
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }
 
         Logger.current.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
+    }
+
+private extension String {
+    func substringsBetween(start: String, end: String) -> [String] {
+        let pattern = "\(NSRegularExpression.escapedPattern(for: start))(.*?)\(NSRegularExpression.escapedPattern(for: end))"
+
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return []
+        }
+
+        let matches = regex.matches(in: self, options: [], range: NSRange(self.startIndex..., in: self))
+
+        return matches.compactMap { match -> String? in
+            guard match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: self) else {
+                return nil
+            }
+            return String(self[range])
+        }
     }
 }
