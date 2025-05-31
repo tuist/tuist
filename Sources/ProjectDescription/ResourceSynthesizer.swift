@@ -418,7 +418,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             template: template,
             parser: .yaml,
             parserOptions: parserOptions,
-            extensions: ["yml"],
+            extensions: ["yml", "yaml"],
             templateParameters: templateParameters
         )
     }
