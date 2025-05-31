@@ -113,6 +113,9 @@ public class ManifestLoader: ManifestLoading {
     static let startManifestToken = "TUIST_MANIFEST_START"
     static let endManifestToken = "TUIST_MANIFEST_END"
 
+    static let startManifestLoggingToken = "TUIST_MANIFEST_LOGGING_START"
+    static let endManifestLoggingToken = "TUIST_MANIFEST_LOGGING_END"
+
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
@@ -332,6 +335,18 @@ public class ManifestLoader: ManifestLoading {
         do {
             let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
 
+            let manifestLogs: [ManifestLogging.Log] = try string.substrings(between: ManifestLoader.startManifestLoggingToken, and: ManifestLoader.endManifestToken).map {
+                let data = Data($0.utf8)
+                return try decoder.decode(ManifestLogging.Log.self, from: data)
+            }
+
+            for manifestLog in manifestLogs {
+                // Do something with the messages
+            }
+
+            // This doesn't capture anything yet
+            print("LOGS: \(manifestLogs)")
+            
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
             else {
