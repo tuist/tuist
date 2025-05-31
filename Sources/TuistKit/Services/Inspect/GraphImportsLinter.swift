@@ -95,7 +95,11 @@ final class GraphImportsLinter: GraphImportsLinting {
                 .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
         }
 
-        let explicitTargetDependencies = targetDependencies.map { targetDependency in
+        let explicitTargetDependencies = targetDependencies
+            .filter {
+                $0.target.product != .bundle
+            }
+            .map { targetDependency in
             if case .external = targetDependency.graphTarget.project.type { return graphTraverser
                 .allTargetDependencies(path: target.project.path, name: target.target.name)
             } else {
