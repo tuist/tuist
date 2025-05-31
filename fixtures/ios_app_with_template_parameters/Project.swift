@@ -40,7 +40,8 @@ let project = Project(
         .files(
             extensions: ["txt"],
             templateParameters: [
-                "name": "MyFiles",
+                "enumName": "MyFiles",
+                "resourceTypeName": "MyFile",
             ]
         ),
         .fonts(
@@ -48,14 +49,15 @@ let project = Project(
                 "name": "MyFonts",
             ]
         ),
+        // no default template yet
         .json(
             templateParameters: [
-                "name": "MyJSON",
+                "enumName": "MyJSONFiles",
             ]
         ),
         .plists(
             templateParameters: [
-                "name": "MyPlist",
+                "publicAccess": false,
             ]
         ),
         .strings(
@@ -63,9 +65,10 @@ let project = Project(
                 "name": "MyStrings",
             ]
         ),
+        // no default template yet
         .yaml(
             templateParameters: [
-                "name": "MyYAML",
+                "enumName": "MyYAMLFiles",
             ]
         ),
     ]
