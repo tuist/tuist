@@ -10,7 +10,7 @@ extension XcodeGraph.ResourceSynthesizer {
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) async throws -> Self {
         let template: XcodeGraph.ResourceSynthesizer.Template
-        switch manifest.templateType {
+        switch manifest.template {
         case let .defaultTemplate(resourceName: resourceName):
             if let templatePath = try await resourceSynthesizerPathLocator.templatePath(
                 for: resourceName,
@@ -30,14 +30,21 @@ extension XcodeGraph.ResourceSynthesizer {
         }
 
         let parserOptions = manifest.parserOptions
-            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
+            .compactMapValues {
+                XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
+            }
+
+        let templateParameters = manifest.templateParameters
+            .compactMapValues {
+                XcodeGraph.ResourceSynthesizer.Template.Parameter.from(manifest: $0)
             }
 
         return .init(
             parser: XcodeGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
             parserOptions: parserOptions,
             extensions: manifest.extensions,
-            template: template
+            template: template,
+            templateParameters: templateParameters
         )
     }
 }
@@ -65,6 +72,27 @@ extension XcodeGraph.ResourceSynthesizer.Parser {
             return .yaml
         case .files:
             return .files
+        }
+    }
+}
+
+extension XcodeGraph.ResourceSynthesizer.Template.Parameter {
+    static func from(
+        manifest: ProjectDescription.ResourceSynthesizer.Template.Parameter
+    ) -> Self {
+        switch manifest {
+        case let .string(value):
+            return .string(value)
+        case let .integer(value):
+            return .integer(value)
+        case let .double(value):
+            return .double(value)
+        case let .boolean(value):
+            return .boolean(value)
+        case let .dictionary(value):
+            return .dictionary(value.mapValues { Self.from(manifest: $0) })
+        case let .array(value):
+            return .array(value.map { Self.from(manifest: $0) })
         }
     }
 }

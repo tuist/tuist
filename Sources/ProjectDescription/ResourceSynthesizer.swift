@@ -7,13 +7,14 @@
 /// - `.strings(templatePath: "Templates/Strings.stencil")` to use strings template at a given path
 public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:disable:this type_body_length
     /// Templates can be of multiple types
-    public var templateType: TemplateType
+    public var template: Template
     public var parser: Parser
     public var parserOptions: [String: Parser.Option]
     public var extensions: Set<String>
+    public var templateParameters: [String: Template.Parameter]
 
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
-    public enum TemplateType: Codable, Equatable, Sendable {
+    public enum Template: Codable, Equatable, Sendable {
         /// Plugin template file
         /// `name` is a name of a plugin
         /// `resourceName` is a name of the resource - that is used for finding a template as well as naming the resulting
@@ -22,6 +23,21 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
         /// Default template defined `Tuist/{ProjectName}`, or if not present there, in tuist itself
         /// `resourceName` is used for the name of the resulting `.swift` file
         case defaultTemplate(resourceName: String)
+
+        public enum Parameter: Equatable, Codable, Sendable {
+            /// It represents a string value.
+            case string(String)
+            /// It represents an integer value.
+            case integer(Int)
+            /// It represents a floating value.
+            case double(Double)
+            /// It represents a boolean value.
+            case boolean(Bool)
+            /// It represents a dictionary value.
+            case dictionary([String: Parameter])
+            /// It represents an array value.
+            case array([Parameter])
+        }
     }
 
     /// There are multiple parsers you can choose from
@@ -55,211 +71,276 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
         }
     }
 
+    // MARK: - Strings
+
     /// Default strings synthesizer defined in `Tuist/{ProjectName}` or tuist itself
-    public static func strings(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func strings(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .strings(
-            templateType: .defaultTemplate(resourceName: "Strings"),
-            parserOptions: parserOptions
+            template: .defaultTemplate(resourceName: "Strings"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// Strings synthesizer defined in a plugin
     public static func strings(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .strings(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "Strings"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func strings(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .strings,
             parserOptions: parserOptions,
-            extensions: ["strings", "stringsdict"]
+            extensions: ["strings", "stringsdict"],
+            templateParameters: templateParameters
         )
     }
 
+    // MARK: - Assets
+
     /// Default assets synthesizer defined in `Tuist/{ProjectName}` or tuist itself
-    public static func assets(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func assets(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .assets(
-            templateType: .defaultTemplate(resourceName: "Assets"),
-            parserOptions: parserOptions
+            template: .defaultTemplate(resourceName: "Assets"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// Assets synthesizer defined in a plugin
     public static func assets(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .assets(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "Assets"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func assets(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .assets,
             parserOptions: parserOptions,
-            extensions: ["xcassets"]
+            extensions: ["xcassets"],
+            templateParameters: templateParameters
         )
     }
 
+    // MARK: - Fonts
+
     /// Default fonts synthesizer defined in `Tuist/{ProjectName}` or tuist itself
-    public static func fonts(parserOptions: [String: Parser.Option] = [:]) -> Self {
-        .fonts(templateType: .defaultTemplate(resourceName: "Fonts"), parserOptions: parserOptions)
+    public static func fonts(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
+        .fonts(
+            template: .defaultTemplate(resourceName: "Fonts"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
+        )
     }
 
     /// Fonts synthesizer defined in a plugin
     public static func fonts(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .fonts(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "Fonts"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func fonts(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .fonts,
             parserOptions: parserOptions,
-            extensions: ["otf", "ttc", "ttf", "woff"]
+            extensions: ["otf", "ttc", "ttf", "woff"],
+            templateParameters: templateParameters
         )
     }
 
+    // MARK: - Plist
+
     /// Default plists synthesizer defined in `Tuist/{ProjectName}` or tuist itself
-    public static func plists(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func plists(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .plists(
-            templateType: .defaultTemplate(resourceName: "Plists"),
-            parserOptions: parserOptions
+            template: .defaultTemplate(resourceName: "Plists"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// Plists synthesizer defined in a plugin
     public static func plists(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .plists(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "Plists"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func plists(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .plists,
             parserOptions: parserOptions,
-            extensions: ["plist"]
+            extensions: ["plist"],
+            templateParameters: templateParameters
         )
     }
+
+    // MARK: - Core Data
 
     /// CoreData synthesizer defined in a plugin
     public static func coreData(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .coreData(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "CoreData"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// Default CoreData synthesizer defined in `Tuist/{ProjectName}`
-    public static func coreData(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func coreData(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .coreData(
-            templateType: .defaultTemplate(resourceName: "CoreData"),
-            parserOptions: parserOptions
+            template: .defaultTemplate(resourceName: "CoreData"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func coreData(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .coreData,
             parserOptions: parserOptions,
-            extensions: ["xcdatamodeld"]
+            extensions: ["xcdatamodeld"],
+            templateParameters: templateParameters
         )
     }
+
+    // MARK: - Interface Builder
 
     /// InterfaceBuilder synthesizer defined in a plugin
     public static func interfaceBuilder(
         plugin: String,
-        parserOptions: [String: Parser.Option] = [:]
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .interfaceBuilder(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "InterfaceBuilder"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     /// InterfaceBuilder synthesizer with a template defined in `Tuist/{ProjectName}`
-    public static func interfaceBuilder(parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func interfaceBuilder(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
+    ) -> Self {
         .interfaceBuilder(
-            templateType: .defaultTemplate(resourceName: "InterfaceBuilder"),
-            parserOptions: parserOptions
+            template: .defaultTemplate(resourceName: "InterfaceBuilder"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
     private static func interfaceBuilder(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .interfaceBuilder,
             parserOptions: parserOptions,
-            extensions: ["storyboard"]
+            extensions: ["storyboard"],
+            templateParameters: templateParameters
         )
     }
 
+    // MARK: - JSON
+
     /// JSON synthesizer defined in a plugin
     public static func json(plugin: String, parserOptions: [String: Parser.Option] = [:]) -> Self {
-        .coreData(
-            templateType: .plugin(
+        .json(
+            template: .plugin(
                 name: plugin,
                 resourceName: "JSON"
             ),
@@ -270,91 +351,119 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     /// JSON synthesizer with a template defined in `Tuist/{ProjectName}`
     public static func json(parserOptions: [String: Parser.Option] = [:]) -> Self {
         .json(
-            templateType: .defaultTemplate(resourceName: "JSON"),
+            template: .defaultTemplate(resourceName: "JSON"),
             parserOptions: parserOptions
         )
     }
 
     private static func json(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .json,
             parserOptions: parserOptions,
-            extensions: ["json"]
+            extensions: ["json"],
+            templateParameters: templateParameters
         )
     }
 
+    // MARK: - YAML
+
     /// YAML synthesizer defined in a plugin
-    public static func yaml(plugin: String, parserOptions: [String: Parser.Option] = [:]) -> Self {
+    public static func yaml(
+        plugin: String,
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter]
+    ) -> Self {
         .yaml(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "YAML"
             ),
-            parserOptions: parserOptions
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
         )
     }
 
-    /// CoreData synthesizer with a template defined in `Tuist/{ProjectName}`
-    public static func yaml(parserOptions: [String: Parser.Option] = [:]) -> Self {
-        .yaml(templateType: .defaultTemplate(resourceName: "YAML"), parserOptions: parserOptions)
+    /// YAML synthesizer with a template defined in `Tuist/{ProjectName}`
+    public static func yaml(
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter]
+    ) -> Self {
+        .yaml(
+            template: .defaultTemplate(resourceName: "YAML"),
+            parserOptions: parserOptions,
+            templateParameters: templateParameters
+        )
     }
 
     private static func yaml(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:]
+        template: Template,
+        parserOptions: [String: Parser.Option] = [:],
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .yaml,
             parserOptions: parserOptions,
-            extensions: ["yml"]
+            extensions: ["yml"],
+            templateParameters: templateParameters
         )
     }
+
+    // MARK: - Files
 
     /// Files synthesizer defined in a plugin
     public static func files(
         plugin: String,
         parserOptions: [String: Parser.Option] = [:],
-        extensions: Set<String>
+        extensions: Set<String>,
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .files(
-            templateType: .plugin(
+            template: .plugin(
                 name: plugin,
                 resourceName: "Files"
             ),
             parserOptions: parserOptions,
-            extensions: extensions
+            extensions: extensions,
+            templateParameters: templateParameters
         )
     }
 
     /// Files synthesizer with a template defined in `Tuist/{ProjectName}`
     public static func files(
         parserOptions: [String: Parser.Option] = [:],
-        extensions: Set<String>
+        extensions: Set<String>,
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .files(
-            templateType: .defaultTemplate(resourceName: "Files"),
+            template: .defaultTemplate(resourceName: "Files"),
             parserOptions: parserOptions,
-            extensions: extensions
+            extensions: extensions,
+            templateParameters: templateParameters
         )
     }
 
     private static func files(
-        templateType: TemplateType,
-        parserOptions: [String: Parser.Option] = [:],
-        extensions: Set<String>
+        template: Template,
+        parserOptions: [String: Parser.Option],
+        extensions: Set<String>,
+        templateParameters: [String: Template.Parameter]
     ) -> Self {
         .init(
-            templateType: templateType,
+            template: template,
             parser: .files,
             parserOptions: parserOptions,
-            extensions: extensions
+            extensions: extensions,
+            templateParameters: templateParameters
         )
     }
+
+    // MARK: - Custom
 
     /// Custom synthesizer from a plugin
     /// - Parameters:
@@ -362,18 +471,21 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     ///     - parser: `Parser` to use for parsing the file to obtain its data
     ///     - extensions: Set of extensions that should be parsed
     ///     - resourceName: Name of the template file and the resulting `.swift` file
+    ///     - templateParameters: Custom parameters that will be passed to the Stencil template
     public static func custom(
         plugin: String,
         parser: Parser,
         parserOptions: [String: Parser.Option] = [:],
         extensions: Set<String>,
-        resourceName: String
+        resourceName: String,
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .init(
-            templateType: .plugin(name: plugin, resourceName: resourceName),
+            template: .plugin(name: plugin, resourceName: resourceName),
             parser: parser,
             parserOptions: parserOptions,
-            extensions: extensions
+            extensions: extensions,
+            templateParameters: templateParameters
         )
     }
 
@@ -382,17 +494,20 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     ///     - name: Name of synthesizer
     ///     - parser: `Parser` to use for parsing the file to obtain its data
     ///     - extensions: Set of extensions that should be parsed
+    ///     - templateParameters: Custom parameters that will be passed to the Stencil template
     public static func custom(
         name: String,
         parser: Parser,
         parserOptions: [String: Parser.Option] = [:],
-        extensions: Set<String>
+        extensions: Set<String>,
+        templateParameters: [String: Template.Parameter] = [:]
     ) -> Self {
         .init(
-            templateType: .defaultTemplate(resourceName: name),
+            template: .defaultTemplate(resourceName: name),
             parser: parser,
             parserOptions: parserOptions,
-            extensions: extensions
+            extensions: extensions,
+            templateParameters: templateParameters
         )
     }
 }
@@ -451,6 +566,54 @@ extension ResourceSynthesizer.Parser.Option: ExpressibleByDictionaryLiteral {
 // MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByArrayLiteral
 
 extension ResourceSynthesizer.Parser.Option: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Self...) {
+        self = .array(elements)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByStringInterpolation
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByStringInterpolation {
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByIntegerLiteral
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) {
+        self = .integer(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByFloatLiteral
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .double(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByBooleanLiteral
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByBooleanLiteral {
+    public init(booleanLiteral value: Bool) {
+        self = .boolean(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByDictionaryLiteral
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, Self)...) {
+        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+    }
+}
+
+// MARK: - ResourceSynthesizer.Template.Parameter - ExpressibleByArrayLiteral
+
+extension ResourceSynthesizer.Template.Parameter: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Self...) {
         self = .array(elements)
     }

@@ -472,10 +472,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/amarcadet/XcodeGraph.git",
       "state" : {
-        "revision" : "6daad18195ec32fc31fbb9ad0a5971b966523f4e",
-        "version" : "1.15.1"
+        "branch" : "feat/add-template-parameters",
+        "revision" : "5c5bcab8a70ccbbb797cd7e496c031b5975a7975"
       }
     },
     {
