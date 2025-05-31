@@ -1332,6 +1332,15 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
+final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTestCase {
+    func test_app_with_all_resources() async throws {
+        try await setUpFixture(.iosAppWithTemplateParameters)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
         .withFixture("ios_app_with_sandbox_disabled")

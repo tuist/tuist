@@ -1,0 +1,3 @@
+someString: string
+someNumber: 42
+someBoolean: true
