@@ -124,14 +124,18 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(path: path.pathString)
     }
-    
+
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test()
             let framework = Target.test(name: "Framework", product: .framework)
-            let app = Target.test(name: "Core_Framework", product: .bundle, dependencies: [TargetDependency.target(name: "Framework")])
+            let app = Target.test(
+                name: "Core_Framework",
+                product: .bundle,
+                dependencies: [TargetDependency.target(name: "Framework")]
+            )
             let project = Project.test(path: path, targets: [app, framework])
             let graph = Graph.test(path: path, projects: [path: project], dependencies: [
                 .target(name: app.name, path: project.path): [

@@ -100,14 +100,14 @@ final class GraphImportsLinter: GraphImportsLinting {
                 $0.target.product != .bundle
             }
             .map { targetDependency in
-            if case .external = targetDependency.graphTarget.project.type { return graphTraverser
-                .allTargetDependencies(path: target.project.path, name: target.target.name)
-            } else {
-                return Set(arrayLiteral: targetDependency.graphTarget)
+                if case .external = targetDependency.graphTarget.project.type { return graphTraverser
+                    .allTargetDependencies(path: target.project.path, name: target.target.name)
+                } else {
+                    return Set(arrayLiteral: targetDependency.graphTarget)
+                }
             }
-        }
-        .flatMap { $0 }
-        .map(\.target.productName)
+            .flatMap { $0 }
+            .map(\.target.productName)
         return Set(explicitTargetDependencies)
     }
 }
