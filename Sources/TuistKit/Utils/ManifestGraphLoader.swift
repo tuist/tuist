@@ -98,11 +98,11 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         self.manifestFilesLocator = manifestFilesLocator
     }
 
-    // swiftlint:disable:next function_body_length large_tuple
+    // swiftlint:disable:next function_body_length
     public func load(
         path: AbsolutePath,
         disableSandbox: Bool
-    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
         try await manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
