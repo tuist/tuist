@@ -1,9 +1,7 @@
 import Foundation
 
 public enum Constants {
-    // NOTE: We expect tuist-cloud to set the value before running the CLI
-    public static var version: String! = "x.y.z"
-
+    @TaskLocal public static var version: String! = "x.y.z"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"

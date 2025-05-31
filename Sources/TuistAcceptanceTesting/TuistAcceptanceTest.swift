@@ -73,6 +73,29 @@ public enum TuistAcceptanceTest {
         }
     }
 
+    public static func expectFrameworkEmbedded(
+        _ framework: String,
+        by targetName: String,
+        xcodeprojPath: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+
+        let xcframeworkDependencies = target.embedFrameworksBuildPhases()
+            .filter { $0.dstSubfolderSpec == .frameworks }
+            .map(\.files)
+            .compactMap { $0 }
+            .flatMap { $0 }
+            .compactMap(\.file?.nameOrPath)
+            .filter { $0.contains(".framework") }
+        guard xcframeworkDependencies.contains("\(framework).framework")
+        else {
+            Issue.record("Target \(targetName) doesn't embed the framework \(framework)", sourceLocation: sourceLocation)
+            return
+        }
+    }
+
     public static func expectXCFrameworkEmbedded(
         _ xcframework: String,
         by targetName: String,

@@ -11,9 +11,6 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
 {
     public init() {}
 
-    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
-    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
@@ -264,8 +261,8 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await TestService(
-            generatorFactory: Self.generatorFactory,
-            cacheStorageFactory: Self.cacheStorageFactory
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
         ).run(
             runId: RunMetadataStorage.current.runId,
             schemeName: scheme,
