@@ -102,7 +102,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
     }
 
-    func test_run_doesntThrowAnyErrorsWithBundle_when_thereAreNoIssues() async throws {
+    func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
@@ -131,7 +131,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         let config = Tuist.test()
         let bundleFramework = Target.test(
             name: "Core_Framework",
-            product: .bundle,
+=            product: .bundle,
             bundleId: "framework.generated.resources"
         )
 
