@@ -17,11 +17,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func assertSynthesizedResources() {
-        try! MyFiles.loremTxt.url
-        MyAssetsAsset.Assets.accentColor.color
-        Options.someKey
-        MyFontsFontFamily.NotoSans.all.count
-        MyFontsFontFamily.NotoSansCondensed.all.count
-        MyFontsFontFamily.NotoSans.regular.name
+        print("Files: \(try! MyFiles.loremTxt.url)")
+        print("Assets: \(MyAssetsAsset.Assets.accentColor.name)")
+        print("Plist: \(Options.someKey)")
+        print("Font: \(MyFontsFontFamily.NotoSans.all.count)")
+        print("Font: \(MyFontsFontFamily.NotoSansCondensed.all.count)")
+        print("Font: \(MyFontsFontFamily.NotoSans.regular.name)")
+        print("JSON: \(MyJSONFiles.Params.someString)")
+        print("YAML: \(MyYAMLFiles.Settings.someString)")
+        print("YAML: \(MyYAMLFiles.Settings.someBoolean)")
+        print("YAML: \(MyYAMLFiles.Settings.someNumber)")
     }
 }

@@ -53,6 +53,7 @@ let project = Project(
         .json(
             templateParameters: [
                 "enumName": "MyJSONFiles",
+                "forceFileNameEnum": true,
             ]
         ),
         .plists(
@@ -69,6 +70,7 @@ let project = Project(
         .yaml(
             templateParameters: [
                 "enumName": "MyYAMLFiles",
+                "forceFileNameEnum": true,
             ]
         ),
     ]
