@@ -11,6 +11,6 @@ public class Framework1File {
     }
 
     public func helloFromFramework2() -> String {
-        "Framework1File -> \(framework2File.hello())"
+        "Framework1File -> \(framework2File.hello())"xx
     }
 }

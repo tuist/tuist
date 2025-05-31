@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol ManifestFilesLocating: AnyObject {

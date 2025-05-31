@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 
 public protocol EnvironmentLinting {
     func lint(configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws -> [LintingIssue]

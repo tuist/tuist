@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistSupport
+import TuistCore
 
 enum RootDirectoryLocatorError: FatalError, Equatable {
     /// Thrown when the root directory can't be located.

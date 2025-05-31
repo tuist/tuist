@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import TuistCore
 import XCTest
+import TuistRootDirectoryLocator
 
 @testable import TuistCoreTesting
 @testable import TuistLoader

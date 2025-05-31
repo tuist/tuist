@@ -5,6 +5,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XCTest
+import TuistRootDirectoryLocator
 
 @testable import ProjectDescription
 @testable import TuistLoader

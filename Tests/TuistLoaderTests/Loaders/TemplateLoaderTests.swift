@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XCTest
+import TuistRootDirectoryLocator
 
 @testable import ProjectDescription
 @testable import TuistLoader

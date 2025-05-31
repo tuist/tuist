@@ -6,6 +6,7 @@ import Testing
 import TuistCore
 import TuistSupportTesting
 import XcodeGraph
+import TuistRootDirectoryLocator
 
 @testable import TuistHasher
 

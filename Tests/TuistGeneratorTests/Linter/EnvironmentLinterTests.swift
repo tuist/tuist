@@ -5,6 +5,7 @@ import Mockable
 import Testing
 import TuistCore
 import TuistSupport
+import TuistRootDirectoryLocator
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting

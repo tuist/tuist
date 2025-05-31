@@ -8,6 +8,7 @@ import TuistLoaderTesting
 import TuistServer
 import TuistSupport
 import XCTest
+import TuistRootDirectoryLocator
 
 @testable import TuistKit
 @testable import TuistSupportTesting
