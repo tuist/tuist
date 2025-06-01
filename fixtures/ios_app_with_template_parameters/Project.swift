@@ -34,24 +34,28 @@ let project = Project(
     resourceSynthesizers: [
         .assets(
             templateParameters: [
+                "publicAccess": false,
                 "name": "MyAssets",
             ]
         ),
         .files(
             extensions: ["txt"],
             templateParameters: [
+                "publicAccess": false,
                 "enumName": "MyFiles",
                 "resourceTypeName": "MyFile",
             ]
         ),
         .fonts(
             templateParameters: [
+                "publicAccess": false,
                 "name": "MyFonts",
             ]
         ),
         // no default template yet
         .json(
             templateParameters: [
+                "publicAccess": false,
                 "enumName": "MyJSONFiles",
                 "forceFileNameEnum": true,
             ]
@@ -63,12 +67,14 @@ let project = Project(
         ),
         .strings(
             templateParameters: [
+                "publicAccess": false,
                 "name": "MyStrings",
             ]
         ),
         // no default template yet
         .yaml(
             templateParameters: [
+                "publicAccess": false,
                 "enumName": "MyYAMLFiles",
                 "forceFileNameEnum": true,
             ]

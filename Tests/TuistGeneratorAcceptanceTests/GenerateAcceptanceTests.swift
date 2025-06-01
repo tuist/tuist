@@ -1358,7 +1358,7 @@ final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTe
             )
             .contains(
                 """
-                public enum MyFiles {
+                internal enum MyFiles {
                 """
             )
         )
@@ -1369,7 +1369,7 @@ final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTe
             )
             .contains(
                 """
-                public struct MyFile {
+                internal struct MyFile {
                 """
             )
         )
@@ -1380,7 +1380,7 @@ final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTe
             )
             .contains(
                 """
-                public enum MyFontsFontFamily
+                internal enum MyFontsFontFamily
                 """
             )
         )
@@ -1391,7 +1391,7 @@ final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTe
             )
             .contains(
                 """
-                public enum MyYAMLFiles
+                internal enum MyYAMLFiles
                 """
             )
         )
