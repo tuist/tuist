@@ -33,14 +33,19 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             environment: stencilSwiftEnvironment()
         )
 
+        let parameters = makeParams(
+            for: parser,
+            name: name,
+            bundleName: bundleName,
+            userParameters: templateParameters
+        )
+
         let parser = try self.parser(for: parser, with: parserOptions)
 
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
+
         var context = parser.stencilContext()
-        context = try StencilContext.enrich(
-            context: context,
-            parameters: makeParams(name: name, bundleName: bundleName, userParameters: templateParameters)
-        )
+        context = try StencilContext.enrich(context: context, parameters: parameters)
         return try template.render(context)
     }
 
@@ -76,15 +81,26 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
     }
 
     private func makeParams(
+        for parser: ResourceSynthesizer.Parser,
         name: String,
         bundleName: String?,
         userParameters: [String: ResourceSynthesizer.Template.Parameter]
     ) -> [String: Any] {
         var params: [String: Any] = [:]
         params["publicAccess"] = true
-        params["name"] = name
-        if let bundleName {
-            params["bundle"] = bundleName
+
+        if parser == .assets || parser == .strings || parser == .fonts {
+            params["name"] = name
+        }
+
+        if parser == .files || parser == .json || parser == .yaml {
+            params["enumName"] = name
+        }
+
+        if parser == .files || parser == .fonts {
+            if let bundleName {
+                params["bundle"] = bundleName
+            }
         }
 
         // user might want to override some default behavior (at their own risk)
