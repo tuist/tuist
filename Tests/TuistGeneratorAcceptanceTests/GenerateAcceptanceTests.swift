@@ -1337,6 +1337,65 @@ final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTe
         try await setUpFixture(.iosAppWithTemplateParameters)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
+
+        try XCTAssertDirectoryContentEqual(
+            fixturePath.appending(components: "Derived", "Sources"),
+            [
+                "TuistAssets+App.swift",
+                "TuistBundle+App.swift",
+                "TuistFiles+App.swift",
+                "TuistFonts+App.swift",
+                "TuistJSON+App.swift",
+                "TuistPlists+App.swift",
+                "TuistStrings+App.swift",
+                "TuistYAML+App.swift",
+            ]
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFiles+App.swift")
+            )
+            .contains(
+                """
+                public enum MyFiles {
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFiles+App.swift")
+            )
+            .contains(
+                """
+                public struct MyFile {
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFonts+App.swift")
+            )
+            .contains(
+                """
+                public enum MyFontsFontFamily
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistYAML+App.swift")
+            )
+            .contains(
+                """
+                public enum MyYAMLFiles
+                """
+            )
+        )
+
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
