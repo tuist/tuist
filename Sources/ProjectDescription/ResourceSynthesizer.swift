@@ -532,6 +532,83 @@ extension [ResourceSynthesizer] {
     }
 }
 
+/// Provide helpers for tuist embedded templates.
+public extension Dictionary where Key == String, Value == ResourceSynthesizer.Template.Parameter {
+    /// Helper function to configure template parameters available for strings.
+    /// - Parameters:
+    ///   - publicAccess: If set, the generated constants will be marked as `public`. Otherwise, they'll be declared `internal`.
+    ///   - name: Allows you to change the name of the generated `enum` containing all string tables.
+    ///   - forceFileNameEnum: Setting this parameter will generate an `enum <FileName>` even if only one FileName was provided as input.
+    ///   - lookupFunction: Allows you to set your own custom localization function.
+    ///   - noComments: Setting this parameter will disable the comments containing the comment from the strings file or the translation of a key.
+    /// - Returns: A dictionary containing configured parameters.
+    static func strings(
+        publicAccess: Bool? = nil,
+        name: String? = nil,
+        forceFileNameEnum: Bool? = nil,
+        lookupFunction: String? = nil,
+        noComments: Bool? = nil
+    ) -> Self {
+        var parameters: Self = [:]
+
+        if let publicAccess {
+            parameters["publicAccess"] = .boolean(publicAccess)
+        }
+
+        if let name {
+            parameters["name"] = .string(name)
+        }
+
+        if let forceFileNameEnum {
+            parameters["forceFileNameEnum"] = .boolean(forceFileNameEnum)
+        }
+
+        if let lookupFunction {
+            parameters["lookupFunction"] = .string(lookupFunction)
+        }
+
+        if let noComments {
+            parameters["noComments"] = .boolean(noComments)
+        }
+
+        return parameters
+    }
+
+    /// Helper function to configure template parameters available for assets.
+    /// - Parameters:
+    ///   - publicAccess: If set, the generated constants will be marked as `public`. Otherwise, they'll be declared `internal`.
+    ///   - name: Allows you to change the name of the generated enum containing all assets.
+    ///   - forceFileNameEnum: Setting this parameter will generate an `enum <FileName>` even if only one FileName was provided as input.
+    ///   - allValues: Setting this parameter will enable the generation of the `allColors`, `allImages` and other such constants.
+    /// - Returns: A dictionary containing configured parameters.
+    static func assets(
+        publicAccess: Bool? = nil,
+        name: String? = nil,
+        forceFileNameEnum: Bool? = nil,
+        allValues: Bool? = nil
+    ) -> Self {
+        var parameters: Self = [:]
+
+        if let publicAccess {
+            parameters["publicAccess"] = .boolean(publicAccess)
+        }
+
+        if let name {
+            parameters["name"] = .string(name)
+        }
+
+        if let forceFileNameEnum {
+            parameters["forceFileNameEnum"] = .boolean(forceFileNameEnum)
+        }
+
+        if let allValues {
+            parameters["allValues"] = .boolean(allValues)
+        }
+
+        return parameters
+    }
+}
+
 // MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByStringInterpolation
 
 extension ResourceSynthesizer.Parser.Option: ExpressibleByStringInterpolation {

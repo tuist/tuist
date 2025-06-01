@@ -33,10 +33,10 @@ let project = Project(
     ],
     resourceSynthesizers: [
         .assets(
-            templateParameters: [
-                "publicAccess": false,
-                "name": "MyAssets",
-            ]
+            templateParameters: .assets(
+                publicAccess: false,
+                name: "MyAssets"
+            )
         ),
         .files(
             extensions: ["txt"],
@@ -66,10 +66,10 @@ let project = Project(
             ]
         ),
         .strings(
-            templateParameters: [
-                "publicAccess": false,
-                "name": "MyStrings",
-            ]
+            templateParameters: .strings(
+                publicAccess: false,
+                name: "MyStrings"
+            )
         ),
         // no default template yet
         .yaml(
