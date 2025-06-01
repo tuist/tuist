@@ -17,10 +17,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func assertSynthesizedResources() {
+        print("Strings: \(MyStringsStrings.App.app)")
+        print("Strings: \(MyStringsStrings.App.appleCount(42))")
         print("Files: \(try! MyFiles.loremTxt.url)")
         print("Assets: \(MyAssetsAsset.Assets.accentColor.name)")
         print("Plist: \(Options.someKey)")
-        print("Font: \(MyFontsFontFamily.SFProDisplay.all.count)")
+        print("Fonts: \(MyFontsFontFamily.SFProDisplay.all.count)")
         print("JSON: \(MyJSONFiles.Params.someString)")
         print("YAML: \(MyYAMLFiles.Settings.someString)")
         print("YAML: \(MyYAMLFiles.Settings.someBoolean)")
