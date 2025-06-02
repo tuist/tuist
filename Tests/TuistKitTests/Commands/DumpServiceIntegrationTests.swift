@@ -6,7 +6,7 @@ import XCTest
 
 @testable import TuistKit
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class DumpServiceTests: TuistTestCase {
     private var subject: DumpService!

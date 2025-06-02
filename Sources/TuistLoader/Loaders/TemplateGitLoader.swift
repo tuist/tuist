@@ -57,3 +57,15 @@ public final class TemplateGitLoader: TemplateGitLoading {
         }
     }
 }
+
+#if DEBUG
+    public final class MockTemplateGitLoader: TemplateGitLoading {
+        public init() {}
+
+        public var loadTemplateStub: ((String) throws -> Template)?
+        public func loadTemplate(from templateURL: String, closure: @escaping (Template) async throws -> Void) async throws {
+            let template = try loadTemplateStub?(templateURL) ?? Template(description: "", attributes: [], items: [])
+            try await closure(template)
+        }
+    }
+#endif

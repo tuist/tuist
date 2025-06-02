@@ -8,9 +8,8 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-@testable import TuistCoreTesting
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!

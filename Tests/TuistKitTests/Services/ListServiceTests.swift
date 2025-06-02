@@ -1,10 +1,9 @@
 import Mockable
 import TuistCore
 import TuistLoader
-import TuistLoaderTesting
-import TuistPluginTesting
+import TuistPlugin
 import TuistScaffold
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistKit

@@ -3,7 +3,7 @@ import struct TSCUtility.Version
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeControllerTests: TuistUnitTestCase {
     var subject: XcodeController!

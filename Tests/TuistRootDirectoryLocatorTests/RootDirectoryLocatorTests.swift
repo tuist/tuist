@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistRootDirectoryLocator

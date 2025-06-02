@@ -42,3 +42,17 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
         return helpersDirectory
     }
 }
+
+#if DEBUG
+    public final class MockHelpersDirectoryLocator: HelpersDirectoryLocating {
+        public var locateStub: AbsolutePath?
+        public var locateArgs: [AbsolutePath] = []
+
+        public init() {}
+
+        public func locate(at: AbsolutePath) -> AbsolutePath? {
+            locateArgs.append(at)
+            return locateStub
+        }
+    }
+#endif

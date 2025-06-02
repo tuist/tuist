@@ -7,7 +7,7 @@ import TSCUtility
 
 @testable import TuistCore
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct SimulatorControllerTests {
     private var subject: SimulatorController!

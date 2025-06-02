@@ -3,7 +3,7 @@ import Testing
 import TuistAcceptanceTesting
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 

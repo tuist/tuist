@@ -7,12 +7,11 @@ import Testing
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
-import TuistLoaderTesting
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class MultipleConfigurationsIntegrationTests {
     init() async throws {

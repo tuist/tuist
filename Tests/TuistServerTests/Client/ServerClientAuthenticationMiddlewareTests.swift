@@ -4,7 +4,7 @@ import Mockable
 import OpenAPIRuntime
 import Testing
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistServer
 

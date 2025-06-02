@@ -6,7 +6,7 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistScaffold
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     var subject: TemplatesDirectoryLocator!

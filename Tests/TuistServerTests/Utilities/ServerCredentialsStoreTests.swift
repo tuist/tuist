@@ -3,7 +3,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistServer
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ServerCredentialsStoreTests: TuistUnitTestCase {
     var subject: ServerCredentialsStore!

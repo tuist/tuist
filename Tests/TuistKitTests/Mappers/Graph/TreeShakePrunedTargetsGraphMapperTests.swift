@@ -3,9 +3,8 @@ import Path
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     var subject: TreeShakePrunedTargetsGraphMapper!

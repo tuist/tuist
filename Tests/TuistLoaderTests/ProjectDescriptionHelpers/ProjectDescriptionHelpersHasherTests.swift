@@ -6,7 +6,7 @@ import Testing
 import TuistCore
 import TuistSupport
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct ProjectDescriptionHelpersHasherTests {
     private var subject: ProjectDescriptionHelpersHasher!

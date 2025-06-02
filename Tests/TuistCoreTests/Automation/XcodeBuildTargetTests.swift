@@ -3,7 +3,7 @@ import TuistCore
 import TuistSupport
 import XCTest
 
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeBuildTargetTests: TuistUnitTestCase {
     func test_xcodebuildArguments_returns_the_right_arguments_when_project() throws {

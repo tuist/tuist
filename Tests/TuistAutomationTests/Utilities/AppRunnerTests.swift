@@ -4,7 +4,7 @@ import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistAutomation
 

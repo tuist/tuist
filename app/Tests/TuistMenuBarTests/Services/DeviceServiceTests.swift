@@ -4,7 +4,7 @@ import TuistAutomation
 import TuistCore
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistApp

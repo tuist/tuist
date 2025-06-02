@@ -3,7 +3,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SimulatorControllerTests: TuistTestCase {
     var subject: SimulatorController!

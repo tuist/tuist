@@ -2,8 +2,7 @@ import Foundation
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphTargetTests: TuistUnitTestCase {
     func test_comparable() {

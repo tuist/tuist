@@ -4,7 +4,7 @@ import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SettingsLinterTests: TuistUnitTestCase {
     var subject: SettingsLinter!

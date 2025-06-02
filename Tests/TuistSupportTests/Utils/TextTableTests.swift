@@ -1,7 +1,7 @@
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TextTableTests: TuistUnitTestCase {
     func test_renders_data() throws {

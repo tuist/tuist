@@ -2,14 +2,12 @@ import Mockable
 import Path
 import TuistCore
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 import XcodeProj
 import XCTest
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistPluginTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class EditServiceTests: XCTestCase {
     var subject: EditService!

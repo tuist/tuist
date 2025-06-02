@@ -5,10 +5,10 @@ import Path
 import Testing
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 @Suite struct CodesignControllerTests {
     private let commandRunner = MockCommandRunning()

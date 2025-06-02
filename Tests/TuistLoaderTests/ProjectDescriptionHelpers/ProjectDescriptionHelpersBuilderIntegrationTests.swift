@@ -7,7 +7,7 @@ import XCTest
 
 @testable import TuistLoader
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
     private var subject: ProjectDescriptionHelpersBuilder!

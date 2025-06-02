@@ -1,12 +1,11 @@
 
 import Foundation
 import TuistCore
-import TuistGeneratorTesting
 import TuistSupport
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeProjWriterTests: TuistUnitTestCase {
     private var subject: XcodeProjWriter!

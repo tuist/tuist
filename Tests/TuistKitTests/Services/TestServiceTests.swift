@@ -10,10 +10,8 @@ import TuistSupport
 import XcodeGraph
 import XCTest
 
-@testable import TuistAutomationTesting
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!

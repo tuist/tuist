@@ -3,14 +3,13 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 import XCTest
 
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SwiftPackageManagerInteractorTests: TuistTestCase {
     private var subject: SwiftPackageManagerInteractor!

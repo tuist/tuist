@@ -9,6 +9,20 @@ public struct WorkspaceWithProjects: Equatable {
     }
 }
 
+#if DEBUG
+    extension WorkspaceWithProjects {
+        public static func test(
+            workspace: Workspace = .test(),
+            projects: [Project] = [.test()]
+        ) -> WorkspaceWithProjects {
+            WorkspaceWithProjects(
+                workspace: workspace,
+                projects: projects
+            )
+        }
+    }
+#endif
+
 public protocol WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor])
 }
@@ -60,3 +74,12 @@ public final class ProjectWorkspaceMapper: WorkspaceMapping {
         )
     }
 }
+
+#if DEBUG
+    public final class MockWorkspaceMapper: WorkspaceMapping {
+        public var mapStub: ((WorkspaceWithProjects) -> (WorkspaceWithProjects, [SideEffectDescriptor]))?
+        public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+            mapStub?(workspace) ?? (.test(), [])
+        }
+    }
+#endif

@@ -1,7 +1,7 @@
 import TSCUtility
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistLoader

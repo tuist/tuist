@@ -5,7 +5,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeBuildControllerTests: TuistTestCase {
     var subject: XcodeBuildController!

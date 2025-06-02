@@ -6,12 +6,11 @@ import Path
 import Testing
 import struct TSCUtility.Version
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct WorkspaceDescriptorGeneratorTests {
     var subject: WorkspaceDescriptorGenerator!

@@ -9,8 +9,7 @@ import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace

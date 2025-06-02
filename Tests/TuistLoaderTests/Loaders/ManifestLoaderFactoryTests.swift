@@ -6,7 +6,7 @@ import Testing
 import TuistSupport
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct ManifestLoaderFactoryTests {
     func test_create_default_cached_manifest_loader() {

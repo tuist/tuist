@@ -5,7 +5,7 @@ import Path
 import TuistCore
 import TuistLoader
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 

@@ -2,7 +2,7 @@ import Command
 import Mockable
 import TSCUtility
 import TuistCore
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistSupport

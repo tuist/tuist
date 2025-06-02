@@ -3,7 +3,7 @@ import Mockable
 import TuistCore
 import TuistLoader
 import TuistRootDirectoryLocator
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 

@@ -1,15 +1,13 @@
 import FileSystem
 import Path
 import TuistCore
-import TuistCoreTesting
-import TuistLoaderTesting
 import TuistSupport
 import XcodeProj
 import XCTest
 
 @testable import TuistGenerator
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class StableXcodeProjIntegrationTests: TuistTestCase {
     private var fileSystem: FileSysteming!

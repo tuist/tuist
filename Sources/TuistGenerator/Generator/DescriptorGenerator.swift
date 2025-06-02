@@ -77,3 +77,31 @@ public final class DescriptorGenerator: DescriptorGenerating {
         try await workspaceDescriptorGenerator.generate(graphTraverser: graphTraverser)
     }
 }
+
+#if DEBUG
+    public final class MockDescriptorGenerator: DescriptorGenerating {
+        public enum MockError: Error {
+            case stubNotImplemented
+        }
+
+        public init() {}
+
+        public var generateProjectSub: ((Project, GraphTraversing) throws -> ProjectDescriptor)?
+        public func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
+            guard let generateProjectSub else {
+                throw MockError.stubNotImplemented
+            }
+
+            return try generateProjectSub(project, graphTraverser)
+        }
+
+        public var generateWorkspaceStub: ((GraphTraversing) throws -> WorkspaceDescriptor)?
+        public func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
+            guard let generateWorkspaceStub else {
+                throw MockError.stubNotImplemented
+            }
+
+            return try generateWorkspaceStub(graphTraverser)
+        }
+    }
+#endif

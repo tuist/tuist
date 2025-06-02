@@ -5,10 +5,8 @@ import TuistSupport
 import XCTest
 
 @testable import ProjectDescription
-@testable import TuistCoreTesting
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GeneratorPathsTests: TuistUnitTestCase {
     private var path: AbsolutePath!

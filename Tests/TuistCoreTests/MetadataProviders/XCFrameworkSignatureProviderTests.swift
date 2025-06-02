@@ -5,7 +5,7 @@ import Testing
 import TuistSupport
 
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct XCFrameworkSignatureProviderTests {
     private var subject: XCFrameworkSignatureProvider!

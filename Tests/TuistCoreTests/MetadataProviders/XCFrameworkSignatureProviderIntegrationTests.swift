@@ -1,7 +1,7 @@
 import FileSystem
 import Mockable
 import Path
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistCore

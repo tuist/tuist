@@ -1,6 +1,6 @@
 import Foundation
 import TuistAcceptanceTesting
-import TuistSupportTesting
+import TuistTesting
 
 final class CacheAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_frameworks() async throws {

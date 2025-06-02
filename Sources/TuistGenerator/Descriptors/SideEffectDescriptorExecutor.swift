@@ -66,3 +66,12 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         try System.shared.run(command.command)
     }
 }
+
+#if DEBUG
+    final class MockSideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
+        var executeStub: (([SideEffectDescriptor]) throws -> Void)?
+        func execute(sideEffects: [SideEffectDescriptor]) throws {
+            try executeStub?(sideEffects)
+        }
+    }
+#endif
