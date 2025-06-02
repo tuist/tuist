@@ -40,12 +40,20 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
     try await _withMockedDependencies(forwardLogs: forwardLogs, closure)
 }
 
+public enum TuistTestRunOption {
+    case useSimulatorLock
+}
+
 public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
     @TaskLocal public static var fixtureAccountHandle: String?
     @TaskLocal public static var fixtureFullHandle: String?
 
-    public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [])
+    public static func run(
+        _ command: (some AsyncParsableCommand).Type,
+        _ arguments: [String] = [],
+        options: Set<TuistTestRunOption> = Set()
+    )
         async throws
     {
         if let mockEnvironment = Environment.mocked {
@@ -59,7 +67,15 @@ public enum TuistTest {
         if let mockEnvironment = Environment.mocked {
             mockEnvironment.processId = UUID().uuidString
         }
-        try await run()
+
+        let acquireLock = arguments.first(where: { ["-destination", "--device"].contains($0) }) != nil || options
+            .contains(.useSimulatorLock)
+
+        if acquireLock {
+            try await TestingSimulators.acquiringPoolLock(run)
+        } else {
+            try await run()
+        }
     }
 
     public static func expectFrameworkNotEmbedded(
