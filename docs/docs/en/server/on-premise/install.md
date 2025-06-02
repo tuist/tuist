@@ -39,6 +39,13 @@ For performant analytics, we use a [Timescale Postgres extension](https://www.ti
 > [!INFO] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 
+### ClickHouse database {#clickhouse-database}
+
+To store large amount of data, we are using [ClickHouse](https://clickhouse.com/). Some features, like build insights, will only work with ClickHouse enabled. ClickHouse will eventually replace the Timescale Postgres extension. You can choose whether to self-host ClickHouse or use their hosted service.
+
+> [!INFO] MIGRATIONS
+> The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+
 ### Storage {#storage}
 
 You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
@@ -81,6 +88,7 @@ The following environment variables are used to configure the database connectio
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
 | `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |

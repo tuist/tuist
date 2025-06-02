@@ -2,7 +2,9 @@ import FileSystem
 import Path
 import Testing
 import TuistSupport
+
 @testable import TuistSupportTesting
+@testable import TuistXCActivityLog
 
 struct XCActivityLogControllerTests {
     let subject: XCActivityLogController
@@ -32,7 +34,7 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
 
         // When
-        let got = try subject.parse(cleanBuildXCActivityLog)
+        let got = try await subject.parse(cleanBuildXCActivityLog)
 
         // Then
         #expect(got.category == .clean)
@@ -44,9 +46,25 @@ struct XCActivityLogControllerTests {
             .appending(try RelativePath(validating: "../../Fixtures/incremental-build.xcactivitylog"))
 
         // When
-        let got = try subject.parse(incrementalBuildXCActivityLog)
+        let got = try await subject.parse(incrementalBuildXCActivityLog)
 
         // Then
         #expect(got.category == .incremental)
+    }
+
+    @Test func parseFailedBuildXCActivityLog() async throws {
+        // Given
+        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/failed-build.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(xcactivityLog)
+
+        // Then
+        #expect(got.issues.map(\.type) == [.error])
+        let issue = try #require(got.issues.first)
+        #expect(issue.target == "Framework1")
+        #expect(issue.project == "MainApp")
+        #expect(issue.title == "Compile Framework1File.swift (arm64)")
     }
 }

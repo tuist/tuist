@@ -84,6 +84,7 @@ let targets: [Target] = [
             "TuistSimulator",
             "FileSystem",
             "TuistCache",
+            "TuistRootDirectoryLocator",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -181,6 +182,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Stencil",
+            "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -209,6 +211,7 @@ let targets: [Target] = [
             "Stencil",
             "Mockable",
             "FileSystem",
+            "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -288,6 +291,7 @@ let targets: [Target] = [
             "Mockable",
             "ProjectDescription",
             "FileSystem",
+            "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -344,6 +348,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistCache",
+            "TuistXCActivityLog",
             "FileSystem",
             "XcodeGraph",
             "Mockable",
@@ -364,6 +369,7 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "FileSystem",
+            "TuistRootDirectoryLocator",
             pathDependency,
             "XcodeGraph",
             "Mockable",
@@ -392,6 +398,33 @@ let targets: [Target] = [
         dependencies: [
             "XcodeGraph",
             "Mockable",
+            pathDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistXCActivityLog",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "TuistRootDirectoryLocator",
+            "FileSystem",
+            "XCLogParser",
+            swiftToolsSupportDependency,
+            pathDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRootDirectoryLocator",
+        dependencies: [
+            "TuistCore",
+            "TuistSupport",
+            "FileSystem",
             pathDependency,
         ],
         swiftSettings: [

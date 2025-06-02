@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 public protocol EnvironmentLinting {

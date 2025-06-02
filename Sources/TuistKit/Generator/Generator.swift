@@ -8,6 +8,7 @@ import TuistDependencies
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 

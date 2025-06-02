@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistRootDirectoryLocator
 import TuistSupport
 import XCTest
 

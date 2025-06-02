@@ -3,6 +3,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 /// Entity responsible for providing `PackageSettings`.
