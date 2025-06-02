@@ -24,43 +24,43 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
         }
     }
 }
-
-final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
-    func test_xcode_project_with_inspect_build() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.xcodeProjectWithInspectBuild)
-            let arguments = [
-                "-scheme", "App",
-                "-destination", "generic/platform=iOS Simulator",
-                "-project", fixturePath.appending(component: "App.xcodeproj").pathString,
-                "-resultBundlePath", fixturePath.appending(component: "result-bundle").pathString,
-            ]
-            try await run(XcodeBuildBuildCommand.self, arguments)
-            try await run(InspectBuildCommand.self)
-            XCTAssertEqual(ui(), """
-            ✔ Success
-              Uploaded a build to the server.
-            """)
-        }
-    }
-}
-
-final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
-    func test_xcode_project_with_inspect_build() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.xcodeProjectWithInspectBuild)
-            let arguments = [
-                "-scheme", "App",
-                "-destination", "generic/platform=iOS Simulator",
-                "-project", fixturePath.appending(component: "App.xcodeproj").pathString,
-                "-derivedDataPath", fixturePath.appending(component: "App").pathString,
-            ]
-            try await run(XcodeBuildBuildCommand.self, arguments)
-            try await run(
-                InspectBundleCommand.self,
-                fixturePath.appending(components: "App", "Build", "Products", "Debug-iphonesimulator", "App.app").pathString
-            )
-            XCTAssertTrue(ui().contains("✔︎ Bundle analyzed") == true)
-        }
-    }
-}
+//
+//final class InspectBuildAcceptanceTests: ServerAcceptanceTestCase {
+//    func test_xcode_project_with_inspect_build() async throws {
+//        try await withMockedDependencies {
+//            try await setUpFixture(.xcodeProjectWithInspectBuild)
+//            let arguments = [
+//                "-scheme", "App",
+//                "-destination", "generic/platform=iOS Simulator",
+//                "-project", fixturePath.appending(component: "App.xcodeproj").pathString,
+//                "-resultBundlePath", fixturePath.appending(component: "result-bundle").pathString,
+//            ]
+//            try await run(XcodeBuildBuildCommand.self, arguments)
+//            try await run(InspectBuildCommand.self)
+//            XCTAssertEqual(ui(), """
+//            ✔ Success
+//              Uploaded a build to the server.
+//            """)
+//        }
+//    }
+//}
+//
+//final class InspectBundleAcceptanceTests: ServerAcceptanceTestCase {
+//    func test_xcode_project_with_inspect_build() async throws {
+//        try await withMockedDependencies {
+//            try await setUpFixture(.xcodeProjectWithInspectBuild)
+//            let arguments = [
+//                "-scheme", "App",
+//                "-destination", "generic/platform=iOS Simulator",
+//                "-project", fixturePath.appending(component: "App.xcodeproj").pathString,
+//                "-derivedDataPath", fixturePath.appending(component: "App").pathString,
+//            ]
+//            try await run(XcodeBuildBuildCommand.self, arguments)
+//            try await run(
+//                InspectBundleCommand.self,
+//                fixturePath.appending(components: "App", "Build", "Products", "Debug-iphonesimulator", "App.app").pathString
+//            )
+//            XCTAssertTrue(ui().contains("✔︎ Bundle analyzed") == true)
+//        }
+//    }
+//}

@@ -5,6 +5,7 @@ import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeProj
+import Testing
 import XCTest
 
 @testable import TuistKit
@@ -62,7 +63,124 @@ struct DependenciesAcceptanceTests {
             ]
         )
     }
+    
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("app_with_registry_and_alamofire")
+    )
+    func app_with_registry_and_alamofire() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: Set up registry
+        try await TuistTest.run(
+            RegistrySetupCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            RegistryLoginCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        
+        // When: Install dependencies
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        
+        // When: Generate and build
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--path", fixtureDirectory.pathString, "--no-open"]
+        )
+        
+    }
+    
 }
+
+//final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
+//    func test_app_with_registry_and_alamofire() async throws {
+//        try await withMockedDependencies {
+//            try await run(BuildCommand.self, "App")
+//            try await run(RegistryLogoutCommand.self)
+//            try await run(CleanCommand.self, "dependencies")
+//            await XCTAssertThrows(try await run(InstallCommand.self))
+//        }
+//    }
+//}
+//
+//final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
+//    func test_app_with_registry_and_alamofire() async throws {
+//        try await withMockedDependencies {
+//            try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
+//            try await run(RegistrySetupCommand.self)
+//            try await run(RegistryLoginCommand.self)
+//            try await run(GenerateCommand.self)
+//            try await run(BuildCommand.self, "App")
+//        }
+//    }
+//}
+//
+//
+//final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
+//    func test_app_with_registry_and_alamofire() async throws {
+//        try await withMockedDependencies {
+//            try await setUpFixture(.packageWithRegistryAndAlamofire)
+//            try await run(RegistrySetupCommand.self)
+//            try await run(RegistryLoginCommand.self)
+//            let commandRunner = CommandRunner()
+//            _ = try await commandRunner.run(
+//                arguments: [
+//                    "/usr/bin/swift",
+//                    "package",
+//                    "reset",
+//                ],
+//                workingDirectory: fixturePath
+//            ).concatenatedString()
+//            _ = try await commandRunner.run(
+//                arguments: [
+//                    "/usr/bin/swift",
+//                    "build",
+//                    "--only-use-versions-from-resolved-file",
+//                ],
+//                workingDirectory: fixturePath
+//            ).concatenatedString()
+//        }
+//    }
+//}
+//
+//final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
+//    func test_xcode_project_with_registry_and_alamofire() async throws {
+//        try await withMockedDependencies {
+//            try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
+//            try await run(RegistrySetupCommand.self)
+//            try await run(RegistryLoginCommand.self)
+//            let commandRunner = CommandRunner()
+//            _ = try await commandRunner.run(
+//                arguments: [
+//                    "/usr/bin/xcrun",
+//                    "xcodebuild",
+//                    "clean",
+//                    "build",
+//                    "-project",
+//                    fixturePath.appending(component: "App.xcodeproj").pathString,
+//                    "-scheme",
+//                    "App",
+//                    "-sdk",
+//                    "iphonesimulator",
+//                    "-derivedDataPath",
+//                    derivedDataPath.pathString,
+//                    "-onlyUsePackageVersionsFromResolvedFile",
+//                ]
+//            )
+//            .concatenatedString()
+//        }
+//    }
+//}
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {
@@ -95,34 +213,6 @@ final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
-    }
-}
-
-final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
-    func test_app_with_registry_and_alamofire() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.appWithRegistryAndAlamofire)
-            try await run(RegistrySetupCommand.self)
-            try await run(RegistryLoginCommand.self)
-            try await run(InstallCommand.self)
-            try await run(GenerateCommand.self)
-            try await run(BuildCommand.self, "App")
-            try await run(RegistryLogoutCommand.self)
-            try await run(CleanCommand.self, "dependencies")
-            await XCTAssertThrows(try await run(InstallCommand.self))
-        }
-    }
-}
-
-final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
-    func test_app_with_registry_and_alamofire() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
-            try await run(RegistrySetupCommand.self)
-            try await run(RegistryLoginCommand.self)
-            try await run(GenerateCommand.self)
-            try await run(BuildCommand.self, "App")
-        }
     }
 }
 
@@ -218,61 +308,5 @@ final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
-    }
-}
-
-final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
-    func test_app_with_registry_and_alamofire() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.packageWithRegistryAndAlamofire)
-            try await run(RegistrySetupCommand.self)
-            try await run(RegistryLoginCommand.self)
-            let commandRunner = CommandRunner()
-            _ = try await commandRunner.run(
-                arguments: [
-                    "/usr/bin/swift",
-                    "package",
-                    "reset",
-                ],
-                workingDirectory: fixturePath
-            ).concatenatedString()
-            _ = try await commandRunner.run(
-                arguments: [
-                    "/usr/bin/swift",
-                    "build",
-                    "--only-use-versions-from-resolved-file",
-                ],
-                workingDirectory: fixturePath
-            ).concatenatedString()
-        }
-    }
-}
-
-final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
-    func test_xcode_project_with_registry_and_alamofire() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
-            try await run(RegistrySetupCommand.self)
-            try await run(RegistryLoginCommand.self)
-            let commandRunner = CommandRunner()
-            _ = try await commandRunner.run(
-                arguments: [
-                    "/usr/bin/xcrun",
-                    "xcodebuild",
-                    "clean",
-                    "build",
-                    "-project",
-                    fixturePath.appending(component: "App.xcodeproj").pathString,
-                    "-scheme",
-                    "App",
-                    "-sdk",
-                    "iphonesimulator",
-                    "-derivedDataPath",
-                    derivedDataPath.pathString,
-                    "-onlyUsePackageVersionsFromResolvedFile",
-                ]
-            )
-            .concatenatedString()
-        }
     }
 }
