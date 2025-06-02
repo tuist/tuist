@@ -95,6 +95,7 @@ public enum EnvKey: String, CaseIterable {
 
     // BUILD
     case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
+    case inspectBuildProjectDerivedDataPath = "TUIST_INSPECT_BUILD_PROJECT_DERIVED_DATA_PATH"
 
     // BUNDLE
     case inspectBundle = "TUIST_INSPECT_BUNDLE"

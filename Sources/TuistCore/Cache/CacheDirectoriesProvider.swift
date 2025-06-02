@@ -11,30 +11,14 @@ public protocol CacheDirectoriesProviding {
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
-    private let fileHandler: FileHandling
-    private let environment: Environmenting
-
-    init(
-        fileHandler: FileHandling,
-        environment: Environmenting
-    ) {
-        self.fileHandler = fileHandler
-        self.environment = environment
-    }
-
-    public convenience init() {
-        self.init(
-            fileHandler: FileHandler.shared,
-            environment: Environment.current
-        )
-    }
+    public init() {}
 
     public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
         cacheDirectory().appending(component: category.directoryName)
     }
 
     public func cacheDirectory() -> Path.AbsolutePath {
-        environment.cacheDirectory
+        Environment.current.cacheDirectory
     }
 
     public static func bootstrap() async throws {

@@ -20,64 +20,76 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         performing function: @Sendable () async throws -> Void
     ) async throws {
         let fileSystem = FileSystem()
+        let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
+        let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
+        let fullHandle = "\(organizationHandle)/\(projectHandle)"
+        let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
+        let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
+
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
+            let existingEnvVariables = Environment.current.variables
+
             try await TuistSupportTesting
                 .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
+                    existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
+
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
                         component: fixtureDirectory.basename
                     )
                     try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
-                        let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
-                        let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
-                        let fullHandle = "\(organizationHandle)/\(projectHandle)"
-                        let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
-                        let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
+                        try await TuistTest.$fixtureAccountHandle.withValue(organizationHandle) {
+                            try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
+                                try await TuistTest.run(
+                                    LoginCommand.self,
+                                    ["--email", email, "--password", password, "--path", fixtureTemporaryDirectory.pathString]
+                                )
+                                try await TuistTest.run(
+                                    OrganizationCreateCommand.self,
+                                    [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                )
+                                try await TuistTest.run(
+                                    ProjectCreateCommand.self,
+                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                )
 
-                        try await TuistTest.run(
-                            LoginCommand.self,
-                            ["--email", email, "--password", password, "--path", fixtureTemporaryDirectory.pathString]
-                        )
-                        try await TuistTest.run(
-                            OrganizationCreateCommand.self,
-                            [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                        )
-                        try await TuistTest.run(
-                            ProjectCreateCommand.self,
-                            [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                        )
+                                try await fileSystem.writeText(
+                                    """
+                                    import ProjectDescription
 
-                        try await fileSystem.writeText("""
-                        import ProjectDescription
+                                    let config = Config(
+                                        fullHandle: "\(fullHandle)",
+                                        url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
+                                    )
+                                    """,
+                                    at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"),
+                                    options: Set([.overwrite])
+                                )
+                                resetUI()
 
-                        let config = Config(
-                            fullHandle: "\(fullHandle)",
-                            url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
-                        )
-                        """, at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"), options: Set([.overwrite]))
-                        resetUI()
+                                let revert = {
+                                    try await TuistTest.run(
+                                        ProjectDeleteCommand.self,
+                                        [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                    )
+                                    try await TuistTest.run(
+                                        OrganizationDeleteCommand.self,
+                                        [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                    )
+                                    try await TuistTest.run(
+                                        LogoutCommand.self
+                                    )
+                                }
 
-                        let revert = {
-                            try await TuistTest.run(
-                                ProjectDeleteCommand.self,
-                                [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                            )
-                            try await TuistTest.run(
-                                OrganizationDeleteCommand.self,
-                                [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
-                            )
-                            try await TuistTest.run(
-                                LogoutCommand.self
-                            )
+                                do {
+                                    try await function()
+                                } catch {
+                                    try await revert()
+                                    throw error
+                                }
+                                try await revert()
+                            }
                         }
-
-                        do {
-                            try await function()
-                        } catch {
-                            try await revert()
-                            throw error
-                        }
-                        try await revert()
                     }
                 }
         }

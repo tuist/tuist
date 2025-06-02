@@ -69,7 +69,8 @@ struct InspectBuildCommandService {
     }
 
     func run(
-        path: String?
+        path: String?,
+        projectDerivedDataPath: String? = nil
     ) async throws {
         let referenceDate = dateService.now()
         guard let executablePath = Bundle.main.executablePath else {
@@ -94,7 +95,12 @@ struct InspectBuildCommandService {
             return
         }
         let projectPath = try await projectPath(path)
-        let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try? AbsolutePath(
+            validating: $0,
+            relativeTo: currentWorkingDirectory
+        ) } ?? derivedDataLocator.locate(for: projectPath)
+
         guard let mostRecentActivityLogPath =
             try await xcActivityLogController.mostRecentActivityLogPath(
                 projectDerivedDataDirectory: projectDerivedDataDirectory,

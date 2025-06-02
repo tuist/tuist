@@ -42,12 +42,24 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
 
 public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
+    @TaskLocal public static var fixtureAccountHandle: String?
+    @TaskLocal public static var fixtureFullHandle: String?
 
     public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [])
         async throws
     {
-        var parsedCommand = try command.parse(arguments)
-        try await parsedCommand.run()
+        if let mockEnvironment = Environment.mocked {
+            mockEnvironment.processId = UUID().uuidString
+        }
+
+        let run = {
+            var parsedCommand = try command.parse(arguments)
+            try await parsedCommand.run()
+        }
+        if let mockEnvironment = Environment.mocked {
+            mockEnvironment.processId = UUID().uuidString
+        }
+        try await run()
     }
 
     public static func expectFrameworkNotEmbedded(

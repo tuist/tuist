@@ -10,12 +10,6 @@ import XcodeGraph
 public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
     RecentPathRememberableCommand
 {
-    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing =
-        EmptySelectiveTestingGraphHasher()
-    public static var selectiveTestingService: SelectiveTestingServicing =
-        EmptySelectiveTestingService()
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "xcodebuild",
