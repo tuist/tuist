@@ -77,6 +77,48 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response_data["expires_at"] != nil
     end
 
+    test "errors if the account has no subscription and they've surpassed their limit", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
+      )
+
+      hash = "hash"
+      name = "name"
+      size = 1024
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      download_url = "https://tuist.dev/download/1234"
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/cache",
+          hash: hash,
+          name: name,
+          project_id: project_slug,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 402)
+
+      assert response["message"] == ~s"""
+             The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+             """
+    end
+
     test "returns download url with downcased full handle", %{conn: conn, cache: cache} do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
@@ -186,6 +228,42 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, :not_found)
 
       assert response == %{"message" => "The item doesn't exist in the cache."}
+    end
+
+    test "returns a payment required status code if the account has no subscription and their usage is above the threshold",
+         %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
+      )
+
+      CacheActionItems.create_cache_action_item(%{
+        hash: hash,
+        project: project
+      })
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/cache/ac/hash")
+
+      # Then
+      response = json_response(conn, :payment_required)
+
+      assert response == %{
+               "message" => ~s"""
+               The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+               """
+             }
     end
   end
 
@@ -311,6 +389,48 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       assert cache_action_item.hash == response["hash"]
     end
+
+    test "returns a payment_required method if the account doesn't have a subscription and has gone above the threshold",
+         %{conn: conn, cache: cache} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
+      )
+
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_id = project.id
+      date = DateTime.utc_now(:second)
+      stub(DateTime, :utc_now, fn :second -> date end)
+      hash = UUIDv7.generate()
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
+          %{
+            hash: hash
+          }
+        )
+
+      # Then
+      response = json_response(conn, :payment_required)
+
+      assert response == %{
+               "message" => ~s"""
+               The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+               """
+             }
+    end
   end
 
   describe "POST /api/cache/multipart/start" do
@@ -345,43 +465,117 @@ defmodule TuistWeb.API.CacheControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
     end
-  end
 
-  test "POST /api/cache/multipart/generate-url", %{conn: conn, cache: cache} do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
-    hash = "hash"
-    name = "name"
-    project_id = "#{account.name}/#{project.name}"
-    cache_category = "builds"
-    upload_id = "1234"
-    part_number = "3"
-    upload_url = "https://tuist.dev/upload/1234"
-    object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+    test "returns a payment_required error if the account has no subscription and they've gone above the threshold",
+         %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "12344"
 
-    expect(Storage, :multipart_generate_url, fn ^object_key,
-                                                ^upload_id,
-                                                ^part_number,
-                                                [expires_in: _, content_length: 20] ->
-      upload_url
-    end)
-
-    conn = Authentication.put_current_project(conn, project)
-
-    # When
-    conn =
-      conn
-      |> assign(:cache, cache)
-      |> post(
-        ~p"/api/cache/multipart/generate-url?hash=#{hash}&content_length=20&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
       )
 
-    # Then
-    response = json_response(conn, 200)
-    assert response["status"] == "success"
-    response_data = response["data"]
-    assert response_data["url"] == upload_url
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
+
+      # # Then
+      response = json_response(conn, :payment_required)
+
+      assert response["message"] == ~s"""
+             The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+             """
+    end
+  end
+
+  describe "POST /api/cache/multipart/generate-url" do
+    test "generates the url", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+      part_number = "3"
+      upload_url = "https://tuist.dev/upload/1234"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 20] ->
+        upload_url
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/generate-url?hash=#{hash}&content_length=20&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == upload_url
+    end
+
+    test "errors with a payment_required if the account has no subscription and they've gone above the threshold",
+         %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+      part_number = "3"
+      upload_url = "https://tuist.dev/upload/1234"
+
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
+      )
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/generate-url?hash=#{hash}&content_length=20&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
+        )
+
+      # Then
+      response = json_response(conn, :payment_required)
+
+      assert response["message"] == ~s"""
+             The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+             """
+    end
   end
 
   describe "POST /api/cache/multipart/complete" do
@@ -495,6 +689,52 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
       assert cache_event.size == 1024
+    end
+
+    test "errors with a payment_required when the account has no subscription and has gone above the limit",
+         %{conn: conn, cache: cache} do
+      # Given
+      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+      size = 1024
+      date = ~N[2024-04-30 10:20:30Z]
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"},
+        %{part_number: 3, etag: "etag3"}
+      ]
+
+      Tuist.Repo.update!(
+        Ecto.Changeset.change(account,
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+        )
+      )
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_slug}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, :payment_required)
+
+      assert response["message"] == ~s"""
+             The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+             """
     end
   end
 
