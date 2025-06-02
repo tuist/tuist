@@ -97,90 +97,150 @@ struct DependenciesAcceptanceTests {
             GenerateCommand.self,
             ["--path", fixtureDirectory.pathString, "--no-open"]
         )
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
         
+        // When: Registry logout
+        try await TuistTest.run(
+            RegistryLogoutCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            CleanCommand.self,
+            ["dependencies", "--path", fixtureDirectory.pathString]
+        )
+        
+        // Then: Fails to install
+        await #expect(throws: Error.self, performing: {
+            try await TuistTest.run(
+                InstallCommand.self,
+                ["--path", fixtureDirectory.pathString]
+            )
+        })
+        
+    }
+    
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("app_with_registry_and_alamofire_as_xcode_package")
+    )
+    func app_with_registry_and_alamofire_as_xcode_package() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: Set up registry
+        try await TuistTest.run(
+            RegistrySetupCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            RegistryLoginCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        
+        // When: Generate and build
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--path", fixtureDirectory.pathString, "--no-open"]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+    }
+    
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("package_with_registry_and_alamofire")
+    )
+    func package_with_registry_and_alamofire() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When: Set up registry
+        try await TuistTest.run(
+            RegistrySetupCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            RegistryLoginCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        
+        // When: Build
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/swift",
+                "package",
+                "reset",
+            ],
+            workingDirectory: fixtureDirectory
+        ).awaitCompletion()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/swift",
+                "build",
+                "--only-use-versions-from-resolved-file",
+            ],
+            workingDirectory: fixtureDirectory
+        ).awaitCompletion()
+    }
+    
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_registry_and_alamofire")
+    )
+    func xcode_project_with_registry_and_alamofire() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: Set up registry
+        try await TuistTest.run(
+            RegistrySetupCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            RegistryLoginCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        
+        // When: Build
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "build",
+                "-project",
+                fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-scheme",
+                "App",
+                "-sdk",
+                "iphonesimulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "-onlyUsePackageVersionsFromResolvedFile",
+            ]
+        ).awaitCompletion()
     }
     
 }
 
-//final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
-//    func test_app_with_registry_and_alamofire() async throws {
-//        try await withMockedDependencies {
-//            try await run(BuildCommand.self, "App")
-//            try await run(RegistryLogoutCommand.self)
-//            try await run(CleanCommand.self, "dependencies")
-//            await XCTAssertThrows(try await run(InstallCommand.self))
-//        }
-//    }
-//}
-//
-//final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
-//    func test_app_with_registry_and_alamofire() async throws {
-//        try await withMockedDependencies {
-//            try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
-//            try await run(RegistrySetupCommand.self)
-//            try await run(RegistryLoginCommand.self)
-//            try await run(GenerateCommand.self)
-//            try await run(BuildCommand.self, "App")
-//        }
-//    }
-//}
-//
-//
-//final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
-//    func test_app_with_registry_and_alamofire() async throws {
-//        try await withMockedDependencies {
-//            try await setUpFixture(.packageWithRegistryAndAlamofire)
-//            try await run(RegistrySetupCommand.self)
-//            try await run(RegistryLoginCommand.self)
-//            let commandRunner = CommandRunner()
-//            _ = try await commandRunner.run(
-//                arguments: [
-//                    "/usr/bin/swift",
-//                    "package",
-//                    "reset",
-//                ],
-//                workingDirectory: fixturePath
-//            ).concatenatedString()
-//            _ = try await commandRunner.run(
-//                arguments: [
-//                    "/usr/bin/swift",
-//                    "build",
-//                    "--only-use-versions-from-resolved-file",
-//                ],
-//                workingDirectory: fixturePath
-//            ).concatenatedString()
-//        }
-//    }
-//}
-//
-//final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
-//    func test_xcode_project_with_registry_and_alamofire() async throws {
-//        try await withMockedDependencies {
-//            try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
-//            try await run(RegistrySetupCommand.self)
-//            try await run(RegistryLoginCommand.self)
-//            let commandRunner = CommandRunner()
-//            _ = try await commandRunner.run(
-//                arguments: [
-//                    "/usr/bin/xcrun",
-//                    "xcodebuild",
-//                    "clean",
-//                    "build",
-//                    "-project",
-//                    fixturePath.appending(component: "App.xcodeproj").pathString,
-//                    "-scheme",
-//                    "App",
-//                    "-sdk",
-//                    "iphonesimulator",
-//                    "-derivedDataPath",
-//                    derivedDataPath.pathString,
-//                    "-onlyUsePackageVersionsFromResolvedFile",
-//                ]
-//            )
-//            .concatenatedString()
-//        }
-//    }
-//}
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {
