@@ -531,11 +531,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .generator:
                 [
-                    .external(name: "PathKit"),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.core.testingTargetName!),
                     .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.loader.testingTargetName!),
+                    .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
                     .external(name: "GraphViz"),
                     .external(name: "XcodeGraph"),
