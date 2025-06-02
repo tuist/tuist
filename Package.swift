@@ -40,6 +40,8 @@ let targets: [Target] = [
             "XcodeProj",
             "Mockable",
             "FileSystem",
+            "TuistSimulator",
+            .product(name: "XcodeMetadata", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
@@ -490,6 +492,10 @@ let package = Package(
             targets: ["TuistCore"]
         ),
         .library(
+            name: "TuistXCActivityLog",
+            targets: ["TuistXCActivityLog"]
+        ),
+        .library(
             name: "TuistCoreTesting",
             targets: ["TuistCoreTesting"]
         ),
@@ -571,7 +577,7 @@ let package = Package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.14.0")),
+        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.15.1")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
