@@ -30,10 +30,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_16.3.app
-
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -41,23 +39,20 @@ jobs:
           path: .build
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
-
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.3
           experimental: true
-
       - name: Generate manifest docs
         run: mise run docs:generate-manifests-docs
-
       - name: Build the documentation
         run: mise run docs:build
-
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
         run: |
           mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
-
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
