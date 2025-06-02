@@ -40,11 +40,12 @@ let targets: [Target] = [
             "XcodeProj",
             "Mockable",
             "FileSystem",
+            "TuistSimulator",
             .product(name: "XcodeMetadata", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -97,7 +98,7 @@ let targets: [Target] = [
             .product(name: "Rosalind", package: "Rosalind"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .executableTarget(
@@ -138,7 +139,7 @@ let targets: [Target] = [
             .product(name: "OrderedSet", package: "OrderedSet"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -186,7 +187,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -215,7 +216,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -232,7 +233,7 @@ let targets: [Target] = [
             "Command",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -247,7 +248,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -262,7 +263,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -278,7 +279,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -295,7 +296,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -324,7 +325,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -340,7 +341,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -361,7 +362,7 @@ let targets: [Target] = [
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -376,7 +377,7 @@ let targets: [Target] = [
             "Mockable",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -391,7 +392,7 @@ let targets: [Target] = [
             "TuistHasher",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -402,7 +403,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -417,7 +418,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -429,7 +430,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
 ]
