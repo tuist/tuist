@@ -185,11 +185,6 @@ msgstr ""
 msgid "A selfie of Marek and Pedro in Seoul, South Korea"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:151
-#, elixir-autogen, elixir-format
-msgid "A virtualization toolset to build, run and manage macOS and Linux virtual machines on Apple Silicon."
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:107
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:40
 #, elixir-autogen, elixir-format
@@ -965,11 +960,6 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:164
-#, elixir-autogen, elixir-format
-msgid "Enterprise-Grade Fully Automated\n            Mobile DevOps Platform"
-msgstr ""
-
 #: lib/tuist_web/live/builds_live.html.heex:61
 #: lib/tuist_web/live/overview_live.html.heex:15
 #: lib/tuist_web/live/overview_live.html.heex:464
@@ -1003,7 +993,7 @@ msgstr ""
 msgid "Explore our documentation—your go-to guide for mastering all things."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "FAQ"
 msgstr ""
@@ -1054,7 +1044,7 @@ msgstr ""
 msgid "Feature"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:173
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Features"
 msgstr ""
@@ -1101,11 +1091,6 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:122
-#, elixir-autogen, elixir-format
-msgid "Frequently paired with"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:49
@@ -1443,11 +1428,6 @@ msgstr ""
 #: lib/tuist_web/live/run_detail_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
-#, elixir-autogen, elixir-format
-msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:224
@@ -2437,11 +2417,6 @@ msgstr ""
 msgid "The secret ingredients"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:126
-#, elixir-autogen, elixir-format
-msgid "These are some products that pair well with Tuist"
-msgstr ""
-
 #: lib/tuist_web/live/account_settings_live.html.heex:74
 #: lib/tuist_web/live/account_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
@@ -3348,7 +3323,7 @@ msgstr ""
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.dev—we’d love to hear from you!"
 msgstr ""
