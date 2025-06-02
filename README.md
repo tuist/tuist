@@ -2,7 +2,6 @@
   <div>
     <a href="https://tuist.io" target="_blank"><img src="assets/header.jpg" alt="header"/></a>
   </div>
-  <img src="https://api.codemagic.io/apps/65ca555c190cfbe9f5dd792f/unit_tests/status_badge.svg" alt="CI status">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
   <a href="https://bsky.app/profile/tuist.dev"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=bluesky" alt="Bluesky badge"></a>
@@ -46,14 +45,6 @@ You can check out [the project documentation](https://docs.tuist.io).
 ### 🔬 Sample projects
 
 You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
-
-## ✅ CI Sponsor
-
-<a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-  <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
-</a>
-
-[Codemagic](https://codemagic.io), a CI/CD tool for building world-class mobile apps, supports the development of Tuist by providing fast and reliable CI environments.
 
 ## 💰 Sponsors
 
@@ -299,9 +290,6 @@ Great companies support the project by giving us access to their service through
       </td>
       <td width="25%" align="center">
         <img src="assets/cal-com.svg" alt="calcom_logo"/>
-      </td>
-      <td width="25%" align="center">
-        <img src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
       </td>
     </tr>
   </tbody>
