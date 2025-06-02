@@ -19,14 +19,15 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         self.init(fileHandler: FileHandler())
     }
 
-    private init(fileHandler: FileHandling) {
+    init(fileHandler: FileHandling) {
         self.fileHandler = fileHandler
 
         derivedDataDirectoryCache = ThrowableCaching<AbsolutePath> {
             if let overrideLocation = try? System.shared.capture([
                 "/usr/bin/defaults",
                 "read",
-                "com.apple.dt.Xcode IDEDerivedDataPathOverride",
+                "com.apple.dt.Xcode",
+                "IDEDerivedDataPathOverride",
             ]) {
                 return try! AbsolutePath(validating: overrideLocation.chomp()) // swiftlint:disable:this force_try
             }
@@ -34,7 +35,8 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             if let customLocation = try? System.shared.capture([
                 "/usr/bin/defaults",
                 "read",
-                "com.apple.dt.Xcode IDECustomDerivedDataLocation",
+                "com.apple.dt.Xcode",
+                "IDECustomDerivedDataLocation",
             ]) {
                 return try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
             }
