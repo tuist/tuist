@@ -43,7 +43,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -70,7 +70,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -97,7 +97,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -124,7 +124,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -151,7 +151,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -159,7 +159,7 @@ jobs:
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistAutomationAcceptanceTests
         run: mise x -- tuist test TuistAutomationAcceptanceTests
       - name: Save cache
@@ -181,7 +181,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -189,7 +189,7 @@ jobs:
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -220,7 +220,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -228,7 +228,7 @@ jobs:
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistGeneratorAcceptanceTests
         run: mise x -- tuist test TuistGeneratorAcceptanceTests
       - name: Save cache
@@ -250,7 +250,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-tuist-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -258,7 +258,7 @@ jobs:
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistKitAcceptanceTests
         run: mise x -- tuist test TuistKitAcceptanceTests
       - name: Save cache
