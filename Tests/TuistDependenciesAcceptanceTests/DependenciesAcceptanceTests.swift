@@ -5,7 +5,6 @@ import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XcodeProj
-import Testing
 import XCTest
 
 @testable import TuistKit
@@ -63,7 +62,7 @@ struct DependenciesAcceptanceTests {
             ]
         )
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -85,13 +84,13 @@ struct DependenciesAcceptanceTests {
             RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        
+
         // When: Install dependencies
         try await TuistTest.run(
             InstallCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        
+
         // When: Generate and build
         try await TuistTest.run(
             GenerateCommand.self,
@@ -101,7 +100,7 @@ struct DependenciesAcceptanceTests {
             BuildCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
-        
+
         // When: Registry logout
         try await TuistTest.run(
             RegistryLogoutCommand.self,
@@ -111,7 +110,7 @@ struct DependenciesAcceptanceTests {
             CleanCommand.self,
             ["dependencies", "--path", fixtureDirectory.pathString]
         )
-        
+
         // Then: Fails to install
         await #expect(throws: Error.self, performing: {
             try await TuistTest.run(
@@ -119,9 +118,8 @@ struct DependenciesAcceptanceTests {
                 ["--path", fixtureDirectory.pathString]
             )
         })
-        
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -143,7 +141,7 @@ struct DependenciesAcceptanceTests {
             RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        
+
         // When: Generate and build
         try await TuistTest.run(
             GenerateCommand.self,
@@ -154,7 +152,7 @@ struct DependenciesAcceptanceTests {
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -175,7 +173,7 @@ struct DependenciesAcceptanceTests {
             RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        
+
         // When: Build
         let commandRunner = CommandRunner()
         try await commandRunner.run(
@@ -195,7 +193,7 @@ struct DependenciesAcceptanceTests {
             workingDirectory: fixtureDirectory
         ).awaitCompletion()
     }
-    
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -217,7 +215,7 @@ struct DependenciesAcceptanceTests {
             RegistryLoginCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
-        
+
         // When: Build
         let commandRunner = CommandRunner()
         try await commandRunner.run(
@@ -238,9 +236,7 @@ struct DependenciesAcceptanceTests {
             ]
         ).awaitCompletion()
     }
-    
 }
-
 
 final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
     func test() async throws {

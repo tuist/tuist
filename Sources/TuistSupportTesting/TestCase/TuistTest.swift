@@ -43,7 +43,7 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
 public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
     @TaskLocal public static var fixtureAccountHandle: String?
-
+    @TaskLocal public static var fixtureFullHandle: String?
 
     public static func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = [])
         async throws

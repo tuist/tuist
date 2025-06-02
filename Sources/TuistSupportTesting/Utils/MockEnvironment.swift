@@ -41,6 +41,10 @@ public final class MockEnvironment: Environmenting {
     public var currentExecutablePathStub: AbsolutePath?
     public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub ?? Environment.currentExecutablePath() }
 
+    public func currentWorkingDirectory() async throws -> AbsolutePath {
+        directory.path.appending(components: "current")
+    }
+
     public var cacheDirectory: AbsolutePath {
         directory.path.appending(components: ".cache")
     }
@@ -50,7 +54,7 @@ public final class MockEnvironment: Environmenting {
     }
 
     public var configDirectory: AbsolutePath {
-        directory.path.appending(component: "state")
+        directory.path.appending(component: "config")
     }
 
     public var queueDirectory: AbsolutePath {

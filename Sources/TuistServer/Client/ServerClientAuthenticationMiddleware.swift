@@ -53,13 +53,6 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
 
-        #if canImport(TuistSupport)
-            /// Cirrus environments don't require authentication so we skip in these cases
-            if Environment.current.variables["CIRRUS_TUIST_CACHE_URL"] != nil {
-                return try await next(request, body, baseURL)
-            }
-        #endif
-
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
         else {
             throw ServerClientAuthenticationError.notAuthenticated

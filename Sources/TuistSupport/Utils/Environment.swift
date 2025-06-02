@@ -2,6 +2,8 @@ import Darwin
 import FileSystem
 import Foundation
 import Mockable
+import NIOCore
+import NIOFileSystem
 import Path
 
 /// Protocol that defines the interface of a local environment controller.
@@ -25,6 +27,8 @@ public protocol Environmenting: Sendable {
 
     /// Returns true if Tuist is running with verbose mode enabled.
     var isVerbose: Bool { get }
+
+    func currentWorkingDirectory() async throws -> AbsolutePath
 
     /// Returns the path to the cache directory. Configurable via the `XDG_CACHE_HOME` environment variable
     var cacheDirectory: AbsolutePath { get }
@@ -154,6 +158,10 @@ public struct Environment: Environmenting {
         else { return true }
         let userOptedOut = truthyValues.contains(variable)
         return !userOptedOut
+    }
+
+    public func currentWorkingDirectory() async throws -> AbsolutePath {
+        return try await AbsolutePath(validating: NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
     }
 
     public var cacheDirectory: AbsolutePath {
