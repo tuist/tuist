@@ -41,7 +41,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             .product(name: "XcodeMetadata", package: "XcodeGraph"),
-            .byName(name: "AnyCodable")
+            .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
