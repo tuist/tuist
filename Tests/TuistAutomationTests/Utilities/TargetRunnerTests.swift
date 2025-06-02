@@ -1,10 +1,8 @@
 import Mockable
 import struct TSCUtility.Version
-import TuistAutomationTesting
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 

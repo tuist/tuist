@@ -4,7 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
     var subject: PrecompiledMetadataProvider!

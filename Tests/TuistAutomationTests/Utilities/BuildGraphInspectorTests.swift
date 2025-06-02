@@ -6,8 +6,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class BuildGraphInspectorTests: TuistUnitTestCase {
     var subject: BuildGraphInspector!

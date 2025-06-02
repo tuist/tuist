@@ -24,3 +24,16 @@ public final class ProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHe
         }
     }
 }
+
+#if DEBUG
+    // swiftlint:disable:next type_name
+    public final class MockProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring {
+        public var projectDescriptionHelpersBuilderStub: ((AbsolutePath) -> ProjectDescriptionHelpersBuilding)!
+
+        public init() {}
+
+        public func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding {
+            projectDescriptionHelpersBuilderStub(cacheDirectory)
+        }
+    }
+#endif

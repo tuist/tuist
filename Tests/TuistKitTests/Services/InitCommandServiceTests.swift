@@ -6,7 +6,7 @@ import Noora
 import Testing
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 

@@ -3,9 +3,8 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import XCTest
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
     var subject: ManifestGraphLoader!

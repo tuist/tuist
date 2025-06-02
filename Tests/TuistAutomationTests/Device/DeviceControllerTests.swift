@@ -2,7 +2,7 @@ import Command
 import Foundation
 import Mockable
 import Path
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistAutomation

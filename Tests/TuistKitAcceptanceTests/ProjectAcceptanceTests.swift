@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import TuistAcceptanceTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 

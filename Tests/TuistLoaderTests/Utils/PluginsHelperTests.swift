@@ -3,9 +3,8 @@ import TuistCore
 import TuistSupport
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PluginsHelperTests: TuistUnitTestCase {
     private var subject: ResourceSynthesizerPathLocator!

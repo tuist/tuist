@@ -5,7 +5,7 @@ import Path
 import Testing
 import TuistCore
 import TuistRootDirectoryLocator
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistHasher

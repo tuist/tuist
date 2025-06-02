@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 

@@ -12,10 +12,8 @@ import XcodeGraph
 
 import struct TSCUtility.Version
 
-@testable import TuistAutomationTesting
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct RunCommandServiceErrorTests {
     @Test

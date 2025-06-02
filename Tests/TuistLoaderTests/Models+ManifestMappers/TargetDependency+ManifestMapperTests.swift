@@ -7,7 +7,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_xcframework() throws {

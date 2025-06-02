@@ -6,7 +6,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistAsyncQueue
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class AsyncQueuePersistorTests: TuistUnitTestCase {
     private var subject: AsyncQueuePersistor!

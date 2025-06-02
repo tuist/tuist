@@ -5,12 +5,11 @@ import Mockable
 import Testing
 import TuistAnalytics
 import TuistCore
-import TuistCoreTesting
 import TuistServer
 import TuistSupport
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct TuistAnalyticsServerBackendTests {
     private var fullHandle = "tuist-org/tuist"

@@ -4,10 +4,9 @@ import TuistCore
 import TuistRootDirectoryLocator
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestFilesLocatorTests: TuistUnitTestCase {
     private var subject: ManifestFilesLocator!

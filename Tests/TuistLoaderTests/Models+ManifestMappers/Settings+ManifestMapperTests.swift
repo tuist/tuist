@@ -6,7 +6,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SettingsManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {

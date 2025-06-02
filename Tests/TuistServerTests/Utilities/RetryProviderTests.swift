@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistServer

@@ -5,9 +5,8 @@ import TuistSupport
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     private var subject: SynthesizedResourceInterfaceProjectMapper!

@@ -2,15 +2,13 @@ import Foundation
 import Mockable
 import TuistCore
 import TuistLoader
+import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistPluginTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ScaffoldServiceTests: TuistUnitTestCase {
     var subject: ScaffoldService!

@@ -1,13 +1,12 @@
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
-import TuistLoaderTesting
+import TuistLoader
 import XcodeGraph
 import XcodeMetadata
 @testable import TuistGenerator
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TestModelGenerator {
     struct WorkspaceConfig {

@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class FileManagerExtrasTests: TuistUnitTestCase {
     func testSubdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {

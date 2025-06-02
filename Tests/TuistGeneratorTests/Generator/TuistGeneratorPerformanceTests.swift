@@ -1,13 +1,12 @@
 import TuistCore
-import TuistCoreTesting
-import TuistLoaderTesting
+import TuistLoader
 import TuistSupport
 import XcodeProj
 import XCTest
 
 @testable import TuistGenerator
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TuistGeneratorPerformanceTests: TuistTestCase {
     override func setUp() {

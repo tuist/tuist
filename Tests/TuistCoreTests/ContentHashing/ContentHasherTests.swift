@@ -2,7 +2,7 @@ import Path
 import TuistSupport
 import XCTest
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ContentHasherTests: TuistUnitTestCase {
     private var subject: ContentHasher!

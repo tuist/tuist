@@ -1,6 +1,6 @@
 import XCTest
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 class XcodeControllerIntegrationTests: TuistTestCase {
     var subject: XcodeController!

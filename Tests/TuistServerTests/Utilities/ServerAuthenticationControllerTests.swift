@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistServer
 

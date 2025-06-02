@@ -8,7 +8,7 @@ import XcodeProj
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 public enum Destination {
     case simulator, device

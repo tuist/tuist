@@ -1,10 +1,9 @@
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
 import XcodeGraph
 import XCTest
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectWorkspaceMapperTests: XCTestCase {
     func test_map_workspace() async throws {

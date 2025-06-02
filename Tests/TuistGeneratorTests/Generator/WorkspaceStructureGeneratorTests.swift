@@ -1,11 +1,10 @@
 import Path
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class WorkspaceStructureGeneratorTests: XCTestCase {
     fileprivate var fileHandler: InMemoryFileHandler!

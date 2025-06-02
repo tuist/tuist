@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import TuistAutomation
 import TuistCore
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistApp

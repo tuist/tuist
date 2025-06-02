@@ -11,7 +11,7 @@ import TuistSupport
 import XcodeGraph
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!

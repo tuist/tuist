@@ -3,7 +3,7 @@ import Mockable
 import Testing
 import class TuistApp.MockServerURLServicing
 import TuistServer
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistApp
 

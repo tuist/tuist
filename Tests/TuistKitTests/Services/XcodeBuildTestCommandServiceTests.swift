@@ -10,7 +10,7 @@ import TuistHasher
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 import protocol XcodeGraphMapper.XcodeGraphMapping

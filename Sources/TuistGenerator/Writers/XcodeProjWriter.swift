@@ -207,3 +207,19 @@ extension ProjectDescriptor {
         schemeDescriptors.filter { !$0.shared }
     }
 }
+
+#if DEBUG
+    public class MockXcodeProjWriter: XcodeProjWriting {
+        public init() {}
+
+        public var writeProjectCalls: [ProjectDescriptor] = []
+        public func write(project: ProjectDescriptor) throws {
+            writeProjectCalls.append(project)
+        }
+
+        public var writeworkspaceCalls: [WorkspaceDescriptor] = []
+        public func write(workspace: WorkspaceDescriptor) throws {
+            writeworkspaceCalls.append(workspace)
+        }
+    }
+#endif

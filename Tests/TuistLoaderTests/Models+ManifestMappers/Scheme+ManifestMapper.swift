@@ -7,7 +7,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SchemeManifestMapperTests: TuistUnitTestCase {
     func test_from_when_the_scheme_has_no_actions() async throws {

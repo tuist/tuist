@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCore
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistHasher

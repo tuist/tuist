@@ -5,7 +5,7 @@ import XCTest
 
 @testable import TuistLoader
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestLoaderTests: TuistTestCase {
     private var subject: ManifestLoader!

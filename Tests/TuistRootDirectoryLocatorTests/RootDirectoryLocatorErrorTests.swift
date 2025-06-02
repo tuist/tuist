@@ -1,5 +1,5 @@
 import Path
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistRootDirectoryLocator

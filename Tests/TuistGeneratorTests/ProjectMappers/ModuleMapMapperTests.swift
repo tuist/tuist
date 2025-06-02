@@ -3,7 +3,7 @@ import TuistGenerator
 import XcodeGraph
 import XCTest
 
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ModuleMapMapperTests: TuistUnitTestCase {
     var subject: ModuleMapMapper!

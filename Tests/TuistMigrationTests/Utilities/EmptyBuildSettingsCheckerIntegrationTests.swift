@@ -4,7 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistMigration
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
     var subject: EmptyBuildSettingsChecker!
