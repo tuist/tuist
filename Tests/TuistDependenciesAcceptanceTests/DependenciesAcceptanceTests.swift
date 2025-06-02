@@ -9,7 +9,10 @@ import XCTest
 
 @testable import TuistKit
 
-@Suite(.serialized) // SwiftPM manages state globally
+/**
+ SwiftPM stores the registry configuration globally, and that prevents us from running these tests in parallel.
+ */
+@Suite(.serialized)
 struct DependenciesAcceptanceTests {
     @Test(
         .inTemporaryDirectory,

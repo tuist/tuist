@@ -27,8 +27,12 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
 
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
+            let existingEnvVariables = Environment.current.variables
+
             try await TuistSupportTesting
                 .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
+                    existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
+
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
                         component: fixtureDirectory.basename
                     )
