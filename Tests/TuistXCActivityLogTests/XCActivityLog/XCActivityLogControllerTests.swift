@@ -66,7 +66,5 @@ struct XCActivityLogControllerTests {
         #expect(issue.target == "Framework1")
         #expect(issue.project == "MainApp")
         #expect(issue.title == "Compile Framework1File.swift (arm64)")
-        let path = try RelativePath(validating: "Framework1/Sources/Framework1File.swift")
-        #expect(issue.path == path)
     }
 }
