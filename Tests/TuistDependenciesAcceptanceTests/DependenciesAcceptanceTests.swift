@@ -9,6 +9,7 @@ import XCTest
 
 @testable import TuistKit
 
+@Suite(.serialized) // SwiftPM manages state globally
 struct DependenciesAcceptanceTests {
     @Test(
         .inTemporaryDirectory,
