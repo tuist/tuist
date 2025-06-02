@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistAutomation
 @testable import TuistSupportTesting
 
-final class XcodeBuildControllerIntegrationTests: TuistTestCase {
+final class XcodeBuildControllerTests: TuistTestCase {
     var subject: XcodeBuildController!
 
     override func setUp() {

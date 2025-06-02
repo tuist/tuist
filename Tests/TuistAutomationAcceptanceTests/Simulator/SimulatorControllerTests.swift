@@ -5,7 +5,7 @@ import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting
 
-final class SimulatorControllerIntegrationTests: TuistTestCase {
+final class SimulatorControllerTests: TuistTestCase {
     var subject: SimulatorController!
 
     override func setUp() {

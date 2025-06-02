@@ -67,17 +67,6 @@ public enum Module: String, CaseIterable {
             )
         }
 
-        if let integrationTestsTargetName {
-            targets.append(
-                target(
-                    name: integrationTestsTargetName,
-                    product: .unitTests,
-                    dependencies: integrationTestsDependencies,
-                    isTestingTarget: false
-                )
-            )
-        }
-
         return targets
     }
 
@@ -152,20 +141,6 @@ public enum Module: String, CaseIterable {
             return nil
         default:
             return "\(rawValue)Tests"
-        }
-    }
-
-    public var integrationTestsTargetName: String? {
-        switch self {
-        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-             .projectDescription,
-             .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .simulator,
-             .xcActivityLog,
-             .rootDirectoryLocator:
-            return nil
-        default:
-            return "\(rawValue)IntegrationTests"
         }
     }
 
@@ -556,11 +531,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .generator:
                 [
-                    .external(name: "PathKit"),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.core.testingTargetName!),
                     .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.loader.testingTargetName!),
+                    .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
                     .external(name: "GraphViz"),
                     .external(name: "XcodeGraph"),
@@ -768,102 +744,6 @@ public enum Module: String, CaseIterable {
                 ]
             }
         return dependencies + sharedDependencies + [.target(name: targetName)]
-    }
-
-    public var integrationTestsDependencies: [TargetDependency] {
-        var dependencies: [TargetDependency] =
-            switch self {
-            case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
-                 .projectDescription, .acceptanceTesting,
-                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher, .simulator,
-                 .xcActivityLog,
-                 .rootDirectoryLocator:
-                []
-            case .cache:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.hasher.targetName),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "SwiftToolsSupport"),
-                ]
-            case .tuist:
-                [
-                    .target(name: Module.generator.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.loader.testingTargetName!),
-                    .external(name: "SwiftToolsSupport"),
-                    .external(name: "XcodeProj"),
-                ]
-            case .kit:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.loader.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.automation.targetName),
-                    .target(name: Module.loader.testingTargetName!),
-                    .external(name: "XcodeProj"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "FileSystem"),
-                ]
-            case .core:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "FileSystem"),
-                ]
-            case .generator:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.loader.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "XcodeProj"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "SwiftToolsSupport"),
-                    .external(name: "FileSystem"),
-                ]
-            case .scaffold:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                ]
-            case .loader:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .external(name: "FileSystem"),
-                ]
-            case .migration:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                ]
-            case .automation:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                ]
-            }
-        dependencies.append(contentsOf: sharedDependencies)
-        dependencies.append(.target(name: targetName))
-        dependencies.append(.external(name: "Mockable"))
-        if let testingTargetName {
-            dependencies.append(contentsOf: [.target(name: testingTargetName)])
-        }
-        return dependencies
     }
 
     private var destinations: Destinations {
