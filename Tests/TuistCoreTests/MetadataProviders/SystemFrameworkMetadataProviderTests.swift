@@ -1,7 +1,7 @@
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SystemFrameworkMetadataProviderTests: XCTestCase {
     var subject: SystemFrameworkMetadataProvider!

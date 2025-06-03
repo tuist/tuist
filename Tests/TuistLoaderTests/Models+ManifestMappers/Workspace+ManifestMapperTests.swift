@@ -2,7 +2,8 @@ import Foundation
 import Mockable
 import TuistCore
 import TuistLoader
-import TuistSupportTesting
+import TuistRootDirectoryLocator
+import TuistTesting
 import XcodeGraph
 import XCTest
 

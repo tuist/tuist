@@ -3,7 +3,7 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 

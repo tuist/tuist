@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestTests: TuistUnitTestCase {
     func test_fileName() throws {

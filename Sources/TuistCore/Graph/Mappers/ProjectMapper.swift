@@ -44,3 +44,12 @@ public class TargetProjectMapper: ProjectMapping {
         return (project, results.sideEffects)
     }
 }
+
+#if DEBUG
+    final class MockProjectMapper: ProjectMapping {
+        var mapStub: ((Project) throws -> (Project, [SideEffectDescriptor]))?
+        func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+            try mapStub?(project) ?? (project, [])
+        }
+    }
+#endif

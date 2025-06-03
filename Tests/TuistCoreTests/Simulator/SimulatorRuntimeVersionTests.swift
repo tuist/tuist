@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SimulatorRuntimeVersionTests: TuistUnitTestCase {
     func test_description_when_only_major() {

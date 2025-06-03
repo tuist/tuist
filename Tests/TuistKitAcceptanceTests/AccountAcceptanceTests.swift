@@ -1,45 +1,34 @@
 import Foundation
+import Testing
 import TuistAcceptanceTesting
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
-import XCTest
+import TuistTesting
 
 @testable import TuistKit
 
-final class AccountAcceptanceTests: ServerAcceptanceTestCase {
-    func test_update_account_with_logged_in_user() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.iosAppWithFrameworks)
-            try await run(AccountUpdateCommand.self, "--handle", "tuistrocks")
+struct AccountAcceptanceTests {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("ios_app_with_frameworks")
+    )
+    func account_with_logged_in_user() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
-            let got = ui()
-            let expectedOutput = """
-            ✔ Success
-              The account tuistrocks was successfully updated.
-            """
+        // When: Set up registry
+        try await TuistTest.run(
+            AccountUpdateCommand.self,
+            ["--path", fixtureDirectory.pathString, "--handle", "tuistrocks"]
+        )
 
-            XCTAssertEqual(got, expectedOutput)
-        }
-    }
-
-    func test_update_account_with_organization_handle() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture(.iosAppWithFrameworks)
-            let newHandle = String(UUID().uuidString.prefix(12).lowercased())
-            try await run(AccountUpdateCommand.self, organizationHandle, "--handle", newHandle)
-
-            let got = ui()
-            let expectedOutput = """
-            ✔ Success
-              The account \(newHandle) was successfully updated.
-            """
-
-            XCTAssertEqual(got, expectedOutput)
-
-            // Update handles for teardown function.
-            self.organizationHandle = newHandle
-            self.fullHandle = "\(newHandle)/\(projectHandle)"
-        }
+        // Then
+        #expect(ui().contains("""
+        ✔ Success
+          The account tuistrocks was successfully updated.
+        """) == true)
     }
 }

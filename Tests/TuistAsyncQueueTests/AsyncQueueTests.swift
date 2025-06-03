@@ -6,8 +6,7 @@ import TuistCore
 import TuistSupport
 
 @testable import TuistAsyncQueue
-@testable import TuistAsyncQueueTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct AsyncQueueTests {
     private var subject: AsyncQueue!

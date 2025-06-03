@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Testing
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 @testable import TuistKit
 

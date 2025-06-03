@@ -3,12 +3,13 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import struct XcodeGraph.PackageInfo
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private var path: AbsolutePath!

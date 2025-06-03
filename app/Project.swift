@@ -112,7 +112,7 @@ let project = Project(
             resources: [],
             dependencies: tuistMenuBarDependencies() + [
                 .target(name: "TuistApp"),
-                .project(target: "TuistSupportTesting", path: "../"),
+                .project(target: "TuistTesting", path: "../"),
             ]
         ),
     ]

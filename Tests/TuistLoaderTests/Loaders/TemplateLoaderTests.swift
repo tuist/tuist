@@ -1,12 +1,13 @@
 import Mockable
 import Path
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TemplateLoaderTests: TuistUnitTestCase {
     private var subject: TemplateLoader!

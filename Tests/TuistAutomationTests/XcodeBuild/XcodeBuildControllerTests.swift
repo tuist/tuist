@@ -9,7 +9,7 @@ import TuistCore
 import TuistSupport
 
 @testable import TuistAutomation
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class MockFormatter: Formatting {
     func format(_ line: String) -> String? {

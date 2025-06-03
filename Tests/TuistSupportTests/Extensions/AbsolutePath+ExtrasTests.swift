@@ -3,7 +3,7 @@ import Path
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class AbsolutePathExtrasTests: TuistUnitTestCase {
     func test_commonAncestor_siblings() {

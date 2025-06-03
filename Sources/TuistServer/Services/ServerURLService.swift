@@ -25,8 +25,7 @@ public final class ServerURLService: ServerURLServicing {
 
     public func url(configServerURL: URL) throws -> URL {
         return try (
-            envVariableURL("TUIST_URL") ??
-                envVariableURL("CIRRUS_TUIST_CACHE_URL") ?? configServerURL
+            envVariableURL("TUIST_URL") ?? configServerURL
         )
     }
 

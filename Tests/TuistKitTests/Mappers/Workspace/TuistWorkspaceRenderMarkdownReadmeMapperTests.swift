@@ -1,12 +1,11 @@
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
     private var subject: TuistWorkspaceRenderMarkdownReadmeMapper!

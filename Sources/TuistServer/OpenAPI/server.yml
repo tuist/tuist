@@ -678,6 +678,109 @@ components:
               type: boolean
               x-struct:
               x-validate:
+            issues:
+              description: The build issues associated with the build run.
+              items:
+                properties:
+                  ending_column:
+                    description: The ending column number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  ending_line:
+                    description: The ending line number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  message:
+                    description: The detailed message of the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  path:
+                    description: The file path where the issue occurred, relative to the project root.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  project:
+                    description: The project name associated with the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  signature:
+                    description: The signature of the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  starting_column:
+                    description: The starting column number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  starting_line:
+                    description: The starting line number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  step_type:
+                    description: The step type where the issue occurred, such as swift_compilation.
+                    enum:
+                      - c_compilation
+                      - swift_compilation
+                      - script_execution
+                      - create_static_library
+                      - linker
+                      - copy_swift_libs
+                      - compile_assets_catalog
+                      - compile_storyboard
+                      - write_auxiliary_file
+                      - link_storyboards
+                      - copy_resource_file
+                      - merge_swift_module
+                      - xib_compilation
+                      - swift_aggregated_compilation
+                      - precompile_bridging_header
+                      - other
+                      - validate_embedded_binary
+                      - validate
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    description: The target name associated with the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  title:
+                    description: The title of the build issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type:
+                    description: The type of the issue.
+                    enum:
+                      - warning
+                      - error
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - type
+                  - target
+                  - project
+                  - title
+                  - signature
+                  - step_type
+                  - starting_line
+                  - ending_line
+                  - starting_column
+                  - ending_column
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
             macos_version:
               description: The version of macOS used during the run.
               type: string
@@ -1268,6 +1371,109 @@ components:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
+          x-struct:
+          x-validate:
+        issues:
+          description: The build issues associated with the build run.
+          items:
+            properties:
+              ending_column:
+                description: The ending column number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              ending_line:
+                description: The ending line number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              message:
+                description: The detailed message of the issue.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: The file path where the issue occurred, relative to the project root.
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                description: The project name associated with the issue.
+                type: string
+                x-struct:
+                x-validate:
+              signature:
+                description: The signature of the issue.
+                type: string
+                x-struct:
+                x-validate:
+              starting_column:
+                description: The starting column number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              starting_line:
+                description: The starting line number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              step_type:
+                description: The step type where the issue occurred, such as swift_compilation.
+                enum:
+                  - c_compilation
+                  - swift_compilation
+                  - script_execution
+                  - create_static_library
+                  - linker
+                  - copy_swift_libs
+                  - compile_assets_catalog
+                  - compile_storyboard
+                  - write_auxiliary_file
+                  - link_storyboards
+                  - copy_resource_file
+                  - merge_swift_module
+                  - xib_compilation
+                  - swift_aggregated_compilation
+                  - precompile_bridging_header
+                  - other
+                  - validate_embedded_binary
+                  - validate
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                description: The target name associated with the issue.
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                description: The title of the build issue.
+                type: string
+                x-struct:
+                x-validate:
+              type:
+                description: The type of the issue.
+                enum:
+                  - warning
+                  - error
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+              - target
+              - project
+              - title
+              - signature
+              - step_type
+              - starting_line
+              - ending_line
+              - starting_column
+              - ending_column
+            type: object
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         macos_version:
@@ -4316,6 +4522,109 @@ paths:
                     is_ci:
                       description: Indicates if the run was executed on a Continuous Integration (CI) system.
                       type: boolean
+                      x-struct:
+                      x-validate:
+                    issues:
+                      description: The build issues associated with the build run.
+                      items:
+                        properties:
+                          ending_column:
+                            description: The ending column number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          ending_line:
+                            description: The ending line number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          message:
+                            description: The detailed message of the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          path:
+                            description: The file path where the issue occurred, relative to the project root.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          project:
+                            description: The project name associated with the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          signature:
+                            description: The signature of the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          starting_column:
+                            description: The starting column number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          starting_line:
+                            description: The starting line number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          step_type:
+                            description: The step type where the issue occurred, such as swift_compilation.
+                            enum:
+                              - c_compilation
+                              - swift_compilation
+                              - script_execution
+                              - create_static_library
+                              - linker
+                              - copy_swift_libs
+                              - compile_assets_catalog
+                              - compile_storyboard
+                              - write_auxiliary_file
+                              - link_storyboards
+                              - copy_resource_file
+                              - merge_swift_module
+                              - xib_compilation
+                              - swift_aggregated_compilation
+                              - precompile_bridging_header
+                              - other
+                              - validate_embedded_binary
+                              - validate
+                            type: string
+                            x-struct:
+                            x-validate:
+                          target:
+                            description: The target name associated with the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          title:
+                            description: The title of the build issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of the issue.
+                            enum:
+                              - warning
+                              - error
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - type
+                          - target
+                          - project
+                          - title
+                          - signature
+                          - step_type
+                          - starting_line
+                          - ending_line
+                          - starting_column
+                          - ending_column
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
                       x-struct:
                       x-validate:
                     macos_version:

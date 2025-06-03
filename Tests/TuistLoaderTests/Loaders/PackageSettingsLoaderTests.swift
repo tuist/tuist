@@ -2,15 +2,14 @@ import Foundation
 import Mockable
 import TSCUtility
 import TuistCore
-import TuistCoreTesting
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!

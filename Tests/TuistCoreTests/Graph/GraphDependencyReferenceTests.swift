@@ -5,7 +5,7 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphDependencyReferenceTests: TuistUnitTestCase {
     func test_compare() {

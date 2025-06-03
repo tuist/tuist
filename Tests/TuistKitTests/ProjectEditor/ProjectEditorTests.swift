@@ -2,19 +2,15 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistPlugin
-import TuistPluginTesting
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
 import XCTest
-
-@testable import TuistCoreTesting
-@testable import TuistGeneratorTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {

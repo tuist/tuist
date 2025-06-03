@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 

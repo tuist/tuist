@@ -1,9 +1,8 @@
 import Mockable
 import TuistLoader
 import TuistPlugin
-import TuistPluginTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistKit

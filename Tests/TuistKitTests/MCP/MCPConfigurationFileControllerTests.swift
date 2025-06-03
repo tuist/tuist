@@ -3,7 +3,7 @@ import Foundation
 import Mockable
 import SwiftyJSON
 import Testing
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 

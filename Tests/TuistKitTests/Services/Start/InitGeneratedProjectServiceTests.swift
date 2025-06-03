@@ -2,10 +2,9 @@ import Foundation
 import Mockable
 import TuistCore
 import TuistLoader
-import TuistLoaderTesting
 import TuistScaffold
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistKit

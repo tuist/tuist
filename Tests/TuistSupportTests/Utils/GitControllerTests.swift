@@ -3,7 +3,7 @@ import FileSystemTesting
 import Testing
 import TSCUtility
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct GitControllerTests {
     private let system = MockSystem()

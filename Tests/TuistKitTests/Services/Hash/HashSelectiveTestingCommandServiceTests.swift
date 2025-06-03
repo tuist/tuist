@@ -8,7 +8,7 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistKit

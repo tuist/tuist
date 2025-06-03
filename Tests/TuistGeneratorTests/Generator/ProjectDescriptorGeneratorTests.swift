@@ -6,11 +6,10 @@ import Path
 import Testing
 import struct TSCUtility.Version
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 @testable import XcodeProj
 
 struct ProjectDescriptorGeneratorTests {

@@ -6,7 +6,7 @@ import TSCUtility
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct CommandEnvironmentVariableTests {
     private var tuistVariables: [String: String] {

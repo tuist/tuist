@@ -10,7 +10,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct BuildPhaseGenerationErrorTests {
     @Test(

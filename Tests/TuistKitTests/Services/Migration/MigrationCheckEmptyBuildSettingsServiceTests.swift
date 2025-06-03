@@ -1,11 +1,11 @@
 import Foundation
 import Path
 import TuistCore
+import TuistMigration
 import TuistSupport
 import XCTest
 @testable import TuistKit
-@testable import TuistMigrationTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
     var subject: MigrationCheckEmptyBuildSettingsService!

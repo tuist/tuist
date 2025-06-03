@@ -4,7 +4,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestLoaderErrorTests: TuistUnitTestCase {
     func test_description() {

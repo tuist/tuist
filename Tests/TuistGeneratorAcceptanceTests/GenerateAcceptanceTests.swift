@@ -3,7 +3,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeProj
 import XCTest
 

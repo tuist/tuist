@@ -6,6 +6,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {
     case projectNotFound(AbsolutePath)
@@ -69,7 +70,8 @@ struct InspectBuildCommandService {
     }
 
     func run(
-        path: String?
+        path: String?,
+        projectDerivedDataPath: String? = nil
     ) async throws {
         let referenceDate = dateService.now()
         guard let executablePath = Bundle.main.executablePath else {
@@ -94,7 +96,12 @@ struct InspectBuildCommandService {
             return
         }
         let projectPath = try await projectPath(path)
-        let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try? AbsolutePath(
+            validating: $0,
+            relativeTo: currentWorkingDirectory
+        ) } ?? derivedDataLocator.locate(for: projectPath)
+
         guard let mostRecentActivityLogPath =
             try await xcActivityLogController.mostRecentActivityLogPath(
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
@@ -103,7 +110,7 @@ struct InspectBuildCommandService {
         else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try xcActivityLogController.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
@@ -146,6 +153,7 @@ struct InspectBuildCommandService {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             isCI: Environment.current.isCI,
+            issues: xcactivityLog.issues,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: Environment.current.schemeName,

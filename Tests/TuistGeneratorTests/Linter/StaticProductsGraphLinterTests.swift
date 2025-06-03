@@ -3,9 +3,8 @@ import Path
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 class StaticProductsGraphLinterTests: XCTestCase {
     var subject: StaticProductsGraphLinter!

@@ -3,12 +3,12 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XCTest
-@testable import TuistCoreTesting
+
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ConfigLoaderTests: TuistUnitTestCase {
     private var rootDirectoryLocator: MockRootDirectoryLocating!

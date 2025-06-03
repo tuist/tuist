@@ -4,6 +4,7 @@ import Mockable
 import Path
 import struct ProjectDescription.Config
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 @Mockable

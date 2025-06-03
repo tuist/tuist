@@ -1,9 +1,7 @@
 import Foundation
 
 public enum Constants {
-    // NOTE: We expect tuist-cloud to set the value before running the CLI
-    public static var version: String! = "x.y.z"
-
+    @TaskLocal public static var version: String! = "x.y.z"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -67,7 +65,6 @@ public enum Constants {
         @available(*, deprecated, message: "Use `token` instead")
         public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
-        public static let cirrusTuistCacheURL = "CIRRUS_TUIST_CACHE_URL"
     }
 
     public enum URLs {

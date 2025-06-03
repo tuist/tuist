@@ -3,7 +3,7 @@ import Path
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class OpeningErrorTests: XCTestCase {
     func test_type() {
