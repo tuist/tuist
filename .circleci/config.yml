@@ -12,18 +12,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise
+          name: Inspect bundle
           command: |
             curl https://mise.run | sh
             export PATH="$HOME/.local/bin:$PATH"
             mise activate bash
             mise install
-      - run:
-          name: Inspect Bundle
-          command: |
-            # mise sh automatically sets up the environment for installed tools
             mise exec -- tuist inspect bundle App.xcarchive --json
-
 workflows:
   inspect:
     jobs:
