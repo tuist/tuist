@@ -131,7 +131,11 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         let config = Tuist.test()
         let bundleFramework = Target.test(
             name: "Core_Framework",
+<<<<<<< HEAD
 =            product: .bundle,
+=======
+            product: .bundle,
+>>>>>>> main
             bundleId: "framework.generated.resources"
         )
 
