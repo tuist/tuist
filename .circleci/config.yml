@@ -1,47 +1,31 @@
-# This config was automatically generated from your source code
-# Stacks detected: cicd:github-actions:.github/workflows,deps:node:docs
 version: 2.1
-orbs:
-  node: circleci/node@5
+
+executors:
+  macos-executor:
+    macos:
+      xcode: "14.3.1"
+    working_directory: ~/project
+
 jobs:
-  build-node:
-    # Build node project
-    executor: node/default
-    working_directory: ~/project/docs
+  inspect_bundle:
+    executor: macos-executor
     steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          cache-path: ~/project/node_modules
-          override-ci-command: npm install
+      - checkout
       - run:
-          command: npm run build
+          name: Install mise
+          command: |
+            brew install jdx/mise/mise
       - run:
-          name: Create the ~/artifacts directory if it doesn't exist
-          command: mkdir -p ~/artifacts
-      # Copy output to artifacts dir
+          name: Install Tuist via mise
+          command: |
+            mise install
       - run:
-          name: Copy artifacts
-          command: cp -R build dist public .output .next .docusaurus ~/artifacts 2>/dev/null || true
-      - store_artifacts:
-          path: ~/artifacts
-          destination: node-build
-  deploy:
-    # This is an example deploy job, not actually used by the workflow
-    docker:
-      - image: cimg/base:stable
-    steps:
-      # Replace this with steps to deploy to users
-      - run:
-          name: deploy
-          command: '#e.g. ./deploy.sh'
-      - run:
-          name: found github actions config
-          command: ':'
+          name: Inspect Bundle
+          command: |
+            # mise sh automatically sets up the environment for installed tools
+            mise exec -- tuist inspect bundle path/to/YourBundle.bundle
+
 workflows:
-  build:
+  inspect:
     jobs:
-      - build-node
-    # - deploy:
-    #     requires:
-    #       - build-node
+      - inspect_bundle
