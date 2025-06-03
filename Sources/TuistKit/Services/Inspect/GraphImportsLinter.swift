@@ -95,15 +95,19 @@ final class GraphImportsLinter: GraphImportsLinting {
                 .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
         }
 
-        let explicitTargetDependencies = targetDependencies.map { targetDependency in
-            if case .external = targetDependency.graphTarget.project.type { return graphTraverser
-                .allTargetDependencies(path: target.project.path, name: target.target.name)
-            } else {
-                return Set(arrayLiteral: targetDependency.graphTarget)
+        let explicitTargetDependencies = targetDependencies
+            .filter {
+                !$0.target.bundleId.hasSuffix(".generated.resources")
             }
-        }
-        .flatMap { $0 }
-        .map(\.target.productName)
+            .map { targetDependency in
+                if case .external = targetDependency.graphTarget.project.type { return graphTraverser
+                    .allTargetDependencies(path: target.project.path, name: target.target.name)
+                } else {
+                    return Set(arrayLiteral: targetDependency.graphTarget)
+                }
+            }
+            .flatMap { $0 }
+            .map(\.target.productName)
         return Set(explicitTargetDependencies)
     }
 }
