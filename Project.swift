@@ -71,7 +71,10 @@ func schemes() -> [Scheme] {
                     .map { .target($0) }
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) },
+                options: .options(
+                    language: "en"
+                )
             ),
             runAction: .runAction(
                 arguments: .arguments(
