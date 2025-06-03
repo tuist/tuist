@@ -21,13 +21,19 @@ extension XcodeGraph.CopyFileElement {
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
-            let files = try await fileSystem.throwingGlob(
-                directory: AbsolutePath.root,
-                include: [String(path.pathString.dropFirst())]
-            )
-            .collect()
-            .filter(includeFiles)
-            .sorted()
+            let files: [AbsolutePath]
+
+            do {
+                files = try await fileSystem.throwingGlob(
+                    directory: AbsolutePath.root,
+                    include: [String(path.pathString.dropFirst())]
+                )
+                .collect()
+                .filter(includeFiles)
+                .sorted()
+            } catch GlobError.nonExistentDirectory {
+                files = []
+            }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
