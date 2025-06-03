@@ -44,10 +44,17 @@ defmodule Tuist.MixProject do
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
-       github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
+       github: "tailwindlabs/heroicons",
+       tag: "v2.1.1",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1},
       {:bamboo, "~> 2.4.0"},
       {:finch,
-       git: "https://github.com/sneako/finch.git", ref: "3cf1406ff88043fae155958c6c032eef882fddfb", override: true},
+       git: "https://github.com/sneako/finch.git",
+       ref: "3cf1406ff88043fae155958c6c032eef882fddfb",
+       override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -84,7 +91,9 @@ defmodule Tuist.MixProject do
       {:flop, "~> 0.26.0"},
       # TODO: Use official release once > 3.7.11 is released.
       {:timex,
-       git: "https://github.com/bitwalker/timex.git", ref: "cc649c7a586f1266b17d57aff3c6eb1a56116ca2", override: true},
+       git: "https://github.com/bitwalker/timex.git",
+       ref: "cc649c7a586f1266b17d57aff3c6eb1a56116ca2",
+       override: true},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
@@ -111,7 +120,6 @@ defmodule Tuist.MixProject do
       {:image, "~> 0.59.0"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
-      {:phoenix_storybook, "~> 0.8.1"},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:solid, "~> 0.18.0"},
       {:plug_minify_html, "~> 0.1.0"},
@@ -129,6 +137,7 @@ defmodule Tuist.MixProject do
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
       {:tidewave, "~> 0.1", only: :dev},
+      {:noora, "0.1.0-rc.1"},
       {:ecto_ch, "~> 0.6.0"}
     ]
   end
@@ -158,12 +167,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs", "esbuild storybook"],
+      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs"],
       "assets.deploy": [
         "esbuild marketing --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
-        "esbuild storybook --minify",
         "phx.digest"
       ]
     ]

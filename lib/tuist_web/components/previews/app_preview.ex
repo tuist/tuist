@@ -3,7 +3,7 @@ defmodule TuistWeb.Previews.AppPreview do
   Component to render a preview of an app.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Previews.PlatformBadge
   import TuistWeb.Previews.RunButton

@@ -3,7 +3,7 @@ defmodule TuistWeb.AccountDropdown do
   An account dropdown component shown in the header bar.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   alias Tuist.Accounts
   alias Tuist.Accounts.User

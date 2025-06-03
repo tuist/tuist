@@ -1,7 +1,7 @@
 defmodule TuistWeb.BuildRunLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import Phoenix.Component
   import TuistWeb.Runs.RanByBadge
@@ -33,8 +33,14 @@ defmodule TuistWeb.BuildRunLive do
       socket
       |> assign(:run, run)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
-      |> assign(:warnings_grouped_by_path, run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path))
-      |> assign(:errors_grouped_by_path, run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.group_by(& &1.path))
+      |> assign(
+        :warnings_grouped_by_path,
+        run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
+      )
+      |> assign(
+        :errors_grouped_by_path,
+        run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.group_by(& &1.path)
+      )
 
     {:ok, socket}
   end

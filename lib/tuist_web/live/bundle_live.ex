@@ -1,7 +1,7 @@
 defmodule TuistWeb.BundleLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Bundles.UploadedByBadgeCell
   import TuistWeb.Components.EmptyCardSection

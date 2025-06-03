@@ -3,7 +3,7 @@ defmodule TuistWeb.Previews.PlatformBadge do
   A component used to render an platform badge. It is used as a visual indicator for the platform a preview is targeting, for example iOS, macOS, watchOS, etc.
   """
   use Phoenix.Component
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Previews.PlatformIcon
 

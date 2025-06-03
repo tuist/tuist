@@ -1,7 +1,7 @@
 defmodule TuistWeb.ConnectLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   @impl true
   def mount(_params, _uri, socket) do

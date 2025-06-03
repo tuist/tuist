@@ -1,7 +1,7 @@
 defmodule TuistWeb.RunDetailLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Runs.RanByBadge
 

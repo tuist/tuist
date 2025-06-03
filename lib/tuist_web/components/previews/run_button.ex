@@ -3,7 +3,7 @@ defmodule TuistWeb.Previews.RunButton do
   Component for rendering a button to run a preview.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   attr :preview, :map, required: true
   attr :user_agent, :map, required: true

@@ -3,7 +3,7 @@ defmodule TuistWeb.EmptyState do
     A component that displays an empty state with a title, subtitle, and a command to run.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Components.Terminal
 

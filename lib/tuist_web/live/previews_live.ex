@@ -1,7 +1,7 @@
 defmodule TuistWeb.PreviewsLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.EmptyState
   import TuistWeb.Previews.AppPreview

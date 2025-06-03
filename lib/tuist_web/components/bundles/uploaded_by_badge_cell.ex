@@ -3,7 +3,7 @@ defmodule TuistWeb.Bundles.UploadedByBadgeCell do
   A component used to render a badge indicating who uploaded the bundle.
   """
   use Phoenix.Component
-  use TuistWeb.Noora
+  use Noora
 
   attr :bundle, :map, required: true
 

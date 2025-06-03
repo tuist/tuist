@@ -1,7 +1,7 @@
 defmodule TuistWeb.Layouts do
   @moduledoc false
   use TuistWeb, :html
-  use TuistWeb.Noora
+  use Noora
 
   embed_templates "layouts/*"
 end

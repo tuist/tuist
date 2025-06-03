@@ -3,6 +3,8 @@
 @import "./css/components/previews/app_preview.css";
 @import "./css/pages.css";
 
+@import "noora/noora.css";
+
 body {
   margin: 0;
 }

@@ -50,8 +50,7 @@ config :tuist, TuistWeb.Endpoint,
   watchers: [
     esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
     esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-    esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]},
-    esbuild_storybook: {Esbuild, :install_and_run, [:storybook, ~w(--sourcemap=inline --watch)]}
+    esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
   ]
 
 # ## SSL Support

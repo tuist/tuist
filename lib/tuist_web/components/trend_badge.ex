@@ -3,7 +3,7 @@ defmodule TuistWeb.Components.TrendBadge do
     Component for displaying a trend badge.
   """
   use Phoenix.Component
-  use TuistWeb.Noora
+  use Noora
 
   attr :trend_value, :integer, required: true
   attr :trend_inverse, :boolean, default: false

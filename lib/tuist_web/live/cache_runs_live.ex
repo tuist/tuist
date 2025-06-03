@@ -1,16 +1,16 @@
 defmodule TuistWeb.CacheRunsLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
+  import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
-  import TuistWeb.Noora.Filter
   import TuistWeb.Runs.RanByBadge
 
+  alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
-  alias TuistWeb.Noora.Filter
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)

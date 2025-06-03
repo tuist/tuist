@@ -3,7 +3,7 @@ defmodule TuistWeb.Previews.RanByBadge do
   A component used to render a badge indicating who ran the preview.
   """
   use Phoenix.Component
-  use TuistWeb.Noora
+  use Noora
 
   attr :preview, :map, required: true
 

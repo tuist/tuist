@@ -4,7 +4,7 @@ defmodule TuistWeb.Components.Terminal do
   and command body.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   attr :id, :string, required: true
   attr :command, :string, required: true

@@ -3,7 +3,7 @@ defmodule TuistWeb.Components.EmptyCardSection do
     A LiveComponent that renders an empty card section.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Components.EmptyStateBackground
 

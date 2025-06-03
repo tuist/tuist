@@ -3,13 +3,9 @@ defmodule TuistWeb.AppLayoutComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.AccountDropdown
-  import TuistWeb.Noora.Breadcrumbs
-  import TuistWeb.Noora.Icon
-  import TuistWeb.Noora.LineDivider
-  import TuistWeb.Noora.Sidebar
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)

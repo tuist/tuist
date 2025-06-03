@@ -39,12 +39,6 @@ config :esbuild,
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/apidocs", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
-  ],
-  storybook: [
-    args:
-      ~w(storybook.js --bundle --target=es2017 --outfile=../../priv/static/storybook/assets/bundle.js --external:/fonts/* --external:/images/*),
-    cd: Path.expand("../assets/storybook", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
 
 config :excellent_migrations, start_after: "20240926093919"

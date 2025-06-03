@@ -1,7 +1,7 @@
 defmodule TuistWeb.BuildsLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge

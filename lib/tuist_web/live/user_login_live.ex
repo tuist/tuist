@@ -1,7 +1,7 @@
 defmodule TuistWeb.UserLoginLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   alias Phoenix.Flash
   alias Tuist.Environment

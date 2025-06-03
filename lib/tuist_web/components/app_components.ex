@@ -16,7 +16,7 @@ defmodule TuistWeb.AppComponents do
   """
   use Phoenix.Component
   use Gettext, backend: TuistWeb.Gettext
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Components.EmptyStateBackground
   import TuistWeb.Components.TrendBadge

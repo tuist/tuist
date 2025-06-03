@@ -1,6 +1,6 @@
 defmodule TuistWeb.ErrorHTML do
   use TuistWeb, :html
-  use TuistWeb.Noora
+  use Noora
 
   # If you want to customize your error pages,
   # uncomment the embed_templates/1 call below

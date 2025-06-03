@@ -1,7 +1,7 @@
 defmodule TuistWeb.UserResetPasswordLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   alias Tuist.Accounts
 

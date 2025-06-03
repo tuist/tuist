@@ -3,7 +3,7 @@ defmodule TuistWeb.Previews.PlatformIcon do
   A component used to render a preview's platform icon.
   """
   use Phoenix.Component
-  use TuistWeb.Noora
+  use Noora
 
   alias Tuist.Previews
 

@@ -1,7 +1,7 @@
 defmodule TuistWeb.DeviceCodesSuccessLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   alias Tuist.Accounts
   alias TuistWeb.Authentication

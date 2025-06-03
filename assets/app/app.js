@@ -21,7 +21,7 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
-import * as NooraComponents from "../_noora/noora.js";
+import Noora from "noora";
 import "./app.css";
 import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
@@ -40,14 +40,11 @@ Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
-Object.keys(NooraComponents).forEach((key) => {
-  Hooks[key] = NooraComponents[key];
-});
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: Hooks,
+  hooks: { ...Hooks, ...Noora.Hooks },
 });
 
 // Show progress bar on live navigation and form submits

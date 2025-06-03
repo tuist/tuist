@@ -1,7 +1,7 @@
 defmodule TuistWeb.ProjectsLive do
   @moduledoc false
   use TuistWeb, :live_view
-  use TuistWeb.Noora
+  use Noora
 
   import TuistWeb.Previews.PlatformIcon
 

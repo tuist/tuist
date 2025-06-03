@@ -3,7 +3,7 @@ defmodule TuistWeb.Runs.RanByBadge do
   A component used to render a badge indicating who executed the run.
   """
   use TuistWeb, :html
-  use TuistWeb.Noora
+  use Noora
 
   attr :run, :map, required: true
 
