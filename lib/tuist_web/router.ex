@@ -29,11 +29,10 @@ defmodule TuistWeb.Router do
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.getkoala.com https://*.posthog.com",
+        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src:
-        "'self' wss://*.getkoala.com https://*.getkoala.com https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
+      connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
 
   pipeline :browser_app do

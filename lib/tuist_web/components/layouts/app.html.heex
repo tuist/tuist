@@ -20,10 +20,7 @@
         return getComputedStyle(document.documentElement).getPropertyValue(name);
       }
     </script>
-    <TuistWeb.LayoutComponents.head_analytics_scripts
-      :if={Tuist.Environment.analytics_enabled?()}
-      {assigns}
-    />
+    <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
   </head>
   <body class="tuist-web">
     {@inner_content}
