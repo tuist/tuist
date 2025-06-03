@@ -6,6 +6,8 @@ public struct XCActivityLog {
     public let buildStep: XCActivityBuildStep
     public let category: XCActivityBuildCategory
     public let issues: [XCActivityIssue]
+    public let files: [XCActivityBuildFile]
+    public let targets: [XCActivityTarget]
 }
 
 #if DEBUG
@@ -15,14 +17,18 @@ public struct XCActivityLog {
             mainSection: XCActivityLogSection = .test(),
             buildStep: XCActivityBuildStep = .test(),
             category: XCActivityBuildCategory = .clean,
-            issues: [XCActivityIssue] = []
+            issues: [XCActivityIssue] = [],
+            files: [XCActivityBuildFile] = [],
+            targets: [XCActivityTarget] = []
         ) -> XCActivityLog {
             XCActivityLog(
                 version: version,
                 mainSection: mainSection,
                 buildStep: buildStep,
                 category: category,
-                issues: issues
+                issues: issues,
+                files: files,
+                targets: targets
             )
         }
     }

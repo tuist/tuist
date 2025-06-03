@@ -66,5 +66,19 @@ struct XCActivityLogControllerTests {
         #expect(issue.target == "Framework1")
         #expect(issue.project == "MainApp")
         #expect(issue.title == "Compile Framework1File.swift (arm64)")
+        print(got.files.map(\.path))
+        let files = got.files.sorted(by: { $0.path.pathString < $1.path.pathString })
+        #expect(
+            files.map(\.path.pathString) == [
+                "Framework1/Sources/Framework1File.swift",
+                "Framework2/Sources/Framework2File.swift",
+                "Framework3/Sources/Framework3File.swift",
+                "Framework4/Sources/Framework4File.swift",
+                "Framework5/Sources/Framework5File.swift",
+            ]
+        )
+        let targets = got.targets.sorted(by: { $0.name < $1.name })
+        #expect(targets.map(\.name) == ["Framework1", "Framework2-iOS", "Framework3", "Framework4", "Framework5"])
+        #expect(targets.map(\.status) == [.failure, .success, .success, .success, .success])
     }
 }
