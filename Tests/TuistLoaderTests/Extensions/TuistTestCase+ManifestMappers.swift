@@ -172,6 +172,7 @@ extension TuistTestCase {
             return .init(projectPath: resolvedPath, name: $0.targetName)
         }
         XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
+        XCTAssertEqual(buildAction.parallelizeBuild, manifest.buildOrder == .dependencyOrder, file: file, line: line)
     }
 
     func assert(
