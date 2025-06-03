@@ -14,7 +14,7 @@ jobs:
       - run:
           name: Install mise
           command: |
-            brew install jdx/mise/mise
+            curl https://mise.run | sh
       - run:
           name: Install Tuist via mise
           command: |
@@ -23,7 +23,7 @@ jobs:
           name: Inspect Bundle
           command: |
             # mise sh automatically sets up the environment for installed tools
-            mise exec -- tuist inspect bundle path/to/YourBundle.bundle
+            mise exec -- tuist inspect bundle App.xcarchive
 
 workflows:
   inspect:

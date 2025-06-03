@@ -83,6 +83,7 @@ playground.xcworkspace
 !**/*.xcworkspace/xcshareddata/swiftpm/configuration
 .byebug_history
 *.xcarchive
+!App.xcarchive
 tmp/
 /build/
 
