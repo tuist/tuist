@@ -12,6 +12,7 @@ extension XcodeGraph.BuildAction {
         manifest: ProjectDescription.BuildAction,
         generatorPaths: GeneratorPaths
     ) throws -> XcodeGraph.BuildAction {
+        let parallelizeBuild = manifest.buildOrder == .dependencyOrder
         let preActions = try manifest.preActions.map { try XcodeGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
@@ -30,7 +31,7 @@ extension XcodeGraph.BuildAction {
             targets: targets,
             preActions: preActions,
             postActions: postActions,
-            parallelizeBuild: manifest.parallelizeBuild,
+            parallelizeBuild: parallelizeBuild,
             runPostActionsOnFailure: manifest.runPostActionsOnFailure,
             findImplicitDependencies: manifest.findImplicitDependencies
         )
