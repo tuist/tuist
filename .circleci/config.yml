@@ -15,6 +15,7 @@ jobs:
           name: Install mise
           command: |
             curl https://mise.run | sh
+            export PATH="$HOME/.local/bin:$PATH"
       - run:
           name: Install Tuist via mise
           command: |
