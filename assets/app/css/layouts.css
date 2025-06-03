@@ -12,6 +12,7 @@
   display: flex;
   flex: 1;
   flex-direction: row;
+  background: var(--noora-surface-background-primary);
   overflow: hidden;
 
   & .noora-sidebar {
