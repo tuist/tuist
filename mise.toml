@@ -5,13 +5,13 @@ swiftformat = "0.53.3"
 pnpm = "10.5.2"
 node = "20.12.0"
 git-cliff = "2.6.0"
-"spm:tuist/sourcedocs" = "2.0.2"
-"spm:apple/swift-openapi-generator" = "1.3.1"
+# "spm:tuist/sourcedocs" = "2.0.2"
+# "spm:apple/swift-openapi-generator" = "1.3.1"
 sops = "3.9.3"
 age = "1.2.1"
 
-[hooks]
-postinstall = "mise run install"
+# [hooks]
+# postinstall = "mise run install"
 
 [env]
 _.file = ".env.json"
