@@ -1312,4 +1312,3 @@ ALTER TABLE ONLY public.que_scheduler_audit_enqueued
 --
 -- PostgreSQL database dump complete
 --
-

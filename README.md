@@ -18,6 +18,7 @@ This repository contains the source code of the server-side application that ext
 1. Create a `priv/secrets/dev.key` file and add the key to decrypt the secrets needed for development.
 1. Install additional system dependencies with: `mise install`.
 1. Start Postgres with: `brew services start postgresql@16`.
+1. Start ClickHouse with: `mise run clickhouse:start`
 1. Create a new database with: `mise run db:create`.
 1. Load the data into database with: `mise run db:load`.
 1. Seed your database with data: `mise run db:seed`.

@@ -47,3 +47,9 @@ priv/static/marketing/images/og/generated/
 
 .elixir_ls/
 ~/.pnpm/store
+
+# ClickHouse
+.clickhouse.pid
+metadata
+preprocessed_configs
+uuid

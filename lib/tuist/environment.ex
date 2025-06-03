@@ -355,6 +355,26 @@ defmodule Tuist.Environment do
       smtp_user_name(secrets) != nil
   end
 
+  def clickhouse_configured?(secrets \\ secrets()) do
+    clickhouse_url(secrets) != nil
+  end
+
+  def clickhouse_url(secrets \\ secrets()) do
+    get([:clickhouse, :url], secrets)
+  end
+
+  def clickhouse_pool_size(secrets \\ secrets()) do
+    get([:clickhouse, :pool_size], secrets) || database_pool_size(secrets)
+  end
+
+  def clickhouse_queue_interval(secrets \\ secrets()) do
+    get([:clickhouse, :queue_interval], secrets) || database_queue_interval(secrets)
+  end
+
+  def clickhouse_queue_target(secrets \\ secrets()) do
+    get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

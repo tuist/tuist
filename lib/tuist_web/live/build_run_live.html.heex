@@ -1,0 +1,222 @@
+<div id="build-run">
+  <.button
+    label={gettext("Build Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title">
+      <div :if={@run.status == :success} data-part="badge-success">
+        <div data-part="icon">
+          <.circle_check />
+        </div>
+      </div>
+      <div :if={@run.status == :failure} data-part="badge-failure">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <h1 :if={not is_nil(@run.scheme)} data-part="label">{@run.scheme}</h1>
+    </div>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={gettext("Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("Warnings")}
+      selected={@selected_tab == "warnings"}
+      patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("Errors")}
+      selected={@selected_tab == "errors"}
+      patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
+    />
+  </.tab_menu_horizontal>
+  <%= if @selected_tab == "overview" do %>
+    <.card title={gettext("Build Details")} icon="chart_arcs" data-part="build-details">
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command")}</div>
+              <span data-part="label">
+                <.device_laptop />
+                {Tuist.Apple.devices()[@run.model_identifier]}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Status")}</div>
+              <%= if @run.status == :success do %>
+                <.badge label={gettext("Passed")} color="success" style="fill" />
+              <% else %>
+                <.badge label={gettext("Failed")} color="destructive" style="fill" />
+              <% end %>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Built by")}</div>
+              <.run_ran_by_badge_cell run={@run} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Build duration")}</div>
+              <span data-part="label">
+                <.history />
+                {TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Built at")}</div>
+              <span data-part="label">
+                {Timex.format!(@run.inserted_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Category")}</div>
+              <.badge
+                label={@run.category |> Atom.to_string() |> String.capitalize()}
+                style="fill"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@run.git_branch || gettext("None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Xcode version")}</div>
+              <span data-part="label">
+                {@run.xcode_version}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("macOS version")}</div>
+              <span data-part="label">
+                <.device_laptop />
+                {@run.macos_version}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      title={gettext("Errors and Warnings")}
+      icon="alert_triangle"
+      data-part="errors-and-warnings-card"
+    >
+      <.card_section
+        :if={not Enum.empty?(@errors_grouped_by_path)}
+        data-part="errors-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Errors")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- Enum.take(@errors_grouped_by_path, 4) do %>
+            <.issue_card issues={issues} path={path} run={@run} type="error" />
+          <% end %>
+          <%= if Enum.count(@errors_grouped_by_path) > 4 do %>
+            <div data-part="more-card" data-index="two"></div>
+            <div data-part="more-card" data-index="one"></div>
+          <% end %>
+        </div>
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@warnings_grouped_by_path)}
+        data-part="warnings-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Warnings")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
+          </span>
+          <.button
+            variant="secondary"
+            label={gettext("View more")}
+            size="small"
+            patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+          />
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- @warnings_grouped_by_path do %>
+            <.issue_card issues={issues} path={path} run={@run} type="warning" />
+          <% end %>
+          <%= if Enum.count(@warnings_grouped_by_path) > 4 do %>
+            <div data-part="more-card" data-index="two"></div>
+            <div data-part="more-card" data-index="one"></div>
+          <% end %>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "warnings" do %>
+    <.card title={gettext("Warnings")} icon="alert_hexagon" data-part="warnings-card">
+      <.card_section data-part="warnings-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Warnings")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
+          </span>
+        </div>
+        <%= for {path, issues} <- @warnings_grouped_by_path do %>
+          <.issue_card issues={issues} path={path} run={@run} type="warning" />
+        <% end %>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "errors" do %>
+    <.card title={gettext("Errors")} icon="alert_circle" data-part="errors-card">
+      <.card_section data-part="errors-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Errors")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- @errors_grouped_by_path do %>
+            <.issue_card issues={issues} path={path} run={@run} type="error" />
+          <% end %>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

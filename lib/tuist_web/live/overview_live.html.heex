@@ -240,7 +240,7 @@
     <:actions>
       <.button
         variant="secondary"
-        label="View more"
+        label={gettext("View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
         disabled={Enum.empty?(@recent_test_runs)}
@@ -322,7 +322,7 @@
     <:actions>
       <.button
         variant="secondary"
-        label="View more"
+        label={gettext("View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
         disabled={Enum.empty?(@latest_app_previews)}

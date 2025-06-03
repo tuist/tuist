@@ -527,7 +527,7 @@
     <:actions>
       <.button
         variant="secondary"
-        label="View more"
+        label={gettext("View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
         disabled={Enum.empty?(@recent_builds)}
@@ -596,7 +596,17 @@
           bar_radius={2}
         />
       </div>
-      <.table id="build-runs-table" rows={@recent_builds |> Enum.take(7)}>
+      <.table
+        id="build-runs-table"
+        rows={@recent_builds |> Enum.take(7)}
+        row_navigate={
+          fn build ->
+            url(
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
+            )
+          end
+        }
+      >
         <:col :let={build} label={gettext("Scheme")}>
           <.text_and_description_cell label={build.scheme || gettext("Unknown")} />
         </:col>

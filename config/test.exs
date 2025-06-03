@@ -12,6 +12,11 @@ config :phoenix, :plug_init_mode, :runtime
 # Oban
 config :tuist, Oban, testing: :inline
 
+config :tuist, Tuist.ClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
 
@@ -38,3 +43,9 @@ config :tuist, TuistWeb.Endpoint,
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,
   api_pipeline_producer_options: []
+
+config :tuist,
+  ecto_repos: [Tuist.Repo, Tuist.ClickHouseRepo],
+  generators: [timestamp_type: :utc_datetime],
+  api_pipeline_producer_module: OffBroadwayMemory.Producer,
+  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]

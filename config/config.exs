@@ -7,6 +7,9 @@
 # General application configuration
 import Config
 
+config :ecto_ch,
+  default_table_engine: "MergeTree"
+
 # Error tracker
 config :error_tracker,
   repo: Tuist.Repo,
@@ -246,12 +249,6 @@ config :tuist, :urls,
   app_lifecycle_phase_share: "https://docs.tuist.dev/guides/share/previews",
   app_lifecycle_phase_measure: "https://docs.tuist.dev/server/introduction/why-a-server",
   shop: "https://shop.tuist.dev"
-
-config :tuist,
-  ecto_repos: [Tuist.Repo],
-  generators: [timestamp_type: :utc_datetime],
-  api_pipeline_producer_module: OffBroadwayMemory.Producer,
-  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

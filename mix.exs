@@ -128,7 +128,8 @@ defmodule Tuist.MixProject do
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
-      {:tidewave, "~> 0.1", only: :dev}
+      {:tidewave, "~> 0.1", only: :dev},
+      {:ecto_ch, "~> 0.6.0"}
     ]
   end
 

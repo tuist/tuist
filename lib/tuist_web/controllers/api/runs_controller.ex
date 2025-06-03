@@ -231,6 +231,96 @@ defmodule TuistWeb.API.RunsController do
                git_branch: %Schema{
                  type: :string,
                  description: "The git branch."
+               },
+               issues: %Schema{
+                 type: :array,
+                 description: "The build issues associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of the issue.",
+                       enum: [:warning, :error]
+                     },
+                     target: %Schema{
+                       type: :string,
+                       description: "The target name associated with the issue."
+                     },
+                     project: %Schema{
+                       type: :string,
+                       description: "The project name associated with the issue."
+                     },
+                     title: %Schema{
+                       type: :string,
+                       description: "The title of the build issue."
+                     },
+                     signature: %Schema{
+                       type: :string,
+                       description: "The signature of the issue."
+                     },
+                     step_type: %Schema{
+                       type: :string,
+                       description: "The step type where the issue occurred, such as swift_compilation.",
+                       enum: [
+                         :c_compilation,
+                         :swift_compilation,
+                         :script_execution,
+                         :create_static_library,
+                         :linker,
+                         :copy_swift_libs,
+                         :compile_assets_catalog,
+                         :compile_storyboard,
+                         :write_auxiliary_file,
+                         :link_storyboards,
+                         :copy_resource_file,
+                         :merge_swift_module,
+                         :xib_compilation,
+                         :swift_aggregated_compilation,
+                         :precompile_bridging_header,
+                         :other,
+                         :validate_embedded_binary,
+                         :validate
+                       ]
+                     },
+                     path: %Schema{
+                       type: :string,
+                       description: "The file path where the issue occurred, relative to the project root."
+                     },
+                     message: %Schema{
+                       type: :string,
+                       description: "The detailed message of the issue."
+                     },
+                     starting_line: %Schema{
+                       type: :integer,
+                       description: "The starting line number of the issue."
+                     },
+                     ending_line: %Schema{
+                       type: :integer,
+                       description: "The ending line number of the issue."
+                     },
+                     starting_column: %Schema{
+                       type: :integer,
+                       description: "The starting column number of the issue."
+                     },
+                     ending_column: %Schema{
+                       type: :integer,
+                       description: "The ending column number of the issue."
+                     }
+                   },
+                   required: [
+                     :type,
+                     :target,
+                     :project,
+                     :title,
+                     :signature,
+                     :step_type,
+                     :starting_line,
+                     :ending_line,
+                     :starting_column,
+                     :ending_column
+                   ]
+                 }
                }
              },
              required: [
@@ -296,7 +386,8 @@ defmodule TuistWeb.API.RunsController do
           status: Map.get(params, :status, :success),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
-          git_commit_sha: Map.get(params, :git_commit_sha)
+          git_commit_sha: Map.get(params, :git_commit_sha),
+          issues: Map.get(params, :issues, [])
         })
     end
   end

@@ -30,6 +30,7 @@ defmodule Tuist.Runs.Build do
     field :git_commit_sha, :string
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
+    has_many :issues, Tuist.Runs.BuildIssue, foreign_key: :build_run_id
 
     timestamps(type: :utc_datetime, updated_at: false)
   end

@@ -24,7 +24,8 @@ defmodule Tuist.RunsTest do
           scheme: "App",
           project_id: project_id,
           account_id: account_id,
-          status: :success
+          status: :success,
+          issues: []
         })
 
       # Then

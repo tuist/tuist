@@ -26,7 +26,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       project_id: project_id,
       account_id: account_id,
       inserted_at: Keyword.get(attrs, :inserted_at),
-      status: Keyword.get(attrs, :status, :success)
+      status: Keyword.get(attrs, :status, :success),
+      issues: Keyword.get(attrs, :issues, [])
     })
   end
 end

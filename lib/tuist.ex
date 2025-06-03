@@ -73,6 +73,7 @@ defmodule Tuist do
       License,
       PubSub,
       KeyValueStore,
+      ClickHouseRepo,
       # We should not be exposing this one
       Repo,
       Storage,

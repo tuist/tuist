@@ -232,12 +232,42 @@ defmodule TuistWeb.API.RunsControllerTest do
           model_identifier: "machine-123",
           scheme: "App",
           status: :failure,
-          category: :incremental
+          category: :incremental,
+          issues: [
+            %{
+              type: "error",
+              target: "MyApp",
+              project: "MyProject",
+              title: "Compilation Error",
+              signature: "error_signature_123",
+              step_type: "swift_compilation",
+              path: "/path/to/file.swift",
+              message: "Expected ';' after expression",
+              starting_line: 10,
+              ending_line: 10,
+              starting_column: 5,
+              ending_column: 15
+            },
+            %{
+              type: "warning",
+              target: "MyApp",
+              project: "MyProject",
+              title: "Unused Variable",
+              signature: "warning_signature_456",
+              step_type: "swift_compilation",
+              path: "/path/to/another_file.swift",
+              message: "Variable 'unused' is never used",
+              starting_line: 25,
+              ending_line: 25,
+              starting_column: 8,
+              ending_column: 14
+            }
+          ]
         )
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload(:issues)
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -249,6 +279,19 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.account_id == user.account.id
       assert build.status == :failure
       assert build.category == :incremental
+
+      assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
+               %{
+                 type: "error",
+                 message: "Expected ';' after expression",
+                 build_run_id: build.id
+               },
+               %{
+                 type: "warning",
+                 message: "Variable 'unused' is never used",
+                 build_run_id: build.id
+               }
+             ]
 
       assert response == %{
                "id" => build.id,
