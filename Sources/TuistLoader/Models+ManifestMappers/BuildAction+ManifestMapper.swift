@@ -12,7 +12,7 @@ extension XcodeGraph.BuildAction {
         manifest: ProjectDescription.BuildAction,
         generatorPaths: GeneratorPaths
     ) throws -> XcodeGraph.BuildAction {
-        let parallelizeBuild = manifest.buildOrder == .dependencyOrder
+        let parallelizeBuild = manifest.buildOrder == .dependency
         let preActions = try manifest.preActions.map { try XcodeGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths

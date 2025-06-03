@@ -154,7 +154,7 @@ import TuistSupport
     extension BuildAction {
         public static func test(
             targets: [TargetReference] = [],
-            buildOrder: BuildOrder = .dependencyOrder
+            buildOrder: BuildOrder = .dependency
         ) -> BuildAction {
             .buildAction(
                 targets: targets,

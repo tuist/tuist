@@ -78,7 +78,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         // Given
         let buildAction = ProjectDescription.BuildAction.test(
             targets: ["A", "B"],
-            buildOrder: .manualOrder
+            buildOrder: .manual
         )
         let manifest = ProjectDescription.Scheme.test(
             name: "Scheme",
