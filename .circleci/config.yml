@@ -16,6 +16,8 @@ jobs:
           command: |
             curl https://mise.run | sh
             export PATH="$HOME/.local/bin:$PATH"
+            mise activate
+            mise doctor
       - run:
           name: Install Tuist via mise
           command: |
