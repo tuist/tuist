@@ -97,7 +97,7 @@ final class GraphImportsLinter: GraphImportsLinting {
 
         let explicitTargetDependencies = targetDependencies
             .filter {
-                $0.target.product != .bundle
+                !$0.target.bundleId.hasSuffix(".generated.resources")
             }
             .map { targetDependency in
                 if case .external = targetDependency.graphTarget.project.type { return graphTraverser
