@@ -3,7 +3,7 @@ version: 2.1
 executors:
   macos-executor:
     macos:
-      xcode: "14.3.1"
+      xcode: "16.3.0"
     working_directory: ~/project
 
 jobs:
