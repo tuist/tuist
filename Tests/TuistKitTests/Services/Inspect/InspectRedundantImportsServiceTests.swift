@@ -155,7 +155,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         try await subject.run(path: path.pathString)
     }
-    
+
     func test_run_doesntThrowAnyErrorsWithUITest_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
@@ -180,7 +180,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(uiTests)).willReturn(Set([app]))
+        given(targetScanner).imports(for: .value(uiTests)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
 
         try await subject.run(path: path.pathString)
