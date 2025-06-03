@@ -170,7 +170,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             product: .app,
             dependencies: [TargetDependency.target(name: "UITests")]
         )
-        let project = Project.test(path: path, targets: [uiTests, framework])
+        let project = Project.test(path: path, targets: [uiTests, app])
         let graph = Graph.test(path: path, projects: [path: project], dependencies: [
             .target(name: app.name, path: project.path): [
                 .target(name: uiTests.name, path: project.path),
