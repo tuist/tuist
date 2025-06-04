@@ -1,5 +1,3 @@
-import * as echarts from "echarts";
-
 function findNode(data, predicate) {
   for (const node of data) {
     if (predicate(node)) {
@@ -15,11 +13,40 @@ function findNode(data, predicate) {
 
 export default {
   mounted() {
+    const chart = document.querySelector(`#${this.el.dataset.chartId}`);
+
+    if (chart) {
+      const chartPart = chart.querySelector('[data-part="chart"]');
+      const element = chartPart || chart;
+      const chartContainer = element.closest(".noora-chart");
+
+      if (chartContainer && window.liveSocket && window.liveSocket.roots) {
+        for (const rootId in window.liveSocket.roots) {
+          const view = window.liveSocket.roots[rootId];
+          if (view && view.el && view.el.contains(chartContainer)) {
+            if (view.getHook) {
+              const hook = view.getHook(chartContainer);
+              if (hook && hook.chart) {
+                this.setupChartHandlers(hook.chart);
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  setupChartHandlers(echart) {
     this.handleBreadcrumbClicked = (event) => {
-      if (event.target.id == this.el.id) {
+      if (event.target.id == this.el.id && echart) {
         const node = findNode(echart.getOption().series[0].data, (node) => node.id == event.detail.artifact_id);
         if (node) {
-          echart.dispatchAction({ type: "sunburstRootToNode", seriesIndex: 0, targetNodeId: event.detail.artifact_id });
+          echart.dispatchAction({
+            type: "sunburstRootToNode",
+            seriesIndex: 0,
+            targetNodeId: event.detail.artifact_id,
+          });
           this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
             artifact: {
               value: node.value,
@@ -37,9 +64,8 @@ export default {
       }
     };
     window.addEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
+
     let highlightedNewElement = false;
-    const chart = document.querySelector(`#${this.el.dataset.chartId}`);
-    const echart = echarts.getInstanceByDom(chart);
     this.handleOnHighlighted = (el) => {
       highlightedNewElement = true;
       if (el.name == "") {
@@ -52,37 +78,37 @@ export default {
             name: el.data.name,
             artifact_id: el.data.artifact_id,
             children: el.data.children,
+            path: el.data.path,
           },
         });
       }
     };
-    if (echart) {
-      echart.on("mouseover", this.handleOnHighlighted);
-      echart.on("mouseout", (el) => {
-        highlightedNewElement = false;
-        setTimeout(() => {
-          if (highlightedNewElement === false) {
-            this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact", {});
-          }
-        }, 10);
-      });
-      echart.on("click", (params) => {
-        if (params.name == "") {
-          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-parent", {});
-        } else if (params.data) {
-          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
-            artifact: {
-              value: params.data.value,
-              name: params.data.name,
-              artifact_type: params.data.artifact_type,
-              artifact_id: params.data.artifact_id,
-              children: params.data.children,
-              path: params.data.path,
-            },
-          });
+
+    echart.on("mouseover", this.handleOnHighlighted);
+    echart.on("mouseout", (el) => {
+      highlightedNewElement = false;
+      setTimeout(() => {
+        if (highlightedNewElement === false) {
+          this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-no-highlighted-artifact", {});
         }
-      });
-    }
+      }, 10);
+    });
+    echart.on("click", (params) => {
+      if (params.name == "") {
+        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-parent", {});
+      } else if (params.data) {
+        this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
+          artifact: {
+            value: params.data.value,
+            name: params.data.name,
+            artifact_type: params.data.artifact_type,
+            artifact_id: params.data.artifact_id,
+            children: params.data.children,
+            path: params.data.path,
+          },
+        });
+      }
+    });
   },
 
   destroyed() {
