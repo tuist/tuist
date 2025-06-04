@@ -187,50 +187,45 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private func files(steps: [BuildStep]) async throws
         -> [XCActivityBuildFile]
     {
-        var seenPaths: Set<RelativePath> = Set()
-        return
-            try await steps
-                .filter { $0.type == .detail }
-                .concurrentCompactMap { step -> XCActivityBuildFile? in
-                    let type: XCActivityBuildFileType
-                    switch step.detailStepType {
-                    case .swiftCompilation:
+        try await steps
+            .filter { $0.type == .detail }
+            .concurrentCompactMap { step -> XCActivityBuildFile? in
+                let type: XCActivityBuildFileType
+                switch step.detailStepType {
+                case .swiftCompilation:
+                    type = .swift
+                case .cCompilation:
+                    type = .c
+                default:
+                    if step.signature.hasPrefix("SwiftCompile ") {
                         type = .swift
-                    case .cCompilation:
-                        type = .c
-                    default:
-                        if step.signature.hasPrefix("SwiftCompile ") {
-                            type = .swift
-                        } else {
-                            return nil
-                        }
-                    }
-
-                    if let absolutePath = try? AbsolutePath(
-                        validating: step.documentURL
-                            .replacingOccurrences(of: "file://", with: "")
-                    ), DeveloperEnvironment.current.derivedDataDirectory.isAncestor(of: absolutePath) {
+                    } else {
                         return nil
                     }
-
-                    guard let path = try await path(of: step) else { return nil }
-
-                    return XCActivityBuildFile(
-                        type: type,
-                        target: step.target(),
-                        project: step.project(),
-                        path: path,
-                        compilationDuration: Int((step.compilationDuration * 1000).rounded(.up))
-                    )
                 }
-                .filter { buildFile in
-                    if seenPaths.contains(buildFile.path) {
-                        return false
-                    } else {
-                        seenPaths.insert(buildFile.path)
-                        return true
-                    }
+
+                /// We want to ignore steps for emitting modules as we care about the compilation of the file itself.
+                guard !step.title.hasPrefix("Emit") else {
+                    return nil
                 }
+
+                if let absolutePath = try? AbsolutePath(
+                    validating: step.documentURL
+                        .replacingOccurrences(of: "file://", with: "")
+                ), DeveloperEnvironment.current.derivedDataDirectory.isAncestor(of: absolutePath) {
+                    return nil
+                }
+
+                guard let path = try await path(of: step) else { return nil }
+
+                return XCActivityBuildFile(
+                    type: type,
+                    target: step.target(),
+                    project: step.project(),
+                    path: path,
+                    compilationDuration: Int((step.compilationDuration * 1000).rounded(.up))
+                )
+            }
     }
 
     private func issues(steps: [BuildStep]) async throws
