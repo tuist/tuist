@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.51.1 - 2025-06-04
+
+### CLI
+
+#### Changed
+
+- Remove generated bundles for inspecting in implicit and redundant dependencies search [#7614](https://github.com/tuist/tuist/pull/7614) by [@rofle100lvl](https://github.com/rofle100lvl)
+
+#### Fixed
+
+- Fix sandbox failure on CI [#7631](https://github.com/tuist/tuist/pull/7631) by [@hiltonc](https://github.com/hiltonc)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.51.0 - 2025-06-03
 
 ### CLI
