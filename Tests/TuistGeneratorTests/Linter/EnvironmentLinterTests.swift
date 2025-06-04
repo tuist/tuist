@@ -6,9 +6,8 @@ import Testing
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct EnvironmentLinterTests {
     private var rootDirectoryLocator: MockRootDirectoryLocating!

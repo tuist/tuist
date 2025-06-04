@@ -6,7 +6,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import TuistXCActivityLog
 import XcodeGraph
 

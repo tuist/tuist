@@ -49,17 +49,6 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistCoreTesting",
-        dependencies: [
-            "TuistCore",
-            "TuistSupportTesting",
-            "TuistSupport",
-            "XcodeGraph",
-            pathDependency,
-        ],
-        linkerSettings: [.linkedFramework("XCTest")]
-    ),
-    .target(
         name: "TuistKit",
         dependencies: [
             "XcodeProj",
@@ -143,7 +132,7 @@ let targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistSupportTesting",
+        name: "TuistTesting",
         dependencies: [
             "TuistSupport",
             "XcodeGraph",
@@ -161,7 +150,7 @@ let targets: [Target] = [
             "TuistKit",
             "TuistCore",
             "TuistSupport",
-            "TuistSupportTesting",
+            "TuistTesting",
             "XcodeProj",
             "FileSystem",
             "ProjectDescription",
@@ -189,18 +178,6 @@ let targets: [Target] = [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "TuistGeneratorTesting",
-        dependencies: [
-            "TuistGenerator",
-            pathDependency,
-            "XcodeGraph",
-            "XcodeProj",
-            "TuistCore",
-            "TuistSupport",
-        ],
-        linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistScaffold",
@@ -298,19 +275,6 @@ let targets: [Target] = [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "TuistLoaderTesting",
-        dependencies: [
-            "TuistLoader",
-            pathDependency,
-            "TuistCore",
-            "ProjectDescription",
-            "TuistSupportTesting",
-            "TuistSupport",
-            "XcodeGraph",
-        ],
-        linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistAnalytics",
@@ -484,8 +448,8 @@ let package = Package(
             targets: ["TuistSupport"]
         ),
         .library(
-            name: "TuistSupportTesting",
-            targets: ["TuistSupportTesting"]
+            name: "TuistTesting",
+            targets: ["TuistTesting"]
         ),
         .library(
             name: "TuistCore",
@@ -496,16 +460,8 @@ let package = Package(
             targets: ["TuistXCActivityLog"]
         ),
         .library(
-            name: "TuistCoreTesting",
-            targets: ["TuistCoreTesting"]
-        ),
-        .library(
             name: "TuistLoader",
             targets: ["TuistLoader"]
-        ),
-        .library(
-            name: "TuistLoaderTesting",
-            targets: ["TuistLoaderTesting"]
         ),
         .library(
             name: "TuistAnalytics",

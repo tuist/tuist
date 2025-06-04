@@ -2,7 +2,7 @@ import Foundation
 import Path
 import XCTest
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class InvalidGlobTests: TuistUnitTestCase {
     func test_description() throws {

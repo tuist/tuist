@@ -3,7 +3,7 @@ import TSCUtility
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class StringExtrasTests: TuistUnitTestCase {
     func test_camelized() {

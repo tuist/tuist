@@ -7,7 +7,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TargetManifestMapperErrorTests: TuistUnitTestCase {
     func test_description_when_invalidResourcesGlob() {

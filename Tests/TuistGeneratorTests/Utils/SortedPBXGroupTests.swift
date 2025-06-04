@@ -1,7 +1,7 @@
 import XcodeProj
 
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 class SortedPBXGroupTests: TuistTestCase {
     var subject: SortedPBXGroup!

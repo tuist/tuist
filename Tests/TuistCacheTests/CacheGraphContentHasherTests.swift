@@ -5,7 +5,7 @@ import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistCache

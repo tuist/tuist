@@ -1,11 +1,10 @@
 import Foundation
-import TuistCoreTesting
 import TuistLoader
 import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphMapperFactoryTests: TuistUnitTestCase {
     var subject: GraphMapperFactory!

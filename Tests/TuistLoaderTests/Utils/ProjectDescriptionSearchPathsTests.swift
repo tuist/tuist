@@ -3,7 +3,7 @@ import Path
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
     func test_paths_style() throws {

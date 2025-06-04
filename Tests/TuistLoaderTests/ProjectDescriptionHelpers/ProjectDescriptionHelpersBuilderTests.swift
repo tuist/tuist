@@ -2,8 +2,7 @@ import Path
 import TuistSupport
 import XCTest
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
     var projectDescriptionHelpersHasher: MockProjectDescriptionHelpersHasher!

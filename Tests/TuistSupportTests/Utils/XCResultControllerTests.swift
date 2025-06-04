@@ -5,7 +5,7 @@ import Mockable
 import Testing
 import struct TSCUtility.Version
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistSupport
 

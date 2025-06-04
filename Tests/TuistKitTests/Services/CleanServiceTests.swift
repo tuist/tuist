@@ -2,16 +2,14 @@ import FileSystem
 import Foundation
 import Mockable
 import TuistCore
-import TuistCoreTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class CleanServiceTests: TuistUnitTestCase {
     private var subject: CleanService!

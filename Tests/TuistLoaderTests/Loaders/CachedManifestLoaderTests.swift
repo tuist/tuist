@@ -9,12 +9,10 @@ import Testing
 import TuistCore
 import struct TuistCore.Plugins
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
-@testable import TuistCoreTesting
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 class CachedManifestLoaderTests {
     private var cacheDirectory: AbsolutePath!

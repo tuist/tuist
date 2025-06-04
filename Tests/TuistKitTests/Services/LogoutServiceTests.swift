@@ -1,15 +1,13 @@
 import Foundation
 import Mockable
 import TuistCore
-import TuistCoreTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistServer
 import TuistSupport
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class LogoutServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!

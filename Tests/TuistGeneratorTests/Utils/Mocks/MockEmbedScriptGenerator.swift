@@ -3,7 +3,7 @@ import Path
 import TuistCore
 
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class MockEmbedScriptGenerator: EmbedScriptGenerating {
     var scriptArgs: [(AbsolutePath, [GraphDependencyReference], Bool)] = []

@@ -1,14 +1,12 @@
 import Mockable
 import Path
-import TuistAutomationTesting
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistCoreTesting
 
 final class TargetBuilderErrorTests: XCTestCase {
     func test_errorDescription() {

@@ -8,7 +8,7 @@ import Testing
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 

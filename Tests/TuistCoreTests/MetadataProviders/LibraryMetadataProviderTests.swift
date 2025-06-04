@@ -2,7 +2,7 @@ import Path
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class LibraryMetadataProviderTests: XCTestCase {
     var subject: LibraryMetadataProvider!

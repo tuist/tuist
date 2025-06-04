@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeErrorTests: TuistUnitTestCase {
     func test_description() {

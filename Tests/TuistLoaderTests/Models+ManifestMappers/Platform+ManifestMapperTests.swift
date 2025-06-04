@@ -6,7 +6,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PlatformManifestMapperTests: TuistUnitTestCase {
     func test_platform_iOS() throws {

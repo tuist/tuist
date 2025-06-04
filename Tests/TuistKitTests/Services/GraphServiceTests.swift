@@ -4,12 +4,10 @@ import GraphViz
 import Mockable
 import ProjectAutomation
 import TuistCore
-import TuistCoreTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistPlugin
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XcodeProj
 import XCTest

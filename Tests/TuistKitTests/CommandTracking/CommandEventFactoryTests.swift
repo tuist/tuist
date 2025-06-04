@@ -10,7 +10,7 @@ import TuistCore
 import TuistSupport
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct CommandEventFactoryTests {
     private var subject: CommandEventFactory!

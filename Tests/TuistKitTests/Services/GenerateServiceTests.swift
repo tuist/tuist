@@ -9,10 +9,8 @@ import TuistServer
 import TuistSupport
 import XcodeProj
 
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct GenerateServiceTests {
     private var subject: GenerateService!

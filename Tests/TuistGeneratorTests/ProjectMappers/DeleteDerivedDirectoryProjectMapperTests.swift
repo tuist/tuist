@@ -3,9 +3,8 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XCTest
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
     var subject: DeleteDerivedDirectoryProjectMapper!

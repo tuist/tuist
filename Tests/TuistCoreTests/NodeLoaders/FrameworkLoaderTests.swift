@@ -3,8 +3,7 @@ import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class FrameworkLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_frameworkNotFound() {

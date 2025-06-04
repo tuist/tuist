@@ -148,52 +148,52 @@ import OpenAPIURLSession
         }
     }
 
-#endif
-
-extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload {
-    fileprivate init(_ issue: XCActivityIssue) {
-        let stepType:
-            Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
-            .step_typePayload =
-                switch issue.stepType {
-                case .XIBCompilation: .xib_compilation
-                case .cCompilation: .c_compilation
-                case .swiftCompilation: .swift_compilation
-                case .scriptExecution: .script_execution
-                case .createStaticLibrary: .create_static_library
-                case .linker: .linker
-                case .copySwiftLibs: .copy_swift_libs
-                case .compileAssetsCatalog: .compile_assets_catalog
-                case .compileStoryboard: .compile_storyboard
-                case .writeAuxiliaryFile: .write_auxiliary_file
-                case .linkStoryboards: .link_storyboards
-                case .copyResourceFile: .copy_resource_file
-                case .mergeSwiftModule: .merge_swift_module
-                case .swiftAggregatedCompilation: .swift_aggregated_compilation
-                case .precompileBridgingHeader: .precompile_bridging_header
-                case .validateEmbeddedBinary: .validate_embedded_binary
-                case .validate: .validate
-                case .other: .other
-                }
-        let type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
-            ._typePayload = switch issue.type
-        {
-        case .warning: .warning
-        case .error: .error
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload {
+        fileprivate init(_ issue: XCActivityIssue) {
+            let stepType:
+                Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
+                .step_typePayload =
+                    switch issue.stepType {
+                    case .XIBCompilation: .xib_compilation
+                    case .cCompilation: .c_compilation
+                    case .swiftCompilation: .swift_compilation
+                    case .scriptExecution: .script_execution
+                    case .createStaticLibrary: .create_static_library
+                    case .linker: .linker
+                    case .copySwiftLibs: .copy_swift_libs
+                    case .compileAssetsCatalog: .compile_assets_catalog
+                    case .compileStoryboard: .compile_storyboard
+                    case .writeAuxiliaryFile: .write_auxiliary_file
+                    case .linkStoryboards: .link_storyboards
+                    case .copyResourceFile: .copy_resource_file
+                    case .mergeSwiftModule: .merge_swift_module
+                    case .swiftAggregatedCompilation: .swift_aggregated_compilation
+                    case .precompileBridgingHeader: .precompile_bridging_header
+                    case .validateEmbeddedBinary: .validate_embedded_binary
+                    case .validate: .validate
+                    case .other: .other
+                    }
+            let type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
+                ._typePayload = switch issue.type
+            {
+            case .warning: .warning
+            case .error: .error
+            }
+            self.init(
+                ending_column: issue.endingColumn,
+                ending_line: issue.endingLine,
+                message: issue.message,
+                path: issue.path?.pathString,
+                project: issue.project,
+                signature: issue.signature,
+                starting_column: issue.startingColumn,
+                starting_line: issue.startingLine,
+                step_type: stepType,
+                target: issue.target,
+                title: issue.title,
+                _type: type
+            )
         }
-        self.init(
-            ending_column: issue.endingColumn,
-            ending_line: issue.endingLine,
-            message: issue.message,
-            path: issue.path?.pathString,
-            project: issue.project,
-            signature: issue.signature,
-            starting_column: issue.startingColumn,
-            starting_line: issue.startingLine,
-            step_type: stepType,
-            target: issue.target,
-            title: issue.title,
-            _type: type
-        )
     }
-}
+
+#endif

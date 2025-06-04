@@ -3,7 +3,7 @@ import Path
 import Testing
 import TuistSupport
 
-@testable import TuistSupportTesting
+@testable import TuistTesting
 @testable import TuistXCActivityLog
 
 struct XCActivityLogControllerTests {

@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 import XCTest
 
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class AnyGraphMapperTests: TuistUnitTestCase {
     func test_map() throws {

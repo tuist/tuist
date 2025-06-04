@@ -2,12 +2,11 @@ import Foundation
 import Path
 import PathKit
 import TuistCore
-import TuistCoreTesting
 import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProjectGroupsTests: XCTestCase {
     var subject: ProjectGroups!

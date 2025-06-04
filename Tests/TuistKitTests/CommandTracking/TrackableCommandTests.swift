@@ -10,7 +10,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!

@@ -7,9 +7,8 @@ import TuistCore
 import TuistServer
 import TuistSupport
 @testable import TuistAnalytics
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct TuistAnalyticsDispatcherTests {
     private var subject: TuistAnalyticsDispatcher!

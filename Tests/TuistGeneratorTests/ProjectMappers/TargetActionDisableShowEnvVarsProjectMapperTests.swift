@@ -2,7 +2,7 @@ import TuistCore
 import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase {
     func test_map_environmentLoggingDisables() throws {

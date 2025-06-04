@@ -7,8 +7,7 @@ import XcodeMetadata
 import XCTest
 
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphLoaderTests: TuistUnitTestCase {
     private var stubbedFrameworks = [AbsolutePath: PrecompiledMetadata]()

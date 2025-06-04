@@ -1,11 +1,10 @@
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TargetProjectMapperTests: XCTestCase {
     func test_map_project() throws {

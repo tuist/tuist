@@ -4,7 +4,6 @@ import TuistCore
 import TuistLoader
 import XcodeGraph
 
-@testable import TuistCoreTesting
 @testable import TuistKit
 
 final class MockProjectEditorMapper: ProjectEditorMapping {
