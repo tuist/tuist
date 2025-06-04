@@ -71,21 +71,10 @@ struct InspectBundleCommandService {
             throw InspectBundleCommandServiceError.missingFullHandle
         }
 
-        let gitCommitSHA: String?
-        let gitBranch: String?
-        let gitRef = gitController.ref()
-        if gitController.isInGitRepository(workingDirectory: path) {
-            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
-                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
-            } else {
-                gitCommitSHA = nil
-            }
-
-            gitBranch = try gitController.currentBranch(workingDirectory: path)
-        } else {
-            gitCommitSHA = nil
-            gitBranch = nil
-        }
+        let gitInfo = gitController.gitInfo(workingDirectory: path)
+        let gitRef = gitInfo.ref
+        let gitBranch = gitInfo.branch
+        let gitCommitSHA = gitInfo.sha
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
         let serverBundle = try await Noora.current.progressStep(
