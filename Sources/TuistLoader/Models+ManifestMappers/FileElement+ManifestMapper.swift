@@ -21,18 +21,24 @@ extension XcodeGraph.FileElement {
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
-            let files = try await fileSystem.throwingGlob(
-                directory: AbsolutePath.root,
-                include: [String(path.pathString.dropFirst())]
-            )
-            .collect()
-            .filter(includeFiles)
+            let files: [AbsolutePath]
+
+            do {
+                files = try await fileSystem.throwingGlob(
+                    directory: AbsolutePath.root,
+                    include: [String(path.pathString.dropFirst())]
+                )
+                .collect()
+                .filter(includeFiles)
+            } catch GlobError.nonExistentDirectory {
+                files = []
+            }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else {
+                } else if !path.isGlobPath {
                     // FIXME: This should be done in a linter.
                     Logger.current.warning("No files found at: \(path.pathString)")
                 }

@@ -7,15 +7,12 @@ import TuistSupport
 import XcodeGraph
 
 public enum TargetManifestMapperError: FatalError, Equatable {
-    case invalidResourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
     case nonSpecificGeneratedResource(targetName: String, generatedSource: AbsolutePath)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
-        case let .invalidResourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
-            return "The target \(targetName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
         case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
             return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that has a glob pattern."
         }
@@ -67,15 +64,11 @@ extension XcodeGraph.Target {
             fileSystem: fileSystem
         )
 
-        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try await resourcesAndOthers(
+        let (resources, resourcesPlaygrounds, resourcesCoreDatas) = try await resourcesAndOthers(
             manifest: manifest,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-
-        if !invalidResourceGlobs.isEmpty {
-            throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
-        }
 
         let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap {
             try await XcodeGraph.CopyFilesAction.from(
@@ -184,8 +177,7 @@ extension XcodeGraph.Target {
     ) async throws -> (
         resources: XcodeGraph.ResourceFileElements,
         playgrounds: [AbsolutePath],
-        coreDataModels: [AbsolutePath],
-        invalidResourceGlobs: [InvalidGlob]
+        coreDataModels: [AbsolutePath]
     ) {
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             XcodeGraph.Target.isResource(path: path)
@@ -204,26 +196,20 @@ extension XcodeGraph.Target {
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
-        let result = try await (manifest.resources?.resources ?? []).concurrentMap { manifest async throws -> (
-            [XcodeGraph.ResourceFileElement],
-            InvalidGlob?
-        ) in
-            do {
-                return (
-                    try await XcodeGraph.ResourceFileElement.from(
+        let result = try await (manifest.resources?.resources ?? [])
+            .concurrentMap { manifest async throws -> [XcodeGraph.ResourceFileElement] in
+                do {
+                    return try await XcodeGraph.ResourceFileElement.from(
                         manifest: manifest,
                         generatorPaths: generatorPaths,
                         fileSystem: fileSystem,
                         includeFiles: resourceFilter
-                    ),
-                    nil
-                )
-            } catch let GlobError.nonExistentDirectory(invalidGlob) {
-                return ([], invalidGlob)
+                    )
+                } catch GlobError.nonExistentDirectory {
+                    return []
+                }
             }
-        }
-        let allResources = result.map(\.0).flatMap { $0 }
-        let invalidResourceGlobs = result.compactMap(\.1)
+        let allResources = result.flatMap { $0 }
 
         for fileElement in allResources {
             switch fileElement {
@@ -242,8 +228,7 @@ extension XcodeGraph.Target {
         return (
             resources: filteredResources,
             playgrounds: Array(playgrounds),
-            coreDataModels: Array(coreDataModels),
-            invalidResourceGlobs: invalidResourceGlobs
+            coreDataModels: Array(coreDataModels)
         )
     }
 

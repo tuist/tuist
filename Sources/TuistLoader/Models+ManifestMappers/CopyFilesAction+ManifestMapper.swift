@@ -5,20 +5,6 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-public enum CopyFilesManifestMapperError: FatalError {
-    case invalidResourcesGlob(actionName: String, invalidGlobs: [InvalidGlob])
-
-    public var type: ErrorType { .abort }
-
-    public var description: String {
-        switch self {
-        case let .invalidResourcesGlob(actionName: actionName, invalidGlobs: invalidGlobs):
-            return "The copy files action \(actionName) has the following invalid resource globs:\n" + invalidGlobs
-                .invalidGlobsDescription
-        }
-    }
-}
-
 extension XcodeGraph.CopyFilesAction {
     /// Maps a ProjectDescription.CopyFilesAction instance into a XcodeGraph.CopyFilesAction instance.
     /// - Parameters:
@@ -31,7 +17,7 @@ extension XcodeGraph.CopyFilesAction {
     ) async throws -> XcodeGraph
         .CopyFilesAction
     {
-        let result = try await manifest.files.concurrentMap { manifest -> ([XcodeGraph.CopyFileElement], InvalidGlob?) in
+        let result = try await manifest.files.concurrentMap { manifest -> [XcodeGraph.CopyFileElement] in
             do {
                 let files = try await XcodeGraph.CopyFileElement.from(
                     manifest: manifest,
@@ -39,18 +25,13 @@ extension XcodeGraph.CopyFilesAction {
                     fileSystem: fileSystem,
                     includeFiles: { XcodeGraph.Target.isResource(path: $0) }
                 )
-                return (files.cleanPackages(), nil)
-            } catch let GlobError.nonExistentDirectory(invalidGlob) {
-                return ([], invalidGlob)
+                return files.cleanPackages()
+            } catch GlobError.nonExistentDirectory {
+                return []
             }
         }
 
-        let files = result.map(\.0).flatMap { $0 }
-        let invalidResourceGlobs = result.compactMap(\.1)
-
-        if !invalidResourceGlobs.isEmpty {
-            throw CopyFilesManifestMapperError.invalidResourcesGlob(actionName: manifest.name, invalidGlobs: invalidResourceGlobs)
-        }
+        let files = result.flatMap { $0 }
 
         return XcodeGraph.CopyFilesAction(
             name: manifest.name,
