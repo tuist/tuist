@@ -19,6 +19,7 @@
   margin: 0;
   color: var(--dark-violet);
   text-align: center;
+  text-wrap: balance;
 }
 
 .marketing__home__section__hero__subtitle {
@@ -26,6 +27,7 @@
   color: var(--dark-violet);
   font: var(--font-xl);
   text-align: center;
+  text-wrap: balance;
 }
 
 @media (max-width: 1024px) {
