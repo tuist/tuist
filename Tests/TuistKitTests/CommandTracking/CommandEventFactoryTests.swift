@@ -205,8 +205,8 @@ struct CommandEventFactoryTests {
             .willReturn("https://github.com/tuist/tuist")
 
         given(gitController)
-            .ref()
-            .willReturn("github-ref")
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn((ref: "github-ref", branch: "main", sha: "commit-sha"))
 
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
@@ -215,10 +215,6 @@ struct CommandEventFactoryTests {
         given(gitController)
             .hasCurrentBranchCommits(workingDirectory: .any)
             .willReturn(true)
-
-        given(gitController)
-            .currentBranch(workingDirectory: .any)
-            .willReturn("main")
 
         // When
         let event = try subject.make(
@@ -265,12 +261,12 @@ struct CommandEventFactoryTests {
         )
 
         given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(false)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn((ref: nil, branch: nil, sha: nil))
 
         given(gitController)
-            .ref()
-            .willReturn(nil)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
 
         // When
         let event = try subject.make(
@@ -322,12 +318,8 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         given(gitController)
-            .ref()
-            .willReturn(nil)
-
-        given(gitController)
-            .currentBranch(workingDirectory: .any)
-            .willReturn(nil)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn((ref: nil, branch: nil, sha: "commit-sha"))
 
         // When
         let event = try subject.make(
@@ -371,16 +363,12 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         given(gitController)
-            .ref()
-            .willReturn(nil)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn((ref: nil, branch: nil, sha: nil))
 
         given(gitController)
             .hasUrlOrigin(workingDirectory: .value(path))
             .willReturn(false)
-
-        given(gitController)
-            .currentBranch(workingDirectory: .any)
-            .willReturn(nil)
 
         // When
         let event = try subject.make(
