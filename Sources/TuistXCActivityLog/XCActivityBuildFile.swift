@@ -20,6 +20,7 @@ public struct XCActivityBuildFile: Hashable, Equatable {
             type: XCActivityBuildFileType = .swift,
             target: String = "Target",
             project: String = "Project",
+            // swiftlint:disable:next force_try
             path: RelativePath = try! RelativePath(validating: "Path"),
             compilationDuration: Int = 100
         ) -> XCActivityBuildFile {
