@@ -667,7 +667,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                     )?.testTargets.map(\.target) ?? []
             } else if action == .build, let testplans = scheme.testAction?.testPlans {
                 // If we are building a scheme that has testplans but none specified then we should return all test targets
-                testplans.flatMap(\.testTargets).map(\.target)
+                testPlans.flatMap(\.testTargets).map(\.target)
             } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
                 $0.isDefault
             }) {
