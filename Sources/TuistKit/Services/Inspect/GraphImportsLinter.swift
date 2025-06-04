@@ -99,6 +99,9 @@ final class GraphImportsLinter: GraphImportsLinting {
             .filter {
                 !$0.target.bundleId.hasSuffix(".generated.resources")
             }
+            .filter {
+                !(target.target.product == .app && $0.target.product == .uiTests)
+            }
             .map { targetDependency in
                 if case .external = targetDependency.graphTarget.project.type { return graphTraverser
                     .allTargetDependencies(path: target.project.path, name: target.target.name)
