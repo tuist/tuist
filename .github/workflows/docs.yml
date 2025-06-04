@@ -40,6 +40,7 @@ jobs:
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - name: Activate .env.json
+        if: github.ref == 'refs/heads/main'
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
