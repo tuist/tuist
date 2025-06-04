@@ -294,6 +294,42 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
 
+    func test_buildAction_parallelizedBuild() throws {
+        // Given
+        let schemeA = Scheme(
+            name: "SchemeA",
+            buildAction: BuildAction(
+                targets: [],
+                parallelizeBuild: true
+            )
+        )
+        let schemeB = Scheme(
+            name: "SchemeB",
+            buildAction: BuildAction(
+                targets: [],
+                parallelizeBuild: false
+            )
+        )
+        let project = Project.test(schemes: [schemeA, schemeB])
+        let generatedProject = generatedProject(targets: Array(project.targets.values))
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let schemeDescriptors = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
+        XCTAssertEqual(buildActions.map(\.parallelizeBuild), [
+            true,
+            false,
+        ])
+    }
+
     func test_buildAction_runPostActionsOnFailure() throws {
         // Given
         let schemeA = Scheme(
