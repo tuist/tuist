@@ -11,6 +11,7 @@ defmodule TuistWeb.Components.TrendBadge do
   def trend_badge(assigns) do
     ~H"""
     <.badge
+      size="large"
       label={
         if @trend_value > 0,
           do: "+#{@trend_value |> Float.round(1)}%",
