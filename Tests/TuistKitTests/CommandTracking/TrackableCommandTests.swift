@@ -32,8 +32,8 @@ final class TrackableCommandTests: TuistTestCase {
             .willReturn(false)
 
         given(gitController)
-            .ref()
-            .willReturn(nil)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
     }
 
     override func tearDown() {

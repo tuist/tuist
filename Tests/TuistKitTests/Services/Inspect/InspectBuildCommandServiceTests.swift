@@ -95,8 +95,8 @@ struct InspectBuildCommandServiceTests {
             )
 
         given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(false)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
 
         Matcher.register([XCActivityIssue].self)
         Matcher.register([XCActivityBuildFile].self)
@@ -159,17 +159,8 @@ struct InspectBuildCommandServiceTests {
 
         gitController.reset()
         given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(true)
-        given(gitController)
-            .hasCurrentBranchCommits(workingDirectory: .any)
-            .willReturn(true)
-        given(gitController)
-            .currentCommitSHA(workingDirectory: .any)
-            .willReturn("sha")
-        given(gitController)
-            .currentBranch(workingDirectory: .any)
-            .willReturn("branch")
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: "branch", sha: "sha"))
 
         // When
         try await subject.run(path: nil)
@@ -260,6 +251,10 @@ struct InspectBuildCommandServiceTests {
             .parse(.value(activityLogPath))
             .willReturn(.test())
 
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
         // When / Then
         try await subject.run(path: temporaryDirectory.pathString)
     }
@@ -305,6 +300,10 @@ struct InspectBuildCommandServiceTests {
                 after: .any
             ).willReturn(activityLogPath)
 
+            given(gitController)
+                .gitInfo(workingDirectory: .any)
+                .willReturn((ref: nil, branch: nil, sha: nil))
+
             // When
             try await subject.run(path: temporaryDirectory.pathString)
 
@@ -348,6 +347,10 @@ struct InspectBuildCommandServiceTests {
             projectDerivedDataDirectory: .value(derivedDataPath),
             after: .any
         ).willReturn(nil)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
 
         // When / Then
         await #expect(
@@ -398,6 +401,10 @@ struct InspectBuildCommandServiceTests {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: nil))
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
 
         // When / Then
         await #expect(

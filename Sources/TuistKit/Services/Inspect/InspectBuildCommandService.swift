@@ -129,21 +129,10 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.missingFullHandle
         }
 
-        let gitCommitSHA: String?
-        let gitBranch: String?
-        if gitController.isInGitRepository(workingDirectory: projectPath) {
-            if gitController.hasCurrentBranchCommits(workingDirectory: projectPath) {
-                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: projectPath)
-            } else {
-                gitCommitSHA = nil
-            }
-
-            gitBranch = try gitController.currentBranch(workingDirectory: projectPath)
-        } else {
-            gitCommitSHA = nil
-            gitBranch = nil
-        }
-        let build = try await createBuildService.createBuild(
+        let gitInfo = gitController.gitInfo(workingDirectory: projectPath)
+        let gitCommitSHA = gitInfo.sha
+        let gitBranch = gitInfo.branch
+        try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
