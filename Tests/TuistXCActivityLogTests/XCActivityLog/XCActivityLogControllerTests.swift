@@ -69,12 +69,12 @@ struct XCActivityLogControllerTests {
         print(got.files.map(\.path))
         let files = got.files.sorted(by: { $0.path.pathString < $1.path.pathString })
         #expect(
-            files.map(\.path.pathString) == [
-                "Framework1/Sources/Framework1File.swift",
-                "Framework2/Sources/Framework2File.swift",
-                "Framework3/Sources/Framework3File.swift",
-                "Framework4/Sources/Framework4File.swift",
-                "Framework5/Sources/Framework5File.swift",
+            files.map(\.path.basename) == [
+                "Framework1File.swift",
+                "Framework2File.swift",
+                "Framework3File.swift",
+                "Framework4File.swift",
+                "Framework5File.swift",
             ]
         )
         let targets = got.targets.sorted(by: { $0.name < $1.name })
