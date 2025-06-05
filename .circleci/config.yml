@@ -25,18 +25,18 @@ jobs:
           command: |
             # Create a directory for extraction
             mkdir -p app_extracted
-            
+
             # Unzip the App.ipa file
             echo "Extracting App.ipa..."
             if ! unzip -q App.ipa -d app_extracted; then
               echo "Error: Failed to extract App.ipa"
               exit 1
             fi
-            
+
             # Find all .car files recursively
             echo "Finding .car files..."
             car_files=$(find app_extracted -name "*.car" -type f)
-            
+
             if [ -z "$car_files" ]; then
               echo "No .car files found in the extracted App.ipa"
               echo "Contents of extracted directory:"
@@ -45,7 +45,7 @@ jobs:
               echo "Found .car files:"
               echo "$car_files"
               echo ""
-              
+
               # Run assetutil on each .car file found
               echo "$car_files" | while IFS= read -r car_file; do
                 echo "========================================="
@@ -66,7 +66,7 @@ jobs:
             export PATH="$HOME/.local/bin:$PATH"
             mise activate bash
             mise install
-            mise exec -- tuist inspect bundle App.ipa --json
+            mise exec -- tuist inspect bundle App.ipa --json --verbose
 
 workflows:
   inspect:
