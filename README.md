@@ -597,6 +597,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mattjung"><img src="https://avatars.githubusercontent.com/u/19891158?v=4" width="100px;" alt=""/><br /><sub><b>Matt Jung</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://imaginativeworld.org"><img src="https://avatars.githubusercontent.com/u/1952630?v=4" width="100px;" alt=""/><br /><sub><b>Md. Mahmudul Hasan Shohag</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://ma.tyas.cz"><img src="https://avatars.githubusercontent.com/u/6033733?v=4" width="100px;" alt=""/><br /><sub><b>Matty Cross</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 

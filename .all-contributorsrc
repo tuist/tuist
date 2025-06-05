@@ -1843,6 +1843,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "MatyasKriz",
+      "name": "Matty Cross",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6033733?v=4",
+      "profile": "http://ma.tyas.cz",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
