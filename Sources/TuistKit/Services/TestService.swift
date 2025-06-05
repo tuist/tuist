@@ -779,7 +779,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             testPlan: testPlanConfiguration?.testPlan,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: action
         )
         else {
             throw TestServiceError.schemeWithoutTestableTargets(
