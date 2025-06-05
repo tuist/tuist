@@ -71,6 +71,10 @@ struct PreviewsUploadServiceTests {
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
 
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
                 type: .any,
@@ -181,8 +185,8 @@ struct PreviewsUploadServiceTests {
                 .currentCommitSHA(workingDirectory: .any)
                 .willReturn("commit-sha")
             given(gitController)
-                .currentBranch(workingDirectory: .any)
-                .willReturn("main")
+                .gitInfo(workingDirectory: .any)
+                .willReturn((ref: nil, branch: "main", sha: "commit-sha"))
 
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!

@@ -297,7 +297,7 @@ Great companies support the project by giving us access to their service through
 
 ## 🧑‍💻 Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://console.algora.io/org/tuist) for some highly-valued issues.
+You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## ✨ Core Team
 
@@ -594,6 +594,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/vkondrashkov"><img src="https://avatars.githubusercontent.com/u/16046780?v=4" width="100px;" alt=""/><br /><sub><b>Vladislav Kondrashkov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/chrisjrex"><img src="https://avatars.githubusercontent.com/u/4457170?v=4" width="100px;" alt=""/><br /><sub><b>Christopher Rex</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/bahattinkoc"><img src="https://avatars.githubusercontent.com/u/61124759?v=4" width="100px;" alt=""/><br /><sub><b>baaddin</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mattjung"><img src="https://avatars.githubusercontent.com/u/19891158?v=4" width="100px;" alt=""/><br /><sub><b>Matt Jung</b></sub></a></td>
     </tr>
   </tbody>
 </table>

@@ -36,12 +36,8 @@ struct InspectBundleCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(false)
-
-        given(gitController)
-            .ref()
-            .willReturn("refs/pull/1/merge")
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: "refs/pull/1/merge", branch: nil, sha: nil))
 
         given(serverURLService)
             .url(configServerURL: .any)
@@ -99,7 +95,7 @@ struct InspectBundleCommandServiceTests {
                 .called(1)
 
             verify(gitController)
-                .isInGitRepository(workingDirectory: .value(temporaryDirectory))
+                .gitInfo(workingDirectory: .value(temporaryDirectory))
                 .called(1)
         }
     }

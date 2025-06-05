@@ -26,19 +26,16 @@ public final class CommandEventFactory {
         from info: TrackableCommandInfo,
         path: AbsolutePath
     ) throws -> CommandEvent {
-        var gitCommitSHA: String?
-        var gitRemoteURLOrigin: String?
-        var gitBranch: String?
-        if gitController.isInGitRepository(workingDirectory: path) {
-            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
-                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
-            }
+        let gitInfo = gitController.gitInfo(workingDirectory: path)
+        let gitCommitSHA = gitInfo.sha
+        let gitBranch = gitInfo.branch
+        let gitRef = gitInfo.ref
 
+        var gitRemoteURLOrigin: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
             if try gitController.hasUrlOrigin(workingDirectory: path) {
                 gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
             }
-
-            gitBranch = try gitController.currentBranch(workingDirectory: path)
         }
         let graph = info.graph.map {
             map(
@@ -62,7 +59,7 @@ public final class CommandEventFactory {
             isCI: Environment.current.isCI,
             status: info.status,
             gitCommitSHA: gitCommitSHA,
-            gitRef: gitController.ref(),
+            gitRef: gitRef,
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
             graph: graph,

@@ -1,5 +1,50 @@
 # Changelog
 
+## 4.51.1 - 2025-06-04
+
+### CLI
+
+#### Changed
+
+- Remove generated bundles for inspecting in implicit and redundant dependencies search [#7614](https://github.com/tuist/tuist/pull/7614) by [@rofle100lvl](https://github.com/rofle100lvl)
+
+#### Fixed
+
+- Fix sandbox failure on CI [#7631](https://github.com/tuist/tuist/pull/7631) by [@hiltonc](https://github.com/hiltonc)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.51.0 - 2025-06-03
+
+### CLI
+
+#### Changed
+
+- When uploading build insights, attach git metadata [#7601](https://github.com/tuist/tuist/pull/7601) by [@fortmarek](https://github.com/fortmarek)
+- Remove unmatched resource glob warnings [#7611](https://github.com/tuist/tuist/pull/7611) by [@hiltonc](https://github.com/hiltonc)
+- Migrate Codemagic pipelines to GitHub Actions [#7621](https://github.com/tuist/tuist/pull/7621) by [@pepicrft](https://github.com/pepicrft)
+- Remove integration test targets [#7625](https://github.com/tuist/tuist/pull/7625) by [@pepicrft](https://github.com/pepicrft)
+- Remove Testing targets [#7626](https://github.com/tuist/tuist/pull/7626) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for variable InfoPlist file paths [#7404](https://github.com/tuist/tuist/pull/7404) by [@alexmx](https://github.com/alexmx)
+- Add support for category in inspected builds [#7606](https://github.com/tuist/tuist/pull/7606) by [@fortmarek](https://github.com/fortmarek)
+- feat: add default configuration name to the settings [#7577](https://github.com/tuist/tuist/pull/7577) by [@ImaginativeShohag](https://github.com/ImaginativeShohag)
+- Add error and warning tracking for inspected builds [#7612](https://github.com/tuist/tuist/pull/7612) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fixed typos and spelling errors across the codebase. [#7602](https://github.com/tuist/tuist/pull/7602) by [@bahattinkoc](https://github.com/bahattinkoc)
+- Add missing `XcodeMetadata` dependency on `TuistCore` [#7623](https://github.com/tuist/tuist/pull/7623) by [@pepicrft](https://github.com/pepicrft)
+- Fix failing app and docs jobs [#7624](https://github.com/tuist/tuist/pull/7624) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.50.2 - 2025-05-19
 
 ### CLI

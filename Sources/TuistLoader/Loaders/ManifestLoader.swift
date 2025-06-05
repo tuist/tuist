@@ -442,6 +442,7 @@ public class ManifestLoader: ManifestLoading {
                         [
                             path,
                             try await XcodeController.current.selected().path,
+                            AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
                             searchPaths.includeSearchPath,
                             searchPaths.librarySearchPath,
                             searchPaths.frameworkSearchPath,

@@ -136,40 +136,239 @@ struct GitControllerTests {
         #expect(urlOrigin == "https://github.com/tuist/tuist")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_githubRef() throws {
-        // When
+    // MARK: - gitInfo() tests
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_github_actions() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
             "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_HEAD_REF": "feature-branch",
         ]
-        let got = subject.ref()
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "abc123\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
 
         // Then
-        #expect(got == "refs/pull/1/merge")
+        #expect(gitInfo.ref == "refs/pull/1/merge")
+        #expect(gitInfo.branch == "feature-branch")
+        #expect(gitInfo.sha == "abc123")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_codemagicPullRequestNumber() throws {
-        // When
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_gitlab_ci() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
-            "CM_PULL_REQUEST_NUMBER": "2",
+            "CI_COMMIT_REF_NAME": "develop",
+            "CI_EXTERNAL_PULL_REQUEST_IID": "42",
         ]
-        let got = subject.ref()
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "def456\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
 
         // Then
-        #expect(got == "refs/pull/2/merge")
+        #expect(gitInfo.ref == "refs/pull/42/merge")
+        #expect(gitInfo.branch == "develop")
+        #expect(gitInfo.sha == "def456")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_ref_when_circle_pull_request() throws {
-        // When
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_circleci() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
             "CIRCLE_PULL_REQUEST": "https://github.com/tuist/tuist/pull/6740",
+            "CIRCLE_BRANCH": "fix-bug",
         ]
-        let got = subject.ref()
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "ghi789\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
 
         // Then
-        #expect(got == "refs/pull/6740/merge")
+        #expect(gitInfo.ref == "refs/pull/6740/merge")
+        #expect(gitInfo.branch == "fix-bug")
+        #expect(gitInfo.sha == "ghi789")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_buildkite() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "BUILDKITE_BRANCH": "main",
+            "BUILDKITE_PULL_REQUEST": "123",
+        ]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "jkl012\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/123/merge")
+        #expect(gitInfo.branch == "main")
+        #expect(gitInfo.sha == "jkl012")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_local_git_repo() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "mno345\n"
+        )
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: "local-branch\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == "local-branch")
+        #expect(gitInfo.sha == "mno345")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_not_git_repo() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
+        system.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == nil)
+        #expect(gitInfo.sha == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_no_commits() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.errorCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: "main\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == "main")
+        #expect(gitInfo.sha == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_detached_head() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "pqr678\n"
+        )
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: ""
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == nil)
+        #expect(gitInfo.sha == "pqr678")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_azure_devops() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "BUILD_SOURCEBRANCHNAME": "feature/new-feature",
+        ]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "stu901\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == "feature/new-feature")
+        #expect(gitInfo.sha == "stu901")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_ci_branch_priority_over_git() throws {
+        // Given - CI environment variable should take priority over git command
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_HEAD_REF": "ci-branch",
+        ]
+        system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        system.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "vwx234\n"
+        )
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: "local-branch\n"
+        )
+
+        // When
+        let gitInfo = subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.branch == "ci-branch") // CI variable takes priority
+        #expect(gitInfo.sha == "vwx234")
     }
 
     @Test(.inTemporaryDirectory) func test_inGitRepository_when_rev_parse_succeeds() throws {
@@ -194,29 +393,5 @@ struct GitControllerTests {
 
         // Then
         #expect(isInGitRepository == false)
-    }
-
-    @Test(.inTemporaryDirectory) func test_current_branch_when_main() throws {
-        // Given
-        let path = try #require(FileSystem.temporaryTestDirectory)
-        system.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "main")
-
-        // When
-        let branch = try subject.currentBranch(workingDirectory: path)
-
-        // Then
-        #expect(branch == "main")
-    }
-
-    @Test(.inTemporaryDirectory) func test_current_branch_when_empty() throws {
-        // Given
-        let path = try #require(FileSystem.temporaryTestDirectory)
-        system.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "")
-
-        // When
-        let branch = try subject.currentBranch(workingDirectory: path)
-
-        // Then
-        #expect(branch == nil)
     }
 }
