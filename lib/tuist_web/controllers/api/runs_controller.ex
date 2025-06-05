@@ -321,6 +321,80 @@ defmodule TuistWeb.API.RunsController do
                      :ending_column
                    ]
                  }
+               },
+               files: %Schema{
+                 type: :array,
+                 description: "Compiled files associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     type: %Schema{
+                       type: :string,
+                       description: "The type of the file.",
+                       enum: [:swift, :c]
+                     },
+                     target: %Schema{
+                       type: :string,
+                       description: "The target name associated with the file."
+                     },
+                     project: %Schema{
+                       type: :string,
+                       description: "The project name associated with the file."
+                     },
+                     path: %Schema{
+                       type: :string,
+                       description: "The file path where the issue occurred, relative to the project root."
+                     },
+                     compilation_duration: %Schema{
+                       type: :integer,
+                       description: "The duration of the compilation for the file in milliseconds."
+                     }
+                   },
+                   required: [
+                     :type,
+                     :target,
+                     :project,
+                     :path,
+                     :compilation_duration
+                   ]
+                 }
+               },
+               targets: %Schema{
+                 type: :array,
+                 description: "Targets with build metadata associated with the build run.",
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     name: %Schema{
+                       type: :string,
+                       description: "The target name."
+                     },
+                     project: %Schema{
+                       type: :string,
+                       description: "The target's project name."
+                     },
+                     build_duration: %Schema{
+                       type: :integer,
+                       description: "The build duration for the target in milliseconds."
+                     },
+                     compilation_duration: %Schema{
+                       type: :integer,
+                       description: "The duration of the compilation for the target in milliseconds."
+                     },
+                     status: %Schema{
+                       type: :string,
+                       description: "The status of the target's build.",
+                       enum: [:success, :failure]
+                     }
+                   },
+                   required: [
+                     :name,
+                     :project,
+                     :build_duration,
+                     :compilation_duration,
+                     :status
+                   ]
+                 }
                }
              },
              required: [
@@ -359,7 +433,8 @@ defmodule TuistWeb.API.RunsController do
         |> json(%{
           id: build.id,
           duration: build.duration,
-          project_id: build.project_id
+          project_id: build.project_id,
+          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
         })
 
       {:error, _changeset} ->
@@ -387,7 +462,9 @@ defmodule TuistWeb.API.RunsController do
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
-          issues: Map.get(params, :issues, [])
+          issues: Map.get(params, :issues, []),
+          files: Map.get(params, :files, []),
+          targets: Map.get(params, :targets, [])
         })
     end
   end

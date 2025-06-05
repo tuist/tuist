@@ -55,7 +55,7 @@ defmodule TuistWeb.Utilities.DateFormatterTest do
 
   describe "format_duration_from_milliseconds/1" do
     test "formats milliseconds only" do
-      assert DateFormatter.format_duration_from_milliseconds(500) == "0.5s"
+      assert DateFormatter.format_duration_from_milliseconds(500) == "500ms"
     end
 
     test "formats seconds with milliseconds" do

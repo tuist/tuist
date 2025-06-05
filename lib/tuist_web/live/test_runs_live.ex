@@ -29,6 +29,7 @@ defmodule TuistWeb.TestRunsLive do
     base = [
       %Filter.Filter{
         id: "name",
+        field: :name,
         display_name: gettext("Command"),
         type: :text,
         operator: :=~,
@@ -36,6 +37,7 @@ defmodule TuistWeb.TestRunsLive do
       },
       %Filter.Filter{
         id: "status",
+        field: :status,
         display_name: gettext("Status"),
         type: :option,
         options: [:success, :failure],
@@ -48,6 +50,7 @@ defmodule TuistWeb.TestRunsLive do
       },
       %Filter.Filter{
         id: "git_branch",
+        field: :git_branch,
         display_name: gettext("Branch"),
         type: :text,
         operator: :=~,
@@ -63,6 +66,7 @@ defmodule TuistWeb.TestRunsLive do
         [
           %Filter.Filter{
             id: "ran_by",
+            field: :ran_by,
             display_name: gettext("Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),

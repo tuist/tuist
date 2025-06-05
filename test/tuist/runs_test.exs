@@ -25,7 +25,9 @@ defmodule Tuist.RunsTest do
           project_id: project_id,
           account_id: account_id,
           status: :success,
-          issues: []
+          issues: [],
+          files: [],
+          targets: []
         })
 
       # Then

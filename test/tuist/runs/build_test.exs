@@ -28,6 +28,11 @@ defmodule Tuist.Runs.BuildTest do
       assert "can't be blank" in errors_on(changeset).id
     end
 
+    test "ensures id is a valid UUID" do
+      changeset = Build.create_changeset(%Build{}, Map.put(@valid_attrs, :id, "invalid"))
+      assert "is invalid" in errors_on(changeset).id
+    end
+
     test "ensures duration is present" do
       changeset = Build.create_changeset(%Build{}, Map.delete(@valid_attrs, :duration))
       assert "can't be blank" in errors_on(changeset).duration

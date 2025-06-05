@@ -262,12 +262,44 @@ defmodule TuistWeb.API.RunsControllerTest do
               starting_column: 8,
               ending_column: 14
             }
+          ],
+          files: [
+            %{
+              type: "swift",
+              target: "MyApp",
+              project: "MyProject",
+              path: "File.swift",
+              compilation_duration: 100
+            },
+            %{
+              type: "c",
+              target: "MyApp",
+              project: "MyProject",
+              path: "File.m",
+              compilation_duration: 200
+            }
+          ],
+          targets: [
+            %{
+              name: "MyApp",
+              project: "MyProject",
+              build_duration: 1000,
+              compilation_duration: 2000,
+              status: :success
+            },
+            %{
+              name: "MyAppTests",
+              project: "MyProject",
+              build_duration: 1500,
+              compilation_duration: 2500,
+              status: :failure
+            }
           ]
         )
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload(:issues)
+      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload([:issues, :files, :targets])
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -293,10 +325,41 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
+      assert build.files |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id])) |> Enum.sort_by(& &1.path) == [
+               %{
+                 type: "c",
+                 path: "File.m",
+                 build_run_id: build.id
+               },
+               %{
+                 type: "swift",
+                 path: "File.swift",
+                 build_run_id: build.id
+               }
+             ]
+
+      assert build.targets
+             |> Enum.map(&Map.take(&1, [:name, :project, :build_run_id, :status]))
+             |> Enum.sort_by(& &1.name) == [
+               %{
+                 name: "MyApp",
+                 project: "MyProject",
+                 build_run_id: build.id,
+                 status: "success"
+               },
+               %{
+                 name: "MyAppTests",
+                 project: "MyProject",
+                 build_run_id: build.id,
+                 status: "failure"
+               }
+             ]
+
       assert response == %{
                "id" => build.id,
                "duration" => 1000,
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -339,7 +402,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert response == %{
                "id" => build.id,
                "duration" => 1000,
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -380,7 +444,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert response == %{
                "id" => build.id,
                "duration" => 1000,
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -419,7 +484,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert response == %{
                "id" => build.id,
                "duration" => 1000,
-               "project_id" => project.id
+               "project_id" => project.id,
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response

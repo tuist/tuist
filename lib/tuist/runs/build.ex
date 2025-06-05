@@ -31,6 +31,8 @@ defmodule Tuist.Runs.Build do
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
     has_many :issues, Tuist.Runs.BuildIssue, foreign_key: :build_run_id
+    has_many :files, Tuist.Runs.BuildFile, foreign_key: :build_run_id
+    has_many :targets, Tuist.Runs.BuildTarget, foreign_key: :build_run_id
 
     timestamps(type: :utc_datetime, updated_at: false)
   end

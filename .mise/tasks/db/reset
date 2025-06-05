@@ -13,5 +13,8 @@ else
   $SCRIPT_DIR/create
   $SCRIPT_DIR/load
   $SCRIPT_DIR/migrate
+  if [ "$MIX_ENV" = "test" ]; then
+      exit 0
+  fi
   $SCRIPT_DIR/seed
 fi
