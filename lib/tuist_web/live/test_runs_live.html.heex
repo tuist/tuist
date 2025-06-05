@@ -62,6 +62,7 @@
         trend_value={@test_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_count")}"}
+        replace={true}
         selected={@analytics_selected_widget == "test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -78,6 +79,7 @@
         trend_label={@analytics_trend_label}
         trend_inverse
         patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "failed_test_run_count")}"}
+        replace={true}
         selected={@analytics_selected_widget == "failed_test_run_count"}
         empty={@test_runs_analytics.count == 0}
       />
@@ -101,6 +103,7 @@
         trend_label={@analytics_trend_label}
         trend_inverse
         patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_duration")}"}
+        replace={true}
         selected={@analytics_selected_widget == "test_run_duration"}
         empty={@test_runs_analytics.count == 0}
       />

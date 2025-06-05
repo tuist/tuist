@@ -233,7 +233,6 @@ defmodule TuistWeb.BundleLive do
     {:noreply, socket}
   end
 
-
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-selected-artifact",
         %{

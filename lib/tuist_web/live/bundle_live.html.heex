@@ -144,16 +144,19 @@
       label={gettext("Overview")}
       selected={@selected_tab == "overview"}
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
     />
     <.tab_menu_horizontal_item
       label={gettext("File Breakdown")}
       selected={@selected_tab == "file-breakdown"}
       patch={"?#{Query.put(@uri.query, "tab", "file-breakdown")}"}
+      replace={true}
     />
     <.tab_menu_horizontal_item
       label={gettext("Module Breakdown")}
       selected={@selected_tab == "module-breakdown"}
       patch={"?#{Query.put(@uri.query, "tab", "module-breakdown")}"}
+      replace={true}
     />
   </.tab_menu_horizontal>
   <.card

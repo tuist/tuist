@@ -111,6 +111,7 @@
         value={@total_builds_analytics.count}
         id="widget-total-builds"
         patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "total-builds")}"}
+        replace={true}
         selected={@analytics_selected_widget == "total-builds"}
         trend_value={@total_builds_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -123,6 +124,7 @@
         value={@failed_builds_analytics.count}
         id="widget-failed-builds"
         patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "failed-builds")}"}
+        replace={true}
         selected={@analytics_selected_widget == "failed-builds"}
         trend_value={@failed_builds_analytics.trend}
         trend_inverse={true}
@@ -140,6 +142,7 @@
         }
         id="widget-build-duration"
         patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-duration")}"}
+        replace={true}
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={@builds_duration_analytics.trend}
         trend_inverse={true}

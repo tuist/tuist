@@ -72,18 +72,21 @@
       label={gettext("Overview")}
       selected={@selected_tab == "overview"}
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
     />
     <.tab_menu_horizontal_item
       :if={not Enum.empty?(@selective_testing_analytics.test_modules)}
       label={gettext("Test Optimizations")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+      replace={true}
     />
     <.tab_menu_horizontal_item
       :if={not Enum.empty?(@binary_cache_analytics.cacheable_targets)}
       label={gettext("Compilation Optimizations")}
       selected={@selected_tab == "compilation-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+      replace={true}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
