@@ -72,11 +72,9 @@ extension HTTPStatusCode {
 }
 
 extension HTTPURLResponse {
-    /**
-     * Marked internal to expose (as `statusCodeValue`) for Objective-C interoperability only.
-     *
-     * - returns: the receiver’s HTTP status code.
-     */
+    /// Marked internal to expose (as `statusCodeValue`) for Objective-C interoperability only.
+    ///
+    /// - returns: the receiver’s HTTP status code.
     @objc(statusCodeValue) public var statusCodeEnum: HTTPStatusCode {
         HTTPStatusCode(HTTPResponse: self)!
     }
@@ -86,16 +84,14 @@ extension HTTPURLResponse {
         HTTPStatusCode(HTTPResponse: self)
     }
 
-    /**
-     * Initializer for NSHTTPURLResponse objects.
-     *
-     * - parameter url: the URL from which the response was generated.
-     * - parameter statusCode: an HTTP status code.
-     * - parameter HTTPVersion: the version of the HTTP response as represented by the server.  This is typically represented as "HTTP/1.1".
-     * - parameter headerFields: a dictionary representing the header keys and values of the server response.
-     *
-     * - returns: the instance of the object, or `nil` if an error occurred during initialization.
-     */
+    /// Initializer for `NSHTTPURLResponse` objects.
+    ///
+    /// - parameter url: the URL from which the response was generated.
+    /// - parameter statusCode: an HTTP status code.
+    /// - parameter HTTPVersion: the version of the HTTP response as represented by the server.  This is typically represented as "HTTP/1.1".
+    /// - parameter headerFields: a dictionary representing the header keys and values of the server response.
+    ///
+    /// - returns: the instance of the object, or `nil` if an error occurred during initialization.
     @available(iOS, introduced: 7.0)
     @objc(initWithURL:statusCodeValue:HTTPVersion:headerFields:)
     public convenience init?(url: URL, statusCode: HTTPStatusCode, httpVersion: String?, headerFields: [String: String]?) {
