@@ -21,47 +21,9 @@ jobs:
             ls -la App.ipa
             file App.ipa
       - run:
-          name: Unzip App.ipa and find .car files
-          command: |
-            # Create a directory for extraction
-            mkdir -p app_extracted
-
-            # Unzip the App.ipa file
-            echo "Extracting App.ipa..."
-            if ! unzip -q App.ipa -d app_extracted; then
-              echo "Error: Failed to extract App.ipa"
-              exit 1
-            fi
-
-            # Find all .car files recursively
-            echo "Finding .car files..."
-            car_files=$(find app_extracted -name "*.car" -type f)
-
-            if [ -z "$car_files" ]; then
-              echo "No .car files found in the extracted App.ipa"
-              echo "Contents of extracted directory:"
-              find app_extracted -type f | head -20
-            else
-              echo "Found .car files:"
-              echo "$car_files"
-              echo ""
-
-              # Run assetutil on each .car file found
-              echo "$car_files" | while IFS= read -r car_file; do
-                echo "========================================="
-                echo "Processing: $car_file"
-                echo "========================================="
-                if /usr/bin/xcrun assetutil --info "$car_file"; then
-                  echo "Successfully processed: $car_file"
-                else
-                  echo "Error processing: $car_file"
-                fi
-                echo ""
-              done
-            fi
-      - run:
           name: Inspect bundle
           command: |
+            swift run tuist inspect bundle fixtures/ios_app_with_frameworks/App.ipa --json --verbose
             swift run tuist inspect bundle App.ipa --json --verbose
 
 workflows:
