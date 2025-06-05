@@ -132,7 +132,7 @@ struct InspectBuildCommandService {
         let gitInfo = gitController.gitInfo(workingDirectory: projectPath)
         let gitCommitSHA = gitInfo.sha
         let gitBranch = gitInfo.branch
-        try await createBuildService.createBuild(
+        let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
