@@ -232,18 +232,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return externalDependencies
     }
 
-    /**
-     There are certain Swift Package targets that need to run on macOS. Examples of these are Swift Macros.
-     It's important that we take that into account when generating and serializing the graph, which contains information
-     about targets' macros, into disk.  It's important to note that these targets require its dependencies, direct or transitive,
-     to compile for macOS too. This function traverses the graph and returns all the targets that need to compile for macOS
-     in a set. The set is then used in the serialization logic when:
-
-     - Unfolding the target into platform-specific targets.
-     - Declaring dependencies.
-
-     All the complexity associated to this might go away once we have support for multi-platform targets.
-     */
+    /// There are certain Swift Package targets that need to run on macOS. Examples of these are Swift Macros.
+    ///
+    /// It's important that we take that into account when generating and serializing the graph, which contains information about
+    /// targets' macros, into disk.  It's important to note that these targets require its dependencies, direct or transitive, to
+    /// compile for macOS too. This function traverses the graph and returns all the targets that need to compile for macOS in a
+    /// set. The set is then used in the serialization logic when:
+    ///
+    /// - Unfolding the target into platform-specific targets.
+    /// - Declaring dependencies.
+    ///
+    /// All the complexity associated to this might go away once we have support for multi-platform targets.
     private func macOSTargets(
         _ resolvedDependencies: [String: [ResolvedDependency]],
         packageInfos: [String: PackageInfo]

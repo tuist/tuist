@@ -3,11 +3,9 @@ import Logging
 import TuistCore
 import XcodeGraph
 
-/**
- External dependencies might contain targets that are only relevant in development, but that
- that are not necessary when the dependencies are consumed downstream by Tuist projects.
- This graph mappers detects and prunes those targets
- */
+/// External dependencies might contain targets that are only relevant in development, but that
+/// that are not necessary when the dependencies are consumed downstream by Tuist projects.
+/// This graph mappers detects and prunes those targets.
 public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 

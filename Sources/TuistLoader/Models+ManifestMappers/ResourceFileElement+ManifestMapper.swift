@@ -30,11 +30,17 @@ extension XcodeGraph.ResourceFileElement {
                 excluded.formUnion(globs)
             }
 
-            let files = try await fileSystem
-                .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
-                .collect()
-                .filter(includeFiles)
-                .filter { !excluded.contains($0) }
+            let files: [AbsolutePath]
+
+            do {
+                files = try await fileSystem
+                    .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
+                    .collect()
+                    .filter(includeFiles)
+                    .filter { !excluded.contains($0) }
+            } catch GlobError.nonExistentDirectory {
+                files = []
+            }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {

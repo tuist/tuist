@@ -152,11 +152,15 @@ import TuistSupport
     }
 
     extension BuildAction {
-        public static func test(targets: [TargetReference] = []) -> BuildAction {
+        public static func test(
+            targets: [TargetReference] = [],
+            buildOrder: BuildOrder = .dependency
+        ) -> BuildAction {
             .buildAction(
                 targets: targets,
                 preActions: [ExecutionAction.test()],
-                postActions: [ExecutionAction.test()]
+                postActions: [ExecutionAction.test()],
+                buildOrder: buildOrder
             )
         }
     }

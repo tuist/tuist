@@ -1825,6 +1825,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mattjung",
+      "name": "Matt Jung",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19891158?v=4",
+      "profile": "https://github.com/mattjung",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "ImaginativeShohag",
+      "name": "Md. Mahmudul Hasan Shohag",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1952630?v=4",
+      "profile": "https://imaginativeworld.org",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

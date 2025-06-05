@@ -231,7 +231,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         }
     }
 
-    func test_throws_when_the_glob_is_invalid() async throws {
+    func test_from_outputs_empty_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -247,15 +247,15 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
-        // Then
-        await XCTAssertThrowsSpecific(
-            try await XcodeGraph.ResourceFileElement.from(
-                manifest: manifest,
-                generatorPaths: generatorPaths,
-                fileSystem: fileSystem
-            ),
-            error
+        // When
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
         )
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_excluding_file() async throws {

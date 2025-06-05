@@ -294,6 +294,7 @@ jobs:
       - name: Build TuistApp
         run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: mise x -- tuist share TuistApp
       - name: Save cache
         id: cache-save
@@ -350,6 +351,7 @@ jobs:
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - name: Activate .env.json
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
@@ -362,6 +364,7 @@ jobs:
       - name: Inspect TuistApp
         run: mise x -- tuist inspect bundle build/Tuist.ipa
       - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: mise x -- tuist share build/Tuist.ipa
       - name: Save cache
         id: cache-save
