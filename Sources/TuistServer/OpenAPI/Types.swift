@@ -1974,6 +1974,72 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
                 internal var duration: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload`.
+                internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The duration of the compilation for the file in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/compilation_duration`.
+                    internal var compilation_duration: Swift.Int
+                    /// The file path where the issue occurred, relative to the project root.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/path`.
+                    internal var path: Swift.String
+                    /// The project name associated with the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/project`.
+                    internal var project: Swift.String
+                    /// The target name associated with the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/target`.
+                    internal var target: Swift.String
+                    /// The type of the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/type`.
+                    internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case swift = "swift"
+                        case c = "c"
+                    }
+                    /// The type of the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/type`.
+                    internal var _type: Components.Schemas.RunParams.Case1Payload.filesPayloadPayload._typePayload
+                    /// Creates a new `filesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                    ///   - path: The file path where the issue occurred, relative to the project root.
+                    ///   - project: The project name associated with the file.
+                    ///   - target: The target name associated with the file.
+                    ///   - _type: The type of the file.
+                    internal init(
+                        compilation_duration: Swift.Int,
+                        path: Swift.String,
+                        project: Swift.String,
+                        target: Swift.String,
+                        _type: Components.Schemas.RunParams.Case1Payload.filesPayloadPayload._typePayload
+                    ) {
+                        self.compilation_duration = compilation_duration
+                        self.path = path
+                        self.project = project
+                        self.target = target
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case compilation_duration
+                        case path
+                        case project
+                        case target
+                        case _type = "type"
+                    }
+                }
+                /// Compiled files associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/files`.
+                internal typealias filesPayload = [Components.Schemas.RunParams.Case1Payload.filesPayloadPayload]
+                /// Compiled files associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/files`.
+                internal var files: Components.Schemas.RunParams.Case1Payload.filesPayload?
                 /// The git branch.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/git_branch`.
@@ -2158,6 +2224,72 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/status`.
                 internal var status: Components.Schemas.RunParams.Case1Payload.statusPayload?
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload`.
+                internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                    /// The build duration for the target in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/build_duration`.
+                    internal var build_duration: Swift.Int
+                    /// The duration of the compilation for the target in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/compilation_duration`.
+                    internal var compilation_duration: Swift.Int
+                    /// The target name.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/name`.
+                    internal var name: Swift.String
+                    /// The target's project name.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/project`.
+                    internal var project: Swift.String
+                    /// The status of the target's build.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/status`.
+                    internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                    }
+                    /// The status of the target's build.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/status`.
+                    internal var status: Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload.statusPayload
+                    /// Creates a new `targetsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_duration: The build duration for the target in milliseconds.
+                    ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                    ///   - name: The target name.
+                    ///   - project: The target's project name.
+                    ///   - status: The status of the target's build.
+                    internal init(
+                        build_duration: Swift.Int,
+                        compilation_duration: Swift.Int,
+                        name: Swift.String,
+                        project: Swift.String,
+                        status: Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload.statusPayload
+                    ) {
+                        self.build_duration = build_duration
+                        self.compilation_duration = compilation_duration
+                        self.name = name
+                        self.project = project
+                        self.status = status
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case build_duration
+                        case compilation_duration
+                        case name
+                        case project
+                        case status
+                    }
+                }
+                /// Targets with build metadata associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targets`.
+                internal typealias targetsPayload = [Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload]
+                /// Targets with build metadata associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targets`.
+                internal var targets: Components.Schemas.RunParams.Case1Payload.targetsPayload?
                 /// The type of the run, which is 'build' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/type`.
@@ -2177,6 +2309,7 @@ internal enum Components {
                 /// - Parameters:
                 ///   - category: The category of the build run, can be clean or incremental.
                 ///   - duration: Duration of the run in milliseconds.
+                ///   - files: Compiled files associated with the build run.
                 ///   - git_branch: The git branch.
                 ///   - git_commit_sha: The commit SHA.
                 ///   - id: UUID of a run generated by the system.
@@ -2186,11 +2319,13 @@ internal enum Components {
                 ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                 ///   - scheme: The scheme used for the build.
                 ///   - status: The status of the build run.
+                ///   - targets: Targets with build metadata associated with the build run.
                 ///   - _type: The type of the run, which is 'build' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 internal init(
                     category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
                     duration: Swift.Int,
+                    files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
                     id: Swift.String,
@@ -2200,11 +2335,13 @@ internal enum Components {
                     model_identifier: Swift.String? = nil,
                     scheme: Swift.String? = nil,
                     status: Components.Schemas.RunParams.Case1Payload.statusPayload? = nil,
+                    targets: Components.Schemas.RunParams.Case1Payload.targetsPayload? = nil,
                     _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
                     self.category = category
                     self.duration = duration
+                    self.files = files
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
                     self.id = id
@@ -2214,12 +2351,14 @@ internal enum Components {
                     self.model_identifier = model_identifier
                     self.scheme = scheme
                     self.status = status
+                    self.targets = targets
                     self._type = _type
                     self.xcode_version = xcode_version
                 }
                 internal enum CodingKeys: String, CodingKey {
                     case category
                     case duration
+                    case files
                     case git_branch
                     case git_commit_sha
                     case id
@@ -2229,6 +2368,7 @@ internal enum Components {
                     case model_identifier
                     case scheme
                     case status
+                    case targets
                     case _type = "type"
                     case xcode_version
                 }
@@ -2449,31 +2589,45 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
         internal struct RunsBuild: Codable, Hashable, Sendable {
+            /// The duration of the build run in milliseconds
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/duration`.
             internal var duration: Swift.Int
+            /// The unique identifier of the build run
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/id`.
             internal var id: Swift.String
+            /// The ID of the Tuist project associated with this build run
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/project_id`.
             internal var project_id: Swift.Int
+            /// The URL to access the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/url`.
+            internal var url: Swift.String
             /// Creates a new `RunsBuild`.
             ///
             /// - Parameters:
-            ///   - duration:
-            ///   - id:
-            ///   - project_id:
+            ///   - duration: The duration of the build run in milliseconds
+            ///   - id: The unique identifier of the build run
+            ///   - project_id: The ID of the Tuist project associated with this build run
+            ///   - url: The URL to access the build run
             internal init(
                 duration: Swift.Int,
                 id: Swift.String,
-                project_id: Swift.Int
+                project_id: Swift.Int,
+                url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
                 case duration
                 case id
                 case project_id
+                case url
             }
         }
         /// A token to authenticate API requests as a project.
@@ -3018,6 +3172,72 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
             internal var duration: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload`.
+            internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The duration of the compilation for the file in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/compilation_duration`.
+                internal var compilation_duration: Swift.Int
+                /// The file path where the issue occurred, relative to the project root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/path`.
+                internal var path: Swift.String
+                /// The project name associated with the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/project`.
+                internal var project: Swift.String
+                /// The target name associated with the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/target`.
+                internal var target: Swift.String
+                /// The type of the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/type`.
+                internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case swift = "swift"
+                    case c = "c"
+                }
+                /// The type of the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/type`.
+                internal var _type: Components.Schemas.BuildRun.filesPayloadPayload._typePayload
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                ///   - path: The file path where the issue occurred, relative to the project root.
+                ///   - project: The project name associated with the file.
+                ///   - target: The target name associated with the file.
+                ///   - _type: The type of the file.
+                internal init(
+                    compilation_duration: Swift.Int,
+                    path: Swift.String,
+                    project: Swift.String,
+                    target: Swift.String,
+                    _type: Components.Schemas.BuildRun.filesPayloadPayload._typePayload
+                ) {
+                    self.compilation_duration = compilation_duration
+                    self.path = path
+                    self.project = project
+                    self.target = target
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case compilation_duration
+                    case path
+                    case project
+                    case target
+                    case _type = "type"
+                }
+            }
+            /// Compiled files associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/files`.
+            internal typealias filesPayload = [Components.Schemas.BuildRun.filesPayloadPayload]
+            /// Compiled files associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/files`.
+            internal var files: Components.Schemas.BuildRun.filesPayload?
             /// The git branch.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/git_branch`.
@@ -3202,6 +3422,72 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/status`.
             internal var status: Components.Schemas.BuildRun.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload`.
+            internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                /// The build duration for the target in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/build_duration`.
+                internal var build_duration: Swift.Int
+                /// The duration of the compilation for the target in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/compilation_duration`.
+                internal var compilation_duration: Swift.Int
+                /// The target name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/name`.
+                internal var name: Swift.String
+                /// The target's project name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/project`.
+                internal var project: Swift.String
+                /// The status of the target's build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/status`.
+                internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// The status of the target's build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/status`.
+                internal var status: Components.Schemas.BuildRun.targetsPayloadPayload.statusPayload
+                /// Creates a new `targetsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - build_duration: The build duration for the target in milliseconds.
+                ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                ///   - name: The target name.
+                ///   - project: The target's project name.
+                ///   - status: The status of the target's build.
+                internal init(
+                    build_duration: Swift.Int,
+                    compilation_duration: Swift.Int,
+                    name: Swift.String,
+                    project: Swift.String,
+                    status: Components.Schemas.BuildRun.targetsPayloadPayload.statusPayload
+                ) {
+                    self.build_duration = build_duration
+                    self.compilation_duration = compilation_duration
+                    self.name = name
+                    self.project = project
+                    self.status = status
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case build_duration
+                    case compilation_duration
+                    case name
+                    case project
+                    case status
+                }
+            }
+            /// Targets with build metadata associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targets`.
+            internal typealias targetsPayload = [Components.Schemas.BuildRun.targetsPayloadPayload]
+            /// Targets with build metadata associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targets`.
+            internal var targets: Components.Schemas.BuildRun.targetsPayload?
             /// The type of the run, which is 'build' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/type`.
@@ -3221,6 +3507,7 @@ internal enum Components {
             /// - Parameters:
             ///   - category: The category of the build run, can be clean or incremental.
             ///   - duration: Duration of the run in milliseconds.
+            ///   - files: Compiled files associated with the build run.
             ///   - git_branch: The git branch.
             ///   - git_commit_sha: The commit SHA.
             ///   - id: UUID of a run generated by the system.
@@ -3230,11 +3517,13 @@ internal enum Components {
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
+            ///   - targets: Targets with build metadata associated with the build run.
             ///   - _type: The type of the run, which is 'build' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             internal init(
                 category: Components.Schemas.BuildRun.categoryPayload? = nil,
                 duration: Swift.Int,
+                files: Components.Schemas.BuildRun.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
                 id: Swift.String,
@@ -3244,11 +3533,13 @@ internal enum Components {
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildRun.statusPayload? = nil,
+                targets: Components.Schemas.BuildRun.targetsPayload? = nil,
                 _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.category = category
                 self.duration = duration
+                self.files = files
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
                 self.id = id
@@ -3258,12 +3549,14 @@ internal enum Components {
                 self.model_identifier = model_identifier
                 self.scheme = scheme
                 self.status = status
+                self.targets = targets
                 self._type = _type
                 self.xcode_version = xcode_version
             }
             internal enum CodingKeys: String, CodingKey {
                 case category
                 case duration
+                case files
                 case git_branch
                 case git_commit_sha
                 case id
@@ -3273,6 +3566,7 @@ internal enum Components {
                 case model_identifier
                 case scheme
                 case status
+                case targets
                 case _type = "type"
                 case xcode_version
             }
@@ -16030,6 +16324,72 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
                         internal var duration: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload`.
+                        internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The duration of the compilation for the file in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/compilation_duration`.
+                            internal var compilation_duration: Swift.Int
+                            /// The file path where the issue occurred, relative to the project root.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/path`.
+                            internal var path: Swift.String
+                            /// The project name associated with the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/project`.
+                            internal var project: Swift.String
+                            /// The target name associated with the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/target`.
+                            internal var target: Swift.String
+                            /// The type of the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/type`.
+                            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case swift = "swift"
+                                case c = "c"
+                            }
+                            /// The type of the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/type`.
+                            internal var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload._typePayload
+                            /// Creates a new `filesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                            ///   - path: The file path where the issue occurred, relative to the project root.
+                            ///   - project: The project name associated with the file.
+                            ///   - target: The target name associated with the file.
+                            ///   - _type: The type of the file.
+                            internal init(
+                                compilation_duration: Swift.Int,
+                                path: Swift.String,
+                                project: Swift.String,
+                                target: Swift.String,
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload._typePayload
+                            ) {
+                                self.compilation_duration = compilation_duration
+                                self.path = path
+                                self.project = project
+                                self.target = target
+                                self._type = _type
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case compilation_duration
+                                case path
+                                case project
+                                case target
+                                case _type = "type"
+                            }
+                        }
+                        /// Compiled files associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/files`.
+                        internal typealias filesPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload]
+                        /// Compiled files associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/files`.
+                        internal var files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload?
                         /// The git branch.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/git_branch`.
@@ -16214,6 +16574,72 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/status`.
                         internal var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload`.
+                        internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The build duration for the target in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/build_duration`.
+                            internal var build_duration: Swift.Int
+                            /// The duration of the compilation for the target in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/compilation_duration`.
+                            internal var compilation_duration: Swift.Int
+                            /// The target name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/name`.
+                            internal var name: Swift.String
+                            /// The target's project name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/project`.
+                            internal var project: Swift.String
+                            /// The status of the target's build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/status`.
+                            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// The status of the target's build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/status`.
+                            internal var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.statusPayload
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - build_duration: The build duration for the target in milliseconds.
+                            ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                            ///   - name: The target name.
+                            ///   - project: The target's project name.
+                            ///   - status: The status of the target's build.
+                            internal init(
+                                build_duration: Swift.Int,
+                                compilation_duration: Swift.Int,
+                                name: Swift.String,
+                                project: Swift.String,
+                                status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.statusPayload
+                            ) {
+                                self.build_duration = build_duration
+                                self.compilation_duration = compilation_duration
+                                self.name = name
+                                self.project = project
+                                self.status = status
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case build_duration
+                                case compilation_duration
+                                case name
+                                case project
+                                case status
+                            }
+                        }
+                        /// Targets with build metadata associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targets`.
+                        internal typealias targetsPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload]
+                        /// Targets with build metadata associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targets`.
+                        internal var targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload?
                         /// The type of the run, which is 'build' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/type`.
@@ -16233,6 +16659,7 @@ internal enum Operations {
                         /// - Parameters:
                         ///   - category: The category of the build run, can be clean or incremental.
                         ///   - duration: Duration of the run in milliseconds.
+                        ///   - files: Compiled files associated with the build run.
                         ///   - git_branch: The git branch.
                         ///   - git_commit_sha: The commit SHA.
                         ///   - id: UUID of a run generated by the system.
@@ -16242,11 +16669,13 @@ internal enum Operations {
                         ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                         ///   - scheme: The scheme used for the build.
                         ///   - status: The status of the build run.
+                        ///   - targets: Targets with build metadata associated with the build run.
                         ///   - _type: The type of the run, which is 'build' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         internal init(
                             category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
                             duration: Swift.Int,
+                            files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
                             id: Swift.String,
@@ -16256,11 +16685,13 @@ internal enum Operations {
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
                             status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = nil,
+                            targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload? = nil,
                             _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
                             self.category = category
                             self.duration = duration
+                            self.files = files
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
                             self.id = id
@@ -16270,12 +16701,14 @@ internal enum Operations {
                             self.model_identifier = model_identifier
                             self.scheme = scheme
                             self.status = status
+                            self.targets = targets
                             self._type = _type
                             self.xcode_version = xcode_version
                         }
                         internal enum CodingKeys: String, CodingKey {
                             case category
                             case duration
+                            case files
                             case git_branch
                             case git_commit_sha
                             case id
@@ -16285,6 +16718,7 @@ internal enum Operations {
                             case model_identifier
                             case scheme
                             case status
+                            case targets
                             case _type = "type"
                             case xcode_version
                         }

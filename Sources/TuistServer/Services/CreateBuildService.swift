@@ -14,6 +14,7 @@ import OpenAPIURLSession
             id: String,
             category: XCActivityBuildCategory,
             duration: Int,
+            files: [XCActivityBuildFile],
             gitBranch: String?,
             gitCommitSHA: String?,
             isCI: Bool,
@@ -21,9 +22,10 @@ import OpenAPIURLSession
             modelIdentifier: String?,
             macOSVersion: String,
             scheme: String?,
+            targets: [XCActivityTarget],
             xcodeVersion: String?,
             status: ServerBuildRunStatus
-        ) async throws
+        ) async throws -> ServerBuild
     }
 
     enum CreateBuildServiceError: LocalizedError {
@@ -32,6 +34,7 @@ import OpenAPIURLSession
         case notFound(String)
         case unauthorized(String)
         case badRequest(String)
+        case invalidURL(String)
 
         var errorDescription: String? {
             switch self {
@@ -41,6 +44,8 @@ import OpenAPIURLSession
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
                  let .badRequest(message):
                 return message
+            case let .invalidURL(url):
+                return "Invalid URL for the build: \(url)."
             }
         }
     }
@@ -64,6 +69,7 @@ import OpenAPIURLSession
             id: String,
             category: XCActivityBuildCategory,
             duration: Int,
+            files: [XCActivityBuildFile],
             gitBranch: String?,
             gitCommitSHA: String?,
             isCI: Bool,
@@ -71,9 +77,10 @@ import OpenAPIURLSession
             modelIdentifier: String?,
             macOSVersion: String,
             scheme: String?,
+            targets: [XCActivityTarget],
             xcodeVersion: String?,
             status: ServerBuildRunStatus
-        ) async throws {
+        ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
             let status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? =
@@ -103,6 +110,8 @@ import OpenAPIURLSession
                             .init(
                                 category: category,
                                 duration: duration,
+                                files: files
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload.init),
                                 git_branch: gitBranch,
                                 git_commit_sha: gitCommitSHA,
                                 id: id,
@@ -113,6 +122,8 @@ import OpenAPIURLSession
                                 model_identifier: modelIdentifier,
                                 scheme: scheme,
                                 status: status,
+                                targets: targets
+                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.init),
                                 xcode_version: xcodeVersion
                             )
                         )
@@ -120,8 +131,15 @@ import OpenAPIURLSession
                 )
             )
             switch response {
-            case .ok:
-                break
+            case let .ok(okResponse):
+                switch okResponse.body {
+                case let .json(run):
+                    switch run {
+                    case let .RunsBuild(build):
+                        guard let build = ServerBuild(build) else { throw CreateBuildServiceError.invalidURL(build.url) }
+                        return build
+                    }
+                }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
@@ -192,6 +210,38 @@ import OpenAPIURLSession
                 target: issue.target,
                 title: issue.title,
                 _type: type
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload {
+        fileprivate init(_ file: XCActivityBuildFile) {
+            let fileType: Self._typePayload = switch file.type {
+            case .c: .c
+            case .swift: .swift
+            }
+            self.init(
+                compilation_duration: file.compilationDuration,
+                path: file.path.pathString,
+                project: file.project,
+                target: file.target,
+                _type: fileType
+            )
+        }
+    }
+
+    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload {
+        fileprivate init(_ target: XCActivityTarget) {
+            let status: Self.statusPayload = switch target.status {
+            case .failure: .failure
+            case .success: .success
+            }
+            self.init(
+                build_duration: target.buildDuration,
+                compilation_duration: target.compilationDuration,
+                name: target.name,
+                project: target.project,
+                status: status
             )
         }
     }

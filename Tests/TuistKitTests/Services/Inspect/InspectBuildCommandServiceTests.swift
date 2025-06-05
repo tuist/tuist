@@ -58,6 +58,7 @@ struct InspectBuildCommandServiceTests {
                 id: .any,
                 category: .any,
                 duration: .any,
+                files: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
                 isCI: .any,
@@ -65,10 +66,11 @@ struct InspectBuildCommandServiceTests {
                 modelIdentifier: .any,
                 macOSVersion: .any,
                 scheme: .any,
+                targets: .any,
                 xcodeVersion: .any,
                 status: .any
             )
-            .willReturn()
+            .willReturn(.test())
 
         given(machineEnvironment)
             .modelIdentifier()
@@ -97,6 +99,8 @@ struct InspectBuildCommandServiceTests {
             .willReturn((ref: nil, branch: nil, sha: nil))
 
         Matcher.register([XCActivityIssue].self)
+        Matcher.register([XCActivityBuildFile].self)
+        Matcher.register([XCActivityTarget].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -139,6 +143,12 @@ struct InspectBuildCommandServiceTests {
                     category: .incremental,
                     issues: [
                         .test(),
+                    ],
+                    files: [
+                        .test(),
+                    ],
+                    targets: [
+                        .test(),
                     ]
                 )
             )
@@ -163,6 +173,7 @@ struct InspectBuildCommandServiceTests {
                 id: .any,
                 category: .value(.incremental),
                 duration: .value(10000),
+                files: .value([.test()]),
                 gitBranch: .value("branch"),
                 gitCommitSHA: .value("sha"),
                 isCI: .value(false),
@@ -170,6 +181,7 @@ struct InspectBuildCommandServiceTests {
                 modelIdentifier: .value("Mac15,3"),
                 macOSVersion: .value("13.2.0"),
                 scheme: .value("App"),
+                targets: .value([.test()]),
                 xcodeVersion: .value("16.0.0"),
                 status: .value(.failure)
             )

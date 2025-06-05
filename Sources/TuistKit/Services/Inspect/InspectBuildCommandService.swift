@@ -132,13 +132,14 @@ struct InspectBuildCommandService {
         let gitInfo = gitController.gitInfo(workingDirectory: projectPath)
         let gitCommitSHA = gitInfo.sha
         let gitBranch = gitInfo.branch
-        try await createBuildService.createBuild(
+        let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
             category: xcactivityLog.category,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
+            files: xcactivityLog.files,
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             isCI: Environment.current.isCI,
@@ -146,10 +147,13 @@ struct InspectBuildCommandService {
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: Environment.current.schemeName,
+            targets: xcactivityLog.targets,
             xcodeVersion: try await xcodeBuildController.version()?.description,
             status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
-        AlertController.current.success(.alert("Uploaded a build to the server."))
+        AlertController.current.success(
+            .alert("View the analyzed build at \(build.url.absoluteString)")
+        )
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {

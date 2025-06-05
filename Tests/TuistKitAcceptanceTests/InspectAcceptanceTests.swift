@@ -44,10 +44,7 @@ struct InspectAcceptanceTests {
         )
 
         // Then
-        #expect(ui().contains("""
-        ✔ Success
-          Uploaded a build to the server.
-        """) == true)
+        #expect(ui().contains("View the analyzed build at"))
     }
 
     @Test(
