@@ -74,7 +74,6 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_group
-        :if={FunWithFlags.enabled?(:builds_enabled)}
         id="sidebar-builds"
         label={gettext("Builds")}
         icon="versions"

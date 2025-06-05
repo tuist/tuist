@@ -443,7 +443,7 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:79
+#: lib/tuist_web/components/app_layout_components.ex:78
 #: lib/tuist_web/live/builds_live.ex:19
 #: lib/tuist_web/live/builds_live.html.heex:2
 #: lib/tuist_web/live/overview_live.html.heex:459
@@ -2530,8 +2530,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:121
-#: lib/tuist_web/components/app_layout_components.ex:146
+#: lib/tuist_web/components/app_layout_components.ex:120
+#: lib/tuist_web/components/app_layout_components.ex:145
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -3773,7 +3773,7 @@ msgstr ""
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:95
+#: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/live/build_run_live.html.heex:3
 #: lib/tuist_web/live/build_runs_live.ex:15
 #: lib/tuist_web/live/build_runs_live.html.heex:2
