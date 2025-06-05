@@ -18,7 +18,7 @@ jobs:
             export PATH="$HOME/.local/bin:$PATH"
             mise activate bash
             mise install
-            mise exec -- tuist inspect bundle App.xcarchive --json
+            mise exec -- tuist inspect bundle App.ipa --json
 workflows:
   inspect:
     jobs:
