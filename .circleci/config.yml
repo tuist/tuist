@@ -12,6 +12,15 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Download App.ipa from GitHub Releases
+          command: |
+            curl -L -o App.ipa https://github.com/tuist/tuist/releases/download/4.52.0/App.ipa
+      - run:
+          name: Verify App.ipa download
+          command: |
+            ls -la App.ipa
+            file App.ipa
+      - run:
           name: Inspect bundle
           command: |
             curl https://mise.run | sh
@@ -19,6 +28,7 @@ jobs:
             mise activate bash
             mise install
             mise exec -- tuist inspect bundle App.ipa --json
+
 workflows:
   inspect:
     jobs:
