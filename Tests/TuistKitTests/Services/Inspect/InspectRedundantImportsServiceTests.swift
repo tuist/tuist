@@ -162,18 +162,18 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         let config = Tuist.test()
         let uiTests = Target.test(
             name: "UITests",
-            product: .uiTests
+            product: .uiTests,
+            dependencies: [TargetDependency.target(name: "App")]
         )
 
         let app = Target.test(
             name: "App",
-            product: .app,
-            dependencies: [TargetDependency.target(name: "UITests")]
+            product: .app
         )
         let project = Project.test(path: path, targets: [uiTests, app])
         let graph = Graph.test(path: path, projects: [path: project], dependencies: [
-            .target(name: app.name, path: project.path): [
-                .target(name: uiTests.name, path: project.path),
+            .target(name: uiTests.name, path: project.path): [
+                .target(name: app.name, path: project.path),
             ],
         ])
 

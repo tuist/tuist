@@ -100,7 +100,7 @@ final class GraphImportsLinter: GraphImportsLinting {
                 !$0.target.bundleId.hasSuffix(".generated.resources")
             }
             .filter {
-                !(target.target.product == .app && $0.target.product == .uiTests)
+                !(target.target.product == .uiTests && $0.target.product == .app)
             }
             .map { targetDependency in
                 if case .external = targetDependency.graphTarget.project.type { return graphTraverser
