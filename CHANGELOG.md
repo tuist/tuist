@@ -1,5 +1,31 @@
 # Changelog
 
+## 4.52.0 - 2025-06-05
+
+### CLI
+
+#### Changed
+
+- Ignore missing glob directory for resources and additional files [#7638](https://github.com/tuist/tuist/pull/7638) by [@hiltonc](https://github.com/hiltonc)
+- Bump noora [#7644](https://github.com/tuist/tuist/pull/7644) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add buildOrder to Scheme's Build Action [#7609](https://github.com/tuist/tuist/pull/7609) by [@mattjung](https://github.com/mattjung)
+- Add file and module metadata to inspected builds [#7639](https://github.com/tuist/tuist/pull/7639) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix running CI in forks [#7640](https://github.com/tuist/tuist/pull/7640) by [@fortmarek](https://github.com/fortmarek)
+- Remove redundant dependencies checking between App and UITest target [#7628](https://github.com/tuist/tuist/pull/7628) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Fix App Device Build pipeline in forks [#7645](https://github.com/tuist/tuist/pull/7645) by [@fortmarek](https://github.com/fortmarek)
+- fix: use TOOLCHAIN_DIR for Swift include paths [#7650](https://github.com/tuist/tuist/pull/7650) by [@KrzysztofLema](https://github.com/KrzysztofLema)
+- Fix redundant import check for UITests with host application [#7649](https://github.com/tuist/tuist/pull/7649) by [@rofle100lvl](https://github.com/rofle100lvl)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.51.1 - 2025-06-04
 
 ### CLI
