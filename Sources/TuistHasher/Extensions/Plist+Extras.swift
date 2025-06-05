@@ -2,9 +2,7 @@ import Foundation
 import XcodeGraph
 
 extension Plist.Value {
-    /**
-     Normalizes `Plist.Value` into a type from the Swift standard library
-     */
+    /// Normalizes `Plist.Value` into a type from the Swift standard library.
     func normalize() -> Any {
         switch self {
         case let .array(array):

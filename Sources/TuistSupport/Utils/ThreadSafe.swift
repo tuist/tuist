@@ -15,32 +15,30 @@ public final class ThreadSafe<T>: @unchecked Sendable {
         return withValue { $0 }
     }
 
-    /**
-     Mutates the boxed value by mapping it.
-
-     Example:
-     ```
-     let array = ThreadSafe([1,2,3])
-     array.map { $0 + [4] }
-     ```
-     - Parameter with : block used to mutate the underlying value
-     */
+    /// Mutates the boxed value by mapping it.
+    ///
+    /// Example:
+    /// ```
+    /// let array = ThreadSafe([1,2,3])
+    /// array.map { $0 + [4] }
+    /// ```
+    ///
+    /// - Parameter body: block used to mutate the underlying value.
     public func mapping(_ body: (T) throws -> T) rethrows {
         os_unfair_lock_lock(_lock)
         defer { os_unfair_lock_unlock(_lock) }
         _value = try body(_value)
     }
 
-    /**
-     Mutates in place the value boxed by `ThreadSafe`
-
-     Example:
-     ```
-     let array = ThreadSafe([1,2,3])
-     array.mutate { $0.append(4) }
-     ```
-     - Parameter with : block used to mutate the underlying value
-     */
+    /// Mutates in place the value boxed by `ThreadSafe`.
+    ///
+    /// Example:
+    /// ```
+    /// let array = ThreadSafe([1,2,3])
+    /// array.mutate { $0.append(4) }
+    /// ```
+    ///
+    /// - Parameter body: Block used to mutate the underlying value.
     @discardableResult
     public func mutate<Result>(_ body: (inout T) throws -> Result) rethrows -> Result {
         os_unfair_lock_lock(_lock)
@@ -61,16 +59,15 @@ public final class ThreadSafe<T>: @unchecked Sendable {
         }
     }
 
-    /**
-
-     Example:
-     ```
-     let array = ThreadSafe([1,2,3]) // ThreadSafe<Array<Int>>
-     let optional = ThreadSafe<Int?>(nil)
-     let optionalString: ThreadSafe<String?> = ThreadSafe("Initial Value")
-     ```
-
-     - Parameter initial : initial value used within the Atmoic box
-     */
+    /// Initializes the `ThreadSafe` container with the provided initial value.
+    ///
+    /// Example:
+    /// ```
+    /// let array = ThreadSafe([1,2,3]) // ThreadSafe<Array<Int>>
+    /// let optional = ThreadSafe<Int?>(nil)
+    /// let optionalString: ThreadSafe<String?> = ThreadSafe("Initial Value")
+    /// ```
+    ///
+    /// - Parameter initial: Initial value used within the Atomic box.
     public init(_ initial: T) { _value = initial }
 }
