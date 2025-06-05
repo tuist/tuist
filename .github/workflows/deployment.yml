@@ -73,6 +73,8 @@ jobs:
         with:
           repository: tuist/cli-ext
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -90,8 +92,6 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.3.0.app
       - uses: actions/cache@v3
         name: "Cache installed dependencies folder"
         with:
