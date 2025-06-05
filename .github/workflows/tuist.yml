@@ -351,6 +351,7 @@ jobs:
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - name: Activate .env.json
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
