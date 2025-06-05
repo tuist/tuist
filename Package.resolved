@@ -1,5 +1,5 @@
 {
-  "originHash" : "d92cc43eed18400df615234b85662523fbbfb855a464c68b5b3aead9af11af05",
+  "originHash" : "0de3b2f2b03f759f5899bbf05347d350b1c1c9ef435d10cf8cb3629f613b92df",
   "pins" : [
     {
       "identity" : "aexml",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "ede5a7258454b393c628c3a740eba4a80ba51567",
-        "version" : "0.10.0"
+        "revision" : "95ae649dd2f2800ebcdf0dfca92233d59f87787b",
+        "version" : "0.10.2"
       }
     },
     {
@@ -204,8 +204,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Rosalind",
       "state" : {
-        "revision" : "f21227dbb8f07547ff2542ba6f04e00c68dd2ce1",
-        "version" : "0.5.13"
+        "branch" : "ci/stuck",
+        "revision" : "b75bd830510198a7504ffd45de364fb1600e5c6c"
       }
     },
     {

@@ -62,11 +62,7 @@ jobs:
       - run:
           name: Inspect bundle
           command: |
-            curl https://mise.run | sh
-            export PATH="$HOME/.local/bin:$PATH"
-            mise activate bash
-            mise install
-            mise exec -- tuist inspect bundle App.ipa --json --verbose
+            swift run tuist inspect bundle App.ipa --json --verbose
 
 workflows:
   inspect:
