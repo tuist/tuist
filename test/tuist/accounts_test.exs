@@ -1989,6 +1989,84 @@ defmodule Tuist.AccountsTest do
       # Then
       assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
     end
+
+    test "includes SSO users for organizations with Google SSO" do
+      user_one = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user_one,
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # Create an SSO user
+      sso_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{email: "sso@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Add a regular user
+      user_two = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(user_two, organization, role: :user)
+
+      # When
+      got =
+        organization
+        |> Accounts.get_organization_members_with_role()
+        |> Enum.sort(&(hd(&1).id < hd(&2).id))
+
+      # Then - should include admin, regular user, and SSO user
+      assert length(got) == 3
+      assert Enum.any?(got, fn [user, role] -> user.id == user_one.id and role == "admin" end)
+      assert Enum.any?(got, fn [user, role] -> user.id == user_two.id and role == "user" end)
+      assert Enum.any?(got, fn [user, role] -> user.id == sso_user.id and role == "user" end)
+    end
+
+    test "includes SSO users for organizations with Okta SSO" do
+      user_one = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user_one,
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        )
+
+      # Create an SSO user
+      sso_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :okta,
+          uid: 456,
+          info: %{email: "okta@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{},
+              token: %{
+                other_params: %{"id_token" => "jwt-token"}
+              }
+            }
+          }
+        })
+
+      # When
+      got =
+        organization
+        |> Accounts.get_organization_members_with_role()
+        |> Enum.sort(&(hd(&1).id < hd(&2).id))
+
+      # Then - should include admin and SSO user
+      assert length(got) == 2
+      assert Enum.any?(got, fn [user, role] -> user.id == user_one.id and role == "admin" end)
+      assert Enum.any?(got, fn [user, role] -> user.id == sso_user.id and role == "user" end)
+    end
   end
 
   describe "account_token/1" do

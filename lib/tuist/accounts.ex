@@ -102,18 +102,43 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id}) do
-    Repo.all(
-      from(u in User,
-        preload: [:account],
-        join: ur in UserRole,
-        on: ur.user_id == u.id,
-        join: r in Role,
-        on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-        select: [u, r.name]
+  def get_organization_members_with_role(%Organization{id: organization_id} = organization) do
+    # Members with explicit roles
+    members_with_roles =
+      Repo.all(
+        from(u in User,
+          preload: [:account],
+          join: ur in UserRole,
+          on: ur.user_id == u.id,
+          join: r in Role,
+          on: ur.role_id == r.id,
+          where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+          select: [u, r.name]
+        )
       )
-    )
+
+    member_ids_with_roles = Enum.map(members_with_roles, fn [user, _role] -> user.id end)
+
+    # SSO Users, defaulting to `:user` role
+    sso_users =
+      if organization.sso_provider && organization.sso_organization_id do
+        Repo.all(
+          from(u in User,
+            preload: [:account],
+            join: oauth in Oauth2Identity,
+            on: oauth.user_id == u.id,
+            where:
+              oauth.provider == ^organization.sso_provider and
+                oauth.provider_organization_id == ^organization.sso_organization_id and
+                u.id not in ^member_ids_with_roles,
+            select: [u, "user"]
+          )
+        )
+      else
+        []
+      end
+
+    members_with_roles ++ sso_users
   end
 
   def get_organization_members(%Organization{id: organization_id}, role) do
