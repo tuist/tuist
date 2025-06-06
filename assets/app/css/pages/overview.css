@@ -37,6 +37,15 @@
     }
   }
 
+  & [data-part="average-build-time-card-section"] {
+    position: unset;
+    & [data-part="view-more"] {
+      position: absolute;
+      top: var(--noora-spacing-9);
+      right: var(--noora-spacing-9);
+    }
+  }
+
   & [data-part="effectiveness-chart"],
   & [data-part="build-runs-chart"],
   & [data-part="test-runs-chart"],
@@ -134,6 +143,7 @@
 
   & [data-part="builds-card-sections"] {
     display: flex;
+    position: relative;
     flex-direction: row;
     align-items: stretch;
     gap: var(--noora-spacing-4);

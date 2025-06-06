@@ -581,8 +581,18 @@
           <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
         </:image>
       </.empty_card_section>
-      <.card_section :if={@builds_duration_analytics.total_average_duration != 0}>
+      <.card_section
+        :if={@builds_duration_analytics.total_average_duration != 0}
+        data-part="average-build-time-card-section"
+      >
         <div data-part="average-build-time-chart">
+          <.button
+            data-part="view-more"
+            label={gettext("View more")}
+            size="small"
+            variant="secondary"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+          />
           <div data-part="legends">
             <.legend
               title={gettext("Average build time")}

@@ -45,7 +45,7 @@ msgstr ""
 msgid "%{app_name} icon"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:590
+#: lib/tuist_web/live/overview_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
 msgstr ""
@@ -304,8 +304,8 @@ msgid "Are you sure you want to delete this?"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:96
-#: lib/tuist_web/live/overview_live.html.heex:588
-#: lib/tuist_web/live/overview_live.html.heex:654
+#: lib/tuist_web/live/overview_live.html.heex:598
+#: lib/tuist_web/live/overview_live.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr ""
@@ -1503,7 +1503,7 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:666
+#: lib/tuist_web/live/overview_live.html.heex:676
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
 msgstr ""
@@ -3942,6 +3942,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:533
 #: lib/tuist_web/live/overview_live.html.heex:243
 #: lib/tuist_web/live/overview_live.html.heex:325
+#: lib/tuist_web/live/overview_live.html.heex:591
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
