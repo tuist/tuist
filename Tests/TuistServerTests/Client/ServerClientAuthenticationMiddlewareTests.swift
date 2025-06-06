@@ -171,31 +171,35 @@ struct ServerClientAuthenticationMiddlewareTests {
             let response = HTTPResponse(
                 status: 200
             )
-
+            let refreshToken =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNzQ5MjEwNzUzfQ.TIQpQLlQWd-BIs46rBHPM-WMC2MhvX2jrCLqh14B-1U"
             given(serverAuthenticationController)
                 .authenticationToken(serverURL: .any)
                 .willReturn(
                     .user(
                         legacyToken: nil,
                         accessToken: .test(
-                            token: "access-token",
+                            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNzQ5MjEwNzUyfQ.2NnjKbxBfXoYjhiExFTSjf70nv0kfC2f6Jjv2YuO4p8",
                             expiryDate: Date(timeIntervalSince1970: 100)
                         ),
                         refreshToken: .test(
-                            token: "refresh-token",
+                            token: refreshToken,
                             expiryDate: Date(timeIntervalSince1970: 1000)
                         )
                     )
                 )
 
             var gotRequest: HTTPRequest!
-
+            let newAccessToken =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNzQ5MjEwNzk5fQ.cM4h02as3xFwA8lH24EVdZItfBiTiToJfxpgZE5lBRM"
+            let newRefreshToken =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjoxNzQ5MjEwODAwfQ.xTEz5fWUpIImcKC2MtQWiQ0xhQrVKDPbuBqr4vdBtlc"
             given(refreshAuthTokenService)
-                .refreshTokens(serverURL: .any, refreshToken: .value("refresh-token"))
+                .refreshTokens(serverURL: .any, refreshToken: .value(refreshToken))
                 .willReturn(
                     ServerAuthenticationTokens(
-                        accessToken: "new-access-token",
-                        refreshToken: "new-refresh-token"
+                        accessToken: newAccessToken,
+                        refreshToken: newRefreshToken
                     )
                 )
 
@@ -220,8 +224,8 @@ struct ServerClientAuthenticationMiddlewareTests {
                     credentials: .value(
                         ServerCredentials(
                             token: nil,
-                            accessToken: "new-access-token",
-                            refreshToken: "new-refresh-token"
+                            accessToken: newAccessToken,
+                            refreshToken: newRefreshToken
                         )
                     ),
                     serverURL: .any
@@ -232,7 +236,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             #expect(
                 gotRequest.headerFields ==
                     [
-                        .authorization: "Bearer new-access-token",
+                        .authorization: "Bearer \(newAccessToken)",
                     ]
             )
         }
