@@ -67,13 +67,18 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                 tokenValue = legacyToken
             } else if let accessToken {
                 // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
-                let isExpired = accessToken.expiryDate
-                    .timeIntervalSince(Date.now()) < 30
+                let expiresIn = accessToken.expiryDate
+                    .timeIntervalSince(Date.now())
+                let isExpired = expiresIn < 30
 
+                Logger.current.debug("Access token expires in less than \(expiresIn) seconds. Renewing...")
                 if isExpired {
                     guard let refreshToken else { throw ServerClientAuthenticationError.notAuthenticated }
                     tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
-                        try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
+                        Logger.current.debug("Refreshing access token for \(baseURL)")
+                        let tokens = try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
+                        Logger.current.debug("Access token refreshed for \(baseURL)")
+                        return tokens
                     }
                     .accessToken
                 } else {
