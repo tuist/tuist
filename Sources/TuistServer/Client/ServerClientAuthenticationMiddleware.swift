@@ -85,6 +85,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                         expiresAt = try ServerAuthenticationController.parseJWT(tokens.refreshToken).expiryDate
                     } else {
                         tokenValue = accessToken.token
+                        expiresAt = accessToken.expiryDate
                     }
                 } else {
                     throw ServerClientAuthenticationError.notAuthenticated
