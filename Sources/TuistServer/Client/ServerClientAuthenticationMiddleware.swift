@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -53,8 +54,12 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
 
-        let token: String = try await cachedValueStore.getValue(key: "token_\(baseURL.absoluteString)") {
-            guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
+        let token: String = try await cachedValueStore.getValue(
+            key: "token_\(baseURL.absoluteString)"
+        ) {
+            guard let token = try await serverAuthenticationController.authenticationToken(
+                serverURL: baseURL
+            )
             else {
                 throw ServerClientAuthenticationError.notAuthenticated
             }
@@ -65,24 +70,34 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             switch token {
             case let .project(token):
                 tokenValue = token
-            case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
+            case let .user(
+                legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
+            ):
                 if let legacyToken {
                     tokenValue = legacyToken
                 } else if let accessToken {
                     // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
+                    let now = Date.now()
                     let expiresIn = accessToken.expiryDate
-                        .timeIntervalSince(Date.now())
+                        .timeIntervalSince(now)
                     let isExpired = expiresIn < 30
 
-                    Logger.current.debug("Access token expires in less than \(expiresIn) seconds. Renewing...")
+                    Logger.current.debug(
+                        "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                    )
                     if isExpired {
-                        guard let refreshToken else { throw ServerClientAuthenticationError.notAuthenticated }
+                        guard let refreshToken else {
+                            throw ServerClientAuthenticationError.notAuthenticated
+                        }
                         Logger.current.debug("Refreshing access token for \(baseURL)")
-                        let tokens = try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
+                        let tokens = try await refreshTokens(
+                            baseURL: baseURL, refreshToken: refreshToken
+                        )
                         Logger.current.debug("Access token refreshed for \(baseURL)")
 
                         tokenValue = tokens.accessToken
-                        expiresAt = try ServerAuthenticationController.parseJWT(tokens.accessToken).expiryDate
+                        expiresAt = try ServerAuthenticationController.parseJWT(tokens.accessToken)
+                            .expiryDate
                     } else {
                         tokenValue = accessToken.token
                         expiresAt = accessToken.expiryDate
@@ -94,9 +109,11 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             return (value: tokenValue, expiresAt: expiresAt)
         }
 
-        request.headerFields.append(.init(
-            name: .authorization, value: "Bearer \(token)"
-        ))
+        request.headerFields.append(
+            .init(
+                name: .authorization, value: "Bearer \(token)"
+            )
+        )
         return try await next(request, body, baseURL)
     }
 
