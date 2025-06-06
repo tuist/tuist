@@ -83,19 +83,24 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                         .timeIntervalSince(now)
                     let isExpired = expiresIn < 30
 
-                    Logger.current.debug(
-                        "Access token expires in less than \(expiresIn) seconds. Renewing..."
-                    )
+                    #if canImport(TuistSupport)
+                        Logger.current.debug(
+                            "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                        )
+                    #endif
                     if isExpired {
                         guard let refreshToken else {
                             throw ServerClientAuthenticationError.notAuthenticated
                         }
-                        Logger.current.debug("Refreshing access token for \(baseURL)")
+                        #if canImport(TuistSupport)
+                            Logger.current.debug("Refreshing access token for \(baseURL)")
+                        #endif
                         let tokens = try await refreshTokens(
                             baseURL: baseURL, refreshToken: refreshToken
                         )
-                        Logger.current.debug("Access token refreshed for \(baseURL)")
-
+                        #if canImport(TuistSupport)
+                            Logger.current.debug("Access token refreshed for \(baseURL)")
+                        #endif
                         tokenValue = tokens.accessToken
                         expiresAt = try ServerAuthenticationController.parseJWT(tokens.accessToken)
                             .expiryDate
