@@ -23,8 +23,8 @@ jobs:
       - run:
           name: Inspect bundle
           command: |
-            swift run tuist inspect bundle fixtures/ios_app_with_frameworks/App.ipa --json --verbose
-            swift run tuist inspect bundle App.ipa --json --verbose
+            swift run tuist inspect bundle fixtures/ios_app_with_frameworks/App.ipa --json
+            swift run tuist inspect bundle App.ipa --json
 
 workflows:
   inspect:
