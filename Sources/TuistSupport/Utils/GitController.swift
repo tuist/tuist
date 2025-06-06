@@ -147,7 +147,7 @@ public final class GitController: GitControlling {
         // Buildkite
         "BUILDKITE_PULL_REQUEST",
         // CircleCI
-        "CIRCLE_PULL_REQUEST",
+        "CIRCLE_PR_NUMBER",
     ]
 
     private static let branchEnvironmentVariables = [
