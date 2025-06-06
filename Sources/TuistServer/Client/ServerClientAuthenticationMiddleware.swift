@@ -82,7 +82,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                         Logger.current.debug("Access token refreshed for \(baseURL)")
 
                         tokenValue = tokens.accessToken
-                        expiresAt = try ServerAuthenticationController.parseJWT(tokens.refreshToken).expiryDate
+                        expiresAt = try ServerAuthenticationController.parseJWT(tokens.accessToken).expiryDate
                     } else {
                         tokenValue = accessToken.token
                         expiresAt = accessToken.expiryDate
