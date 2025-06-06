@@ -243,6 +243,28 @@ extension String {
         replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: "/", with: "_")
     }
+    
+    public func substrings(between start: String, and end: String) -> [String] {
+        let escapedStart = NSRegularExpression.escapedPattern(for: start)
+        let escapedEnd = NSRegularExpression.escapedPattern(for: end)
+        let pattern = "\(escapedStart)(.*?)\(escapedEnd)"
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            assertionFailure("Invalid regex pattern")
+            return []
+        }
+
+        let nsrange = NSRange(startIndex..<endIndex, in: self)
+        let matches = regex.matches(in: self, options: [], range: nsrange)
+
+        return matches.compactMap { match in
+            guard match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: self) else {
+                return nil
+            }
+            return self[range].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
 }
 
 extension Array where Element: CustomStringConvertible {

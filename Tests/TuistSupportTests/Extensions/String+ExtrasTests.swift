@@ -170,6 +170,38 @@ final class StringExtrasTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result)
     }
+    
+    func test_substrings_between_finds_string_between_delimiters() {
+        // Given
+        let string = "START_TOKENabcdeEND_TOKEN"
+        
+        // When
+        let substrings = string.substrings(between: "START_TOKEN", and: "END_TOKEN")
+        
+        // Then
+        XCTAssertEqual(substrings, ["abcde"])
+    }
+    
+    func test_substrings_between_finds_multilinestring_between_delimiters() {
+        // Given
+        let string =
+        """
+        Here is some text.
+        START_TOKENabcdeEND_TOKEN
+        Some more text in between.
+        START_TOKEN
+        1234
+        5678
+        END_TOKEN
+        And even more text.
+        """
+        
+        // When
+        let substrings = string.substrings(between: "START_TOKEN", and: "END_TOKEN")
+        
+        // Then
+        XCTAssertEqual(substrings, ["abcde", "1234\n5678"])
+    }
 }
 
 final class StringsArrayTests: TuistUnitTestCase {
