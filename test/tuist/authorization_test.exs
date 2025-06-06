@@ -1413,7 +1413,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.user.read.ops when the environment is :dev" do
     # Given
-    stub(Mix, :env, fn -> :dev end)
+    stub(Environment, :dev?, fn -> true end)
     user = AccountsFixtures.user_fixture()
 
     # Then
