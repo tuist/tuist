@@ -104,8 +104,8 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                     if let refreshToken = $0.refreshToken {
                         return .user(
                             legacyToken: nil,
-                            accessToken: try $0.accessToken.map(parseJWT),
-                            refreshToken: try parseJWT(refreshToken)
+                            accessToken: try $0.accessToken.map(Self.parseJWT),
+                            refreshToken: try Self.parseJWT(refreshToken)
                         )
                     } else {
                         Logger.current
@@ -139,7 +139,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         return serverURL.absoluteString.hasPrefix("https://tuist.dev")
     }
 
-    private func parseJWT(_ jwt: String) throws -> JWT {
+    static func parseJWT(_ jwt: String) throws -> JWT {
         let components = jwt.components(separatedBy: ".")
         guard components.count == 3
         else {
