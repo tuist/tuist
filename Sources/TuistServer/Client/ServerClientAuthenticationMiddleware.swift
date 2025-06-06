@@ -74,7 +74,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                 Logger.current.debug("Access token expires in less than \(expiresIn) seconds. Renewing...")
                 if isExpired {
                     guard let refreshToken else { throw ServerClientAuthenticationError.notAuthenticated }
-                    tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
+                    tokenValue = try await cachedValueStore.getValue(key: "token_refresh_\(baseURL.absoluteString)") {
                         Logger.current.debug("Refreshing access token for \(baseURL)")
                         let tokens = try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
                         Logger.current.debug("Access token refreshed for \(baseURL)")

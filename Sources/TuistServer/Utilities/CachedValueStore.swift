@@ -13,7 +13,12 @@ actor CachedValueStore: CachedValueStoring {
     private var tasks: [String: Task<Any, any Error>] = [:]
 
     func getValue<Value>(key: String, computeIfNeeded: @escaping () async throws -> Value) async throws -> Value {
-        tasks[key] = tasks[key] ?? Task { try await computeIfNeeded() }
+        if tasks[key] == nil {
+            tasks[key] = Task {
+                defer { tasks[key] = nil }
+                return try await computeIfNeeded()
+            }
+        }
         // swiftlint:disable:next force_unwrapping, force_cast
         return try await tasks[key]!.value as! Value
     }
