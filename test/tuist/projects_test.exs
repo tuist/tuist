@@ -468,19 +468,142 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
-  describe "get_last_command_event_date/1" do
-    test "returns the last command event date" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
+  describe "list_sorted_with_interaction_data/1" do
+    test "sorts projects with interactions first, by most recent interaction" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
 
-      command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id
+      # Create projects
+      project_a = ProjectsFixtures.project_fixture(name: "project-a", account_id: account.id)
+      project_b = ProjectsFixtures.project_fixture(name: "project-b", account_id: account.id)
+      project_c = ProjectsFixtures.project_fixture(name: "project-c", account_id: account.id)
+
+      # Add interactions with different ran_at times
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_a.id,
+        # oldest interaction
+        ran_at: ~N[2025-06-05 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_b.id,
+        # newest interaction
+        ran_at: ~N[2025-06-05 15:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_c.id,
+        # middle interaction
+        ran_at: ~N[2025-06-05 12:00:00]
+      )
+
+      projects = [project_a, project_b, project_c]
+      sorted_projects = Projects.list_sorted_with_interaction_data(projects)
+      project_names = Enum.map(sorted_projects, & &1.name)
+
+      # Should be sorted by most recent interaction first: B (15:00), C (12:00), A (10:00)
+      assert project_names == ["project-b", "project-c", "project-a"]
+    end
+
+    test "sorts projects without interactions by creation date (newest first)" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # Create projects at different times (no interactions)
+      old_project =
+        ProjectsFixtures.project_fixture(
+          name: "old-project",
+          account_id: account.id,
+          created_at: ~N[2025-01-01 10:00:00]
         )
 
-      # Then
-      assert Projects.get_last_command_event_date(project) == command_event.ran_at
+      recent_project =
+        ProjectsFixtures.project_fixture(
+          name: "recent-project",
+          account_id: account.id,
+          created_at: ~N[2025-06-01 10:00:00]
+        )
+
+      projects = [old_project, recent_project]
+      sorted_projects = Projects.list_sorted_with_interaction_data(projects)
+      project_names = Enum.map(sorted_projects, & &1.name)
+
+      # Should be sorted by creation date (newest first)
+      assert project_names == ["recent-project", "old-project"]
+    end
+
+    test "places projects with interactions before projects without interactions" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # Create a recently created project (no interactions)
+      recent_no_interaction =
+        ProjectsFixtures.project_fixture(
+          name: "recent-no-interaction",
+          account_id: account.id,
+          created_at: ~N[2025-06-05 10:00:00]
+        )
+
+      # Create an old project with an old interaction
+      old_with_interaction =
+        ProjectsFixtures.project_fixture(
+          name: "old-with-interaction",
+          account_id: account.id,
+          created_at: ~N[2025-01-01 10:00:00]
+        )
+
+      # Add an old interaction to the old project
+      CommandEventsFixtures.command_event_fixture(
+        project_id: old_with_interaction.id,
+        # very old interaction
+        ran_at: ~N[2025-01-02 10:00:00]
+      )
+
+      projects = [recent_no_interaction, old_with_interaction]
+      sorted_projects = Projects.list_sorted_with_interaction_data(projects)
+      project_names = Enum.map(sorted_projects, & &1.name)
+
+      # Project with interaction (even old) should appear before project without interaction (even recent)
+      assert project_names == ["old-with-interaction", "recent-no-interaction"]
+    end
+
+    test "handles empty project list" do
+      assert Projects.list_sorted_with_interaction_data([]) == []
+    end
+
+    test "uses most recent interaction for projects with multiple command events" do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      project_a = ProjectsFixtures.project_fixture(name: "project-a", account_id: account.id)
+      project_b = ProjectsFixtures.project_fixture(name: "project-b", account_id: account.id)
+
+      # Project A: old and recent interactions - most recent should be used for sorting
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_a.id,
+        # old interaction
+        ran_at: ~N[2025-06-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_a.id,
+        # most recent interaction
+        ran_at: ~N[2025-06-05 15:00:00]
+      )
+
+      # Project B: single interaction in between
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_b.id,
+        ran_at: ~N[2025-06-05 12:00:00]
+      )
+
+      projects = [project_a, project_b]
+      sorted_projects = Projects.list_sorted_with_interaction_data(projects)
+      project_names = Enum.map(sorted_projects, & &1.name)
+
+      # Project A should come first (most recent interaction at 15:00)
+      # Project B should come second (interaction at 12:00)
+      assert project_names == ["project-a", "project-b"]
     end
   end
 end

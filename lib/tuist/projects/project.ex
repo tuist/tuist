@@ -17,6 +17,8 @@ defmodule Tuist.Projects.Project do
     field :default_branch, :string, default: "main"
     field :vcs_repository_full_handle, :string
     field :vcs_provider, Ecto.Enum, values: [github: 0]
+    field :last_interacted_at, :naive_datetime, virtual: true
+
     belongs_to :account, Account
 
     has_many :previews, Preview

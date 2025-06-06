@@ -302,14 +302,36 @@ defmodule Tuist.Projects do
     Enum.map(integers, &Map.get(int_to_atom_map, &1))
   end
 
-  def get_last_command_event_date(project) do
-    Repo.one(
-      from(ce in Event,
-        where: ce.project_id == ^project.id,
-        order_by: [desc: ce.ran_at],
-        limit: 1,
-        select: ce.ran_at
-      )
+  def list_sorted_with_interaction_data(projects) do
+    project_ids = Enum.map(projects, & &1.id)
+
+    from(p in Project,
+      left_join:
+        ce_max in subquery(
+          from(ce in Event,
+            where: ce.project_id in ^project_ids,
+            group_by: ce.project_id,
+            select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
+          )
+        ),
+      on: p.id == ce_max.project_id,
+      where: p.id in ^project_ids,
+      select: %{p | last_interacted_at: ce_max.last_interacted_at}
+    )
+    |> Repo.all()
+    |> Enum.sort_by(
+      fn project ->
+        case project.last_interacted_at do
+          nil -> {1, project.created_at}
+          last_interacted_at -> {0, last_interacted_at}
+        end
+      end,
+      fn {priority_a, date_a}, {priority_b, date_b} ->
+        case {priority_a, priority_b} do
+          {same, same} -> NaiveDateTime.after?(date_a, date_b)
+          {a, b} -> a < b
+        end
+      end
     )
   end
 end

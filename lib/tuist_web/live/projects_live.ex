@@ -25,7 +25,7 @@ defmodule TuistWeb.ProjectsLive do
       |> Projects.get_all_project_accounts()
       |> Enum.map(&Map.get(&1, :project))
       |> Tuist.Repo.preload(:previews)
-      |> Enum.sort_by(&(Projects.get_last_command_event_date(&1) || &1.created_at), :desc)
+      |> Projects.list_sorted_with_interaction_data()
 
     form = to_form(Project.create_changeset(%{}))
 
@@ -74,12 +74,12 @@ defmodule TuistWeb.ProjectsLive do
               />
             </div>
           </div>
-          <span :if={Projects.get_last_command_event_date(project)} data-part="time">
+          <span :if={project.last_interacted_at} data-part="time">
             {gettext("Last interacted with %{time}", %{
-              time: Timex.from_now(Projects.get_last_command_event_date(project))
+              time: Timex.from_now(project.last_interacted_at)
             })}
           </span>
-          <span :if={!Projects.get_last_command_event_date(project)} data-part="time">
+          <span :if={!project.last_interacted_at} data-part="time">
             {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
           </span>
         </div>
