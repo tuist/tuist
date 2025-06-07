@@ -1,3 +1,4 @@
+import Command
 import Darwin
 import FileSystem
 import Foundation
@@ -10,6 +11,15 @@ import Path
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 @Mockable
 public protocol Environmenting: Sendable {
+    /// Returns the home directory.
+    var homeDirectory: AbsolutePath { get }
+
+    /// Returns the derived data directory selected in the environment.
+    func derivedDataDirectory() async throws -> AbsolutePath
+
+    /// Returns the system's architecture.
+    func architecture() async throws -> MacArchitecture
+
     /// It returns an ID that uniquely identifies the process.
     var processId: String { get }
 
@@ -95,11 +105,13 @@ public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
     public var processId = UUID().uuidString
 
-    // MARK: - Attributes
-
     /// File handler instance.
     public var variables: [String: String] { ProcessInfo.processInfo.environment }
     public var arguments: [String] { ProcessInfo.processInfo.arguments }
+
+    public var homeDirectory: AbsolutePath {
+        try! AbsolutePath(validating: NSHomeDirectory())
+    }
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
@@ -262,5 +274,37 @@ public struct Environment: Environmenting {
         } else {
             return nil
         }
+    }
+
+    public func derivedDataDirectory() async throws -> Path.AbsolutePath {
+        let commandRunner = CommandRunner()
+        if let overrideLocation = try? await commandRunner.run(arguments: [
+            "/usr/bin/defaults",
+            "read",
+            "com.apple.dt.Xcode IDEDerivedDataPathOverride",
+        ], environment: variables).concatenatedString().chomp() {
+            return try! AbsolutePath(validating: overrideLocation.chomp()) // swiftlint:disable:this force_try
+        }
+
+        if let customLocation = try? await commandRunner.run(arguments: [
+            "/usr/bin/defaults",
+            "read",
+            "com.apple.dt.Xcode IDECustomDerivedDataLocation",
+        ], environment: variables).concatenatedString().chomp() {
+            return try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
+        }
+
+        // Default location
+        return homeDirectory
+            .appending(try! RelativePath( // swiftlint:disable:this force_try
+                validating: "Library/Developer/Xcode/DerivedData/"
+            ))
+    }
+
+    public func architecture() async throws -> MacArchitecture {
+        return await MacArchitecture(
+            rawValue: try CommandRunner()
+                .run(arguments: ["/usr/bin/uname", "-m"], environment: variables).concatenatedString().chomp()
+        )!
     }
 }

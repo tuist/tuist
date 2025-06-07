@@ -97,10 +97,13 @@ struct InspectBuildCommandService {
         }
         let projectPath = try await projectPath(path)
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        let projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try? AbsolutePath(
+        var projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try AbsolutePath(
             validating: $0,
             relativeTo: currentWorkingDirectory
-        ) } ?? derivedDataLocator.locate(for: projectPath)
+        ) }
+        if projectDerivedDataDirectory == nil {
+            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+        }
 
         guard let mostRecentActivityLogPath =
             try await xcActivityLogController.mostRecentActivityLogPath(

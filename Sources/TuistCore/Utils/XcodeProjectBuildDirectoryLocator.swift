@@ -20,7 +20,7 @@ public protocol XcodeProjectBuildDirectoryLocating {
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
@@ -33,12 +33,17 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
     public func locate(
         destinationType: DestinationType,
         projectPath: AbsolutePath,
-        derivedDataPath: AbsolutePath?,
+        derivedDataPath _: AbsolutePath?,
         configuration: String
-    ) throws -> AbsolutePath {
-        let derivedDataPath = try derivedDataPath ?? derivedDataLocator.locate(
-            for: projectPath
-        )
+    ) async throws -> AbsolutePath {
+        let derivedDataPath = if let derivedDataPath {
+            derivedDataPath
+        } else {
+            try await derivedDataLocator.locate(
+                for: projectPath
+            )
+        }
+
         return derivedDataPath
             .appending(component: "Build")
             .appending(component: "Products")

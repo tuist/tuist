@@ -93,7 +93,7 @@ public final class TargetRunner: TargetRunning {
 
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
-        let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
+        let xcodeBuildDirectory = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: .simulator(platform),
             projectPath: workspacePath,
             derivedDataPath: nil,
