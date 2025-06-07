@@ -89,7 +89,7 @@ class ProjectGroups {
         project: Project,
         pbxproj: PBXProj
     ) -> ProjectGroups {
-        /// Main
+        // Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
         let textSettings = project.options.textSettings
         let mainGroup = PBXGroup(
@@ -103,7 +103,7 @@ class ProjectGroups {
         )
         pbxproj.add(object: mainGroup)
 
-        /// Project & Target Groups
+        // Project & Target Groups
         let projectGroupNames = extractProjectGroupNames(from: project)
         let groupsToCreate = OrderedSet(projectGroupNames)
         var projectGroups = [(name: String, group: PBXGroup)]()
@@ -114,20 +114,20 @@ class ProjectGroups {
             projectGroups.append((item, projectGroup))
         }
 
-        /// Products
-        /// If the products group is the last non-empty group, it will not appear.
-        /// This appears to be an Xcode bug that is still there as of Xcode 15.3
-        /// https://developer.apple.com/forums/thread/77406
+        // Products
+        // If the products group is the last non-empty group, it will not appear.
+        // This appears to be an Xcode bug that is still there as of Xcode 15.3
+        // https://developer.apple.com/forums/thread/77406
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
         pbxproj.add(object: productsGroup)
         mainGroup.children.append(productsGroup)
 
-        /// SDSKs & Pre-compiled frameworks
+        // SDSKs & Pre-compiled frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
         mainGroup.children.append(frameworksGroup)
 
-        /// Cached frameworks
+        // Cached frameworks
         let cacheGroup = PBXGroup(children: [], sourceTree: .group, name: "Cache")
         pbxproj.add(object: cacheGroup)
         mainGroup.children.append(cacheGroup)

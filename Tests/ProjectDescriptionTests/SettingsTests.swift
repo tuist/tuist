@@ -86,7 +86,7 @@ final class SettingsTests: XCTestCase {
     }
 
     func test_settingsDictionary_chainingMultipleValues() {
-        /// Given / When
+        // Given / When
         let settings = SettingsDictionary()
             .codeSignIdentityAppleDevelopment()
             .currentProjectVersion("999")
@@ -103,7 +103,7 @@ final class SettingsTests: XCTestCase {
             .otherCFlags(["$(inherited)", "-my-c-flag"])
             .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "CODE_SIGN_IDENTITY": "Apple Development",
             "CURRENT_PROJECT_VERSION": "999",
@@ -126,11 +126,11 @@ final class SettingsTests: XCTestCase {
     }
 
     func test_settingsDictionary_codeSignManual() {
-        /// Given/When
+        // Given/When
         let settings = SettingsDictionary()
             .manualCodeSigning(identity: "Apple Distribution", provisioningProfileSpecifier: "ABC")
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "CODE_SIGN_STYLE": "Manual",
             "CODE_SIGN_IDENTITY": "Apple Distribution",
@@ -139,14 +139,14 @@ final class SettingsTests: XCTestCase {
     }
 
     func test_settingsDictionary_otherSwiftFlags() {
-        /// Given/When
+        // Given/When
         let settingsVariadic = SettingsDictionary()
             .otherSwiftFlags("FIRST", "SECOND", "THIRD")
 
         let settingsArray = SettingsDictionary()
             .otherSwiftFlags(["FIRST", "SECOND", "THIRD"])
 
-        /// Then
+        // Then
         XCTAssertEqual(settingsVariadic, [
             "OTHER_SWIFT_FLAGS": ["FIRST", "SECOND", "THIRD"],
         ])
@@ -159,14 +159,14 @@ final class SettingsTests: XCTestCase {
     }
 
     func test_settingsDictionary_swiftActiveCompilationConditions() {
-        /// Given/When
+        // Given/When
         let settingsVariadic = SettingsDictionary()
             .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
 
         let settingsArray = SettingsDictionary()
             .swiftActiveCompilationConditions(["FIRST", "SECOND", "THIRD"])
 
-        /// Then
+        // Then
         XCTAssertEqual(settingsVariadic, [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["FIRST", "SECOND", "THIRD"],
         ])
@@ -179,133 +179,133 @@ final class SettingsTests: XCTestCase {
     }
 
     func test_settingsDictionary_SwiftCompilationMode() {
-        /// Given/When
+        // Given/When
         let settings1 = SettingsDictionary()
             .swiftCompilationMode(.singlefile)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings1, [
             "SWIFT_COMPILATION_MODE": "singlefile",
         ])
 
-        /// Given/When
+        // Given/When
         let settings2 = SettingsDictionary()
             .swiftCompilationMode(.wholemodule)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings2, [
             "SWIFT_COMPILATION_MODE": "wholemodule",
         ])
     }
 
     func test_settingsDictionary_SwiftOptimizationLevel() {
-        /// Given/When
+        // Given/When
         let settings1 = SettingsDictionary()
             .swiftOptimizationLevel(.o)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings1, [
             "SWIFT_OPTIMIZATION_LEVEL": "-O",
         ])
 
-        /// Given/When
+        // Given/When
         let settings2 = SettingsDictionary()
             .swiftOptimizationLevel(.oNone)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings2, [
             "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         ])
 
-        /// Given/When
+        // Given/When
         let settings3 = SettingsDictionary()
             .swiftOptimizationLevel(.oSize)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings3, [
             "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
         ])
     }
 
     func test_settingsDictionary_swiftObjcBridgingHeaderPath() {
-        /// Given/When
+        // Given/When
         let settings = SettingsDictionary()
             .swiftObjcBridgingHeaderPath("/my/bridging/header/path.h")
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "SWIFT_OBJC_BRIDGING_HEADER": "/my/bridging/header/path.h",
         ])
     }
 
     func test_settingsDictionary_otherCFlags() {
-        /// Given/When
+        // Given/When
         let settings = SettingsDictionary()
             .otherCFlags(["$(inherited)", "-my-c-flag"])
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
         ])
     }
 
     func test_settingsDictionary_otherLinkerFlags() {
-        /// Given/When
+        // Given/When
         let settings = SettingsDictionary()
             .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
     }
 
     func test_settingsDictionary_SwiftOptimizeObjectLifetimes() {
-        /// Given/When
+        // Given/When
         let settings1 = SettingsDictionary()
             .swiftOptimizeObjectLifetimes(true)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings1, [
             "SWIFT_OPTIMIZE_OBJECT_LIFETIME": "YES",
         ])
 
-        /// Given/When
+        // Given/When
         let settings2 = SettingsDictionary()
             .swiftOptimizeObjectLifetimes(false)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings2, [
             "SWIFT_OPTIMIZE_OBJECT_LIFETIME": "NO",
         ])
     }
 
     func test_settingsDictionary_marketingVersion() {
-        /// Given/When
+        // Given/When
         let settings = SettingsDictionary()
             .marketingVersion("1.0.0")
 
-        /// Then
+        // Then
         XCTAssertEqual(settings, [
             "MARKETING_VERSION": "1.0.0",
         ])
     }
 
     func test_settingsDictionary_debugInformationFormat() {
-        /// Given/When
+        // Given/When
         let settings1 = SettingsDictionary()
             .debugInformationFormat(.dwarf)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings1, [
             "DEBUG_INFORMATION_FORMAT": "dwarf",
         ])
 
-        /// Given/When
+        // Given/When
         let settings2 = SettingsDictionary()
             .debugInformationFormat(.dwarfWithDsym)
 
-        /// Then
+        // Then
         XCTAssertEqual(settings2, [
             "DEBUG_INFORMATION_FORMAT": "dwarf-with-dsym",
         ])

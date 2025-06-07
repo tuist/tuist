@@ -116,7 +116,7 @@ class UserInputReaderTests: TuistUnitTestCase {
     }
 }
 
-// Custom string reader to simulate user input
+/// Custom string reader to simulate user input.
 private struct StringReader {
     let input: String
     var index: String.Index

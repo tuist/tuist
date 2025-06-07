@@ -1,4 +1,5 @@
 // swiftlint:disable all
+// swiftformat:disable all
 //
 //  String+MD5.swift
 //  Kingfisher

@@ -6,7 +6,6 @@ import XcodeGraph
 ///
 /// A linter that identifies potential issues in a graph where
 /// static products are linked multiple times.
-///
 protocol StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
@@ -53,7 +52,6 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return warnings
     }
 
-    ///
     /// Builds a static products map to enable performing some validation/lint checks.
     ///
     /// The map consists of all linked static products as follows:
@@ -70,7 +68,6 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     /// - In the event a node is a static product it adds itself to the unlinked bucket
     /// - In the event a node is a node capable of linking static products, it removes all the nodes
     ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
-    ///
     private func buildStaticProductsMap(
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
@@ -299,13 +296,13 @@ extension StaticProductsGraphLinter {
     }
 
     private struct StaticProducts {
-        // Unlinked static products
+        /// Unlinked static products
         var unlinked: Set<GraphDependency> = Set()
 
-        // Map of Static product to nodes that link it
-        // e.g.
-        //    - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
-        //    - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
+        /// Map of static product to nodes that link it
+        /// e.g.
+        ///    - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
+        ///    - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
         var linked: [GraphDependency: Set<GraphDependency>] = [:]
 
         func merged(with other: StaticProducts) -> StaticProducts {

@@ -72,7 +72,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "BUNDLE_LOADER",
     ]
 
-    // These are not needed or are computed elsewhere so we exclude them
+    /// These are not needed or are computed elsewhere so we exclude them.
     private static let multiplatformExcludedSettingsKeys = Set([
         "COMBINE_HIDPI_IMAGES",
         "SDKROOT",
@@ -157,7 +157,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             )
         }
 
-        /// This allows running the project directly withou specifying CODE_SIGN_IDENTITY
+        // This allows running the project directly without specifying `CODE_SIGN_IDENTITY`.
         if target.supportsCatalyst {
             settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
         }

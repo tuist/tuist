@@ -110,8 +110,8 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                /* Target dependencies can be defined here */
-                /* .framework(path: "framework") */
+                // Target dependencies can be defined here
+                // .framework(path: "framework")
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",

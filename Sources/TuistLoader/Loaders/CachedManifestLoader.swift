@@ -322,9 +322,11 @@ private struct Hashes: Equatable, Codable {
 }
 
 private struct CachedManifest: Codable {
-    // Note: please bump the version in case the cache structure is modifed
-    // this ensures older cache versions are not loaded using this structure
+    // Note: please bump the version in case the cache structure is modified.
+    // This ensures older cache versions are not loaded using this structure.
+
     static let currentCacheVersion = 1
+
     var cacheVersion: Int = currentCacheVersion
     var tuistVersion: String
     var hashes: Hashes

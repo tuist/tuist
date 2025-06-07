@@ -58,7 +58,7 @@ public struct RunActionOptions: Equatable, Codable, Sendable {
     ///     - storeKitConfigurationPath: The path of the
     ///     [StoreKit configuration
     /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
-    ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
+    ///     Please note that this file is automatically added to the Project/Workspace. You should not add it manually.
     ///     The default value is `nil`, which results in no configuration defined for the scheme
     ///
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
@@ -66,8 +66,7 @@ public struct RunActionOptions: Equatable, Codable, Sendable {
     ///
     ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
     ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
-    ///     You can disable it to test your app in best perfomance.
-
+    ///     You can disable it to test your app in best performance.
     public static func options(
         language: SchemeLanguage? = nil,
         region: String? = nil,

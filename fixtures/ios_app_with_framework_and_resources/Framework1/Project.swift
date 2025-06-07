@@ -3,6 +3,7 @@ import ProjectDescription
 // Example of resources specified via variables instead of direct literals.
 // Often sources and resources are declared in helpers where their values
 // are computed, as such we need to support non-literal declarations.
+
 let resourcesDirectory = "Resources"
 let resources: [ResourceFileElement] = [
     "\(resourcesDirectory)/framework_resource.txt",

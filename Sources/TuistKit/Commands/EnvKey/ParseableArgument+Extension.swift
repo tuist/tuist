@@ -138,6 +138,7 @@ extension Flag where Value == Bool {
 }
 
 // Argument Extensions
+
 extension Argument {
     init<T>(
         wrappedValue value: [T] = [],

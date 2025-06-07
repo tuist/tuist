@@ -54,15 +54,13 @@ public final class ResourceLocator: ResourceLocating {
         var paths: [AbsolutePath] = [
             bundlePath,
             bundlePath.parentDirectory,
-            /**
-                == Homebrew directory structure ==
-                x.y.z/
-                   bin/
-                       tuist
-                   lib/
-                       ProjectDescription.framework
-                       ProjectDescription.framework.dSYM
-                */
+            // == Homebrew directory structure ==
+            // x.y.z/
+            //   bin/
+            //       tuist
+            //   lib/
+            //       ProjectDescription.framework
+            //       ProjectDescription.framework.dSYM
             bundlePath.parentDirectory.appending(component: "lib"),
         ]
         if let frameworkSearchPaths = Environment.current.variables["TUIST_FRAMEWORK_SEARCH_PATHS"]?

@@ -92,10 +92,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { continue }
 
-            /**
-             Since we have target.dependencies and graph.dependencies (duplicated), we have to apply the changes in both sides.
-             Once we refactor the code to only depend on graph.dependencies, we can get rid of these duplications.
-             */
+            // Since we have `target.dependencies` and `graph.dependencies` (duplicated), we have to apply the changes in both
+            // sides.
+            // Once we refactor the code to only depend on graph.dependencies, we can get rid of these duplications.
             target.dependencies = target.dependencies.filter { dependency in
                 switch dependency {
                 case let .target(targetDependencyName, _, _):
@@ -128,12 +127,10 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                         .compactMap { dependency in
                             switch dependency {
                             case let .target(dependencyName, dependencyProjectPath, _):
-                                /**
-                                 If a target dependency a target depends on is tree-shaked, that dependency should be removed.
-                                 This happens in scenarios where a external target (iOS and tvOS framework) conditionally depends on
-                                 framework based on the platform. We have logic to prune unneceessary platforms from the external
-                                 part of the graph.
-                                 */
+                                // If a target dependency a target depends on is tree-shaked, that dependency should be removed.
+                                // This happens in scenarios where a external target (iOS and tvOS framework) conditionally
+                                // depends on framework based on the platform. We have logic to prune unnecessary platforms from
+                                // the external part of the graph.
                                 if sourceTargets.contains(
                                     TargetReference(
                                         projectPath: dependencyProjectPath,

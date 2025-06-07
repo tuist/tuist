@@ -12,8 +12,8 @@ let project = Project(
             sources: "Sources/**",
             resources: "Resources/**",
             dependencies: [
-                /* Target dependencies can be defined here */
-                /* .framework(path: "framework") */
+                // Target dependencies can be defined here
+                // .framework(path: "framework")
                 .project(target: "D", path: "../D"),
             ]
         ),

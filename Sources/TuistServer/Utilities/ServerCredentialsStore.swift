@@ -109,11 +109,9 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         guard try await fileSystem.exists(path) else { return nil }
         let data = try await fileSystem.readFile(at: path)
 
-        /**
-         This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-         and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-         but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
-         */
+        // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+        // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+        // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
         return try? JSONDecoder().decode(ServerCredentials.self, from: data)
     }
 

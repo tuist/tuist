@@ -111,7 +111,7 @@ extension LoggingConfig {
     }
 }
 
-// A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
+/// A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
 protocol VerboseLogHandler: LogHandler {
     @Sendable static func verbose(label: String) -> LogHandler
     @Sendable init(label: String)

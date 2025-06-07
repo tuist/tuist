@@ -201,7 +201,7 @@ final class ProjectEditor: ProjectEditing {
             projectDescriptionHelpersBuilder: projectDescriptionHelpersBuilder
         )
 
-        /// We error if the user tries to edit a project in a directory where there are no editable files.
+        // We error if the user tries to edit a project in a directory where there are no editable files.
         if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templateSources.isEmpty,
            resourceSynthesizers.isEmpty, stencils.isEmpty, packageManifestPath == nil
         {

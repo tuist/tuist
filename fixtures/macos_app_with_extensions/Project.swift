@@ -1,8 +1,6 @@
 import ProjectDescription
 
-/**
- These are necessary for the compiler to find the Workflow's SDK and link against it.
- **/
+/// These are necessary for the compiler to find the Workflow's SDK and link against it.
 let workflowExtensionSettings: SettingsDictionary = [
     "ADDITIONAL_SDKS": "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk $(inherited)",
     "OTHER_LDFLAGS": "-fapplication-extension -e _ProExtensionMain -lProExtension",

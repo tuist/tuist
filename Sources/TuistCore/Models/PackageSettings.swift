@@ -9,13 +9,13 @@ public struct PackageSettings: Equatable, Codable {
     /// Custom destinations to be used for SPM products.
     public let productDestinations: [String: Destinations]
 
-    // The base settings to be used for targets generated from SwiftPackageManager
+    /// The base settings to be used for targets generated from SwiftPackageManager.
     public let baseSettings: Settings
 
-    /// The custom `Settings` to be applied to SPM targets
+    /// The custom `Settings` to be applied to SPM targets.
     public let targetSettings: [String: Settings]
 
-    /// The custom project options for each project generated from a swift package
+    /// The custom project options for each project generated from a swift package.
     public let projectOptions: [String: XcodeGraph.Project.Options]
 
     /// Initializes a new `PackageSettings` instance.

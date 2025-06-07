@@ -65,8 +65,8 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             if acc.isEmpty { acc.formUnion(next.buildSettings.keys) } else { acc.formIntersection(next.buildSettings.keys) }
         }
 
-        /// We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
-        /// Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
+        // We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
+        // Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
         let commonBuildSettings = repeatedBuildSettingsKeys.filter { buildSetting -> Bool in
             let values = buildConfigurations.map { $0.buildSettings[buildSetting]! }
             let stringValues = values.compactMap(\.stringValue)

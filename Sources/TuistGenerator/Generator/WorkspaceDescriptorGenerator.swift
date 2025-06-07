@@ -92,7 +92,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         Logger.current.notice("Generating workspace \(workspaceName)", metadata: .section)
 
-        /// Projects
+        // Projects
         let projects = try await Array(graphTraverser.projects.values)
             .concurrentCompactMap { project -> ProjectDescriptor? in
                 try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)

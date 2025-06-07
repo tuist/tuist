@@ -58,14 +58,12 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
-            /**
-                == Homebrew directory structure ==
-                x.y.z/
-                   bin/
-                       tuist
-                   share/
-                       Templates
-                */
+            // == Homebrew directory structure ==
+            // x.y.z/
+            //   bin/
+            //       tuist
+            //   share/
+            //       Templates
             bundlePath.parentDirectory.appending(try! RelativePath(validating: "share")),
             // swiftlint:disable:previous force_try
         ]

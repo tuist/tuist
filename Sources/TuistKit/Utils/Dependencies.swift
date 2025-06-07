@@ -63,7 +63,7 @@ private func initLogger() async throws -> (Logger, Path.AbsolutePath) {
     let (loggerHandler, logFilePath) = try await LogsController().setup(
         stateDirectory: Environment.current.stateDirectory
     )
-    /// This is the old initialization method and will eventually go away.
+    // This is the old initialization method and will eventually go away.
     LoggingSystem.bootstrap(loggerHandler)
     return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
 }

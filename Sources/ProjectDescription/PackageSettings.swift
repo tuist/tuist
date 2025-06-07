@@ -36,10 +36,10 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// explicit.
     public var productDestinations: [String: Destinations]
 
-    // The base settings to be used for targets generated from SwiftPackageManager
+    /// The base settings to be used for targets generated from SwiftPackageManager
     public var baseSettings: Settings
 
-    // Additional settings to be added to targets generated from SwiftPackageManager.
+    /// Additional settings to be added to targets generated from SwiftPackageManager.
     public var targetSettings: [String: Settings]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.

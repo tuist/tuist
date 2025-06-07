@@ -5,6 +5,7 @@ import ProjectDescriptionHelpers
 import LocalPlugin
 
 // Test plugins are loaded
+
 let localHelper = LocalHelper(name: "LocalPlugin")
 let remoteHelper = RemoteHelper(name: "RemotePlugin")
 

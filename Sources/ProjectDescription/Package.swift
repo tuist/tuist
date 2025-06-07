@@ -215,7 +215,7 @@ extension Package {
     ///
     /// - Returns: A `Package` instance.
     public static func package(id: String, _ range: ClosedRange<Version>) -> Package {
-        // Increase upperbound's patch version by one.
+        // Increase upper-bound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
             upper.major, upper.minor, upper.patch + 1,
@@ -227,6 +227,7 @@ extension Package {
 }
 
 // Mark common APIs used by mistake as unavailable to provide better error messages.
+
 extension Package {
     @available(*, unavailable, message: "use package(url:_:) with the .exact(Version) initializer instead")
     public static func package(url _: String, version _: Version) -> Package {

@@ -235,9 +235,9 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
     }
 
-    // We need a separate app to test out Message Extensions
-    // as having both stickers pack and message extensions in one app
-    // doesn't seem to be supported.
+    /// We need a separate app to test out Message Extensions
+    /// as having both stickers pack and message extensions in one app
+    /// doesn't seem to be supported.
     func test_run_doesntThrowAnyErrorsWithAppExtensionsSetWithMessageExtension_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")

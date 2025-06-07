@@ -114,8 +114,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         Synthesized(dependencyReference: lhs) < Synthesized(dependencyReference: rhs)
     }
 
-    // Private helper type to auto-synthesize the hashable & comparable implementations
-    // where only the required subset of properties are used.
+    /// Private helper type to auto-synthesize the hashable & comparable implementations
+    /// where only the required subset of properties are used.
     private enum Synthesized: Comparable, Hashable {
         case macro(path: AbsolutePath)
         case sdk(path: AbsolutePath, condition: PlatformCondition?)

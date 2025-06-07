@@ -71,9 +71,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     ($0.signature, $0.duration)
                 })
             {
-                /**
-                 If a target supports multiple platforms, the time will persist is the time of the latest platform that we built.
-                 */
+                // If a target supports multiple platforms, the time will persist is the time of the latest platform that we
+                // built.
                 buildTimes[targetName] = targetBuildDuration
             }
         }
@@ -204,7 +203,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     }
                 }
 
-                /// We want to ignore steps for emitting modules as we care about the compilation of the file itself.
+                // We want to ignore steps for emitting modules as we care about the compilation of the file itself.
                 guard !step.title.hasPrefix("Emit") else {
                     return nil
                 }

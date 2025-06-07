@@ -46,3 +46,5 @@
 --wrapcollections before-first
 --wrapconditions after-first
 --wrapparameters before-first
+--enable blockComments
+--enable docComments
