@@ -32,10 +32,11 @@ public enum Product: String, Codable, Equatable, Sendable {
     case messagesExtension
     /// A sticker pack extension.
     case stickerPackExtension = "sticker_pack_extension"
-    //    case watchApp
-    //    case watchExtension
-    //    case tvIntentsExtension
-    //    case messagesApplication
+    // case watchApp
+    // case watchExtension
+    // case tvIntentsExtension
+    // case messagesApplication
+
     /// An XPC. (macOS platform only).
     case xpc
     /// An system extension. (macOS platform only).

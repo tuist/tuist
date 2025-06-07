@@ -72,13 +72,12 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                   let timestamp = Double(components[0]),
                   let id = UUID(uuidString: String(components[2]))
             else {
-                /// Changing the naming convention is a breaking change. When detected
-                /// we delete the event.
+                // Changing the naming convention is a breaking change. When detected we delete the event.
                 try? await fileSystem.remove(eventPath)
                 return nil
             }
 
-            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuosly
+            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuously
             // fail to be uploaded.
             let date = Date(timeIntervalSince1970: timestamp)
             if dateService.now().timeIntervalSince(date) > 24 * 60 * 60 {

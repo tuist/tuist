@@ -18,13 +18,13 @@ public struct SimulatorRuntime: Equatable, Codable, Hashable, CustomStringConver
     /// Runtime identifier (e.g. com.apple.CoreSimulator.SimRuntime.iOS-13-5)
     public let identifier: String
 
-    /// Runtime version (e.g. 13.5)
+    /// Runtime version (e.g. 13.5).
     public let version: SimulatorRuntimeVersion
 
-    // True if the runtime is available.
+    /// `True` if the runtime is available.
     public let isAvailable: Bool
 
-    // Name of the runtime (e.g. iOS 13.5)
+    /// Name of the runtime (e.g. iOS 13.5).
     public let name: String
 
     public var platform: Platform? {

@@ -219,7 +219,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             nativeTargets[target.name] = nativeTarget
         }
 
-        /// Target dependencies
+        // Target dependencies
         try targetGenerator.generateTargetDependencies(
             path: project.path,
             targets: Array(project.targets.values),
@@ -318,17 +318,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         // BuildIndependentTargetsInParallel
         attributes["BuildIndependentTargetsInParallel"] = "YES"
 
-        /// Organization name
+        // Organization name
         if let organizationName = project.organizationName {
             attributes["ORGANIZATIONNAME"] = .string(organizationName)
         }
 
-        /// Class prefix
+        // Class prefix
         if let classPrefix = project.classPrefix {
             attributes["CLASSPREFIX"] = .string(classPrefix)
         }
 
-        /// Last upgrade check
+        // Last upgrade check
         if let lastUpgradeCheck = project.lastUpgradeCheck {
             attributes["LastUpgradeCheck"] = .string(lastUpgradeCheck.xcodeStringValue)
         }

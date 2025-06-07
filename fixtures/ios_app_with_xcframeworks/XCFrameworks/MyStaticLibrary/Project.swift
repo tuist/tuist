@@ -11,11 +11,11 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: [
-                /* Path to resources can be defined here */
+                // Path to resources can be defined here
                 // "Resources/**"
             ],
             dependencies: [
-                /* Target dependencies can be defined here */
+                // Target dependencies can be defined here
                 // .framework(path: "Frameworks/MyStaticLibrary.framework")
             ],
             settings: .settings(base: [

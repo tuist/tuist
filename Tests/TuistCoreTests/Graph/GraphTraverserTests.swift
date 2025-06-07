@@ -1116,12 +1116,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
     }
 
     func test_embeddableFrameworks_when_macroExecutableInBetween() throws {
-        /**
-         Target > Macro XCFramework > Macro Executable > Dynamic SwiftSyntax
-
-         Having a macro executable that links dynamic dependencies is an scenario that Tuist might support in the future.
-         This test ensures that our graph traverser is accounting for that already.
-         */
+        // Target > Macro XCFramework > Macro Executable > Dynamic SwiftSyntax
+        //
+        // Having a macro executable that links dynamic dependencies is an scenario that Tuist might support in the future.
+        // This test ensures that our graph traverser is accounting for that already.
         // Given
         let target = Target.test(name: "Main", product: .app)
         let precompiledMacro = GraphDependency.testXCFramework(linking: .dynamic)
@@ -3958,11 +3956,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
     }
 
     func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
-        /**
-         XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
-         platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework dependencies
-         and include not only the direct but the transitive dependencies.
-         */
+        // XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
+        // platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework
+        // dependencies
+        // and include not only the direct but the transitive dependencies.
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
@@ -4213,8 +4210,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(result, .condition(.when([.ios])))
     }
 
-    // Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for
-    // platform filters
+    /// Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for
+    /// platform filters
     func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.mac], product: .app)
@@ -4640,7 +4637,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(result.condition, platformCondition)
     }
 
-    // https://github.com/tuist/tuist/issues/5746
+    /// https://github.com/tuist/tuist/issues/5746
     func test_transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .mac], product: .app)

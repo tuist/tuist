@@ -88,7 +88,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let product = target.target.product
         let name = target.target.name
 
-        /** The second condition is to exclude the resources bundle associated to the given target name */
+        // The second condition is to exclude the resources bundle associated to the given target name
         let isExcluded = excludedTargets.contains(name) || excludedTargets
             .contains(target.target.name.dropPrefix("\(target.project.name)_"))
         let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)

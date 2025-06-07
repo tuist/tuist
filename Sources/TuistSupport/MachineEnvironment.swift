@@ -43,7 +43,7 @@ public final class MachineEnvironment: MachineEnvironmentRetrieving {
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
     public let hardwareName = ProcessInfo.processInfo.machineHardwareName
 
-    // Taken from: https://github.com/open-telemetry/opentelemetry-swift/blob/b1323295a67c7cf9b7c59a505d197432abe8a88a/Sources/Instrumentation/SDKResourceExtension/DataSource/DeviceDataSource.swift#L17
+    /// Taken from: https://github.com/open-telemetry/opentelemetry-swift/blob/b1323295a67c7cf9b7c59a505d197432abe8a88a/Sources/Instrumentation/SDKResourceExtension/DataSource/DeviceDataSource.swift#L17
     public func modelIdentifier() -> String? {
         let hwName = UnsafeMutablePointer<Int32>.allocate(capacity: 2)
         hwName[0] = CTL_HW

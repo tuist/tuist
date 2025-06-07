@@ -5,6 +5,7 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
         case invalidTestIdentifier(value: String)
 
         // Error description
+
         var description: String {
             switch self {
             case let .invalidTestIdentifier(value):
@@ -13,6 +14,7 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
         }
 
         // Error type
+
         var type: ErrorType {
             switch self {
             case .invalidTestIdentifier:

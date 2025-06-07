@@ -84,7 +84,6 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
     ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
     ///   - codeGen: The source file attribute to be set in the build phase.
     ///   - compilationCondition: Condition for file compilation.
-
     public static func generated(
         _ path: Path,
         compilerFlags: String? = nil,

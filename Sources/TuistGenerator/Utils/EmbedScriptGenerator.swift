@@ -65,11 +65,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []
 
-        /*
-         * This is required to prevent the new build system from failing when multiple test targets cause the same
-         * output files. The symbols aren't really required to be copied for tests so this patch excludes them.
-         * For more details see the discussion on https://github.com/tuist/tuist/issues/919.
-         */
+        // This is required to prevent the new build system from failing when multiple test targets cause the same
+        // output files. The symbols aren't really required to be copied for tests so this patch excludes them.
+        // For more details see the discussion on https://github.com/tuist/tuist/issues/919.
         func addSymbolsIfRequired(inputPath: RelativePath, outputPath: String) {
             if includeSymbolsInFileLists {
                 inputPaths.append(inputPath)

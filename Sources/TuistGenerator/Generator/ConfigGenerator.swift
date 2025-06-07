@@ -45,7 +45,7 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) async throws -> XCConfigurationList {
-        /// Configuration list
+        // Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(

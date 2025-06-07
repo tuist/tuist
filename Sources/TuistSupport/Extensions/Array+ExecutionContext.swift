@@ -130,10 +130,9 @@ extension Array where Element: Sendable {
 
 // MARK: - Private
 
-//
 // Concurrent Map / For Each
-// based on https://talk.objc.io/episodes/S01E90-concurrent-map
-//
+// Based on https://talk.objc.io/episodes/S01E90-concurrent-map
+
 extension Array {
     private func concurrentMap<B>(_ transform: (Element) throws -> B) rethrows -> [B] {
         let result = ThreadSafe([Result<B, Error>?](repeating: nil, count: count))

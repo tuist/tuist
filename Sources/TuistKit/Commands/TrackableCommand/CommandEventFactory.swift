@@ -8,8 +8,7 @@ import TuistSupport
 import XcodeGraph
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information
-/// from different sources and tells `analyticsTagger` to send the event to a provider
-
+/// from different sources and tells `analyticsTagger` to send the event to a provider.
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
