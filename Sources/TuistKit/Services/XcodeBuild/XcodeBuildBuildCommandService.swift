@@ -44,7 +44,7 @@ struct XcodeBuildBuildCommandService {
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
-            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
             await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
@@ -64,7 +64,7 @@ struct XcodeBuildBuildCommandService {
     private func path(
         passthroughXcodebuildArguments: [String]
     ) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         if let workspaceOrProjectPath = passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
             passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
         {
