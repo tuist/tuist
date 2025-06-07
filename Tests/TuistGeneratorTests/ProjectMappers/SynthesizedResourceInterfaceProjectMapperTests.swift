@@ -36,7 +36,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             // Given
             var templateStrings: [String] = []
             var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]
-            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
+            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, _, paths in
                 templateStrings.append(templateString)
                 parserOptionsStrings[parser] = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted()
                     .joined(separator: ", ")
@@ -128,7 +128,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["xcassets"],
-                    template: .defaultTemplate("Assets")
+                    template: .defaultTemplate("Assets"),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
                 .init(
                     parser: .strings,
@@ -139,7 +145,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["strings", "stringsdict"],
-                    template: .file(stringsTemplatePath)
+                    template: .file(stringsTemplatePath),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
                 .init(
                     parser: .plists,
@@ -150,7 +162,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["plist"],
-                    template: .defaultTemplate("Plists")
+                    template: .defaultTemplate("Plists"),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
                 .init(
                     parser: .fonts,
@@ -161,7 +179,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["otf", "ttc", "ttf", "woff"],
-                    template: .defaultTemplate("Fonts")
+                    template: .defaultTemplate("Fonts"),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
                 .init(
                     parser: .json,
@@ -172,7 +196,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["lottie"],
-                    template: .file(lottieTemplatePath)
+                    template: .file(lottieTemplatePath),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
                 .init(
                     parser: .coreData,
@@ -183,7 +213,13 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         "doubleValue": 1.0,
                     ],
                     extensions: ["xcdatamodeld"],
-                    template: .file(coreDataTemplatePath)
+                    template: .file(coreDataTemplatePath),
+                    templateParameters: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ]
                 ),
             ]
 
@@ -335,7 +371,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_whenDisableSynthesizedResourceAccessors() throws {
         // Given
         var templateStrings: [String] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, _, paths in
             templateStrings.append(templateString)
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
@@ -410,31 +446,36 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 parser: .assets,
                 parserOptions: [:],
                 extensions: ["xcassets"],
-                template: .defaultTemplate("Assets")
+                template: .defaultTemplate("Assets"),
+                templateParameters: [:]
             ),
             .init(
                 parser: .strings,
                 parserOptions: [:],
                 extensions: ["strings", "stringsdict"],
-                template: .file(stringsTemplatePath)
+                template: .file(stringsTemplatePath),
+                templateParameters: [:]
             ),
             .init(
                 parser: .plists,
                 parserOptions: [:],
                 extensions: ["plist"],
-                template: .defaultTemplate("Plists")
+                template: .defaultTemplate("Plists"),
+                templateParameters: [:]
             ),
             .init(
                 parser: .fonts,
                 parserOptions: [:],
                 extensions: ["otf", "ttc", "ttf", "woff"],
-                template: .defaultTemplate("Fonts")
+                template: .defaultTemplate("Fonts"),
+                templateParameters: [:]
             ),
             .init(
                 parser: .json,
                 parserOptions: [:],
                 extensions: ["lottie"],
-                template: .file(lottieTemplatePath)
+                template: .file(lottieTemplatePath),
+                templateParameters: [:]
             ),
             .init(
                 parser: .coreData,
@@ -445,7 +486,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     "doubleValue": 1.0,
                 ],
                 extensions: ["xcdatamodeld"],
-                template: .file(coreDataTemplatePath)
+                template: .file(coreDataTemplatePath),
+                templateParameters: [:]
             ),
         ]
 
@@ -471,7 +513,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
         // Given
         var bundleNames: [String?] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, bundleName, _ in
             bundleNames.append(bundleName)
             return ""
         }
@@ -510,7 +552,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
         // Given
         var bundleNames: [String?] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, bundleName, _ in
             bundleNames.append(bundleName)
             return ""
         }
@@ -559,19 +601,22 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 parser: .assets,
                 parserOptions: [:],
                 extensions: ["xcassets"],
-                template: .defaultTemplate("Assets")
+                template: .defaultTemplate("Assets"),
+                templateParameters: [:]
             ),
             .init(
                 parser: .plists,
                 parserOptions: [:],
                 extensions: ["plist"],
-                template: .defaultTemplate("Plists")
+                template: .defaultTemplate("Plists"),
+                templateParameters: [:]
             ),
             .init(
                 parser: .fonts,
                 parserOptions: [:],
                 extensions: ["otf", "ttc", "ttf", "woff"],
-                template: .defaultTemplate("Fonts")
+                template: .defaultTemplate("Fonts"),
+                templateParameters: [:]
             ),
         ]
     }

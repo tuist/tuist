@@ -255,6 +255,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                         parser: resourceSynthesizer.parser,
                         parserOptions: resourceSynthesizer.parserOptions,
                         templateString: templateString,
+                        templateParameters: resourceSynthesizer.templateParameters,
                         name: target.productName.camelized.uppercasingFirst,
                         bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
                         paths: paths
