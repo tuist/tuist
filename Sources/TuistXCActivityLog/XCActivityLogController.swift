@@ -212,7 +212,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 if let absolutePath = try? AbsolutePath(
                     validating: step.documentURL
                         .replacingOccurrences(of: "file://", with: "")
-                ), DeveloperEnvironment.current.derivedDataDirectory.isAncestor(of: absolutePath) {
+                ), try await Environment.current.derivedDataDirectory().isAncestor(of: absolutePath) {
                     return nil
                 }
 

@@ -75,7 +75,7 @@ public protocol SimulatorControlling {
     ) async throws -> String
 
     /// Returns the simulator destination for the macOS platform
-    func macOSDestination(catalyst: Bool) -> String
+    func macOSDestination(catalyst: Bool) async throws -> String
 
     /// Returns the list of simulator devices that are available in the system.
     func devices() async throws -> [SimulatorDevice]
@@ -346,7 +346,7 @@ public final class SimulatorController: SimulatorControlling {
         case .tvOS: platform = .tvOS
         case .visionOS: platform = .visionOS
         case .macOS:
-            return macOSDestination()
+            return try await macOSDestination()
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
@@ -358,9 +358,9 @@ public final class SimulatorController: SimulatorControlling {
         return "id=\(deviceAndRuntime.device.udid)"
     }
 
-    public func macOSDestination(catalyst: Bool = false) -> String {
+    public func macOSDestination(catalyst: Bool = false) async throws -> String {
         let arch: String
-        switch DeveloperEnvironment.current.architecture {
+        switch try await Environment.current.architecture() {
         case .arm64:
             arch = "arm64"
         case .x8664:

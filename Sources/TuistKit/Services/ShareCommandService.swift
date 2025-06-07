@@ -340,7 +340,7 @@ struct ShareCommandService {
         configuration: String,
         temporaryPath: AbsolutePath
     ) async throws -> AbsolutePath? {
-        let appPath = try xcodeProjectBuildDirectoryLocator.locate(
+        let appPath = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: destinationType,
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,

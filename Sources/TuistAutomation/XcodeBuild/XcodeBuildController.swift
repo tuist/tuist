@@ -81,9 +81,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination()])
         case .macCatalyst:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
@@ -155,9 +155,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination()])
         case .macCatalyst:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }

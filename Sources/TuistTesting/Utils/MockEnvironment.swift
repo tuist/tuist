@@ -41,6 +41,17 @@ public final class MockEnvironment: Environmenting {
     public var currentExecutablePathStub: AbsolutePath?
     public func currentExecutablePath() -> AbsolutePath? { currentExecutablePathStub ?? Environment.currentExecutablePath() }
 
+    public var homeDirectory: Path.AbsolutePath { directory.path.appending(components: "home") }
+
+    public func derivedDataDirectory() async throws -> Path.AbsolutePath {
+        directory.path.appending(components: "DerivedData")
+    }
+
+    public var stubbedArchitecture: TuistSupport.MacArchitecture = .arm64
+    public func architecture() async throws -> TuistSupport.MacArchitecture {
+        return stubbedArchitecture
+    }
+
     public func currentWorkingDirectory() async throws -> AbsolutePath {
         directory.path.appending(components: "current")
     }

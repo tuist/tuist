@@ -23,7 +23,7 @@ struct ProjectEditorMapperTests {
             .swiftVersion()
             .willReturn("5.2")
 
-        DeveloperEnvironment.mocked?.stubbedArchitecture = .arm64
+        Environment.mocked?.stubbedArchitecture = .arm64
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
         subject = ProjectEditorMapper(
             swiftPackageManagerController: swiftPackageManagerController
@@ -31,7 +31,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -268,7 +268,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -352,7 +352,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -469,7 +469,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -550,7 +550,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -659,7 +659,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
@@ -720,7 +720,7 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
-        .withMockedDeveloperEnvironment,
+        .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController

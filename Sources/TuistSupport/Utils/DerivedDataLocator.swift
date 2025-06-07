@@ -7,21 +7,17 @@ import Path
 public protocol DerivedDataLocating {
     func locate(
         for projectPath: AbsolutePath
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 public final class DerivedDataLocator: DerivedDataLocating {
-    private let devEnvironment: DeveloperEnvironmenting
-
-    public init(devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.current) {
-        self.devEnvironment = devEnvironment
-    }
+    public init() {}
 
     public func locate(
         for projectPath: AbsolutePath
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
-        return devEnvironment.derivedDataDirectory
+        return try await Environment.current.derivedDataDirectory()
             .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
     }
 }
