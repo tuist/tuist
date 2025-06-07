@@ -33,10 +33,10 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
     public func locate(
         destinationType: DestinationType,
         projectPath: AbsolutePath,
-        derivedDataPath _: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
         configuration: String
     ) async throws -> AbsolutePath {
-        let derivedDataPath = if let derivedDataPath {
+        let derivedDataDirectory = if let derivedDataPath {
             derivedDataPath
         } else {
             try await derivedDataLocator.locate(
@@ -44,7 +44,7 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
             )
         }
 
-        return derivedDataPath
+        return derivedDataDirectory
             .appending(component: "Build")
             .appending(component: "Products")
             .appending(
