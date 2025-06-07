@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Path
 import TSCUtility
+import TuistSupport
 
 enum BenchmarkCommandError: LocalizedError {
     case missing(description: String)
@@ -84,8 +85,7 @@ struct BenchmarkCommand: AsyncParsableCommand {
         let config: BenchmarkConfig = try config.map { try parseConfig(path: $0) } ?? .default
         let fixtures = try await getFixturePaths(
             fixturesListPath: fixtureList,
-            fixturePath: fixture,
-            fileSystem: fileSystem
+            fixturePath: fixture
         )
 
         let renderer = makeRenderer(
@@ -157,8 +157,7 @@ struct BenchmarkCommand: AsyncParsableCommand {
 
     private func getFixturePaths(
         fixturesListPath: AbsolutePath?,
-        fixturePath: AbsolutePath?,
-        fileSystem: FileSysteming
+        fixturePath: AbsolutePath?
     ) async throws -> [AbsolutePath] {
         if let fixturePath {
             return [fixturePath]
@@ -167,7 +166,7 @@ struct BenchmarkCommand: AsyncParsableCommand {
         if let fixturesListPath {
             let fixtures = try parseFixtureList(path: fixturesListPath)
             return try await fixtures.paths.serialMap {
-                try AbsolutePath(validating: $0, relativeTo: try await fileSystem.currentWorkingDirectory())
+                try AbsolutePath(validating: $0, relativeTo: try await Environment.current.currentWorkingDirectory())
             }
         }
 

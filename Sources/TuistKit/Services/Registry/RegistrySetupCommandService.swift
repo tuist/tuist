@@ -62,7 +62,7 @@ struct RegistrySetupCommandService {
     func run(
         path: String?
     ) async throws {
-        let path = try await self.path(path)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
 
         guard let fullHandle = config.fullHandle else {
@@ -147,16 +147,6 @@ struct RegistrySetupCommandService {
                 ]
             )
         )
-    }
-
-    private func path(_ path: String?) async throws -> AbsolutePath {
-        if let path {
-            return try await AbsolutePath(
-                validating: path, relativeTo: fileSystem.currentWorkingDirectory()
-            )
-        } else {
-            return try await fileSystem.currentWorkingDirectory()
-        }
     }
 
     private func registryConfigurationJSON(

@@ -241,7 +241,7 @@ struct XcodeBuildTestCommandService {
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
-            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(
                 validating: resultBundlePathString, relativeTo: currentWorkingDirectory
             )
@@ -322,7 +322,7 @@ struct XcodeBuildTestCommandService {
     private func path(
         passthroughXcodebuildArguments: [String]
     ) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         if let workspaceOrProjectPath = Self.passedValue(
             for: "-workspace", arguments: passthroughXcodebuildArguments
         )

@@ -20,6 +20,7 @@ let targets: [Target] = [
             pathDependency,
             swiftToolsSupportDependency,
             "FileSystem",
+            "TuistSupport",
         ]
     ),
     .executableTarget(
@@ -28,7 +29,9 @@ let targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
+            pathDependency,
             "ProjectDescription",
+            "TuistSupport",
         ]
     ),
     .target(

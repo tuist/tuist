@@ -136,7 +136,7 @@ public struct InitCommandService {
 
         try await mise(path: projectDirectory, nextSteps: &nextSteps)
 
-        let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         if projectDirectory != currentWorkingDirectory {
             nextSteps.insert(
                 "Choose the project directory with \(.command("cd \(projectDirectory.relative(to: currentWorkingDirectory).pathString)"))",

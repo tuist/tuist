@@ -2,12 +2,13 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
+import TuistSupport
 
 enum GenerateCommandError: Error {
     case invalidPath
 }
 
-struct GenerateCommand: ParsableCommand {
+struct GenerateCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "generate",
@@ -41,12 +42,8 @@ struct GenerateCommand: ParsableCommand {
     )
     var sources: Int?
 
-    func run() throws {
-        guard let currentPath = localFileSystem.currentWorkingDirectory else {
-            throw GenerateCommandError.invalidPath
-        }
-
-        let path = try AbsolutePath(validating: path ?? "Fixture", relativeTo: currentPath)
+    func run() async throws {
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path ?? "Fixture")
 
         let config = GeneratorConfig(
             projects: projects ?? GeneratorConfig.default.projects,
@@ -55,6 +52,6 @@ struct GenerateCommand: ParsableCommand {
         )
         let generator = Generator(fileSystem: localFileSystem, config: config)
 
-        try generator.generate(at: path)
+        try generator.generate(at: TSCBasic.AbsolutePath(validating: path.pathString))
     }
 }
