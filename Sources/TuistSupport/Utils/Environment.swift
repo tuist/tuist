@@ -110,6 +110,7 @@ public struct Environment: Environmenting {
     public var arguments: [String] { ProcessInfo.processInfo.arguments }
 
     public var homeDirectory: AbsolutePath {
+        // swiftlint:disable force_try
         try! AbsolutePath(validating: NSHomeDirectory())
     }
 
