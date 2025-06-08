@@ -39,12 +39,12 @@ Docker 이미지를 실행하는 것 외에도, 관계형 데이터를 저장하
 > [!INFO] 마이그레이션\
 > Docker 이미지의 엔트리포인트는 컨테이너가 실행되기 전에 자동으로 대기 중인 스킴 마이그레이션을 실행합니다.
 
-### ClickHouse database {#clickhouse-database}
+### ClickHouse 데이터베이스 {#clickhouse-database}
 
-To store large amount of data, we are using [ClickHouse](https://clickhouse.com/). Some features, like build insights, will only work with ClickHouse enabled. ClickHouse will eventually replace the Timescale Postgres extension. You can choose whether to self-host ClickHouse or use their hosted service.
+대용량 데이터 저장을 위해 [ClickHouse](https://clickhouse.com/)를 사용합니다. 빌드 인사이트와 같은 기능은 ClickHouse가 활성화된 경우에만 동작합니다. ClickHouse는 Timescale Postgres 확장을 대체할 것입니다. ClickHouse를 자체 호스팅을 사용할지 아니면 호스팅 서비스를 이용할지 선택할 수 있습니다.
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+> [!INFO] MIGRATIONS\
+> Docker 이미지의 엔트리포인트는 서비스를 시작하기 전에 자동으로 대기 중인 ClickHouse 스킴 마이그레이션을 실행합니다.
 
 ### 저장소 {#storage}
 
@@ -88,7 +88,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 | 환경 변수                           | 설명                                                                                                                                                                                   | 필수 여부 | 기본값    | 예시                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ------ | ---------------------------------------------------------------------- |
 | `DATABASE_URL`                  | Postgres 데이터베이스 접근을 위한 URL 입니다. URL에는 인증 정보가 포함되어야 합니다.                                                                                              | Yes   |        | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`          | The URL to access the ClickHouse database. URL에는 인증 정보가 포함되어야 합니다.                                                                                   | No    |        | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `TUIST_CLICKHOUSE_URL`          | ClickHouse 데이터베이스 접근을 위한 URL URL에는 인증 정보가 포함되어야 합니다.                                                                                                                 | No    |        | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
 | `TUIST_USE_SSL_FOR_DATABASE`    | true 이면 데이터베이스에 접속하기 위해 [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security)을 사용                                                                                            | No    | `1`    | `1`                                                                    |
 | `TUIST_DATABASE_POOL_SIZE`      | 연결 풀에서 유지할 연결 수                                                                                                                                                                      | No    | `10`   | `10`                                                                   |
 | `TUIST_DATABASE_QUEUE_TARGET`   | 풀에서 체크아웃된 모든 연결이 큐 대기 시간보다 더 오래 걸렸는지 확인하는 범위 (밀리초 단위) [(자세한 정보)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No    | `300`  | `300`                                                                  |
