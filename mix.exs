@@ -84,7 +84,7 @@ defmodule Tuist.MixProject do
       {:flop, "~> 0.26.0"},
       # TODO: Use official release once > 3.7.11 is released.
       {:timex,
-       git: "https://github.com/bitwalker/timex.git", ref: "cc649c7a586f1266b17d57aff3c6eb1a56116ca2", override: true},
+       git: "https://github.com/bitwalker/timex.git", ref: "15a4d04f7ee8219895517ceab71d2b9162108fe1", override: true},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
