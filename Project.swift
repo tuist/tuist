@@ -9,6 +9,15 @@ func debugSettings() -> SettingsDictionary {
     return settings
 }
 
+let inspectBuildPostAction: ExecutionAction = .executionAction(
+    title: "Inspect build",
+    scriptText: """
+    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+    tuist inspect build
+    """
+)
+
 func releaseSettings() -> SettingsDictionary {
     baseSettings
 }
@@ -42,14 +51,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) },
                 postActions: [
-                    .executionAction(
-                        title: "Inspect build",
-                        scriptText: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-                        tuist inspect build
-                        """
-                    ),
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -68,14 +70,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    .executionAction(
-                        title: "Inspect build",
-                        scriptText: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-                        tuist inspect build
-                        """
-                    ),
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -94,14 +89,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    .executionAction(
-                        title: "Inspect build",
-                        scriptText: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-                        tuist inspect build
-                        """
-                    ),
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -134,14 +122,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: [.target($0.targetName)],
                 postActions: [
-                    .executionAction(
-                        title: "Inspect build",
-                        scriptText: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-                        tuist inspect build
-                        """
-                    ),
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
