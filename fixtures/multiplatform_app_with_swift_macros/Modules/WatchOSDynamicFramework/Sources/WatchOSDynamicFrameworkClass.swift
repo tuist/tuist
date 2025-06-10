@@ -9,6 +9,7 @@ struct Watch {
 }
 
 // @Reducer is a Swift Macro that generates other macros
+
 @Reducer
 struct Counter {
     struct State: Equatable {

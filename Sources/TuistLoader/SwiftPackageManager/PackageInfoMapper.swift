@@ -123,8 +123,8 @@ public protocol PackageInfoMapping {
 
 // swiftlint:disable:next type_body_length
 public final class PackageInfoMapper: PackageInfoMapping {
-    // Predefined source directories, in order of preference.
-    // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
+    /// Predefined source directories, in order of preference.
+    /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
@@ -431,8 +431,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let moduleMap: ModuleMap?
         switch target.type {
         case .system:
-            /// System library targets assume the module map is located at the source directory root
-            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
+            // System library targets assume the module map is located at the source directory root
+            // https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
             let packagePath = try await target.basePath(packageFolder: path)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
@@ -512,8 +512,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         var dependencies: [ProjectDescription.TargetDependency] = []
 
-        /// Module aliases of used dependencies.
-        /// These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
+        // Module aliases of used dependencies.
+        // These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
         var dependencyModuleAliases: [String: String] = [:]
 
         if target.type.supportsDependencies {
@@ -820,11 +820,11 @@ extension ProjectDescription.ResourceFileElements {
         excluding: [String],
         fileSystem: FileSysteming
     ) async throws -> Self? {
-        /// Handles the conversion of a `.copy` resource rule of SPM
-        ///
-        /// - Parameters:
-        ///   - resourceAbsolutePath: The absolute path of that resource
-        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
+        // Handles the conversion of a `.copy` resource rule of SPM
+        //
+        // - Parameters:
+        //   - resourceAbsolutePath: The absolute path of that resource
+        // - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
         @Sendable func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
             .folderReference(path: .path(resourceAbsolutePath.pathString))
         }
@@ -833,11 +833,11 @@ extension ProjectDescription.ResourceFileElements {
             path.appending(try RelativePath(validating: $0))
         }
 
-        /// Handles the conversion of a `.process` resource rule of SPM
-        ///
-        /// - Parameters:
-        ///   - resourceAbsolutePath: The absolute path of that resource
-        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
+        // Handles the conversion of a `.process` resource rule of SPM
+        //
+        // - Parameters:
+        //   - resourceAbsolutePath: The absolute path of that resource
+        // - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
         @Sendable func handleProcessResource(resourceAbsolutePath: AbsolutePath) async throws -> ProjectDescription
             .ResourceFileElement?
         {
@@ -934,8 +934,8 @@ extension ProjectDescription.ResourceFileElements {
         return .resources(resourceFileElements.uniqued())
     }
 
-    // These files are automatically added as resource if they are inside targets directory.
-    // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
+    /// These files are automatically added as resource if they are inside targets directory.
+    /// Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
     private static let defaultSpmResourceFileExtensions = Set([
         "xib",
         "storyboard",
@@ -1389,7 +1389,7 @@ extension PackageInfo {
     }
 
     private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
-        /// Take the latest swift version compatible with the configured one
+        // Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {
                 guard let configuredSwiftVersion else {

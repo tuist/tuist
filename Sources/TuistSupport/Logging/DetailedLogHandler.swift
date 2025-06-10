@@ -75,7 +75,7 @@ func timestamp() -> String {
     }
 }
 
-// Protocol needed to suppress the warning because we don't have a valid `source` to pass to the `log` method
+/// Protocol needed to suppress the warning because we don't have a valid `source` to pass to the `log` method.
 protocol SuppressedWarningLogHandler {
     func log(
         level: Logging.Logger.Level,

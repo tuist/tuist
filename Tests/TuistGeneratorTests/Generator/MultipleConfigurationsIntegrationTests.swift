@@ -230,15 +230,13 @@ final class MultipleConfigurationsIntegrationTests {
         #expect(staging.containsKey("C") == false) // non-existing
     }
 
-    /**
-     Exhaustive test to validate the priority of the particular settings:
-     - project .xcconfig
-     - project base
-     - project configuration settings
-     - target .xcconfig
-     - target base
-     - target configuraiton settings
-     */
+    /// Exhaustive test to validate the priority of the particular settings:
+    /// - project .xcconfig
+    /// - project base
+    /// - project configuration settings
+    /// - target .xcconfig
+    /// - target base
+    /// - target configuraiton settings
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,

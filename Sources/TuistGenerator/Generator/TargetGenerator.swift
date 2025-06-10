@@ -60,10 +60,10 @@ final class TargetGenerator: TargetGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) async throws -> PBXNativeTarget {
-        /// Products reference.
+        // Products reference.
         let productFileReference = fileElements.products[target.name]!
 
-        /// Target
+        // Target
         let pbxTarget = PBXNativeTarget(
             name: target.name,
             buildConfigurationList: nil,
@@ -78,7 +78,7 @@ final class TargetGenerator: TargetGenerating {
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
-        /// Pre actions
+        // Pre actions
         try buildPhaseGenerator.generateScripts(
             target.scripts.preScripts,
             pbxTarget: pbxTarget,
@@ -86,7 +86,7 @@ final class TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
-        /// Build configuration
+        // Build configuration
         try await configGenerator.generateTargetConfig(
             target,
             project: project,
@@ -98,7 +98,7 @@ final class TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
-        /// Build phases
+        // Build phases
         try buildPhaseGenerator.generateBuildPhases(
             path: path,
             target: target,
@@ -108,7 +108,7 @@ final class TargetGenerator: TargetGenerating {
             pbxproj: pbxproj
         )
 
-        /// Links
+        // Links
         try linkGenerator.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
@@ -119,7 +119,7 @@ final class TargetGenerator: TargetGenerating {
             graphTraverser: graphTraverser
         )
 
-        /// Post actions
+        // Post actions
         try buildPhaseGenerator.generateScripts(
             target.scripts.postScripts,
             pbxTarget: pbxTarget,

@@ -1398,7 +1398,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    // For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
+    /// For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenResourcesInsideXCFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")

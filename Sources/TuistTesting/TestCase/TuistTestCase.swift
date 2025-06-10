@@ -6,8 +6,8 @@ import XCTest
 
 @testable import TuistSupport
 
-// This mock file handler is used to override the current path to a temporary directory.
-// The temporary directory is lazily created if either the test case or subject consume the API.
+/// This mock file handler is used to override the current path to a temporary directory.
+/// The temporary directory is lazily created if either the test case or subject consume the API.
 public final class MockFileHandler: FileHandler {
     let temporaryDirectory: () throws -> (AbsolutePath)
 

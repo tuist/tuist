@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: [
-                /* Path to resources can be defined here */
+                // Path to resources can be defined here
                 // "Resources/**"
             ]
         ),

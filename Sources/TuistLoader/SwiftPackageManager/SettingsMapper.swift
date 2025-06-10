@@ -140,7 +140,7 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    // `nil` means settings without a condition
+    /// `nil` means settings without a condition.
     private func settings(for platformName: String?) throws
         -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     {
