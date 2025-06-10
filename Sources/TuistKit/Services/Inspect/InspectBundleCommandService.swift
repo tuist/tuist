@@ -49,7 +49,7 @@ struct InspectBundleCommandService {
     ) async throws {
         let bundlePath = try AbsolutePath(
             validating: bundle,
-            relativeTo: try await fileSystem.currentWorkingDirectory()
+            relativeTo: try await Environment.current.currentWorkingDirectory()
         )
         let path = try await self.path(path)
 
@@ -100,12 +100,13 @@ struct InspectBundleCommandService {
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         if let path {
-            return try await AbsolutePath(
-                validating: path, relativeTo: fileSystem.currentWorkingDirectory()
+            return try AbsolutePath(
+                validating: path, relativeTo: currentWorkingDirectory
             )
         } else {
-            return try await fileSystem.currentWorkingDirectory()
+            return currentWorkingDirectory
         }
     }
 }
