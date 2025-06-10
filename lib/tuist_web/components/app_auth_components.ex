@@ -6,6 +6,13 @@ defmodule TuistWeb.AppAuthComponents do
   use Phoenix.Component
 
   def dots_light(assigns) do
+    unique_id = Ecto.UUID.generate()
+    mask_id = "mask0_#{unique_id}"
+    radial_gradient_id = "paint0_radial_#{unique_id}"
+
+    assigns = assign(assigns, :mask_id, mask_id)
+    assigns = assign(assigns, :radial_gradient_id, radial_gradient_id)
+
     ~H"""
     <svg
       data-theme="light"
@@ -16,7 +23,7 @@ defmodule TuistWeb.AppAuthComponents do
       xmlns="http://www.w3.org/2000/svg"
     >
       <mask
-        id="mask0_891_55872"
+        id={@mask_id}
         style="mask-type:alpha"
         maskUnits="userSpaceOnUse"
         x="0"
@@ -24,9 +31,9 @@ defmodule TuistWeb.AppAuthComponents do
         width="342"
         height="52"
       >
-        <rect width="341.12" height="52" fill="url(#paint0_radial_891_55872)" fill-opacity="0.4" />
+        <rect width="341.12" height="52" fill={"url(##{@radial_gradient_id})"} fill-opacity="0.4" />
       </mask>
-      <g mask="url(#mask0_891_55872)">
+      <g mask={"url(##{@mask_id})"}>
         <rect x="6.5603" y="8" width="3" height="3" rx="0.5" fill="#C7CCD1" />
         <rect x="14.5603" y="8" width="3" height="3" rx="0.5" fill="#E6E8EA" />
         <rect x="22.5603" y="8" width="3" height="3" rx="0.5" fill="#F9FAFA" />
@@ -270,7 +277,7 @@ defmodule TuistWeb.AppAuthComponents do
       </g>
       <defs>
         <radialGradient
-          id="paint0_radial_891_55872"
+          id={@radial_gradient_id}
           cx="0"
           cy="0"
           r="1"
@@ -286,6 +293,13 @@ defmodule TuistWeb.AppAuthComponents do
   end
 
   def dots_dark(assigns) do
+    unique_id = Ecto.UUID.generate()
+    mask_id = "mask0_#{unique_id}"
+    radial_gradient_id = "paint0_radial_#{unique_id}"
+
+    assigns = assign(assigns, :mask_id, mask_id)
+    assigns = assign(assigns, :radial_gradient_id, radial_gradient_id)
+
     ~H"""
     <svg
       data-theme="dark"
@@ -296,7 +310,7 @@ defmodule TuistWeb.AppAuthComponents do
       xmlns="http://www.w3.org/2000/svg"
     >
       <mask
-        id="mask0_891_56363"
+        id={@mask_id}
         style="mask-type:alpha"
         maskUnits="userSpaceOnUse"
         x="0"
@@ -304,9 +318,9 @@ defmodule TuistWeb.AppAuthComponents do
         width="342"
         height="52"
       >
-        <rect width="341.12" height="52" fill="url(#paint0_radial_891_56363)" fill-opacity="0.4" />
+        <rect width="341.12" height="52" fill={"url(##{@radial_gradient_id})"} fill-opacity="0.4" />
       </mask>
-      <g mask="url(#mask0_891_56363)">
+      <g mask={"url(##{@mask_id})"}>
         <rect x="6.56018" y="8" width="3" height="3" rx="0.5" fill="#2E3338" />
         <rect x="14.5602" y="8" width="3" height="3" rx="0.5" fill="#1F2126" />
         <rect x="22.5602" y="8" width="3" height="3" rx="0.5" fill="#16181C" />
@@ -550,7 +564,7 @@ defmodule TuistWeb.AppAuthComponents do
       </g>
       <defs>
         <radialGradient
-          id="paint0_radial_891_56363"
+          id={@radial_gradient_id}
           cx="0"
           cy="0"
           r="1"
