@@ -53,3 +53,6 @@ priv/static/marketing/images/og/generated/
 metadata
 preprocessed_configs
 uuid
+
+# Local development
+.opencode/
