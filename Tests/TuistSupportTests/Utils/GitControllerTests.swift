@@ -13,6 +13,16 @@ struct GitControllerTests {
         subject = GitController(system: system)
     }
 
+    @Test(.inTemporaryDirectory) func test_topLevelDirectory() throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+
+        system.succeedCommand(["git", "-C \(path.pathString)", "rev-parse", "--show-toplevel"], output: "/path/to/root")
+
+        let gitDirectory = try subject.topLevelGitDirectory(workingDirectory: path)
+        #expect(gitDirectory == "/path/to/root")
+        #expect(system.called(["git", "-C \(path.pathString)", "rev-parse", "--show-toplevel"]) == true)
+    }
+
     @Test(.inTemporaryDirectory) func test_cloneInto() throws {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)
