@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.52.1 - 2025-06-10
+
+### CLI
+
+#### Changed
+
+- Bump Rosalind [#7654](https://github.com/tuist/tuist/pull/7654) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix CircleCI PR variable [#7653](https://github.com/tuist/tuist/pull/7653) by [@cschmatzler](https://github.com/cschmatzler)
+- Fix app extensions redundant-imports checking [#7651](https://github.com/tuist/tuist/pull/7651) by [@PSKuznetsov](https://github.com/PSKuznetsov)
+- Attempt to fix token renewals [#7655](https://github.com/tuist/tuist/pull/7655) by [@pepicrft](https://github.com/pepicrft)
+- Further fix for issue where builds were not run when building for testing but not specifying a test plan [#7643](https://github.com/tuist/tuist/pull/7643) by [@cooksimo](https://github.com/cooksimo)
+- Fix paths in the reported build insights [#7662](https://github.com/tuist/tuist/pull/7662) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.52.0 - 2025-06-05
 
 ### CLI
