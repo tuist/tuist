@@ -16,6 +16,7 @@ public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral, Se
 }
 
 // Pre-defined languages
+
 extension SchemeLanguage {
     public static var doubleLengthPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageDoubleLocalizedStrings")

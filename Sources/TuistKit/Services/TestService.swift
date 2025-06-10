@@ -20,6 +20,7 @@ enum TestServiceError: FatalError, Equatable {
     case actionInvalid
 
     // Error description
+
     var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
@@ -59,6 +60,7 @@ enum TestServiceError: FatalError, Equatable {
     }
 
     // Error type
+
     var type: ErrorType {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
@@ -779,7 +781,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             testPlan: testPlanConfiguration?.testPlan,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: action
         )
         else {
             throw TestServiceError.schemeWithoutTestableTargets(

@@ -2258,13 +2258,13 @@ struct GraphLinterTests {
             // Given
             let path = try #require(FileSystem.temporaryTestDirectory)
 
-            /* extension kit target is under test */
+            // extension kit target is under test
             let sut = Target.test(name: "Extension", platform: platform, product: .extensionKitExtension)
 
-            /* app embedding the extension */
+            // app embedding the extension
             let app = Target.test(name: "App", platform: platform, product: .app)
 
-            /* extension dependencies */
+            // extension dependencies
             let dynamicFramework = Target.test(name: "DynamicFramework", platform: platform, product: .framework)
             let staticFramework = Target.test(name: "StaticFramework", platform: platform, product: .staticFramework)
             let dynamicLibrary = Target.test(name: "DynamicLibrary", platform: platform, product: .dynamicLibrary)

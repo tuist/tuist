@@ -26,6 +26,7 @@ public final class TemplateGenerator: TemplateGenerating {
     private let fileSystem: FileSystem
 
     // Public initializer
+
     public init(fileSystem: FileSystem = FileSystem()) {
         self.fileSystem = fileSystem
     }

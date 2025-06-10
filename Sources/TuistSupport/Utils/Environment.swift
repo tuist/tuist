@@ -98,6 +98,17 @@ extension Environmenting {
             ciPlatformVariables.contains($0.key)
         }) != nil
     }
+
+    public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
+        let currentWorkingDirectory = try await currentWorkingDirectory()
+        if let path {
+            return try AbsolutePath(
+                validating: path, relativeTo: currentWorkingDirectory
+            )
+        } else {
+            return currentWorkingDirectory
+        }
+    }
 }
 
 /// Local environment controller.

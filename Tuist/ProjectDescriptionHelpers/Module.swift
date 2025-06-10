@@ -230,6 +230,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .tuistBenchmark:
                 [
+                    .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
@@ -237,8 +238,10 @@ public enum Module: String, CaseIterable {
             case .tuistFixtureGenerator:
                 [
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "ArgumentParser"),
+                    .external(name: "Path"),
                 ]
             case .projectAutomation, .projectDescription:
                 []

@@ -167,7 +167,7 @@ struct InspectBuildCommandService {
                 return workspacePath
             }
         } else {
-            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let basePath =
                 if let path {
                     try AbsolutePath(

@@ -70,7 +70,7 @@ class ProjectFileElements {
             one.path < two.path
         }
 
-        /// Files
+        // Files
         try generate(
             files: sortedFiles,
             groups: groups,
@@ -98,7 +98,7 @@ class ProjectFileElements {
     func projectFiles(project: Project) -> Set<GroupFileElement> {
         var fileElements = Set<GroupFileElement>()
 
-        /// Config files
+        // Config files
         let configFiles = project.settings.configurations.values.compactMap { $0?.xcconfig }
 
         fileElements.formUnion(configFiles.map {

@@ -2,11 +2,7 @@ import Foundation
 import TuistGenerator
 import TuistSupport
 
-protocol GraphPrinting {
-    /// Outputs the graph to the standard output.
-    ///
-    /// - Parameter graph: Graph to be printed.
-}
+protocol GraphPrinting {}
 
 /// Outputs the graph to the standard output.
 class GraphPrinter: GraphPrinting {

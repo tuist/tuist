@@ -8,7 +8,7 @@ import TuistSupport
 public final class CachedContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
-    // In memory cache for files that have already been hashed
+    /// In memory cache for files that have already been hashed.
     private var hashesCache: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
     public init(contentHasher: ContentHashing = ContentHasher()) {

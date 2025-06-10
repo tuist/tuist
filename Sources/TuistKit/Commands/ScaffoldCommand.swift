@@ -57,7 +57,7 @@ public struct ScaffoldCommand: AsyncParsableCommand {
 
     public init() {}
 
-    // Custom decoding to decode dynamic options
+    /// Custom decoding to decode dynamic options.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         template = try container.decode(Argument<String>.self, forKey: .template).wrappedValue
@@ -177,6 +177,7 @@ extension ScaffoldCommand {
         }
 
         // Not used
+
         var intValue: Int? { nil }
         init?(intValue _: Int) { nil }
     }

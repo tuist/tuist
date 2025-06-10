@@ -20,6 +20,7 @@ let targets: [Target] = [
             pathDependency,
             swiftToolsSupportDependency,
             "FileSystem",
+            "TuistSupport",
         ]
     ),
     .executableTarget(
@@ -28,7 +29,9 @@ let targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
+            pathDependency,
             "ProjectDescription",
+            "TuistSupport",
         ]
     ),
     .target(
@@ -491,17 +494,17 @@ let package = Package(
             name: "TuistCache",
             targets: ["TuistCache"]
         ),
-        /// TuistGenerator
-        ///
-        /// A high level Xcode generator library
-        /// responsible for generating Xcode projects & workspaces.
-        ///
-        /// This library can be used in external tools that wish to
-        /// leverage Tuist's Xcode generation features.
-        ///
-        /// Note: This library should be treated as **unstable** as
-        ///       it is still under development and may include breaking
-        ///       changes in future releases.
+        // TuistGenerator
+        //
+        // A high level Xcode generator library
+        // responsible for generating Xcode projects & workspaces.
+        //
+        // This library can be used in external tools that wish to
+        // leverage Tuist's Xcode generation features.
+        //
+        // Note: This library should be treated as **unstable** as
+        //       it is still under development and may include breaking
+        //       changes in future releases.
         .library(
             name: "TuistGenerator",
             targets: ["TuistGenerator"]

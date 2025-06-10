@@ -44,11 +44,11 @@ public protocol PrecompiledMetadataProviding {
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
 }
 
-/// PrecompiledMetadataProvider reads a framework/library metadata using the Mach-o file format.
+/// `PrecompiledMetadataProvider` reads a framework/library metadata using the Mach-o file format.
+///
 /// Useful documentation:
 /// - https://opensource.apple.com/source/cctools/cctools-809/misc/lipo.c
 /// - https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
-
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let metadata = try readMetadatas(binaryPath: binaryPath)

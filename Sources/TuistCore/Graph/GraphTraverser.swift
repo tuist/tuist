@@ -318,7 +318,7 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    // Filter based on edges
+    /// Filter based on edges
     public func directStaticDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
@@ -350,7 +350,7 @@ public class GraphTraverser: GraphTraversing {
 
         var references = Set<GraphDependencyReference>()
 
-        /// Precompiled frameworks
+        // Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: \.isPrecompiledDynamicAndLinkable,
@@ -375,7 +375,7 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        /// Other targets' frameworks.
+        // Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: isEmbeddableDependencyTarget,

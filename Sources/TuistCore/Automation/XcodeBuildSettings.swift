@@ -77,17 +77,21 @@ extension XcodeBuildSettings: CustomStringConvertible {
 
 extension XcodeBuildSettings: Collection {
     // Required nested types, that tell Swift what our collection contains
+
     public typealias Index = DictionaryType.Index
     public typealias Element = DictionaryType.Element
 
     // The upper and lower bounds of the collection, used in iterations
+
     public var startIndex: Index { settings.startIndex }
     public var endIndex: Index { settings.endIndex }
 
     // Required subscript, based on a dictionary index
+
     public subscript(index: Index) -> Iterator.Element { settings[index] }
 
     // Method that returns the next index when iterating
+
     public func index(after i: Index) -> Index {
         settings.index(after: i)
     }
