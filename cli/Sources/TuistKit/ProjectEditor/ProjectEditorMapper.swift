@@ -244,7 +244,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let packagesTarget: Target? = try await {
             guard let packageManifestPath else { return nil }
-            let xcode = try await XcodeController.current.selected()
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
