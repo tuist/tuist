@@ -97,6 +97,12 @@ defmodule Tuist.Marketing.Blog do
         "name" => " Asmit Malakannawar ",
         "mastodon_url" => "https://mastodon.social/@asmitbm",
         "github_handle" => "asmitbm"
+      },
+      "cschmatzler" => %{
+        "role" => "Software Engineer at Tuist",
+        "name" => "Christoph Schmatzler",
+        "x_handle" => "cschmatzler",
+        "github_handle" => "cschmatzler"
       }
     }
   end
