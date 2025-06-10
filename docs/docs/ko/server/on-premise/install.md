@@ -103,9 +103,9 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 우리는 [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)을 사용하여 인증하는 것을 권장하지만 [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)을 사용할 수도 있습니다. GitHub에서 지정한 필수 환경 변수를 모두 서버 환경에 포함시켜야 합니다. 변수가 없으면 Tuist는 GitHub 인증을 무시합니다. GitHub 앱을 올바르게 설정하려면 다음과 같습니다:
 
 - GitHub 앱의 일반 설정:
- - `Client ID`를 복사하고 `TUIST_GITHUB_APP_CLIENT_ID`로 설정합니다.
- - 새로운 `client secret`을 생성하고 복사한 다음에 `TUIST_GITHUB_APP_CLIENT_SECRET`로 설정합니다.
- - `Callback URL`을 `http://YOUR_APP_URL/users/auth/github/callback`으로 설정합니다. `YOUR_APP_URL`은 서버의 IP 주소도 사용할 수 있습니다.
+  - `Client ID`를 복사하고 `TUIST_GITHUB_APP_CLIENT_ID`로 설정합니다.
+  - 새로운 `client secret`을 생성하고 복사한 다음에 `TUIST_GITHUB_APP_CLIENT_SECRET`로 설정합니다.
+  - `Callback URL`을 `http://YOUR_APP_URL/users/auth/github/callback`으로 설정합니다. `YOUR_APP_URL`은 서버의 IP 주소도 사용할 수 있습니다.
 - `Permissions and events`의 `Account permissions` 섹션에서 `Email addresses` 권한을 `Read-only`로 설정합니다.
 
 그런 다음, Tuist 서버가 실행되는 환경에서 다음 환경 변수를 노출시킵니다:
