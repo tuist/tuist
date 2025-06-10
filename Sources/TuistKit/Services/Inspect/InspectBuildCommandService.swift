@@ -89,12 +89,14 @@ struct InspectBuildCommandService {
             // presense of the `workspacePath` environment variable).
             // We pass the `TUIST_INSPECT_BUILD_WAIT` environment variable to the new process, so we do actually upload the build
             // analytics to the server.
-            try backgroundProcessRunner.runInBackground(
+            try await backgroundProcessRunner.runInBackground(
                 [executablePath, "inspect", "build"],
                 environment: environment
             )
             return
         }
+        // Sleep for 100 seconds to allow the activity log to be generated
+        try await Task.sleep(nanoseconds: 100_000_000_000)
         let projectPath = try await projectPath(path)
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try? AbsolutePath(
