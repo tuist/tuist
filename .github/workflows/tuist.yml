@@ -86,7 +86,7 @@ jobs:
       - run: mise run clickhouse:start
       - run: mise run db:reset
       - name: Run tests
-        run: mix test
+        run: mix test --warnings-as-errors
   analyze-migrations:
     name: Analyze migrations
     runs-on: namespace-profile-default

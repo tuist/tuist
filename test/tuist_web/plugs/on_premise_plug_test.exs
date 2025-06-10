@@ -2,8 +2,6 @@ defmodule TuistWeb.OnPremisePlugTest do
   use TuistTestSupport.Cases.ConnCase
   use Mimic
 
-  import Plug.Test
-
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.OnPremisePlug

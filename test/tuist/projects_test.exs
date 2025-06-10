@@ -457,11 +457,10 @@ defmodule Tuist.ProjectsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      preview =
-        PreviewsFixtures.preview_fixture(
-          project: project,
-          display_name: "App"
-        )
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        display_name: "App"
+      )
 
       # Then
       assert Projects.platforms(project) == [:ios]

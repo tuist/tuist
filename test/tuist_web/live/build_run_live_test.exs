@@ -8,9 +8,7 @@ defmodule TuistWeb.BuildRunLiveTest do
 
   alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
-  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -21,8 +19,7 @@ defmodule TuistWeb.BuildRunLiveTest do
   test "shows details of a build run", %{
     conn: conn,
     organization: organization,
-    project: project,
-    user: user
+    project: project
   } do
     # Given
     {:ok, build_run} =

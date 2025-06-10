@@ -379,7 +379,7 @@ defmodule Tuist.StorageTest do
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
       list_operation = %S3{body: UUIDv7.generate()}
 
-      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: max_keys] ->
+      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: _] ->
         list_operation
       end)
 
@@ -418,12 +418,11 @@ defmodule Tuist.StorageTest do
 
       project_slug = UUIDv7.generate()
       bucket_name = UUIDv7.generate()
-      object_key = UUIDv7.generate()
 
       stub(Environment, :s3_bucket_name, fn -> bucket_name end)
       list_operation = %S3{body: UUIDv7.generate()}
 
-      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: max_keys] ->
+      stub(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: ^project_slug, max_keys: _] ->
         list_operation
       end)
 

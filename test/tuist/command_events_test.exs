@@ -1042,7 +1042,6 @@ defmodule Tuist.CommandEventsTest do
 
     test "filters by hit rate greater than", %{
       project: project,
-      event_50_percent: event_50_percent,
       event_75_percent: event_75_percent,
       event_100_percent: event_100_percent
     } do

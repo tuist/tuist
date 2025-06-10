@@ -115,7 +115,6 @@ defmodule TuistWeb.LayoutLiveTest do
                  items: [
                    %{
                      label: organization.account.name,
-                     selected: true,
                      value: organization.account.id,
                      href: ~p"/#{organization.account.name}/projects",
                      selected: true,

@@ -6,7 +6,6 @@ defmodule TuistWeb.BundleLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
-  alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
   test "it shows bundle metadata", %{

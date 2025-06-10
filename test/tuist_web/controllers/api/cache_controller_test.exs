@@ -82,7 +82,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache: cache
     } do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
       Tuist.Repo.update!(
@@ -93,10 +93,8 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       hash = "hash"
       name = "name"
-      size = 1024
       project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
-      download_url = "https://tuist.dev/download/1234"
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -403,7 +401,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       )
 
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      project_id = project.id
       date = DateTime.utc_now(:second)
       stub(DateTime, :utc_now, fn :second -> date end)
       hash = UUIDv7.generate()
@@ -475,7 +472,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       name = "name"
       project_id = "#{account.name}/#{project.name}"
       cache_category = "builds"
-      upload_id = "12344"
 
       Tuist.Repo.update!(
         Ecto.Changeset.change(account,
@@ -551,7 +547,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       upload_id = "1234"
       part_number = "3"
-      upload_url = "https://tuist.dev/upload/1234"
 
       Tuist.Repo.update!(
         Ecto.Changeset.change(account,
@@ -694,16 +689,13 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "errors with a payment_required when the account has no subscription and has gone above the limit",
          %{conn: conn, cache: cache} do
       # Given
-      project = %{id: project_id} = ProjectsFixtures.project_fixture()
+      project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
       upload_id = "1234"
-      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
-      size = 1024
-      date = ~N[2024-04-30 10:20:30Z]
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -744,8 +736,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      builds_prefix = "#{account.name}/#{project.name}/builds"
-      tests_prefix = "#{account.name}/#{project.name}/tests"
 
       # When
       conn =
@@ -776,8 +766,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: account.id)
       user = AccountsFixtures.user_fixture()
       Accounts.add_user_to_organization(user, organization)
-      builds_prefix = "#{account.name}/#{project.name}/builds"
-      tests_prefix = "#{account.name}/#{project.name}/tests"
 
       # When
       conn =
