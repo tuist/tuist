@@ -58,6 +58,9 @@ public protocol GitControlling {
     /// - Parameter workingDirectory: The working directory of the git repository
     /// - Returns: A tuple containing git ref, branch name, and commit SHA
     func gitInfo(workingDirectory: AbsolutePath) -> (ref: String?, branch: String?, sha: String?)
+
+    /// Returns the top level `.git` directory path.
+    func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath
 }
 
 /// An implementation of `GitControlling`.
@@ -72,6 +75,13 @@ public final class GitController: GitControlling {
     ) {
         self.system = system
         self.environment = environment
+    }
+
+    public func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath {
+        try AbsolutePath(
+            validating: try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     public func clone(url: String, into path: AbsolutePath) throws {
