@@ -107,7 +107,8 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .testableTarget(
                 scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
             .willReturn(.test())
 
@@ -309,9 +310,10 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .testableTarget(
                 scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
-            .willProduce { scheme, _, _, _, _ in
+            .willProduce { scheme, _, _, _, _, _ in
                 GraphTarget.test(
                     target: Target.test(
                         name: scheme.name
@@ -438,9 +440,10 @@ final class TestServiceTests: TuistUnitTestCase {
         given(buildGraphInspector)
             .testableTarget(
                 scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
-            .willProduce { scheme, _, _, _, _ in
+            .willProduce { scheme, _, _, _, _, _ in
                 GraphTarget.test(
                     target: Target.test(
                         name: scheme.name
@@ -934,7 +937,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     testPlan: .any,
                     testTargets: .any,
                     skipTestTargets: .any,
-                    graphTraverser: .any
+                    graphTraverser: .any,
+                    action: .any
                 )
                 .willReturn(.test())
 
@@ -1232,7 +1236,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     testPlan: .any,
                     testTargets: .any,
                     skipTestTargets: .any,
-                    graphTraverser: .any
+                    graphTraverser: .any,
+                    action: .any
                 )
                 .willReturn(.test())
             var environment = MapperEnvironment()
@@ -1958,9 +1963,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlan: .value(testPlan),
                 testTargets: .any,
                 skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
-            .willProduce { scheme, _, _, _, _ in
+            .willProduce { scheme, _, _, _, _, _ in
                 GraphTarget.test(
                     target: Target.test(
                         name: scheme.name
@@ -2099,9 +2105,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlan: .value(testPlan),
                 testTargets: .any,
                 skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
-            .willProduce { scheme, _, _, _, _ in
+            .willProduce { scheme, _, _, _, _, _ in
                 GraphTarget.test(
                     target: Target.test(
                         name: scheme.name
@@ -2243,9 +2250,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlan: .any,
                 testTargets: .any,
                 skipTestTargets: .any,
-                graphTraverser: .any
+                graphTraverser: .any,
+                action: .any
             )
-            .willProduce { scheme, _, _, _, _ in
+            .willProduce { scheme, _, _, _, _, _ in
                 GraphTarget.test(
                     target: Target.test(
                         name: scheme.name
