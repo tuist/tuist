@@ -39,7 +39,20 @@ func schemes() -> [Scheme] {
     var schemes: [Scheme] = [
         .scheme(
             name: "Tuist-Workspace",
-            buildAction: .buildAction(targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) }),
+            buildAction: .buildAction(
+                targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) },
+                postActions: [
+                    .executionAction(
+                        title: "Inspect build",
+                        scriptText: """
+                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+                        tuist inspect build
+                        """
+                    ),
+                ],
+                runPostActionsOnFailure: true
+            ),
             testAction: .targets(
                 Module.allCases.flatMap(\.testTargets).map { .testableTarget(target: .target($0.name)) }
             ),
@@ -53,7 +66,18 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) }
+                    .map { .target($0) },
+                postActions: [
+                    .executionAction(
+                        title: "Inspect build",
+                        scriptText: """
+                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+                        tuist inspect build
+                        """
+                    ),
+                ],
+                runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name)) }
@@ -68,7 +92,18 @@ func schemes() -> [Scheme] {
             name: "TuistUnitTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
-                    .map { .target($0) }
+                    .map { .target($0) },
+                postActions: [
+                    .executionAction(
+                        title: "Inspect build",
+                        scriptText: """
+                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+                        tuist inspect build
+                        """
+                    ),
+                ],
+                runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) },
@@ -96,7 +131,20 @@ func schemes() -> [Scheme] {
     schemes.append(contentsOf: Module.allCases.filter(\.isRunnable).map {
         .scheme(
             name: $0.targetName,
-            buildAction: .buildAction(targets: [.target($0.targetName)]),
+            buildAction: .buildAction(
+                targets: [.target($0.targetName)],
+                postActions: [
+                    .executionAction(
+                        title: "Inspect build",
+                        scriptText: """
+                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+                        tuist inspect build
+                        """
+                    ),
+                ],
+                runPostActionsOnFailure: true
+            ),
             runAction: .runAction(
                 executable: .target($0.targetName),
                 arguments: .arguments(
