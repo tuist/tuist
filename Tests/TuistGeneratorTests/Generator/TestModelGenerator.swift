@@ -343,7 +343,8 @@ final class TestModelGenerator {
                     filePath: nil,
                     arguments: createArguments(),
                     diagnosticsOptions: SchemeDiagnosticsOptions(),
-                    metalOptions: MetalOptions()
+                    metalOptions: MetalOptions(),
+                    appClipInvocationURL: nil
                 ),
                 archiveAction: ArchiveAction(
                     configurationName: "Debug",
