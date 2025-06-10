@@ -31,7 +31,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_build_without_device_id() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -60,7 +60,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_build_without_device_id_but_arch() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -88,7 +88,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_build_with_device_id() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -117,7 +117,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_build_with_device_id_and_arch() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -146,7 +146,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_when_device() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -188,7 +188,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_when_device_arch() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -230,12 +230,11 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDeveloperEnvironment, .withMockedEnvironment())
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_when_mac() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
-        let developerEnvironment = try #require(DeveloperEnvironment.mocked)
 
         let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
@@ -255,7 +254,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
         system.succeedCommand(command, output: "output")
-        developerEnvironment.stubbedArchitecture = .x8664
+        environment.stubbedArchitecture = .x8664
 
         // When
         try await subject.test(
@@ -276,7 +275,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDeveloperEnvironment, .withMockedEnvironment())
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_when_destination_is_specified_with_passthrough_arguments() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -321,11 +320,11 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_with_derived_data() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let developerEnvironment = try #require(DeveloperEnvironment.mocked)
+        let mockEnvironment = try #require(Environment.mocked)
 
         let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
@@ -345,7 +344,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
         system.succeedCommand(command, output: "output")
-        developerEnvironment.stubbedArchitecture = .x8664
+        mockEnvironment.stubbedArchitecture = .x8664
 
         // When
         try await subject.test(
@@ -366,12 +365,12 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_with_result_bundle_path() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
-        let developerEnvironment = try #require(DeveloperEnvironment.mocked)
+        let mockEnvironment = try #require(Environment.mocked)
 
         let target = XcodeBuildTarget.workspace(xcworkspacePath)
         let scheme = "Scheme"
@@ -390,7 +389,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
         system.succeedCommand(command, output: "output")
-        developerEnvironment.stubbedArchitecture = .x8664
+        mockEnvironment.stubbedArchitecture = .x8664
 
         // When
         try await subject.test(
@@ -411,7 +410,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_build_only() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -450,7 +449,7 @@ struct XcodeBuildControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDeveloperEnvironment)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_test_only() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

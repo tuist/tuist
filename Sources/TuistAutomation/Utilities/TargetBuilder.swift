@@ -145,7 +145,7 @@ public final class TargetBuilder: TargetBuilding {
         platform: XcodeGraph.Platform,
         configuration: String
     ) async throws {
-        let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(
+        let xcodeSchemeBuildPath = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: .simulator(platform),
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
