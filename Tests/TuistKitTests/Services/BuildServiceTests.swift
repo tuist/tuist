@@ -19,23 +19,17 @@ import XCTest
 struct BuildServiceErrorTests {
     @Test func test_description() {
         #expect(
-            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).description
+            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).localizedDescription
                 == "Couldn't find scheme A. The available schemes are: B, C."
         )
         #expect(
-            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").description
+            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").localizedDescription
                 == "The scheme MyScheme cannot be built because it contains no buildable targets."
         )
         #expect(
-            BuildServiceError.workspaceNotFound(path: "/path/to/workspace").description
+            BuildServiceError.workspaceNotFound(path: "/path/to/workspace").localizedDescription
                 == "Workspace not found expected xcworkspace at /path/to/workspace"
         )
-    }
-
-    @Test func test_type() {
-        #expect(BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).type == .abort)
-        #expect(BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").type == .abort)
-        #expect(BuildServiceError.workspaceNotFound(path: "/path/to/workspace").type == .bug)
     }
 }
 
