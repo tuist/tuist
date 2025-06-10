@@ -21,7 +21,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_locate_WHEN_destination_platform_IS_device_macOS() throws {
+    func test_locate_WHEN_destination_platform_IS_device_macOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -29,7 +29,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let configuration = "Release"
 
         // WHEN
-        let path = try subject.locate(
+        let path = try await subject.locate(
             destinationType: .device(.macOS),
             projectPath: projectPath,
             derivedDataPath: nil,
@@ -41,7 +41,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         XCTAssertEqual(path, expectedPath)
     }
 
-    func test_locate_WHEN_destination_platform_IS_simulator_iOS() throws {
+    func test_locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -50,7 +50,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let sdk = "iphonesimulator"
 
         // WHEN
-        let path = try subject.locate(
+        let path = try await subject.locate(
             destinationType: .simulator(.iOS),
             projectPath: projectPath,
             derivedDataPath: nil,
@@ -63,7 +63,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         XCTAssertEqual(path, expectedPath)
     }
 
-    func test_locate_WHEN_destination_platform_IS_device_iOS() throws {
+    func test_locate_WHEN_destination_platform_IS_device_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -72,7 +72,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let sdk = "iphoneos"
 
         // WHEN
-        let path = try subject.locate(
+        let path = try await subject.locate(
             destinationType: .device(.iOS),
             projectPath: projectPath,
             derivedDataPath: nil,
