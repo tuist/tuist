@@ -1492,7 +1492,7 @@ msgstr ""
 msgid "Newsletter RSS"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:22
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Newsletter issues are sent bi-weekly and you can unsubscribe at any time."
 msgstr ""
@@ -2263,8 +2263,7 @@ msgid "Stay updated with the latest changes and improvements in Tuist. Read our 
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:127
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:11
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:48
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -2289,7 +2288,7 @@ msgstr ""
 msgid "Swift DSL"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:5
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Swift Stories"
 msgstr ""
@@ -2301,7 +2300,7 @@ msgstr ""
 msgid "Swift Stories Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:3
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Swift Stories newsletter's subscription form"
 msgstr ""
