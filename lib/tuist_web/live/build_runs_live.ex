@@ -3,26 +3,37 @@ defmodule TuistWeb.BuildRunsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
 
+  alias Noora.Filter
+  alias Tuist.Accounts
   alias Tuist.Projects
   alias Tuist.Runs
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
-    socket = assign(socket, :head_title, "#{gettext("Build Runs")} · #{slug} · Tuist")
+    socket =
+      socket
+      |> assign(:head_title, "#{gettext("Build Runs")} · #{slug} · Tuist")
+      |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
   end
 
   def handle_params(params, _uri, socket) do
-    uri = URI.new!("?" <> URI.encode_query(Map.take(params, ["build-runs-sort-by", "build-runs-sort-order"])))
+    uri = URI.new!("?" <> URI.encode_query(params))
+
+    build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
+    build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
     socket =
       socket
       |> assign(:uri, uri)
+      |> assign(:build_runs_sort_by, build_runs_sort_by)
+      |> assign(:build_runs_sort_order, build_runs_sort_order)
       |> assign_build_runs(params)
 
     {
@@ -31,13 +42,25 @@ defmodule TuistWeb.BuildRunsLive do
     }
   end
 
-  defp assign_build_runs(%{assigns: %{selected_project: project}} = socket, params) do
-    build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
-    build_runs_sort_order = params["build-runs-sort-order"] || "desc"
+  defp assign_build_runs(
+         %{
+           assigns: %{
+             selected_project: project,
+             build_runs_sort_by: build_runs_sort_by,
+             build_runs_sort_order: build_runs_sort_order,
+             available_filters: available_filters
+           }
+         } = socket,
+         params
+       ) do
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    flop_filters = [
+    base_flop_filters = [
       %{field: :project_id, op: :==, value: project.id}
     ]
+
+    filter_flop_filters = build_flop_filters(filters)
+    flop_filters = base_flop_filters ++ filter_flop_filters
 
     order_by =
       case build_runs_sort_by do
@@ -60,10 +83,9 @@ defmodule TuistWeb.BuildRunsLive do
     {build_runs, build_runs_meta} = Runs.list_build_runs(options, preload: :ran_by_account)
 
     socket
+    |> assign(:active_filters, filters)
     |> assign(:build_runs, build_runs)
     |> assign(:build_runs_meta, build_runs_meta)
-    |> assign(:build_runs_sort_by, build_runs_sort_by)
-    |> assign(:build_runs_sort_order, build_runs_sort_order)
   end
 
   defp build_runs_options_with_paging(options, params) do
@@ -111,5 +133,142 @@ defmodule TuistWeb.BuildRunsLive do
       |> Map.delete("before")
 
     "?#{URI.encode_query(query_params)}"
+  end
+
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_query_params}"
+     )
+     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  defp build_flop_filters(filters) do
+    {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    ran_by_flop_filters =
+      Enum.flat_map(ran_by, fn
+        %{value: :ci, operator: op} ->
+          [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: op} when not is_nil(value) ->
+          [%{field: :account_id, op: op, value: value}]
+
+        _ ->
+          []
+      end)
+
+    flop_filters ++ ran_by_flop_filters
+  end
+
+  defp define_filters(project) do
+    base = [
+      %Filter.Filter{
+        id: "scheme",
+        field: :scheme,
+        display_name: gettext("Scheme"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: gettext("Status"),
+        type: :option,
+        options: [:success, :failure],
+        options_display_names: %{
+          success: gettext("Passed"),
+          failure: gettext("Failed")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "git_branch",
+        field: :git_branch,
+        display_name: gettext("Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "category",
+        field: :category,
+        display_name: gettext("Category"),
+        type: :option,
+        options: [:incremental, :clean],
+        options_display_names: %{
+          build: gettext("Build"),
+          test: gettext("Test"),
+          archive: gettext("Archive")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "xcode_version",
+        field: :xcode_version,
+        display_name: gettext("Xcode version"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "macos_version",
+        field: :macos_version,
+        display_name: gettext("macOS version"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      }
+    ]
+
+    organization =
+      if Accounts.organization?(project.account) do
+        organization = Accounts.get_organization_by_id(project.account.organization_id)
+        users = Accounts.get_organization_members(organization)
+
+        [
+          %Filter.Filter{
+            id: "ran_by",
+            field: :ran_by,
+            display_name: gettext("Ran by"),
+            type: :option,
+            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            options_display_names:
+              Map.merge(
+                %{ci: "CI"},
+                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+              ),
+            operator: :==,
+            value: nil
+          }
+        ]
+      else
+        []
+      end
+
+    base ++ organization
   end
 end

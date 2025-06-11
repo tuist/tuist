@@ -11,7 +11,13 @@ defmodule Tuist.Runs.Build do
     filterable: [
       :project_id,
       :scheme,
-      :category
+      :category,
+      :status,
+      :git_branch,
+      :xcode_version,
+      :macos_version,
+      :account_id,
+      :is_ci
     ],
     sortable: [:inserted_at, :duration]
   }
