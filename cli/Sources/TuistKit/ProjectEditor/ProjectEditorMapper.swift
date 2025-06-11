@@ -242,7 +242,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try await {
+        let packagesTarget: Target? = try {
             guard let packageManifestPath else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
