@@ -353,5 +353,6 @@
     "Mac16,7":"MacBook Pro (16-inch, 2024)",
     "Mac16,5":"MacBook Pro (16-inch, 2024)",
     "Mac16,10":"Mac mini (2024)",
-    "Mac16,11":"Mac mini (2024)"
+    "Mac16,11":"Mac mini (2024)",
+    "VirtualMac2,1": "Virtual machine"
 }
