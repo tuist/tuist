@@ -7,12 +7,12 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 
-enum BuildServiceError: FatalError {
+enum BuildServiceError: LocalizedError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .schemeWithoutBuildableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
@@ -21,16 +21,6 @@ enum BuildServiceError: FatalError {
         case let .schemeNotFound(scheme, existing):
             return
                 "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .workspaceNotFound:
-            return .bug
-        case .schemeNotFound,
-             .schemeWithoutBuildableTargets:
-            return .abort
         }
     }
 }
