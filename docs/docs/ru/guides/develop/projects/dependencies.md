@@ -9,13 +9,12 @@ description: Узнайте, как объявлять зависимости в
 Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
 Многомодульность означает определение зависимостей между ними, формируя **граф зависимостей**, который также может включать и внешние зависимости.
 
-## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
+## XcodeProj-кодированные графы {#xcodeprojcodified-graphs}
 
-Due to Xcode and XcodeProj's design,
-the maintenance of a dependency graph can be a tedious and error-prone task.
-Here are some examples of the problems that you might encounter:
+Из-за дизайна Xcode и XcodeProj, поддержка графа зависимостей может быть утомительной и подвержена ошибкам.
+Вот несколько примеров проблем, с которыми вы можете столкнуться:
 
-- Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
+- Поскольку система сборки Xcode'а выводит все продукты сборки в один и тот же каталог в `derived data` - проекты могут импортировать зависимости, которые они не должны. Компиляция может быть неудачной на CI, где сборки без кешей являются более распространенными или позже когда используется другая конфигурация.
 - The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
 - When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
 
@@ -64,7 +63,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">smart test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">selective test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -116,7 +115,7 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrates over time as the project grows.
+As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrades over time as the project grows.
 
 From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
 
@@ -335,7 +334,7 @@ import ProjectDescriptionHelpers
 
 let packageSettings = PackageSettings(
     productTypes: [
-        "FPLPromises": .framework,
+        "FBLPromises": .framework,
     ]
 )
 #endif
@@ -346,7 +345,14 @@ let package = Package(
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially [causing the compilation to fail](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1). To prevent that, you'll have to import the static dependency using [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly):
+When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import the static dependency using <LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+
+```swift
+internal import StaticModule
+```
+
+> [!NOTE]
+> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
 
 ```swift
 @_implementationOnly import StaticModule

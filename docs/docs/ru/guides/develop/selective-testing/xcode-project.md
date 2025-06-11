@@ -1,16 +1,16 @@
 ---
-title: xcodebuild
+title: Xcode project
 titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: Learn how to leverage selective testing with `xcodebuild`.
 ---
 
-# xcodebuild {#xcodebuild}
+# Xcode project {#xcode-project}
 
 > [!IMPORTANT] REQUIREMENTS
 >
 > - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
-To run tests selectively using `xcodebuild`, you can prepend your `xcodebuild` command with `tuist` – for example, `tuist xcodebuild test -scheme App`. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
+You can run the tests of your Xcode projects selectively through the command line. To run tests selectively using `xcodebuild`, you can prepend your `xcodebuild` command with `tuist` – for example, `tuist xcodebuild test -scheme App`. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
 
 In future runs `tuist xcodebuild test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
 
@@ -31,3 +31,7 @@ For example, assuming the following dependency graph:
 | `tuist xcodebuild test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
 
 To use `tuist xcodebuild test` on your CI, follow the instructions in the <LocalizedLink href="/guides/automate/continuous-integration">Continuous integration guide</LocalizedLink>.
+
+Check out the following video to see selective testing in action:
+
+<iframe title="Run tests selectively in your Xcode projects" width="560" height="315" src="https://videos.tuist.dev/videos/embed/1SjekbWSYJ2HAaVjchwjfQ" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
