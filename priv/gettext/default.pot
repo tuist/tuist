@@ -562,7 +562,6 @@ msgstr ""
 msgid "Close menu"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.html.heex:51
 #: lib/tuist_web/live/cache_runs_live.ex:31
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/generate_runs_live.ex:226
@@ -4101,4 +4100,9 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
+msgstr ""
+
+#: lib/tuist_web/live/build_run_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Mac device"
 msgstr ""
