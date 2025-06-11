@@ -13,9 +13,6 @@ extension TargetQuery: @retroactive ExpressibleByArgument {
 public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
-    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
-    public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "generate",
@@ -49,7 +46,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         help: "Don't open the project after generating it.",
         envKey: .generateOpen
     )
-    var open: Bool = !CIChecker().isCI()
+    var open: Bool = !Environment.current.isCI
 
     @Flag(
         help: "Ignore binary cache and use sources only.",
@@ -65,8 +62,8 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
 
     public func run() async throws {
         try await GenerateService(
-            cacheStorageFactory: Self.cacheStorageFactory,
-            generatorFactory: Self.generatorFactory
+            cacheStorageFactory: Extension.cacheStorageFactory,
+            generatorFactory: Extension.generatorFactory
         ).run(
             path: path,
             includedTargets: Set(includedTargets),

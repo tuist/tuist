@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
-import ServiceContextModule
 import TuistSupport
 import XcodeProj
 
@@ -58,7 +57,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
-            ServiceContext.current?.logger?.notice("The list of configurations is empty. Exiting...")
+            Logger.current.notice("The list of configurations is empty. Exiting...")
             return
         }
 
@@ -66,8 +65,8 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             if acc.isEmpty { acc.formUnion(next.buildSettings.keys) } else { acc.formIntersection(next.buildSettings.keys) }
         }
 
-        /// We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
-        /// Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
+        // We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
+        // Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
         let commonBuildSettings = repeatedBuildSettingsKeys.filter { buildSetting -> Bool in
             let values = buildConfigurations.map { $0.buildSettings[buildSetting]! }
             let stringValues = values.compactMap(\.stringValue)
@@ -101,7 +100,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
 
-        ServiceContext.current?.alerts?
+        AlertController.current
             .success(.alert("Build settings successfully extracted into \(xcconfigPath.pathString)"))
     }
 

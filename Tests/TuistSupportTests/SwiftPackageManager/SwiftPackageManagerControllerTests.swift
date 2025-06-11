@@ -2,7 +2,7 @@ import Command
 import Mockable
 import TSCUtility
 import TuistCore
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistSupport
@@ -18,7 +18,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         subject = SwiftPackageManagerController(
             system: system,
             fileSystem: fileSystem,
-            commandRunner: commandRunner
+            commandRunner: { self.commandRunner }
         )
     }
 

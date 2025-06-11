@@ -2,7 +2,7 @@ import Foundation
 import Path
 import XCTest
 @testable import TuistCore
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XcodeBuildArgumentTests: TuistUnitTestCase {
     func test_arguments_returns_the_right_value_when_sdk() {

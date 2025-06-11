@@ -1,11 +1,11 @@
 import Mockable
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 import XCTest
 
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class XCFrameworkLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_xcframeworkNotFound() {

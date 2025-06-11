@@ -1,9 +1,7 @@
 import Foundation
 
 public enum Constants {
-    // NOTE: We expect tuist-cloud to set the value before running the CLI
-    public static var version: String! = "x.y.z"
-
+    @TaskLocal public static var version: String! = "x.y.z"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -12,7 +10,6 @@ public enum Constants {
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
     public static let bundleName: String = "tuist.zip"
-    public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
     public static let resultBundleName = "result-bundle"
 
@@ -53,20 +50,12 @@ public enum Constants {
         public static let dependenciesDerivedDirectory = "tuist-derived"
     }
 
-    public enum AsyncQueue {
-        public static let directoryName: String = "Queue"
-    }
-
     /// Pass these variables to make custom configuration of tuist
     /// These variables are not supposed to be used by end users
     /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
-        public static let verbose = "TUIST_CONFIG_VERBOSE"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
-        public static let automationPath = "TUIST_CONFIG_AUTOMATION_PATH"
-        public static let queueDirectory = "TUIST_CONFIG_QUEUE_DIRECTORY"
         public static let cacheManifests = "TUIST_CONFIG_CACHE_MANIFESTS"
-        public static let statsOptOut = "TUIST_CONFIG_STATS_OPT_OUT"
         public static let githubAPIToken = "TUIST_CONFIG_GITHUB_API_TOKEN"
         public static let detailedLog = "TUIST_CONFIG_DETAILED_LOG"
         public static let osLog = "TUIST_CONFIG_OS_LOG"
@@ -76,7 +65,6 @@ public enum Constants {
         @available(*, deprecated, message: "Use `token` instead")
         public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
-        public static let cirrusTuistCacheURL = "CIRRUS_TUIST_CACHE_URL"
     }
 
     public enum URLs {

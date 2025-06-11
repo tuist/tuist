@@ -1,11 +1,12 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 
@@ -23,23 +24,30 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
         case let .projectOrWorkspaceNotFound(path):
             return "Workspace or project not found at \(path)"
         case let .noAppsFound(app: app, configuration: configuration):
-            return "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
+            return
+                "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
         case .appNotSpecified:
-            return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
+            return
+                "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
         case .platformsNotSpecified:
-            return "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
+            return
+                "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
         case let .multipleAppsSpecified(apps):
-            return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
+            return
+                "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
+            return
+                "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         case let .appBundleInIPANotFound(ipaPath):
-            return "No app found in the in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
+            return
+                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .projectOrWorkspaceNotFound, .noAppsFound, .appNotSpecified, .platformsNotSpecified, .multipleAppsSpecified,
+        case .projectOrWorkspaceNotFound, .noAppsFound, .appNotSpecified, .platformsNotSpecified,
+             .multipleAppsSpecified,
              .fullHandleNotFound, .appBundleInIPANotFound:
             return .abort
         }
@@ -118,6 +126,7 @@ struct ShareCommandService {
         self.fileArchiverFactory = fileArchiverFactory
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         path: String?,
         apps: [String],
@@ -131,7 +140,9 @@ struct ShareCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        guard let fullHandle = config.fullHandle else { throw ShareCommandServiceError.fullHandleNotFound }
+        guard let fullHandle = config.fullHandle else {
+            throw ShareCommandServiceError.fullHandleNotFound
+        }
 
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
@@ -165,20 +176,24 @@ struct ShareCommandService {
         } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
 
-            let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+            let (graph, _, _, _) = try await manifestGraphLoader.load(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
             let graphTraverser = GraphTraverser(graph: graph)
-            let shareableTargets = graphTraverser
-                .targets(product: .app)
-                .union(graphTraverser.targets(product: .appClip))
-                .union(graphTraverser.targets(product: .watch2App))
-                .map { $0 }
-                .filter {
-                    if let app = apps.first {
-                        return $0.target.name == app
-                    } else {
-                        return true
+            let shareableTargets =
+                graphTraverser
+                    .targets(product: .app)
+                    .union(graphTraverser.targets(product: .appClip))
+                    .union(graphTraverser.targets(product: .watch2App))
+                    .map { $0 }
+                    .filter {
+                        if let app = apps.first {
+                            return $0.target.name == app
+                        } else {
+                            return true
+                        }
                     }
-                }
             let appTarget: GraphTarget = try userInputReader.readValue(
                 asking: "Select the app that you want to share:",
                 values: shareableTargets.sorted(by: { $0.target.name < $1.target.name }),
@@ -187,11 +202,13 @@ struct ShareCommandService {
 
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
-                defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
+                defaultConfiguration: config.project.generatedProject?.generationOptions
+                    .defaultConfiguration,
                 graph: graph
             )
 
-            let platforms = platforms.isEmpty ? appTarget.target.supportedPlatforms.map { $0 } : platforms
+            let platforms =
+                platforms.isEmpty ? appTarget.target.supportedPlatforms.map { $0 } : platforms
 
             try await uploadPreviews(
                 for: platforms,
@@ -206,13 +223,17 @@ struct ShareCommandService {
             )
         } else {
             guard !apps.isEmpty else { throw ShareCommandServiceError.appNotSpecified }
-            guard apps.count == 1, let app = apps.first else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
+            guard apps.count == 1, let app = apps.first else {
+                throw ShareCommandServiceError.multipleAppsSpecified(apps)
+            }
             guard !platforms.isEmpty else { throw ShareCommandServiceError.platformsNotSpecified }
 
             let configuration = configuration ?? BuildConfiguration.debug.name
 
-            let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"]).collect().first
-            let project = try await fileSystem.glob(directory: path, include: ["*.xcodeproj"]).collect().first
+            let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"])
+                .collect().first
+            let project = try await fileSystem.glob(directory: path, include: ["*.xcodeproj"])
+                .collect().first
             guard let workspaceOrProjectPath = workspace ?? project
             else {
                 throw ShareCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
@@ -299,7 +320,8 @@ struct ShareCommandService {
             displayName: appName,
             version: appBundles.map(\.infoPlist.version.description).first,
             bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
-            icon: appBundles
+            icon:
+            appBundles
                 .concurrentFlatMap { try await iconPaths(for: $0) }
                 .first,
             supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
@@ -318,7 +340,7 @@ struct ShareCommandService {
         configuration: String,
         temporaryPath: AbsolutePath
     ) async throws -> AbsolutePath? {
-        let appPath = try xcodeProjectBuildDirectoryLocator.locate(
+        let appPath = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: destinationType,
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
@@ -327,7 +349,8 @@ struct ShareCommandService {
         .appending(component: "\(app).app")
 
         let newAppPath = temporaryPath.appending(
-            component: "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
+            component:
+            "\(destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
         )
 
         if try await !fileSystem.exists(appPath) {
@@ -351,29 +374,30 @@ struct ShareCommandService {
         json: Bool
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
-            let appPaths = try await platforms
-                .concurrentFlatMap { platform -> [DestinationType] in
-                    switch platform {
-                    case .iOS, .tvOS, .visionOS, .watchOS:
-                        return [
-                            .simulator(platform),
-                            .device(platform),
-                        ]
-                    case .macOS:
-                        return [.device(platform)]
+            let appPaths =
+                try await platforms
+                    .concurrentFlatMap { platform -> [DestinationType] in
+                        switch platform {
+                        case .iOS, .tvOS, .visionOS, .watchOS:
+                            return [
+                                .simulator(platform),
+                                .device(platform),
+                            ]
+                        case .macOS:
+                            return [.device(platform)]
+                        }
                     }
-                }
-                .concurrentCompactMap { destinationType in
-                    try await copyAppBundle(
-                        for: destinationType,
-                        app: app,
-                        projectPath: workspacePath,
-                        derivedDataPath: derivedDataPath,
-                        configuration: configuration,
-                        temporaryPath: temporaryPath
-                    )
-                }
-                .uniqued()
+                    .concurrentCompactMap { destinationType in
+                        try await copyAppBundle(
+                            for: destinationType,
+                            app: app,
+                            projectPath: workspacePath,
+                            derivedDataPath: derivedDataPath,
+                            configuration: configuration,
+                            temporaryPath: temporaryPath
+                        )
+                    }
+                    .uniqued()
 
             let appBundles = try await appPaths.concurrentMap {
                 try await appBundleLoader.load($0)
@@ -388,7 +412,8 @@ struct ShareCommandService {
                 displayName: app,
                 version: appBundles.first?.infoPlist.version.description,
                 bundleIdentifier: appBundles.first?.infoPlist.bundleId,
-                icon: appBundles
+                icon:
+                appBundles
                     .concurrentFlatMap { try await iconPaths(for: $0) }
                     .first,
                 supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
@@ -421,7 +446,7 @@ struct ShareCommandService {
         serverURL: URL,
         json: Bool
     ) async throws {
-        let preview = try await ServiceContext.current!.ui!.progressBarStep(
+        let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(displayName)",
             successMessage: "\(displayName) uploaded",
             errorMessage: "Failed to load manifests"
@@ -440,18 +465,18 @@ struct ShareCommandService {
             )
         }
 
-        ServiceContext.current?.alerts?
+        AlertController.current
             .success(
                 .alert(
                     "Share \(displayName) with others using the following link: \(preview.url.absoluteString)"
                 )
             )
 
-        await ServiceContext.current?.runMetadataStorage?.update(previewId: preview.id)
+        await RunMetadataStorage.current.update(previewId: preview.id)
 
         if json {
             let previewJSON = try preview.toJSON()
-            ServiceContext.current?.logger?.info(
+            Logger.current.info(
                 .init(
                     stringLiteral: previewJSON.toString(prettyPrint: true)
                 ),

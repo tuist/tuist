@@ -11,8 +11,8 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: "Sources/**",
             dependencies: [
-                /* Target dependencies can be defined here */
-                /* .framework(path: "framework") */
+                // Target dependencies can be defined here
+                // .framework(path: "framework")
             ],
             settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),

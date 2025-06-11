@@ -21,8 +21,6 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let versionFetcher: CacheVersionFetching
     private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle, .macro]
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
-    private let xcodeController: XcodeControlling
-    private let swiftVersionProvider: SwiftVersionProviding
 
     public convenience init(
         contentHasher: ContentHashing = ContentHasher()
@@ -31,9 +29,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             contentHasher: contentHasher,
             versionFetcher: CacheVersionFetcher(),
-            defaultConfigurationFetcher: DefaultConfigurationFetcher(),
-            xcodeController: XcodeController.shared,
-            swiftVersionProvider: SwiftVersionProvider.shared
+            defaultConfigurationFetcher: DefaultConfigurationFetcher()
         )
     }
 
@@ -41,16 +37,12 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         graphContentHasher: GraphContentHashing,
         contentHasher: ContentHashing,
         versionFetcher: CacheVersionFetching,
-        defaultConfigurationFetcher: DefaultConfigurationFetching,
-        xcodeController: XcodeControlling,
-        swiftVersionProvider: SwiftVersionProviding
+        defaultConfigurationFetcher: DefaultConfigurationFetching
     ) {
         self.graphContentHasher = graphContentHasher
         self.contentHasher = contentHasher
         self.versionFetcher = versionFetcher
         self.defaultConfigurationFetcher = defaultConfigurationFetcher
-        self.xcodeController = xcodeController
-        self.swiftVersionProvider = swiftVersionProvider
     }
 
     public func contentHashes(
@@ -80,9 +72,9 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             destination: destination,
             additionalStrings: [
                 configuration,
-                try swiftVersionProvider.swiftlangVersion(),
+                try SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
-                try await xcodeController.selectedVersion().xcodeStringValue,
+                try await XcodeController.current.selectedVersion().xcodeStringValue,
             ]
         )
         return hashes
@@ -96,7 +88,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let product = target.target.product
         let name = target.target.name
 
-        /** The second condition is to exclude the resources bundle associated to the given target name */
+        // The second condition is to exclude the resources bundle associated to the given target name
         let isExcluded = excludedTargets.contains(name) || excludedTargets
             .contains(target.target.name.dropPrefix("\(target.project.name)_"))
         let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)

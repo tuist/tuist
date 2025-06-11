@@ -7,7 +7,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from() async throws {

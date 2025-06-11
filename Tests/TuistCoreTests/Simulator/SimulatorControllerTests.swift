@@ -1,136 +1,159 @@
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TSCUtility
-import XCTest
 
 @testable import TuistCore
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
-final class SimulatorControllerTests: TuistUnitTestCase {
+struct SimulatorControllerTests {
     private var subject: SimulatorController!
+    private let system = MockSystem()
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = SimulatorController(
-            system: system,
-            xcodeController: xcodeController
+            system: system
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_devices_should_returnListOfDevicesFromJson() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_devices_should_returnListOfDevicesFromJson() async throws {
         // Given
-        let expectedDevice = try XCTUnwrap(createSystemStubs(devices: true, runtimes: false).first?.device)
+        let expectedDevice = try #require(createSystemStubs(devices: true, runtimes: false).first?.device)
 
         // When
         let devices = try await subject.devices()
 
         // Then
-        XCTAssertEqual(devices, [expectedDevice])
+        #expect(devices == [expectedDevice])
     }
 
-    func test_runtimes_should_returnListOfRuntimesFromJson() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_runtimes_should_returnListOfRuntimesFromJson() async throws {
         // Given
-        let expectedRuntime = try XCTUnwrap(createSystemStubs(devices: false, runtimes: true).first?.runtime)
+        let expectedRuntime = try #require(createSystemStubs(devices: false, runtimes: true).first?.runtime)
 
         // When
         let runtimes = try await subject.runtimes()
 
         // Then
-        XCTAssertEqual(runtimes, [expectedRuntime])
+        #expect(runtimes == [expectedRuntime])
     }
 
-    func test_devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let devicesAndRuntimes = try await subject.devicesAndRuntimes()
 
         // Then
-        XCTAssertEqual(devicesAndRuntimes, [expectedDeviceAndRuntime])
+        #expect(devicesAndRuntimes == [expectedDeviceAndRuntime])
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            _ = try await subject.findAvailableDevice(platform: .macOS, version: nil, minVersion: nil, deviceName: nil),
-            SimulatorControllerError.deviceNotFound(.macOS, nil, nil, [expectedDeviceAndRuntime])
-        )
+        await #expect(throws: SimulatorControllerError.deviceNotFound(.macOS, nil, nil, [expectedDeviceAndRuntime]), performing: {
+            _ = try await subject.findAvailableDevice(platform: .macOS, version: nil, minVersion: nil, deviceName: nil)
+        })
     }
 
-    func test_findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
         // Given
         _ = createSystemStubs(devices: true, runtimes: true)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            _ = try await subject.findAvailableDevice(udid: "some-id"),
-            SimulatorControllerError.simulatorNotFound(udid: "some-id")
-        )
+        await #expect(throws: SimulatorControllerError.simulatorNotFound(udid: "some-id"), performing: {
+            _ = try await subject.findAvailableDevice(udid: "some-id")
+        })
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            _ = try await subject.findAvailableDevice(platform: .iOS, version: .init(15, 0, 0), minVersion: nil, deviceName: nil),
-            SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime])
+        await #expect(
+            throws: SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime]),
+            performing: {
+                _ = try await subject.findAvailableDevice(
+                    platform: .iOS,
+                    version: .init(15, 0, 0),
+                    minVersion: nil,
+                    deviceName: nil
+                )
+            }
         )
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(15, 0, 0), deviceName: nil),
-            SimulatorControllerError.deviceNotFound(.iOS, nil, nil, [expectedDeviceAndRuntime])
-        )
+        await #expect(throws: SimulatorControllerError.deviceNotFound(.iOS, nil, nil, [expectedDeviceAndRuntime]), performing: {
+            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(15, 0, 0), deviceName: nil)
+        })
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100"),
-            SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime])
+        await #expect(
+            throws: SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime]),
+            performing: {
+                _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100")
+            }
         )
     }
 
-    func test_findAvailableDevice_should_findDeviceWithUdid() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithUdid() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(udid: "81F0475F-0A03-4742-92D7-D59ACE3A5895")
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithDeviceNameAndOSVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithDeviceNameAndOSVersion() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -139,23 +162,29 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithDefaults() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithDefaults() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: nil)
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithVersion() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -166,12 +195,15 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithinMinVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithinMinVersion() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -182,12 +214,15 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithDeviceName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithDeviceName() async throws {
         // Given
-        let expectedDeviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -198,10 +233,13 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithMaxVersion_when_noMinVersionAndDeviceNameIsSet() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findDeviceWithMaxVersion_when_noMinVersionAndDeviceNameIsSet() async throws {
         // Given
         let devicesAndRuntimes =
             createSystemStubs(
@@ -214,7 +252,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                     .init(major: 17, minor: 0),
                 ]
             )
-        let expectedDeviceAndRuntime = try XCTUnwrap(devicesAndRuntimes.first(where: { $0.runtime.version == "17.0" }))
+        let expectedDeviceAndRuntime = try #require(devicesAndRuntimes.first(where: { $0.runtime.version == "17.0" }))
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -225,10 +263,13 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
         // Given
         let devicesAndRuntimes =
             createSystemStubs(
@@ -239,7 +280,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                     .init(major: 17, minor: 0),
                 ]
             )
-        let expectedDeviceAndRuntime = try XCTUnwrap(devicesAndRuntimes.first(where: { $0.runtime.version == "16.0" }))
+        let expectedDeviceAndRuntime = try #require(devicesAndRuntimes.first(where: { $0.runtime.version == "16.0" }))
 
         // When
         let device = try await subject.findAvailableDevice(
@@ -250,12 +291,12 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(device, expectedDeviceAndRuntime)
+        #expect(device == expectedDeviceAndRuntime)
     }
 
-    func test_installApp_should_bootSimulatorIfNotBooted() throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_installApp_should_bootSimulatorIfNotBooted() throws {
         // Given
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let appPath = try AbsolutePath(validating: "/path/to/app.App")
         let udid = deviceAndRuntime.device.udid
         let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
@@ -265,12 +306,12 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try? subject.installApp(at: appPath, device: deviceAndRuntime.device)
 
         // Then
-        XCTAssertTrue(system.called(bootCommand))
+        #expect(system.called(bootCommand) == true)
     }
 
-    func test_installApp_should_installAppOnSimulatorWithUdid() throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_installApp_should_installAppOnSimulatorWithUdid() throws {
         // Given
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let appPath = try AbsolutePath(validating: "/path/to/app.App")
         let udid = deviceAndRuntime.device.udid
         let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
@@ -282,15 +323,16 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try subject.installApp(at: appPath, device: deviceAndRuntime.device)
 
         // Then
-        XCTAssertTrue(system.called(installCommand))
+        #expect(system.called(installCommand) == true)
     }
 
-    func test_launchApp_should_bootSimulatorIfNotBooted() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_bootSimulatorIfNotBooted() async throws {
         // Given
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test())
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
@@ -300,15 +342,16 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try? await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
-        XCTAssertTrue(system.called(bootCommand))
+        #expect(system.called(bootCommand) == true)
     }
 
-    func test_launchApp_should_openSimulatorApp() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_openSimulatorApp() async throws {
         // Given
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test())
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
@@ -319,15 +362,16 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try? await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
-        XCTAssertTrue(system.called(openSimAppCommand))
+        #expect(system.called(openSimAppCommand) == true)
     }
 
-    func test_launchApp_should_launchAppOnSimulator() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_launchAppOnSimulator() async throws {
         // Given
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test())
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
@@ -339,15 +383,19 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
-        XCTAssertTrue(system.called(launchAppCommand))
+        #expect(system.called(launchAppCommand) == true)
     }
 
-    func test_launchApp_should_launchAppOnSimulatorWithArguments() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_launchApp_should_launchAppOnSimulatorWithArguments() async throws {
         // Given
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selected()
             .willReturn(.test())
-        let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
+        let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         let arguments = ["-arg1", "--arg2", "SomeArg"]
@@ -360,7 +408,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: arguments)
 
         // Then
-        XCTAssertTrue(system.called(launchAppCommand))
+        #expect(system.called(launchAppCommand) == true)
     }
 
     private func createSystemStubs(

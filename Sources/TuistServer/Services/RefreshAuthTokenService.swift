@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol RefreshAuthTokenServicing: Sendable {
@@ -11,20 +10,11 @@ public protocol RefreshAuthTokenServicing: Sendable {
     ) async throws -> ServerAuthenticationTokens
 }
 
-public enum RefreshAuthTokenServiceError: FatalError, Equatable {
+public enum RefreshAuthTokenServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CLI authentication failed due to an unknown Tuist response of \(statusCode)."

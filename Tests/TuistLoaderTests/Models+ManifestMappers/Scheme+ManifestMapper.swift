@@ -7,7 +7,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SchemeManifestMapperTests: TuistUnitTestCase {
     func test_from_when_the_scheme_has_no_actions() async throws {
@@ -65,6 +65,31 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             buildAction: buildAction,
             testAction: testAction,
             runAction: runActions
+        )
+
+        // When
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+    }
+
+    func test_from_when_the_scheme_uses_manual_build_order() async throws {
+        // Given
+        let buildAction = ProjectDescription.BuildAction.test(
+            targets: ["A", "B"],
+            buildOrder: .manual
+        )
+        let manifest = ProjectDescription.Scheme.test(
+            name: "Scheme",
+            shared: false,
+            buildAction: buildAction
+        )
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
         )
 
         // When

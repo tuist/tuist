@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistSimulator
 import TuistSupport
 
 @Mockable
@@ -19,7 +20,7 @@ public protocol XcodeProjectBuildDirectoryLocating {
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
@@ -34,11 +35,16 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String
-    ) throws -> AbsolutePath {
-        let derivedDataPath = try derivedDataPath ?? derivedDataLocator.locate(
-            for: projectPath
-        )
-        return derivedDataPath
+    ) async throws -> AbsolutePath {
+        let derivedDataDirectory = if let derivedDataPath {
+            derivedDataPath
+        } else {
+            try await derivedDataLocator.locate(
+                for: projectPath
+            )
+        }
+
+        return derivedDataDirectory
             .appending(component: "Build")
             .appending(component: "Products")
             .appending(

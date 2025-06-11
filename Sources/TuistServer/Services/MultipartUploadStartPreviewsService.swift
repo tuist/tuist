@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
-import TuistCore
-import TuistSupport
+import TuistSimulator
 
 @Mockable
 public protocol MultipartUploadStartPreviewsServicing {
@@ -18,22 +17,13 @@ public protocol MultipartUploadStartPreviewsServicing {
     ) async throws -> PreviewUpload
 }
 
-public enum MultipartUploadStartPreviewsServiceError: FatalError, Equatable {
+public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The app build could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."

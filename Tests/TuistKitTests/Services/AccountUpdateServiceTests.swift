@@ -79,8 +79,10 @@ struct AccountUpdateServiceTests {
         )
 
         // Then
-        verify(updateAccountService).updateAccount(serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle"))
-            .called(1)
+        verify(updateAccountService).updateAccount(
+            serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle")
+        )
+        .called(1)
 
         verify(authTokenRefreshService).refreshTokens(
             serverURL: .any

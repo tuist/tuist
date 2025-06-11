@@ -3,13 +3,13 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistGenerator
 
-// Bundle name is irrelevant if the target supports resources.
+/// Bundle name is irrelevant if the target supports resources.
 private let irrelevantBundleName = ""
 
 final class ResourcesProjectMapperTests: TuistUnitTestCase {

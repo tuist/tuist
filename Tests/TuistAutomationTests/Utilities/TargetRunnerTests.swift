@@ -1,10 +1,8 @@
 import Mockable
 import struct TSCUtility.Version
-import TuistAutomationTesting
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 
@@ -13,18 +11,13 @@ import XCTest
 final class TargetRunnerErrorTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(
-            TargetRunnerError.runnableNotFound(path: "/path/to/product").description,
+            TargetRunnerError.runnableNotFound(path: "/path/to/product").localizedDescription,
             "The runnable product was expected but not found at /path/to/product."
         )
         XCTAssertEqual(
-            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).description,
+            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).localizedDescription,
             "Product type app of Target is not runnable"
         )
-    }
-
-    func test_type() {
-        XCTAssertEqual(TargetRunnerError.runnableNotFound(path: "/path").type, .bug)
-        XCTAssertEqual(TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).type, .abort)
     }
 }
 

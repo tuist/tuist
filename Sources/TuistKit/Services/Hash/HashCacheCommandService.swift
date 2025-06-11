@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistHasher
@@ -85,7 +84,10 @@ final class HashCacheCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            graph = try await generator.load(path: absolutePath)
+            graph = try await generator.load(
+                path: absolutePath,
+                options: config.project.generatedProject?.generationOptions
+            )
             defaultConfiguration = config.project.generatedProject?.generationOptions.defaultConfiguration
         } else {
             defaultConfiguration = nil
@@ -103,10 +105,10 @@ final class HashCacheCommandService {
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
 
         if sortedHashes.isEmpty {
-            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets."))
+            AlertController.current.warning(.alert("The project contains no hashable targets."))
         } else {
             for (target, hash) in sortedHashes {
-                ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+                Logger.current.info("\(target.target.name) - \(hash)")
             }
         }
     }

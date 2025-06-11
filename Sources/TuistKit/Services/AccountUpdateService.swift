@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -58,15 +57,7 @@ struct AccountUpdateService: AccountUpdateServicing {
         directory: String?,
         onEvent: (AccountUpdateServiceEvent) -> Void
     ) async throws {
-        let directoryPath: AbsolutePath
-        if let directory {
-            directoryPath = try AbsolutePath(
-                validating: directory, relativeTo: try await fileSystem.currentWorkingDirectory()
-            )
-        } else {
-            directoryPath = try await fileSystem.currentWorkingDirectory()
-        }
-
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
@@ -94,7 +85,7 @@ extension AccountUpdateServicing {
         accountHandle: String?,
         handle: String?,
         directory: String?,
-        onEvent: ((AccountUpdateServiceEvent) -> Void) = { ServiceContext.current?.alerts?.success(.alert("\($0.description)")) }
+        onEvent: ((AccountUpdateServiceEvent) -> Void) = { AlertController.current.success(.alert("\($0.description)")) }
     ) async throws {
         try await run(
             accountHandle: accountHandle,

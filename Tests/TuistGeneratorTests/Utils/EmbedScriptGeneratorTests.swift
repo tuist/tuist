@@ -5,7 +5,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class EmbedScriptGeneratorTests: TuistUnitTestCase {
     var subject: EmbedScriptGenerator!

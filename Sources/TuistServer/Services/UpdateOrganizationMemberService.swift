@@ -1,6 +1,5 @@
 import Foundation
 import OpenAPIURLSession
-import TuistSupport
 
 public protocol UpdateOrganizationMemberServicing {
     func updateOrganizationMember(
@@ -11,23 +10,14 @@ public protocol UpdateOrganizationMemberServicing {
     ) async throws -> ServerOrganization.Member
 }
 
-enum UpdateOrganizationMemberServiceError: FatalError {
+enum UpdateOrganizationMemberServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .forbidden, .unauthorized, .badRequest:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The member could not be updated due to an unknown Tuist response of \(statusCode)."

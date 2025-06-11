@@ -1,20 +1,13 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import ServiceContextModule
-import TuistSupport
 
-enum CloudClientOutputWarningsMiddlewareError: FatalError {
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .couldntConvertToData:
-            return .bug
-        case .invalidSchema:
-            return .bug
-        }
-    }
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
-    var description: String {
+enum CloudClientOutputWarningsMiddlewareError: LocalizedError {
+    var errorDescription: String? {
         switch self {
         case .couldntConvertToData:
             "We couldn't convert Tuist warnings into a data instance"
@@ -38,11 +31,15 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (response, body) = try await next(request, body, baseURL)
-        guard let warnings = response.headerFields.first(where: { $0.name.canonicalName == "x-tuist-cloud-warnings" })?.value
+        guard let warnings = response.headerFields.first(where: {
+            $0.name.canonicalName == "x-tuist-cloud-warnings"
+        })?.value
         else {
             return (response, body)
         }
-        guard let warningsData = warnings.data(using: .utf8), let data = Data(base64Encoded: warningsData) else {
+        guard let warningsData = warnings.data(using: .utf8),
+              let data = Data(base64Encoded: warningsData)
+        else {
             throw CloudClientOutputWarningsMiddlewareError.couldntConvertToData
         }
 
@@ -52,8 +49,9 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
-        let logger = ServiceContext.$current.get()?.logger
-        json.forEach { logger?.warning("\($0)") }
+        #if canImport(TuistSupport)
+            json.forEach { AlertController.current.warning(.alert("\($0)")) }
+        #endif
 
         return (response, body)
     }

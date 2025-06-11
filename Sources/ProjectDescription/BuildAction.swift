@@ -8,6 +8,8 @@ public struct BuildAction: Equatable, Codable, Sendable {
     public var preActions: [ExecutionAction]
     /// A list of actions that are executed after the build process.
     public var postActions: [ExecutionAction]
+    /// Defines the order in which targets are built.
+    public var buildOrder: BuildOrder
     /// Whether the post actions should be run in the case of a failure
     public var runPostActionsOnFailure: Bool
     /// Whether Xcode should be allowed to find dependencies implicitly. The default is `true`.
@@ -18,6 +20,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ///   - targets: A list of targets to build, which are defined in the project.
     ///   - preActions: A list of actions that are executed before starting the build process.
     ///   - postActions: A list of actions that are executed after the build process.
+    ///   - buildOrder: Defines the order in which targets are built. Defaults to `.dependency`.
     ///   - runPostActionsOnFailure: Whether the post actions should be run in the case of a failure
     ///   - findImplicitDependencies: Whether Xcode should be allowed to find dependencies implicitly. The default is `true`.
     /// - Returns: Initialized build action.
@@ -25,6 +28,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
         targets: [TargetReference],
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
+        buildOrder: BuildOrder = .dependency,
         runPostActionsOnFailure: Bool = false,
         findImplicitDependencies: Bool = true
     ) -> BuildAction {
@@ -32,6 +36,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
             targets: targets,
             preActions: preActions,
             postActions: postActions,
+            buildOrder: buildOrder,
             runPostActionsOnFailure: runPostActionsOnFailure,
             findImplicitDependencies: findImplicitDependencies
         )

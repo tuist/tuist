@@ -334,6 +334,7 @@ export default defineConfig({
 /:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+/:locale/guides/develop/selective-testing/xcodebuild /:locale/guides/develop/selective-testing/xcode-project 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

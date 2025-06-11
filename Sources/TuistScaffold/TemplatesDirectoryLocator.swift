@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 @Mockable
@@ -40,7 +41,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     public func locateTuistTemplates() async throws -> AbsolutePath? {
         #if DEBUG
             let maybeBundlePath: AbsolutePath?
-            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"] {
+            if let sourceRoot = Environment.current.variables["TUIST_CONFIG_SRCROOT"] {
                 maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(component: "Templates")
             } else {
                 // Used only for debug purposes to find templates in your tuist working directory
@@ -57,14 +58,12 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
-            /**
-                == Homebrew directory structure ==
-                x.y.z/
-                   bin/
-                       tuist
-                   share/
-                       Templates
-                */
+            // == Homebrew directory structure ==
+            // x.y.z/
+            //   bin/
+            //       tuist
+            //   share/
+            //       Templates
             bundlePath.parentDirectory.appending(try! RelativePath(validating: "share")),
             // swiftlint:disable:previous force_try
         ]

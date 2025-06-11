@@ -31,6 +31,81 @@ components:
       type: object
       x-struct:
       x-validate:
+    BundleRequest:
+      description: Request schema for bundle creation
+      properties:
+        bundle:
+          properties:
+            app_bundle_id:
+              description: The bundle ID of the app
+              type: string
+              x-struct:
+              x-validate:
+            artifacts:
+              description: The artifacts in this bundle
+              items:
+                $ref: '#/components/schemas/BundleArtifact'
+              type: array
+              x-struct:
+              x-validate:
+            download_size:
+              description: The bundle download size in bytes
+              type: integer
+              x-struct:
+              x-validate:
+            git_branch:
+              description: The git branch associated with the bundle.
+              type: string
+              x-struct:
+              x-validate:
+            git_commit_sha:
+              description: The git commit SHA associated with the bundle.
+              type: string
+              x-struct:
+              x-validate:
+            git_ref:
+              description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+              type: string
+              x-struct:
+              x-validate:
+            install_size:
+              description: The bundle install size in bytes
+              type: integer
+              x-struct:
+              x-validate:
+            name:
+              description: The name of the bundle
+              type: string
+              x-struct:
+              x-validate:
+            supported_platforms:
+              description: List of supported platforms
+              items:
+                $ref: '#/components/schemas/BundleSupportedPlatform'
+              type: array
+              x-struct:
+              x-validate:
+            version:
+              description: The version of the bundle
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - bundle_id
+            - name
+            - supported_platforms
+            - version
+            - install_size
+            - artifacts
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - bundle
+      title: BundleRequest
+      type: object
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -570,9 +645,71 @@ components:
       description: Parameters to create a single run.
       oneOf:
         - properties:
+            category:
+              description: The category of the build run, can be clean or incremental.
+              enum:
+                - clean
+                - incremental
+              type: string
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
+              x-struct:
+              x-validate:
+            files:
+              description: Compiled files associated with the build run.
+              items:
+                properties:
+                  compilation_duration:
+                    description: The duration of the compilation for the file in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  path:
+                    description: The file path where the issue occurred, relative to the project root.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  project:
+                    description: The project name associated with the file.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    description: The target name associated with the file.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type:
+                    description: The type of the file.
+                    enum:
+                      - swift
+                      - c
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - type
+                  - target
+                  - project
+                  - path
+                  - compilation_duration
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            git_branch:
+              description: The git branch.
+              type: string
+              x-struct:
+              x-validate:
+            git_commit_sha:
+              description: The commit SHA.
+              type: string
               x-struct:
               x-validate:
             id:
@@ -583,6 +720,109 @@ components:
             is_ci:
               description: Indicates if the run was executed on a Continuous Integration (CI) system.
               type: boolean
+              x-struct:
+              x-validate:
+            issues:
+              description: The build issues associated with the build run.
+              items:
+                properties:
+                  ending_column:
+                    description: The ending column number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  ending_line:
+                    description: The ending line number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  message:
+                    description: The detailed message of the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  path:
+                    description: The file path where the issue occurred, relative to the project root.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  project:
+                    description: The project name associated with the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  signature:
+                    description: The signature of the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  starting_column:
+                    description: The starting column number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  starting_line:
+                    description: The starting line number of the issue.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  step_type:
+                    description: The step type where the issue occurred, such as swift_compilation.
+                    enum:
+                      - c_compilation
+                      - swift_compilation
+                      - script_execution
+                      - create_static_library
+                      - linker
+                      - copy_swift_libs
+                      - compile_assets_catalog
+                      - compile_storyboard
+                      - write_auxiliary_file
+                      - link_storyboards
+                      - copy_resource_file
+                      - merge_swift_module
+                      - xib_compilation
+                      - swift_aggregated_compilation
+                      - precompile_bridging_header
+                      - other
+                      - validate_embedded_binary
+                      - validate
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    description: The target name associated with the issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  title:
+                    description: The title of the build issue.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type:
+                    description: The type of the issue.
+                    enum:
+                      - warning
+                      - error
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - type
+                  - target
+                  - project
+                  - title
+                  - signature
+                  - step_type
+                  - starting_line
+                  - ending_line
+                  - starting_column
+                  - ending_column
+                type: object
+                x-struct:
+                x-validate:
+              type: array
               x-struct:
               x-validate:
             macos_version:
@@ -606,6 +846,50 @@ components:
                 - success
                 - failure
               type: string
+              x-struct:
+              x-validate:
+            targets:
+              description: Targets with build metadata associated with the build run.
+              items:
+                properties:
+                  build_duration:
+                    description: The build duration for the target in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  compilation_duration:
+                    description: The duration of the compilation for the target in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The target name.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  project:
+                    description: The target's project name.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: The status of the target's build.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - name
+                  - project
+                  - build_duration
+                  - compilation_duration
+                  - status
+                type: object
+                x-struct:
+                x-validate:
+              type: array
               x-struct:
               x-validate:
             type:
@@ -640,25 +924,100 @@ components:
       type: integer
       x-struct:
       x-validate:
+    Bundle:
+      description: Response schema for bundle
+      properties:
+        id:
+          description: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL of the bundle
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - url
+      title: Bundle
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Bundle
+      x-validate:
+    BundleArtifact:
+      description: A bundle artifact schema
+      properties:
+        artifact_type:
+          description: The type of artifact
+          enum:
+            - directory
+            - file
+            - font
+            - binary
+            - localization
+            - asset
+          type: string
+          x-struct:
+          x-validate:
+        children:
+          description: Nested child artifacts, for example for artifacts that represent a directory.
+          items:
+            $ref: '#/components/schemas/BundleArtifact'
+          type: array
+          x-struct:
+          x-validate:
+        path:
+          description: The path to the artifact relative to the root of the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        shasum:
+          description: The SHA checksum of the artifact
+          type: string
+          x-struct:
+          x-validate:
+        size:
+          description: The size of the artifact in bytes
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - artifact_type
+        - path
+        - size
+        - shasum
+      title: BundleArtifact
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
         duration:
+          description: The duration of the build run in milliseconds
           type: integer
           x-struct:
           x-validate:
         id:
+          description: The unique identifier of the build run
           type: string
           x-struct:
           x-validate:
         project_id:
+          description: The ID of the Tuist project associated with this build run
           type: integer
+          x-struct:
+          x-validate:
+        url:
+          description: The URL to access the build run
+          type: string
           x-struct:
           x-validate:
       required:
         - id
         - duration
         - project_id
+        - url
       title: RunsBuild
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Runs.Build
@@ -902,6 +1261,26 @@ components:
           type: string
           x-struct:
           x-validate:
+        ran_at:
+          description: Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+          example: 1715606400
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        ran_by:
+          description: The account triggered the run.
+          properties:
+            handle:
+              description: The handle of the account that triggered the run.
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - handle
+          type: string
+          x-struct:
+          x-validate:
         remote_cache_target_hits:
           description: Remote cache target hits of the run
           items:
@@ -968,9 +1347,26 @@ components:
         - git_ref
         - git_branch
         - url
+        - ran_at
       title: Run
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
+      x-validate:
+    BundleSupportedPlatform:
+      description: A platform that a bundle can support (e.g. iOS)
+      enum:
+        - ios
+        - ios_simulator
+        - tvos
+        - tvos_simulator
+        - watchos
+        - watchos_simulator
+        - visionos
+        - visionos_simulator
+        - macos
+      title: BundleSupportedPlatform
+      type: string
+      x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
       x-validate:
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
@@ -1041,9 +1437,71 @@ components:
       x-validate:
     BuildRun:
       properties:
+        category:
+          description: The category of the build run, can be clean or incremental.
+          enum:
+            - clean
+            - incremental
+          type: string
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
+          x-struct:
+          x-validate:
+        files:
+          description: Compiled files associated with the build run.
+          items:
+            properties:
+              compilation_duration:
+                description: The duration of the compilation for the file in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                description: The file path where the issue occurred, relative to the project root.
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                description: The project name associated with the file.
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                description: The target name associated with the file.
+                type: string
+                x-struct:
+                x-validate:
+              type:
+                description: The type of the file.
+                enum:
+                  - swift
+                  - c
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+              - target
+              - project
+              - path
+              - compilation_duration
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit SHA.
+          type: string
           x-struct:
           x-validate:
         id:
@@ -1054,6 +1512,109 @@ components:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
+          x-struct:
+          x-validate:
+        issues:
+          description: The build issues associated with the build run.
+          items:
+            properties:
+              ending_column:
+                description: The ending column number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              ending_line:
+                description: The ending line number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              message:
+                description: The detailed message of the issue.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: The file path where the issue occurred, relative to the project root.
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                description: The project name associated with the issue.
+                type: string
+                x-struct:
+                x-validate:
+              signature:
+                description: The signature of the issue.
+                type: string
+                x-struct:
+                x-validate:
+              starting_column:
+                description: The starting column number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              starting_line:
+                description: The starting line number of the issue.
+                type: integer
+                x-struct:
+                x-validate:
+              step_type:
+                description: The step type where the issue occurred, such as swift_compilation.
+                enum:
+                  - c_compilation
+                  - swift_compilation
+                  - script_execution
+                  - create_static_library
+                  - linker
+                  - copy_swift_libs
+                  - compile_assets_catalog
+                  - compile_storyboard
+                  - write_auxiliary_file
+                  - link_storyboards
+                  - copy_resource_file
+                  - merge_swift_module
+                  - xib_compilation
+                  - swift_aggregated_compilation
+                  - precompile_bridging_header
+                  - other
+                  - validate_embedded_binary
+                  - validate
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                description: The target name associated with the issue.
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                description: The title of the build issue.
+                type: string
+                x-struct:
+                x-validate:
+              type:
+                description: The type of the issue.
+                enum:
+                  - warning
+                  - error
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+              - target
+              - project
+              - title
+              - signature
+              - step_type
+              - starting_line
+              - ending_line
+              - starting_column
+              - ending_column
+            type: object
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         macos_version:
@@ -1077,6 +1638,50 @@ components:
             - success
             - failure
           type: string
+          x-struct:
+          x-validate:
+        targets:
+          description: Targets with build metadata associated with the build run.
+          items:
+            properties:
+              build_duration:
+                description: The build duration for the target in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              compilation_duration:
+                description: The duration of the compilation for the target in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                description: The target name.
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                description: The target's project name.
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: The status of the target's build.
+                enum:
+                  - success
+                  - failure
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - project
+              - build_duration
+              - compilation_duration
+              - status
+            type: object
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         type:
@@ -1800,6 +2405,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Invalid email or password.
+        429:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've exceeded the rate limit.
       summary: Authenticate with email and password.
       tags:
         - Authentication
@@ -1842,6 +2453,129 @@ paths:
       summary: Request new tokens.
       tags:
         - Authentication
+  /api/projects/{account_handle}/{project_handle}/bundles:
+    post:
+      callbacks: {}
+      operationId: createBundle
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Request schema for bundle creation
+              properties:
+                bundle:
+                  properties:
+                    app_bundle_id:
+                      description: The bundle ID of the app
+                      type: string
+                      x-struct:
+                      x-validate:
+                    artifacts:
+                      description: The artifacts in this bundle
+                      items:
+                        $ref: '#/components/schemas/BundleArtifact'
+                      type: array
+                      x-struct:
+                      x-validate:
+                    download_size:
+                      description: The bundle download size in bytes
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    git_branch:
+                      description: The git branch associated with the bundle.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_commit_sha:
+                      description: The git commit SHA associated with the bundle.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_ref:
+                      description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    install_size:
+                      description: The bundle install size in bytes
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The name of the bundle
+                      type: string
+                      x-struct:
+                      x-validate:
+                    supported_platforms:
+                      description: List of supported platforms
+                      items:
+                        $ref: '#/components/schemas/BundleSupportedPlatform'
+                      type: array
+                      x-struct:
+                      x-validate:
+                    version:
+                      description: The version of the bundle
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - bundle_id
+                    - name
+                    - supported_platforms
+                    - version
+                    - install_size
+                    - artifacts
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - bundle
+              title: BundleRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: Bundle params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: The bundle was created
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An error occurred while updating the account.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to update your account.
+      summary: Create a new bundle with artifacts
+      tags:
+        - Bundles
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -3943,9 +4677,71 @@ paths:
               description: Parameters to create a single run.
               oneOf:
                 - properties:
+                    category:
+                      description: The category of the build run, can be clean or incremental.
+                      enum:
+                        - clean
+                        - incremental
+                      type: string
+                      x-struct:
+                      x-validate:
                     duration:
                       description: Duration of the run in milliseconds.
                       type: integer
+                      x-struct:
+                      x-validate:
+                    files:
+                      description: Compiled files associated with the build run.
+                      items:
+                        properties:
+                          compilation_duration:
+                            description: The duration of the compilation for the file in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          path:
+                            description: The file path where the issue occurred, relative to the project root.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          project:
+                            description: The project name associated with the file.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          target:
+                            description: The target name associated with the file.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of the file.
+                            enum:
+                              - swift
+                              - c
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - type
+                          - target
+                          - project
+                          - path
+                          - compilation_duration
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    git_branch:
+                      description: The git branch.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    git_commit_sha:
+                      description: The commit SHA.
+                      type: string
                       x-struct:
                       x-validate:
                     id:
@@ -3956,6 +4752,109 @@ paths:
                     is_ci:
                       description: Indicates if the run was executed on a Continuous Integration (CI) system.
                       type: boolean
+                      x-struct:
+                      x-validate:
+                    issues:
+                      description: The build issues associated with the build run.
+                      items:
+                        properties:
+                          ending_column:
+                            description: The ending column number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          ending_line:
+                            description: The ending line number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          message:
+                            description: The detailed message of the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          path:
+                            description: The file path where the issue occurred, relative to the project root.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          project:
+                            description: The project name associated with the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          signature:
+                            description: The signature of the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          starting_column:
+                            description: The starting column number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          starting_line:
+                            description: The starting line number of the issue.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          step_type:
+                            description: The step type where the issue occurred, such as swift_compilation.
+                            enum:
+                              - c_compilation
+                              - swift_compilation
+                              - script_execution
+                              - create_static_library
+                              - linker
+                              - copy_swift_libs
+                              - compile_assets_catalog
+                              - compile_storyboard
+                              - write_auxiliary_file
+                              - link_storyboards
+                              - copy_resource_file
+                              - merge_swift_module
+                              - xib_compilation
+                              - swift_aggregated_compilation
+                              - precompile_bridging_header
+                              - other
+                              - validate_embedded_binary
+                              - validate
+                            type: string
+                            x-struct:
+                            x-validate:
+                          target:
+                            description: The target name associated with the issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          title:
+                            description: The title of the build issue.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type:
+                            description: The type of the issue.
+                            enum:
+                              - warning
+                              - error
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - type
+                          - target
+                          - project
+                          - title
+                          - signature
+                          - step_type
+                          - starting_line
+                          - ending_line
+                          - starting_column
+                          - ending_column
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
                       x-struct:
                       x-validate:
                     macos_version:
@@ -3979,6 +4878,50 @@ paths:
                         - success
                         - failure
                       type: string
+                      x-struct:
+                      x-validate:
+                    targets:
+                      description: Targets with build metadata associated with the build run.
+                      items:
+                        properties:
+                          build_duration:
+                            description: The build duration for the target in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          compilation_duration:
+                            description: The duration of the compilation for the target in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: The target name.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          project:
+                            description: The target's project name.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status of the target's build.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - name
+                          - project
+                          - build_duration
+                          - compilation_duration
+                          - status
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
                       x-struct:
                       x-validate:
                     type:

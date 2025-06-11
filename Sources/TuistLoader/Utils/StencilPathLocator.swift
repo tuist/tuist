@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 public protocol StencilPathLocating {

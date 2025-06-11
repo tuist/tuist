@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol UpdateAccountServicing {
@@ -12,23 +11,14 @@ public protocol UpdateAccountServicing {
     ) async throws -> ServerAccount
 }
 
-enum UpdateAccountServiceError: FatalError {
+enum UpdateAccountServiceError: LocalizedError {
     case unknownError(Int)
     case badRequest(String)
     case unauthorized(String)
     case forbidden(String)
     case notFound(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .badRequest, .unauthorized, .forbidden, .notFound:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not update the account due to an unknown Tuist response of \(statusCode)."

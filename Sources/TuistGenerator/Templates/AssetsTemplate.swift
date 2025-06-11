@@ -283,8 +283,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No assets found
     {% endif %}
-    // swiftlint:enable all
     // swiftformat:enable all
+    // swiftlint:enable all
 
     """
 }

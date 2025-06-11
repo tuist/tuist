@@ -72,7 +72,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "BUNDLE_LOADER",
     ]
 
-    // These are not needed or are computed elsewhere so we exclude them
+    /// These are not needed or are computed elsewhere so we exclude them.
     private static let multiplatformExcludedSettingsKeys = Set([
         "COMBINE_HIDPI_IMAGES",
         "SDKROOT",
@@ -89,19 +89,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         ],
     ]
 
-    private let xcodeController: XcodeControlling
-
-    public convenience init() {
-        self.init(
-            xcodeController: XcodeController.shared
-        )
-    }
-
-    public init(
-        xcodeController: XcodeControlling
-    ) {
-        self.xcodeController = xcodeController
-    }
+    public init() {}
 
     // MARK: - DefaultSettingsProviding
 
@@ -169,7 +157,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             )
         }
 
-        /// This allows running the project directly withou specifying CODE_SIGN_IDENTITY
+        // This allows running the project directly without specifying `CODE_SIGN_IDENTITY`.
         if target.supportsCatalyst {
             settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
         }
@@ -248,7 +236,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
         case let .recommended(excludedKeys):
-            let xcodeVersion = try await xcodeController.selectedVersion()
+            let xcodeVersion = try await XcodeController.current.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys

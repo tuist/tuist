@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
-import TuistSupport
 
 @Mockable
 public protocol MultipartUploadCompleteAnalyticsServicing {
@@ -14,23 +13,14 @@ public protocol MultipartUploadCompleteAnalyticsServicing {
     ) async throws
 }
 
-public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable {
+public enum MultipartUploadCompleteAnalyticsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
     case internalServerError(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError, .internalServerError:
-            return .bug
-        case .notFound, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."

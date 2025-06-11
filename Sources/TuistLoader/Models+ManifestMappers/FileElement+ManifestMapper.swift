@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -22,20 +21,26 @@ extension XcodeGraph.FileElement {
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
-            let files = try await fileSystem.throwingGlob(
-                directory: AbsolutePath.root,
-                include: [String(path.pathString.dropFirst())]
-            )
-            .collect()
-            .filter(includeFiles)
+            let files: [AbsolutePath]
+
+            do {
+                files = try await fileSystem.throwingGlob(
+                    directory: AbsolutePath.root,
+                    include: [String(path.pathString.dropFirst())]
+                )
+                .collect()
+                .filter(includeFiles)
+            } catch GlobError.nonExistentDirectory {
+                files = []
+            }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
-                    ServiceContext.current?.logger?
+                    Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
-                } else {
+                } else if !path.isGlobPath {
                     // FIXME: This should be done in a linter.
-                    ServiceContext.current?.logger?.warning("No files found at: \(path.pathString)")
+                    Logger.current.warning("No files found at: \(path.pathString)")
                 }
             }
 
@@ -45,13 +50,13 @@ extension XcodeGraph.FileElement {
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
-                ServiceContext.current?.logger?.warning("\(path.pathString) does not exist")
+                Logger.current.warning("\(path.pathString) does not exist")
                 return []
             }
 
             guard FileHandler.shared.isFolder(path) else {
                 // FIXME: This should be done in a linter.
-                ServiceContext.current?.logger?
+                Logger.current
                     .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }

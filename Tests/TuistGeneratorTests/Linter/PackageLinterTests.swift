@@ -1,12 +1,11 @@
 import Foundation
 import Path
 import TuistCore
-import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PackageLinterTests: TuistUnitTestCase {
     var subject: PackageLinter!
@@ -27,7 +26,7 @@ final class PackageLinterTests: TuistUnitTestCase {
 
         let got = try await subject.lint(package)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Package with local path (\(path)) does not exist.", severity: .error))
+        XCTAssertTrue(got.contains(LintingIssue(reason: "Package with local path (\(path)) does not exist.", severity: .error)))
     }
 
     func test_lint_when_a_local_path_exists() async throws {

@@ -1,13 +1,15 @@
+import FileSystem
+import FileSystemTesting
 import Mockable
+import Testing
 import struct TSCUtility.Version
 import TuistCore
-import TuistCoreTesting
+import TuistSupport
 import XcodeGraph
-import XCTest
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
-final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
+struct DefaultSettingsProvider_iOSTests {
     private var subject: DefaultSettingsProvider!
 
     private let projectEssentialDebugSettings: [String: SettingValue] = [
@@ -141,19 +143,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SWIFT_VERSION": "5.0",
     ]
 
-    override func setUp() {
-        super.setUp()
-        subject = DefaultSettingsProvider(
-            xcodeController: xcodeController
-        )
+    init() {
+        subject = DefaultSettingsProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func testProjectSettings_whenExcludingEssentialDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenExcludingEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -163,7 +157,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -174,11 +169,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNotEqual(got, projectEssentialDebugSettings)
-        XCTAssertNil(got["CLANG_CXX_LIBRARY"])
+        #expect(got != projectEssentialDebugSettings)
+        #expect(got["CLANG_CXX_LIBRARY"] == nil)
     }
 
-    func testProjectSettings_whenEssentialDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -188,7 +183,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -199,10 +195,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, projectEssentialDebugSettings)
+        #expect(got == projectEssentialDebugSettings)
     }
 
-    func testProjectSettings_whenEssentialRelease_iOS() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenEssentialRelease_iOS() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -212,7 +208,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -223,17 +220,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, projectEssentialReleaseSettings)
+        #expect(got == projectEssentialReleaseSettings)
     }
 
-    func testTargetSettings_whenBinaryAllowsToBeMerged() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenBinaryAllowsToBeMerged() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .dynamicLibrary, mergeable: true)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -246,18 +244,19 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["MAKE_MERGEABLE"], "YES")
-        XCTAssertEqual(got["MERGEABLE_LIBRARY"], "YES")
+        #expect(got["MAKE_MERGEABLE"] == "YES")
+        #expect(got["MERGEABLE_LIBRARY"] == "YES")
     }
 
-    func testTargetSettings_whenBinaryDoesNotMergeDependencies() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenBinaryDoesNotMergeDependencies() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -270,17 +269,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got["MERGED_BINARY_TYPE"])
+        #expect(got["MERGED_BINARY_TYPE"] == nil)
     }
 
-    func testTargetSettings_whenAppMergesDependencies_automatic() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_automatic() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .automatic)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -293,17 +293,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "automatic")
+        #expect(got["MERGED_BINARY_TYPE"] == "automatic")
     }
 
-    func testTargetSettings_whenAppMergesDependencies_manualDebug() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_manualDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -316,18 +317,19 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "manual")
-        XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-reexport_framework,Sample")
+        #expect(got["MERGED_BINARY_TYPE"] == "manual")
+        #expect(got["OTHER_LDFLAGS"] == "-Wl,-reexport_framework,Sample")
     }
 
-    func testTargetSettings_whenAppMergesDependencies_manualRelease() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenAppMergesDependencies_manualRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -340,11 +342,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "manual")
-        XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-merge_framework,Sample")
+        #expect(got["MERGED_BINARY_TYPE"] == "manual")
+        #expect(got["OTHER_LDFLAGS"] == "-Wl,-merge_framework,Sample")
     }
 
-    func testTargetSettings_whenEssentialDebug_App() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -356,7 +358,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .app, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -369,10 +372,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, appTargetEssentialDebugSettings)
+        #expect(got == appTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -384,7 +387,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .framework, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -397,10 +401,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, frameworkTargetEssentialDebugSettings)
+        #expect(got == frameworkTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -412,7 +416,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .framework, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -425,10 +430,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, frameworkTargetEssentialReleaseSettings)
+        #expect(got == frameworkTargetEssentialReleaseSettings)
     }
 
-    func testProjectSettings_whenRecommendedDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -438,7 +443,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -450,11 +456,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertSettings(got, containsAll: projectEssentialDebugSettings)
-        XCTAssertEqual(got.count, 50)
+        expectSettings(got, containsAll: projectEssentialDebugSettings)
+        #expect(got.count == 50)
     }
 
-    func testProjectSettings_whenRecommendedRelease() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenRecommendedRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -464,7 +470,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -475,11 +482,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: projectEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 47)
+        expectSettings(got, containsAll: projectEssentialReleaseSettings)
+        #expect(got.count == 47)
     }
 
-    func testProjectSettings_whenNoneDebug() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenNoneDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -489,7 +496,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -500,10 +508,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        #expect(got.count == 0)
     }
 
-    func testProjectSettings_whenNoneRelease() async throws {
+    @Test(.withMockedXcodeController) func testProjectSettings_whenNoneRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -513,7 +521,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test(settings: settings)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -524,10 +533,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        #expect(got.count == 0)
     }
 
-    func testTargetSettings_whenRecommendedDebug() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -539,7 +548,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
@@ -552,17 +562,19 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 11)
+        expectSettings(got, containsAll: appTargetEssentialDebugSettings)
+        #expect(got.count == 11)
     }
 
-    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil(
+    ) async throws {
         // Given
         let project = Project.test(settings: .test(defaultSettings: .essential))
         let target = Target.test(settings: nil)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -575,10 +587,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
+        expectSettings(got, containsAll: appTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenXcode10() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenXcode10() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -590,7 +602,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(10, 0, 0))
 
@@ -603,10 +616,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertFalse(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
+        #expect(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }) == false)
     }
 
-    func testTargetSettings_whenXcode11() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenXcode11() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -618,7 +631,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
@@ -631,10 +645,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
+        #expect(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }) == true)
     }
 
-    func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -646,7 +660,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -659,10 +674,12 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
+        #expect(got["SWIFT_VERSION"] == .string("5.0"))
     }
 
-    func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() async throws {
+    @Test(
+        .withMockedXcodeController
+    ) func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -680,7 +697,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -693,10 +711,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got["SWIFT_VERSION"])
+        #expect(got["SWIFT_VERSION"] == nil)
     }
 
-    func testTargetSettings_whenEssential_containsDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssential_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -708,7 +726,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test()
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -721,10 +740,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
+        #expect(got["SWIFT_VERSION"] == .string("5.0"))
     }
 
-    func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -745,10 +764,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got["SWIFT_VERSION"])
+        #expect(got["SWIFT_VERSION"] == nil)
     }
 
-    func testTargetSettings_whenRecommendedRelease_App() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedRelease_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -758,7 +777,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
         let graph = Graph.test(path: project.path)
@@ -772,11 +792,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 10)
+        expectSettings(got, containsAll: appTargetEssentialReleaseSettings)
+        #expect(got.count == 10)
     }
 
-    func testTargetSettings_whenRecommendedDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -788,7 +808,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .framework, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -801,11 +822,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: frameworkTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 18)
+        expectSettings(got, containsAll: frameworkTargetEssentialDebugSettings)
+        #expect(got.count == 18)
     }
 
-    func testTargetSettings_whenRecommendedRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -817,7 +838,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .framework, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -830,11 +852,11 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: frameworkTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 17)
+        expectSettings(got, containsAll: frameworkTargetEssentialReleaseSettings)
+        #expect(got.count == 17)
     }
 
-    func testTargetSettings_whenNoneDebug_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNoneDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -846,7 +868,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .framework, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -859,10 +882,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        #expect(got.count == 0)
     }
 
-    func testTargetSettings_whenNoneRelease_Framework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenNoneRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -883,10 +906,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        #expect(got.count == 0)
     }
 
-    func testTargetSettings_whenRecommendedDebug_UnitTests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -898,7 +921,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .unitTests, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -911,10 +935,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
+        expectSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenRecommendedDebug_UITests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenRecommendedDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -926,7 +950,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .uiTests, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -939,10 +964,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
+        expectSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_UnitTests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -954,7 +979,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .unitTests, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -967,10 +993,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, testTargetEssentialDebugSettings)
+        #expect(got == testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_UITests() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -982,7 +1008,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(product: .uiTests, settings: settings)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -995,10 +1022,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, testTargetEssentialDebugSettings)
+        #expect(got == testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_MultiplatformFramework() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_MultiplatformFramework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1014,7 +1041,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -1027,17 +1055,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertBetterEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
+        #expect(got == multiplatformFrameworkTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(destinations: [.iPad, .macCatalyst], product: .app)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -1050,7 +1079,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: [
+        expectSettings(got, containsAll: [
             "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
         ])
     }
@@ -1062,7 +1091,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let target = Target.test(destinations: [.iPad, .macCatalyst], product: .unitTests)
         let graph = Graph.test(path: project.path)
 
-        given(xcodeController)
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
@@ -1075,13 +1105,14 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertSettings(got, containsAll: [
+        expectSettings(got, containsAll: [
             "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
         ])
     }
 }
 
-final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
+@Suite
+struct DefaultSettingsProvider_MacosTests {
     private var subject: DefaultSettingsProvider!
 
     private let macroTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -1101,19 +1132,11 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "-",
     ]
 
-    override func setUp() {
-        super.setUp()
-        subject = DefaultSettingsProvider(
-            xcodeController: xcodeController
-        )
+    init() {
+        subject = DefaultSettingsProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func testTargetSettings_whenEssentialDebug_Macro() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialDebug_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1138,10 +1161,10 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, macroTargetEssentialDebugSettings)
+        #expect(got == macroTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialRelease_Macro() async throws {
+    @Test(.withMockedXcodeController) func testTargetSettings_whenEssentialRelease_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -1166,27 +1189,22 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, macroTargetEssentialReleaseSettings)
+        #expect(got == macroTargetEssentialReleaseSettings)
     }
 }
 
-extension XCTestCase {
-    fileprivate func XCTAssertSettings(
-        _ first: [String: SettingValue],
-        containsAll second: [String: SettingValue],
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        for (key, expectedValue) in second {
-            let result = first[key]
-            let resultDescription = result.map { "\($0)" } ?? "nil"
-            XCTAssertEqual(
-                result,
-                expectedValue,
-                "\(key):\(resultDescription) does not match expected \(key): \(expectedValue)",
-                file: file,
-                line: line
-            )
-        }
+private func expectSettings(
+    _ first: [String: SettingValue],
+    containsAll second: [String: SettingValue],
+    file _: StaticString = #file,
+    line _: UInt = #line
+) {
+    for (key, expectedValue) in second {
+        let result = first[key]
+        let resultDescription = result.map { "\($0)" } ?? "nil"
+        #expect(
+            result ==
+                expectedValue
+        )
     }
 }

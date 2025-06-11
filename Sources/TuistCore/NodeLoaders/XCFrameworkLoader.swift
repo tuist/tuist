@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 
 enum XCFrameworkLoaderError: FatalError, Equatable {
     case xcframeworkNotFound(AbsolutePath)
@@ -29,7 +30,8 @@ public protocol XCFrameworkLoading {
     /// - Parameter path: Path to the .xcframework.
     /// - Parameter expectedSignature: expected signature if the xcframework is signed, `nil` otherwise.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus) async throws -> GraphDependency
+    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus)
+        async throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -38,7 +40,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
     private let fileSystem: FileSysteming
 
     public convenience init() {
-        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider())
+        self.init(xcframeworkMetadataProvider: XCFrameworkMetadataProvider(logger: Logger.current))
     }
 
     /// Initializes the loader with its attributes.
@@ -78,3 +80,22 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         return .xcframework(xcframework)
     }
 }
+
+#if DEBUG
+    public final class MockXCFrameworkLoader: XCFrameworkLoading {
+        public init() {}
+
+        var loadStub: ((AbsolutePath) throws -> GraphDependency)?
+        public func load(
+            path: Path.AbsolutePath,
+            expectedSignature _: XcodeGraph.XCFrameworkSignature?,
+            status: XcodeGraph.LinkingStatus
+        ) throws -> GraphDependency {
+            if let loadStub {
+                return try loadStub(path)
+            } else {
+                return .testXCFramework(path: path, status: status)
+            }
+        }
+    }
+#endif

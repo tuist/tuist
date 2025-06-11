@@ -91,7 +91,9 @@ public class GeneratorFactory: GeneratorFactorying {
             skipUITests: skipUITests,
             tuist: config
         )
-        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+        let workspaceMapperFactory = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(mappers: projectMappers)
+        )
         let graphMapperFactory = GraphMapperFactory()
 
         let graphMappers = graphMapperFactory.automation(
@@ -142,7 +144,9 @@ public class GeneratorFactory: GeneratorFactorying {
         let projectMappers = projectMapperFactory.default(
             tuist: config
         )
-        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+        let workspaceMapperFactory = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(mappers: projectMappers)
+        )
         let graphMapperFactory = GraphMapperFactory()
         let graphMappers = graphMapperFactory.automation(
             config: config,

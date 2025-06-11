@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCache
 import TuistCore
@@ -20,11 +19,14 @@ enum XcodeBuildTestCommandServiceError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case let .schemeNotFound(scheme):
-            return "The scheme \(scheme) was not found in the Xcode project. Make sure it's present."
+            return
+                "The scheme \(scheme) was not found in the Xcode project. Make sure it's present."
         case .schemeNotPassed:
-            return "The xcodebuild invocation contains no scheme. Specify one by adding '-scheme MyScheme'."
+            return
+                "The xcodebuild invocation contains no scheme. Specify one by adding '-scheme MyScheme'."
         case let .testPlanNotFound(testPlan: testPlan, scheme: scheme):
-            return "Test plan \(testPlan) for scheme \(scheme) was not found. Make sure it's present."
+            return
+                "Test plan \(testPlan) for scheme \(scheme) was not found. Make sure it's present."
         }
     }
 }
@@ -81,34 +83,50 @@ struct XcodeBuildTestCommandService {
         config: Tuist
     ) async throws {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
-        guard let schemeName = Self.passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
+        guard let schemeName = Self.passedValue(
+            for: "-scheme", arguments: passthroughXcodebuildArguments
+        )
         else {
             throw XcodeBuildTestCommandServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
-        await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        await RunMetadataStorage.current.update(graph: graph)
         let graphTraverser = GraphTraverser(graph: graph)
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
-        }) else {
+        })
+        else {
             throw XcodeBuildTestCommandServiceError.schemeNotFound(schemeName)
         }
 
         let selectiveTestingHashes = try await selectiveTestingGraphHasher.hash(
             graph: graph,
-            additionalStrings: Self.additionalHashableStringsFromXcodebuildPassthroughArguments(passthroughXcodebuildArguments)
+            additionalStrings: Self.additionalHashableStringsFromXcodebuildPassthroughArguments(
+                passthroughXcodebuildArguments
+            )
         )
         let selectiveTestingCacheItems = try await cacheStorage.fetch(
-            Set(selectiveTestingHashes.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value) }),
+            Set(
+                selectiveTestingHashes.map {
+                    CacheStorableItem(name: $0.key.target.name, hash: $0.value)
+                }
+            ),
             cacheCategory: .selectiveTests
         )
         .keys
         .map { $0 }
 
         let testableTargets: [TestableTarget]
-        if let testPlanName = Self.passedValue(for: "-testPlan", arguments: passthroughXcodebuildArguments) {
-            guard let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }) else {
-                throw XcodeBuildTestCommandServiceError.testPlanNotFound(testPlan: testPlanName, scheme: scheme.name)
+        if let testPlanName = Self.passedValue(
+            for: "-testPlan", arguments: passthroughXcodebuildArguments
+        ) {
+            guard let testPlan = scheme.testAction?.testPlans?.first(where: {
+                $0.name == testPlanName
+            })
+            else {
+                throw XcodeBuildTestCommandServiceError.testPlanNotFound(
+                    testPlan: testPlanName, scheme: scheme.name
+                )
             }
             testableTargets = testPlan.testTargets
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }) {
@@ -116,25 +134,32 @@ struct XcodeBuildTestCommandService {
         } else {
             testableTargets = scheme.testAction?.targets ?? []
         }
-        let testableGraphTargets = testableGraphTargets(for: testableTargets, graphTraverser: graphTraverser)
+        let testableGraphTargets = testableGraphTargets(
+            for: testableTargets, graphTraverser: graphTraverser
+        )
         let skipTestTargets = try await selectiveTestingService.cachedTests(
             testableGraphTargets: testableGraphTargets,
             selectiveTestingHashes: selectiveTestingHashes,
             selectiveTestingCacheItems: selectiveTestingCacheItems
         )
 
-        let targetTestCacheItems: [AbsolutePath: [String: CacheItem]] = selectiveTestingHashes
-            .reduce(into: [:]) { result, element in
-                if let cacheItem = selectiveTestingCacheItems.first(where: { $0.hash == element.value }) {
-                    result[element.key.path, default: [:]][element.key.target.name] = cacheItem
+        let targetTestCacheItems: [AbsolutePath: [String: CacheItem]] =
+            selectiveTestingHashes
+                .reduce(into: [:]) { result, element in
+                    if let cacheItem = selectiveTestingCacheItems.first(where: {
+                        $0.hash == element.value
+                    }) {
+                        result[element.key.path, default: [:]][element.key.target.name] = cacheItem
+                    }
                 }
-            }
 
         if testableTargets
-            .filter({ testableTarget in !skipTestTargets.contains(where: { $0.target == testableTarget.target.name }) })
+            .filter({ testableTarget in
+                !skipTestTargets.contains(where: { $0.target == testableTarget.target.name })
+            })
             .isEmpty
         {
-            ServiceContext.current?.logger?.info("There are no tests to run, exiting early...")
+            Logger.current.info("There are no tests to run, exiting early...")
             await updateRunMetadataStorage(
                 with: testableGraphTargets,
                 selectiveTestingHashes: selectiveTestingHashes,
@@ -144,7 +169,7 @@ struct XcodeBuildTestCommandService {
         }
 
         if !skipTestTargets.isEmpty {
-            ServiceContext.current?.logger?
+            Logger.current
                 .info(
                     "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).sorted().joined(separator: ", "))"
                 )
@@ -160,7 +185,9 @@ struct XcodeBuildTestCommandService {
                     arguments: [
                         passthroughXcodebuildArguments,
                         skipTestingArguments,
-                        resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments),
+                        resultBundlePathArguments(
+                            passthroughXcodebuildArguments: passthroughXcodebuildArguments
+                        ),
                     ]
                     .flatMap { $0 }
                 )
@@ -187,7 +214,9 @@ struct XcodeBuildTestCommandService {
         )
     }
 
-    static func additionalHashableStringsFromXcodebuildPassthroughArguments(_ arguments: [String]) -> [String] {
+    static func additionalHashableStringsFromXcodebuildPassthroughArguments(_ arguments: [String])
+        -> [String]
+    {
         return [
             "-configuration",
             "-xcconfig",
@@ -212,17 +241,20 @@ struct XcodeBuildTestCommandService {
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
-            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
-            let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await ServiceContext.current?.runMetadataStorage?.update(
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let resultBundlePath = try AbsolutePath(
+                validating: resultBundlePathString, relativeTo: currentWorkingDirectory
+            )
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return []
         } else {
-            let resultBundlePath = try cacheDirectoriesProvider
-                .cacheDirectory(for: .runs)
-                .appending(components: uniqueIDGenerator.uniqueID())
-            await ServiceContext.current?.runMetadataStorage?.update(
+            let resultBundlePath =
+                try cacheDirectoriesProvider
+                    .cacheDirectory(for: .runs)
+                    .appending(components: uniqueIDGenerator.uniqueID())
+            await RunMetadataStorage.current.update(
                 resultBundlePath: resultBundlePath
             )
             return ["-resultBundlePath", resultBundlePath.pathString]
@@ -234,15 +266,17 @@ struct XcodeBuildTestCommandService {
         selectiveTestingHashes: [GraphTarget: String],
         targetTestCacheItems: [AbsolutePath: [String: CacheItem]]
     ) async {
-        await ServiceContext.current?.runMetadataStorage?.update(
+        await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: testableGraphTargets.reduce(into: [:]) { result, element in
                 guard let hash = selectiveTestingHashes[element] else { return }
-                let cacheItem = targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(
-                    name: element.target.name,
-                    hash: hash,
-                    source: .miss,
-                    cacheCategory: .selectiveTests
-                )
+                let cacheItem =
+                    targetTestCacheItems[element.path]?[element.target.name]
+                        ?? CacheItem(
+                            name: element.target.name,
+                            hash: hash,
+                            source: .miss,
+                            cacheCategory: .selectiveTests
+                        )
                 result[element.path, default: [:]][element.target.name] = cacheItem
             }
         )
@@ -254,18 +288,21 @@ struct XcodeBuildTestCommandService {
         targetTestCacheItems: [AbsolutePath: [String: CacheItem]],
         cacheStorage: CacheStoring
     ) async throws {
-        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = testableGraphTargets
-            .filter {
-                return targetTestCacheItems[$0.path]?[$0.target.name] == nil
-            }
-            .compactMap { graphTarget -> (target: Target, hash: String)? in
-                guard let hash = selectiveTestingHashes[graphTarget]
-                else { return nil }
-                return (target: graphTarget.target, hash: hash)
-            }
-            .reduce(into: [:]) { acc, element in
-                acc[CacheStorableItem(name: element.target.name, hash: element.hash)] = [AbsolutePath]()
-            }
+        let cacheableItems: [CacheStorableItem: [AbsolutePath]] =
+            testableGraphTargets
+                .filter {
+                    return targetTestCacheItems[$0.path]?[$0.target.name] == nil
+                }
+                .compactMap { graphTarget -> (target: Target, hash: String)? in
+                    guard let hash = selectiveTestingHashes[graphTarget]
+                    else { return nil }
+                    return (target: graphTarget.target, hash: hash)
+                }
+                .reduce(into: [:]) { acc, element in
+                    acc[CacheStorableItem(name: element.target.name, hash: element.hash)] = [
+                        AbsolutePath
+                    ]()
+                }
         try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
     }
 
@@ -285,11 +322,15 @@ struct XcodeBuildTestCommandService {
     private func path(
         passthroughXcodebuildArguments: [String]
     ) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
-        if let workspaceOrProjectPath = Self.passedValue(for: "-workspace", arguments: passthroughXcodebuildArguments) ??
-            Self.passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        if let workspaceOrProjectPath = Self.passedValue(
+            for: "-workspace", arguments: passthroughXcodebuildArguments
+        )
+            ?? Self.passedValue(for: "-project", arguments: passthroughXcodebuildArguments)
         {
-            return try AbsolutePath(validating: workspaceOrProjectPath, relativeTo: currentWorkingDirectory)
+            return try AbsolutePath(
+                validating: workspaceOrProjectPath, relativeTo: currentWorkingDirectory
+            )
         } else {
             return currentWorkingDirectory
         }

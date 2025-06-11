@@ -1,14 +1,13 @@
-import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeProj
 import XCTest
 @testable import TuistKit
 
 final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
     func test_generated_macos_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,
@@ -39,7 +38,7 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
     }
 
     func test_generated_ios_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 let initAnswers = InitPromptAnswers(
                     workflowType: .createGeneratedProject,
@@ -70,7 +69,7 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
     }
 
     func test_xcode_project_ios_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { _ in
                 try await setUpFixture(.xcodeProjectiOSApp)
 

@@ -1,7 +1,6 @@
 import FileSystem
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -36,7 +35,8 @@ public protocol BuildGraphInspecting {
         testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        action: XcodeBuildTestAction
     ) -> GraphTarget?
 
     /// Given a graphTraverser, it returns a list of buildable schemes.
@@ -93,7 +93,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             if configurations.contains(where: { $0.key.name == configuration }) {
                 arguments.append(.configuration(configuration))
             } else {
-                ServiceContext.current?.logger?
+                Logger.current
                     .warning(
                         "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
                     )
@@ -131,7 +131,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        action: XcodeBuildTestAction
     ) -> GraphTarget? {
         func isIncluded(_ testTarget: TestableTarget) -> Bool {
             if testTarget.isSkipped {
@@ -146,6 +147,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         if let testPlanName = testPlan,
            let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }),
            let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
+        {
+            return graphTraverser.target(path: target.projectPath, name: target.name)
+        } else if action == .build, let testPlans = scheme.testAction?.testPlans,
+                  let target = testPlans.flatMap(\.testTargets).first(where: { isIncluded($0) })?.target
         {
             return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }),

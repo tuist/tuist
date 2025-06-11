@@ -48,17 +48,19 @@ public protocol GitControlling {
     /// - Returns: `true` if the `git` repository has a remote `origin`.
     func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool
 
-    /// - Returns: A git ref based on the CI environment value. Returns `nil` in non-CI environments.
-    func ref(environment: [String: String]) -> String?
-
     /// - Returns: `true` if we recognize that we're in a `git` repository
     func isInGitRepository(workingDirectory: AbsolutePath) -> Bool
 
     /// - Returns: `true` if there are commits in the current branch.
     func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool
 
-    /// - Returns: The current branch string. `nil` if HEAD is not pointing to any branch.
-    func currentBranch(workingDirectory: AbsolutePath) throws -> String?
+    /// Returns git information including ref, branch, and SHA with CI provider fallbacks.
+    /// - Parameter workingDirectory: The working directory of the git repository
+    /// - Returns: A tuple containing git ref, branch name, and commit SHA
+    func gitInfo(workingDirectory: AbsolutePath) -> (ref: String?, branch: String?, sha: String?)
+
+    /// Returns the top level `.git` directory path.
+    func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath
 }
 
 /// An implementation of `GitControlling`.
@@ -69,10 +71,17 @@ public final class GitController: GitControlling {
 
     public init(
         system: Systeming = System.shared,
-        environment: Environmenting = Environment.shared
+        environment: Environmenting = Environment.current
     ) {
         self.system = system
         self.environment = environment
+    }
+
+    public func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath {
+        try AbsolutePath(
+            validating: try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     public func clone(url: String, into path: AbsolutePath) throws {
@@ -112,16 +121,6 @@ public final class GitController: GitControlling {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    public func currentBranch(workingDirectory: AbsolutePath) throws -> String? {
-        let currentBranch = try capture(command: "git", "-C", workingDirectory.pathString, "branch", "--show-current")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if currentBranch.isEmpty {
-            return nil
-        } else {
-            return currentBranch
-        }
-    }
-
     public func remoteTaggedVersions(url: String) throws -> [Version] {
         try parseVersions(lsRemote(url: url))
     }
@@ -157,30 +156,96 @@ public final class GitController: GitControlling {
         "CI_PULL_REQUEST_NUMBER",
         // Buildkite
         "BUILDKITE_PULL_REQUEST",
+        // CircleCI
+        "CIRCLE_PR_NUMBER",
     ]
 
-    public func ref(environment: [String: String]) -> String? {
+    private static let branchEnvironmentVariables = [
+        // GitHub Actions
+        "GITHUB_HEAD_REF",
+        // GitLab CI
+        "CI_COMMIT_REF_NAME",
+        // Bitrise
+        "BITRISE_GIT_BRANCH",
+        // CircleCI
+        "CIRCLE_BRANCH",
+        // Buildkite
+        "BUILDKITE_BRANCH",
+        // Codemagic
+        "CM_BRANCH",
+        // AppCircle
+        "AC_GIT_BRANCH",
+        // Xcode Cloud
+        "CI_BRANCH",
+        // TeamCity
+        "teamcity.build.branch",
+        // Azure DevOps
+        "BUILD_SOURCEBRANCHNAME",
+    ]
+
+    public func gitInfo(workingDirectory: AbsolutePath) -> (ref: String?, branch: String?, sha: String?) {
+        let environment = environment.variables
+
+        // Ref
+        let gitRef: String?
         if let githubRef = environment["GITHUB_REF"] {
-            return githubRef
+            gitRef = githubRef
         } else if let circleCIRef = environment["CIRCLE_PULL_REQUEST"] {
-            guard let url = URL(string: circleCIRef),
-                  let pullRequestID = url.pathComponents.last
-            else { return nil }
-            return "refs/pull/\(pullRequestID)/merge"
+            if let url = URL(string: circleCIRef),
+               let pullRequestID = url.pathComponents.last
+            {
+                gitRef = "refs/pull/\(pullRequestID)/merge"
+            } else {
+                gitRef = nil
+            }
         } else if let pullRequestID = Self.pullRequestIDEnvironmentVariables
             .compactMap({ environment[$0] })
             .first(where: { !$0.isEmpty })
         {
-            // We're aligning the pull request ID with the PR GITHUB_REF environment variable
-            return "refs/pull/\(pullRequestID)/merge"
+            gitRef = "refs/pull/\(pullRequestID)/merge"
         } else {
-            return nil
+            gitRef = nil
         }
+
+        // Branch
+        let ciBranch = Self.branchEnvironmentVariables
+            .compactMap { environment[$0] }
+            .first { !$0.isEmpty }
+
+        let branchName: String?
+        if let ciBranch {
+            branchName = ciBranch
+        } else if isInGitRepository(workingDirectory: workingDirectory) {
+            if let currentBranch = try? capture(command: "git", "-C", workingDirectory.pathString, "branch", "--show-current")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !currentBranch.isEmpty
+            {
+                branchName = currentBranch
+            } else {
+                branchName = nil
+            }
+        } else {
+            branchName = nil
+        }
+
+        // SHA
+        let commitSHA: String?
+        if isInGitRepository(workingDirectory: workingDirectory) {
+            if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+                commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+            } else {
+                commitSHA = nil
+            }
+        } else {
+            commitSHA = nil
+        }
+
+        return (ref: gitRef, branch: branchName, sha: commitSHA)
     }
 
     private func run(command: String...) throws {
         if environment.isVerbose {
-            try system.runAndPrint(command, verbose: true, environment: System.shared.env)
+            try system.runAndPrint(command, verbose: true, environment: Environment.current.variables)
         } else {
             try system.run(command)
         }
@@ -188,7 +253,7 @@ public final class GitController: GitControlling {
 
     private func capture(command: String...) throws -> String {
         if environment.isVerbose {
-            return try system.capture(command, verbose: true, environment: System.shared.env)
+            return try system.capture(command, verbose: true, environment: Environment.current.variables)
         } else {
             return try system.capture(command)
         }

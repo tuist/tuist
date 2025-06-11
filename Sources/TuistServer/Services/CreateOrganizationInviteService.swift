@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol CreateOrganizationInviteServicing {
@@ -12,23 +11,14 @@ public protocol CreateOrganizationInviteServicing {
     ) async throws -> ServerInvitation
 }
 
-enum CreateOrganizationInviteServiceError: FatalError {
+enum CreateOrganizationInviteServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .forbidden, .badRequest, .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The user could not be invited due to an unknown Tuist response of \(statusCode)."

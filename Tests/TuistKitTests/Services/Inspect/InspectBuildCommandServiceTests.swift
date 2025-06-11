@@ -6,14 +6,15 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistTesting
+import TuistXCActivityLog
 import XcodeGraph
 
 @testable import TuistKit
 
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
-    private let environment = MockEnvironmenting()
-    private let ciChecker = MockCIChecking()
+    private let environment: MockEnvironment
     private let configLoader = MockConfigLoading()
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let derivedDataLocator = MockDerivedDataLocating()
@@ -24,13 +25,14 @@ struct InspectBuildCommandServiceTests {
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
     private let dateService = MockDateServicing()
     private let serverURLService = MockServerURLServicing()
+    private let gitController: MockGitControlling
 
-    init() {
+    init() throws {
+        gitController = MockGitControlling()
+        environment = try #require(Environment.mocked)
         subject = InspectBuildCommandService(
-            environment: environment,
             derivedDataLocator: derivedDataLocator,
             fileSystem: fileSystem,
-            ciChecker: ciChecker,
             machineEnvironment: machineEnvironment,
             xcodeBuildController: xcodeBuildController,
             createBuildService: createBuildService,
@@ -38,7 +40,8 @@ struct InspectBuildCommandServiceTests {
             xcActivityLogController: xcActivityLogController,
             backgroundProcessRunner: backgroundProcessRunner,
             dateService: dateService,
-            serverURLService: serverURLService
+            serverURLService: serverURLService,
+            gitController: gitController
         )
         given(configLoader)
             .loadConfig(path: .any)
@@ -53,19 +56,21 @@ struct InspectBuildCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 id: .any,
+                category: .any,
                 duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
                 isCI: .any,
+                issues: .any,
                 modelIdentifier: .any,
                 macOSVersion: .any,
                 scheme: .any,
+                targets: .any,
                 xcodeVersion: .any,
                 status: .any
             )
-            .willReturn()
-
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+            .willReturn(.test())
 
         given(machineEnvironment)
             .modelIdentifier()
@@ -75,98 +80,121 @@ struct InspectBuildCommandServiceTests {
             .macOSVersion
             .willReturn("13.2.0")
 
-        given(environment)
-            .schemeName
-            .willReturn("App")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.schemeName = "App"
+        mockedEnvironment.variables = ["TUIST_INSPECT_BUILD_WAIT": "YES"]
 
         given(xcodeBuildController)
             .version()
             .willReturn(Version(16, 0, 0))
-
-        given(environment)
-            .tuistVariables
-            .willReturn(["TUIST_INSPECT_BUILD_WAIT": "YES"])
 
         given(dateService)
             .now()
             .willReturn(
                 Date(timeIntervalSinceReferenceDate: 20)
             )
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
+        Matcher.register([XCActivityIssue].self)
+        Matcher.register([XCActivityBuildFile].self)
+        Matcher.register([XCActivityTarget].self)
     }
 
-    @Test
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_createsBuild() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
-            // Given
-            let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            given(environment)
-                .workspacePath
-                .willReturn(projectPath)
-            let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-            given(derivedDataLocator)
-                .locate(for: .any)
-                .willReturn(derivedDataPath)
-            let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
 
-            try await fileSystem.makeDirectory(at: buildLogsPath)
-            try await fileSystem.writeAsPlist(
-                XCLogStoreManifestPlist(
-                    logs: [
-                        "id": XCLogStoreManifestPlist.ActivityLog(
-                            fileName: "id.xcactivitylog",
-                            timeStartedRecording: 10,
-                            timeStoppedRecording: 20
-                        ),
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        try await fileSystem.makeDirectory(at: buildLogsPath)
+        try await fileSystem.writeAsPlist(
+            XCLogStoreManifestPlist(
+                logs: [
+                    "id": XCLogStoreManifestPlist.ActivityLog(
+                        fileName: "id.xcactivitylog",
+                        timeStartedRecording: 10,
+                        timeStoppedRecording: 20
+                    ),
+                ]
+            ),
+            at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+        )
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(
+                .test(
+                    buildStep: .test(
+                        errorCount: 1
+                    ),
+                    category: .incremental,
+                    issues: [
+                        .test(),
+                    ],
+                    files: [
+                        .test(),
+                    ],
+                    targets: [
+                        .test(),
                     ]
-                ),
-                at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+                )
             )
-            given(xcActivityLogController)
-                .parse(.value(activityLogPath))
-                .willReturn(
-                    .test(
-                        buildStep: .test(
-                            errorCount: 1
-                        )
-                    )
-                )
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogPath(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            after: .any
+        ).willReturn(activityLogPath)
 
-            // When
-            try await subject.run(path: nil)
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: "branch", sha: "sha"))
 
-            // Then
-            verify(createBuildService)
-                .createBuild(
-                    fullHandle: .value("tuist/tuist"),
-                    serverURL: .any,
-                    id: .any,
-                    duration: .value(10000),
-                    isCI: .value(false),
-                    modelIdentifier: .value("Mac15,3"),
-                    macOSVersion: .value("13.2.0"),
-                    scheme: .value("App"),
-                    xcodeVersion: .value("16.0.0"),
-                    status: .value(.failure)
-                )
-                .called(1)
-        }
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                id: .any,
+                category: .value(.incremental),
+                duration: .value(10000),
+                files: .value([.test()]),
+                gitBranch: .value("branch"),
+                gitCommitSHA: .value("sha"),
+                isCI: .value(false),
+                issues: .value([.test()]),
+                modelIdentifier: .value("Mac15,3"),
+                macOSVersion: .value("13.2.0"),
+                scheme: .value("App"),
+                targets: .value([.test()]),
+                xcodeVersion: .value("16.0.0"),
+                status: .value(.failure)
+            )
+            .called(1)
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func test_when_should_not_wait() async throws {
         // Given
-        environment.reset()
-        given(environment)
-            .tuistVariables
-            .willReturn([:])
-        given(environment)
-            .workspacePath
-            .willReturn("/tmp/path")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables = [:]
+        mockedEnvironment.workspacePath = "/tmp/path"
+
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -185,65 +213,71 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
-    @Test
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_createsBuild_with_path_from_cli() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
-            // Given
-            let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
-            let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-            given(derivedDataLocator)
-                .locate(for: .any)
-                .willReturn(derivedDataPath)
-            let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        try await fileSystem.makeDirectory(at: projectPath)
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = nil
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
 
-            try await fileSystem.makeDirectory(at: buildLogsPath)
-            try await fileSystem.writeAsPlist(
-                XCLogStoreManifestPlist(
-                    logs: [
-                        "id": XCLogStoreManifestPlist.ActivityLog(
-                            fileName: "id.xcactivitylog",
-                            timeStartedRecording: 10,
-                            timeStoppedRecording: 20
-                        ),
-                    ]
-                ),
-                at: buildLogsPath.appending(component: "LogStoreManifest.plist")
-            )
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(activityLogPath)
-            given(xcActivityLogController)
-                .parse(.value(activityLogPath))
-                .willReturn(.test())
+        try await fileSystem.makeDirectory(at: buildLogsPath)
+        try await fileSystem.writeAsPlist(
+            XCLogStoreManifestPlist(
+                logs: [
+                    "id": XCLogStoreManifestPlist.ActivityLog(
+                        fileName: "id.xcactivitylog",
+                        timeStartedRecording: 10,
+                        timeStoppedRecording: 20
+                    ),
+                ]
+            ),
+            at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+        )
+        given(xcActivityLogController).mostRecentActivityLogPath(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            after: .any
+        ).willReturn(activityLogPath)
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
 
-            // When / Then
-            try await subject.run(path: temporaryDirectory.pathString)
-        }
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
+        // When / Then
+        try await subject.run(path: temporaryDirectory.pathString)
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func test_createsBuild_with_path_from_cli_for_xcworkspace() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             try await fileSystem.makeDirectory(at: workspacePath)
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
+            let mockedEnvironment = try #require(Environment.mocked)
+            mockedEnvironment.workspacePath = nil
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
                 .willReturn(derivedDataPath)
             let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcacvitiylog")
+            let activityLogPath = buildLogsPath.appending(
+                components: "\(UUID().uuidString).xcacvitiylog"
+            )
 
             try await fileSystem.makeDirectory(at: buildLogsPath)
             try await fileSystem.writeAsPlist(
@@ -265,6 +299,10 @@ struct InspectBuildCommandServiceTests {
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 after: .any
             ).willReturn(activityLogPath)
+
+            given(gitController)
+                .gitInfo(workingDirectory: .any)
+                .willReturn((ref: nil, branch: nil, sha: nil))
 
             // When
             try await subject.run(path: temporaryDirectory.pathString)
@@ -276,97 +314,103 @@ struct InspectBuildCommandServiceTests {
         }
     }
 
-    @Test
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func test_when_no_project_exists_at_a_given_path() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
-            // Given
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
-            // When / Then
-            // When / Then
-            await #expect(
-                throws: InspectBuildCommandServiceError.projectNotFound(
-                    temporaryDirectory
-                )
-            ) {
-                try await subject.run(path: temporaryDirectory.pathString)
-            }
-        }
-    }
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = nil
 
-    @Test
-    func test_when_no_logs_exist() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
-            // Given
-            let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            given(environment)
-                .workspacePath
-                .willReturn(projectPath)
-            let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-            given(derivedDataLocator)
-                .locate(for: .any)
-                .willReturn(derivedDataPath)
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(nil)
-
-            // When / Then
-            await #expect(
-                throws: InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
-            ) {
-                try await subject.run(path: nil)
-            }
-        }
-    }
-
-    @Test
-    func test_when_full_handle_not_specified() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
-            // Given
-            let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-            try await fileSystem.makeDirectory(at: projectPath)
-            given(environment)
-                .workspacePath
-                .willReturn(nil)
-            let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-            given(derivedDataLocator)
-                .locate(for: .any)
-                .willReturn(derivedDataPath)
-            let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-            let activityLogPath = buildLogsPath.appending(components: "\(UUID().uuidString).xcactivitylog")
-            try await fileSystem.makeDirectory(at: buildLogsPath)
-            try await fileSystem.writeAsPlist(
-                XCLogStoreManifestPlist(
-                    logs: [
-                        "id": XCLogStoreManifestPlist.ActivityLog(
-                            fileName: "id.xcactivitylog",
-                            timeStartedRecording: 10,
-                            timeStoppedRecording: 20
-                        ),
-                    ]
-                ),
-                at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+        // When / Then
+        await #expect(
+            throws: InspectBuildCommandServiceError.projectNotFound(
+                temporaryDirectory
             )
-            given(xcActivityLogController)
-                .parse(.value(activityLogPath))
-                .willReturn(.test())
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(activityLogPath)
-            configLoader.reset()
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(fullHandle: nil))
+        ) {
+            try await subject.run(path: temporaryDirectory.pathString)
+        }
+    }
 
-            // When / Then
-            await #expect(
-                throws: InspectBuildCommandServiceError.missingFullHandle
-            ) {
-                try await subject.run(path: projectPath.parentDirectory.pathString)
-            }
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func test_when_no_logs_exist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        given(xcActivityLogController).mostRecentActivityLogPath(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            after: .any
+        ).willReturn(nil)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
+        // When / Then
+        await #expect(
+            throws: InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
+        ) {
+            try await subject.run(path: nil)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func test_when_full_handle_not_specified() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        try await fileSystem.makeDirectory(at: projectPath)
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = nil
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+        try await fileSystem.makeDirectory(at: buildLogsPath)
+        try await fileSystem.writeAsPlist(
+            XCLogStoreManifestPlist(
+                logs: [
+                    "id": XCLogStoreManifestPlist.ActivityLog(
+                        fileName: "id.xcactivitylog",
+                        timeStartedRecording: 10,
+                        timeStoppedRecording: 20
+                    ),
+                ]
+            ),
+            at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+        )
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogPath(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            after: .any
+        ).willReturn(activityLogPath)
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: nil))
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
+
+        // When / Then
+        await #expect(
+            throws: InspectBuildCommandServiceError.missingFullHandle
+        ) {
+            try await subject.run(path: projectPath.parentDirectory.pathString)
         }
     }
 }

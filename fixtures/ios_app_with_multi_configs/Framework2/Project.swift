@@ -8,7 +8,8 @@ let settings: Settings = .settings(
     ]
 )
 
-// Targets can override select configurations if needed
+// Targets can override select configurations if needed.
+
 let targetSettings: Settings = .settings(
     base: [
         "TARGET_BASE": "TARGET_BASE",

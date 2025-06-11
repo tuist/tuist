@@ -1,6 +1,4 @@
 import Foundation
-import TuistCore
-import TuistSupport
 
 /// Server cache action item
 public struct ServerCacheActionItem: Equatable {

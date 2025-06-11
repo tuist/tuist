@@ -10,7 +10,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
@@ -32,8 +32,8 @@ final class TrackableCommandTests: TuistTestCase {
             .willReturn(false)
 
         given(gitController)
-            .ref(environment: .any)
-            .willReturn(nil)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: nil, sha: nil))
     }
 
     override func tearDown() {
@@ -71,15 +71,19 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(flag: false, shouldFail: true)
         // When
         await XCTAssertThrowsSpecific(
-            try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())),
+            try await subject.run(
+                backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())
+            ),
             TestCommand.TestError.commandFailed
         )
 
         // Then
         verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.status == .failure("Command failed")
-            })
+            .dispatch(
+                event: Parameter<CommandEvent>.matching { event in
+                    event.name == "test" && event.status == .failure("Command failed")
+                }
+            )
             .called(1)
     }
 
@@ -141,7 +145,9 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // When
-        try await subject.run(backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test()))
+        try await subject.run(
+            backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test())
+        )
 
         // Then
         verify(asyncQueue)

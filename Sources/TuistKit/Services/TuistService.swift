@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
@@ -51,9 +50,9 @@ final class TuistService: NSObject {
             []
         }
 
-        if let pluginPath: String = ProcessInfo.processInfo.environment["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {
+        if let pluginPath: String = Environment.current.variables["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {
             let absolutePath = try AbsolutePath(validating: pluginPath)
-            ServiceContext.current?.logger?.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
+            Logger.current.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
             pluginPaths.append(absolutePath)
         }
 
@@ -71,10 +70,10 @@ final class TuistService: NSObject {
 
         try System.shared.runAndPrint(
             arguments,
-            verbose: Environment.shared.isVerbose,
+            verbose: Environment.current.isVerbose,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
-            ].merging(System.shared.env) { tuistEnv, _ in tuistEnv }
+            ].merging(Environment.current.variables) { tuistEnv, _ in tuistEnv }
         )
     }
 }

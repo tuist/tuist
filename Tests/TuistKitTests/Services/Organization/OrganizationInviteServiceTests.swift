@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
+
 @testable import TuistKit
 
 final class OrganizationInviteServiceTests: TuistUnitTestCase {
@@ -36,7 +36,7 @@ final class OrganizationInviteServiceTests: TuistUnitTestCase {
     }
 
     func test_invite() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(createOrganizationInviteService)
                 .createOrganizationInvite(
@@ -59,11 +59,16 @@ final class OrganizationInviteServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            tuist@test.io was successfully invited to the tuist organization 🎉
+            XCTAssertPrinterOutputContains(
+                """
+                tuist@test.io was successfully invited to the tuist organization 🎉
 
-            You can also share with them the invite link directly: \(serverURL.absoluteString)/auth/invitations/invitation-token
-            """)
+                You can also share with them the invite link directly: \(
+                    serverURL
+                        .absoluteString
+                )/auth/invitations/invitation-token
+                """
+            )
         }
     }
 }

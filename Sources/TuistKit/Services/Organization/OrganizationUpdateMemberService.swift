@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +19,8 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     private let configLoader: ConfigLoading
 
     init(
-        updateOrganizationMemberService: UpdateOrganizationMemberServicing = UpdateOrganizationMemberService(),
+        updateOrganizationMemberService: UpdateOrganizationMemberServicing =
+            UpdateOrganizationMemberService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
@@ -37,7 +37,9 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -51,6 +53,8 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
+        Logger.current.info(
+            "The member \(username) role was successfully updated to \(member.role.rawValue)."
+        )
     }
 }

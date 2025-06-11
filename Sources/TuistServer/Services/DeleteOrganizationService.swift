@@ -1,6 +1,5 @@
 import Foundation
 import OpenAPIURLSession
-import TuistSupport
 
 public protocol DeleteOrganizationServicing {
     func deleteOrganization(
@@ -9,22 +8,13 @@ public protocol DeleteOrganizationServicing {
     ) async throws
 }
 
-enum DeleteOrganizationServiceError: FatalError {
+enum DeleteOrganizationServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .unauthorized, .notFound:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The organization could not be deleted due to an unknown Tuist response of \(statusCode)."

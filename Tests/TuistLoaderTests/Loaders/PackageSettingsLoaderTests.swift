@@ -2,15 +2,14 @@ import Foundation
 import Mockable
 import TSCUtility
 import TuistCore
-import TuistCoreTesting
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
@@ -61,7 +60,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .willReturn(())
 
         given(manifestLoader)
-            .loadPackageSettings(at: .any)
+            .loadPackageSettings(at: .any, disableSandbox: .any)
             .willReturn(.test())
 
         given(swiftPackageManagerController)
@@ -69,7 +68,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .willReturn("5.4.9")
 
         // When
-        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins, disableSandbox: false)
 
         // Then
         let expected: TuistCore.PackageSettings = .init(

@@ -35,7 +35,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Init
 
     init(
-        directory: AbsolutePath = Environment.shared.queueDirectory,
+        directory: AbsolutePath = Environment.current.queueDirectory,
         fileSystem: FileSystem = FileSystem(),
         dateService: DateServicing = DateService()
     ) {
@@ -72,13 +72,12 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                   let timestamp = Double(components[0]),
                   let id = UUID(uuidString: String(components[2]))
             else {
-                /// Changing the naming convention is a breaking change. When detected
-                /// we delete the event.
+                // Changing the naming convention is a breaking change. When detected we delete the event.
                 try? await fileSystem.remove(eventPath)
                 return nil
             }
 
-            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuosly
+            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuously
             // fail to be uploaded.
             let date = Date(timeIntervalSince1970: timestamp)
             if dateService.now().timeIntervalSince(date) > 24 * 60 * 60 {
@@ -115,3 +114,59 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
     }
 }
+
+#if DEBUG
+    public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersisting {
+        public init() {}
+
+        public var invokedReadAll = false
+        public var invokedReadAllCount = 0
+        public var stubbedReadAllResult: [AsyncQueueEventTuple] = []
+
+        public func readAll() -> [AsyncQueueEventTuple] {
+            invokedReadAll = true
+            invokedReadAllCount += 1
+            return stubbedReadAllResult
+        }
+
+        public var invokedWrite = false
+        public var invokedWriteCount = 0
+        public var invokedWriteEvent: U?
+        public var invokedWriteEvents = [U]()
+
+        public func write(event: some AsyncQueueEvent) {
+            invokedWrite = true
+            invokedWriteCount += 1
+            if let event = event as? U {
+                invokedWriteEvent = event
+                invokedWriteEvents.append(event)
+            }
+        }
+
+        public var invokedDeleteEventCount = 0
+        public var invokedDeleteCallBack: () -> Void = {}
+        public var invokedDeleteEvent: U?
+        public var invokedDeleteEvents = [U]()
+
+        public func delete(event: some AsyncQueueEvent) {
+            invokedDeleteEventCount += 1
+            if let event = event as? U {
+                invokedDeleteEvent = event
+                invokedDeleteEvents.append(event)
+            }
+            invokedDeleteCallBack()
+        }
+
+        public var invokedDeleteFilename = false
+        public var invokedDeleteFilenameCount = 0
+        public var invokedDeleteFilenameParameter: String?
+        public var invokedDeleteFilenameParametersList = [String]()
+
+        public func delete(filename: String) {
+            invokedDeleteFilename = true
+            invokedDeleteFilenameCount += 1
+            invokedDeleteFilenameParameter = filename
+            invokedDeleteFilenameParametersList.append(filename)
+        }
+    }
+#endif

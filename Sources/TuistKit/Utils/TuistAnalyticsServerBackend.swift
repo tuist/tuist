@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
@@ -12,7 +11,6 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let url: URL
     private let createCommandEventService: CreateCommandEventServicing
     private let fileHandler: FileHandling
-    private let ciChecker: CIChecking
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSystem
@@ -26,7 +24,6 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             url: url,
             createCommandEventService: CreateCommandEventService(),
             fileHandler: FileHandler.shared,
-            ciChecker: CIChecker(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             analyticsArtifactUploadService: AnalyticsArtifactUploadService(),
             fileSystem: FileSystem()
@@ -38,7 +35,6 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         url: URL,
         createCommandEventService: CreateCommandEventServicing,
         fileHandler: FileHandling,
-        ciChecker: CIChecking,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing,
         fileSystem: FileSystem
@@ -47,7 +43,6 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         self.url = url
         self.createCommandEventService = createCommandEventService
         self.fileHandler = fileHandler
-        self.ciChecker = ciChecker
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
@@ -63,13 +58,16 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             projectId: fullHandle,
             serverURL: url
         )
-        let runsDirectory = try cacheDirectoriesProvider
-            .cacheDirectory(for: .runs)
+        let runsDirectory =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
 
         let runDirectory = runsDirectory.appending(component: commandEvent.runId)
 
-        let resultBundlePath = commandEvent.resultBundlePath ?? runDirectory
-            .appending(component: "\(Constants.resultBundleName).xcresult")
+        let resultBundlePath =
+            commandEvent.resultBundlePath
+                ?? runDirectory
+                .appending(component: "\(Constants.resultBundleName).xcresult")
 
         if try await fileSystem.exists(resultBundlePath) {
             try await analyticsArtifactUploadService.uploadResultBundle(

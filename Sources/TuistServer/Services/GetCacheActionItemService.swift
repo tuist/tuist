@@ -1,7 +1,5 @@
 import Foundation
 import Mockable
-import TuistCore
-import TuistSupport
 
 @Mockable
 public protocol GetCacheActionItemServicing {
@@ -12,23 +10,14 @@ public protocol GetCacheActionItemServicing {
     ) async throws -> ServerCacheActionItem
 }
 
-public enum GetCacheActionItemServiceError: FatalError, Equatable {
+public enum GetCacheActionItemServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .paymentRequired, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The cache item could not be fetched due to an unknown Tuist response of \(statusCode)."
@@ -97,7 +86,7 @@ public final class GetCacheActionItemService: GetCacheActionItemServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw GetCacheActionItemServiceError.unauthorized(error.message)
             }
         }
     }

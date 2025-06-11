@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
-import TuistSupportTesting
+import TuistTesting
 import XCTest
+
 @testable import TuistKit
 
 final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
@@ -36,7 +36,7 @@ final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_remove_sso() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(updateOrganizationService)
                 .updateOrganization(
@@ -53,9 +53,11 @@ final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains("""
-            SSO for tuist was removed.
-            """)
+            XCTAssertPrinterOutputContains(
+                """
+                SSO for tuist was removed.
+                """
+            )
         }
     }
 }

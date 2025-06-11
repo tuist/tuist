@@ -2,7 +2,9 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistSupport
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
 
 public struct ServerCredentials: Codable, Equatable {
     /// Deprecated authentication token.
@@ -63,30 +65,16 @@ public protocol ServerCredentialsStoring: Sendable {
     func delete(serverURL: URL) async throws
 }
 
-enum ServerCredentialsStoreError: FatalError {
+enum ServerCredentialsStoreError: LocalizedError {
     case credentialsNotFound
-    case xcdgHomePathNotAbsolute(String)
     case invalidServerURL(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .credentialsNotFound:
             return "You are not authenticated. Authenticate by running 'tuist auth login'."
-        case let .xcdgHomePathNotAbsolute(path):
-            return "We expected the value of the XDG_CONFIG_HOME environment variable, \(path), to be an absolute path but it's not."
         case let .invalidServerURL(url):
             return "We couldn't obtain the host from the following URL because it seems invalid \(url)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .credentialsNotFound:
-            return .abort
-        case .xcdgHomePathNotAbsolute:
-            return .abort
-        case .invalidServerURL:
-            return .abort
         }
     }
 }
@@ -106,12 +94,14 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
     // MARK: - CredentialsStoring
 
     public func store(credentials: ServerCredentials, serverURL: URL) async throws {
-        let path = try credentialsFilePath(serverURL: serverURL)
-        let data = try JSONEncoder().encode(credentials)
-        if try await !fileSystem.exists(path.parentDirectory) {
-            try await fileSystem.makeDirectory(at: path.parentDirectory)
-        }
-        try data.write(to: path.url, options: .atomic)
+        #if canImport(TuistSupport)
+            let path = try credentialsFilePath(serverURL: serverURL)
+            let data = try JSONEncoder().encode(credentials)
+            if try await !fileSystem.exists(path.parentDirectory) {
+                try await fileSystem.makeDirectory(at: path.parentDirectory)
+            }
+            try data.write(to: path.url, options: .atomic)
+        #endif
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
@@ -119,11 +109,9 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         guard try await fileSystem.exists(path) else { return nil }
         let data = try await fileSystem.readFile(at: path)
 
-        /**
-         This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-         and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-         but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
-         */
+        // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+        // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+        // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
         return try? JSONDecoder().decode(ServerCredentials.self, from: data)
     }
 
@@ -143,25 +131,6 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         }
     }
 
-    // MARK: - Fileprivate
-
-    fileprivate static func configDirectory() throws -> AbsolutePath {
-        var directory: AbsolutePath!
-
-        if let xdgConfigHomeString = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
-            do {
-                directory = try AbsolutePath(validating: xdgConfigHomeString)
-            } catch {
-                throw ServerCredentialsStoreError.xcdgHomePathNotAbsolute(xdgConfigHomeString)
-            }
-        }
-
-        if directory == nil {
-            directory = FileHandler.shared.homeDirectory.appending(component: ".config")
-        }
-        return directory.appending(component: "tuist")
-    }
-
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
         guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
             throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
@@ -169,7 +138,11 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         let directory = if let configDirectory {
             configDirectory
         } else {
-            try ServerCredentialsStore.configDirectory()
+            #if canImport(TuistSupport)
+                Environment.current.configDirectory
+            #else
+                fatalError("Can't obtain the configuration directory for the current destination.")
+            #endif
         }
         // swiftlint:disable:next force_try
         return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))

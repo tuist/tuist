@@ -4,7 +4,8 @@ import Mockable
 import Path
 import Testing
 import TuistCore
-import TuistSupportTesting
+import TuistRootDirectoryLocator
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistHasher

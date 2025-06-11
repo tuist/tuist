@@ -3,7 +3,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistLoader
@@ -172,6 +172,7 @@ extension TuistTestCase {
             return .init(projectPath: resolvedPath, name: $0.targetName)
         }
         XCTAssertEqual(buildAction.targets, convertedTargets, file: file, line: line)
+        XCTAssertEqual(buildAction.parallelizeBuild, manifest.buildOrder == .dependency, file: file, line: line)
     }
 
     func assert(

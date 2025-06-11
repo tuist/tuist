@@ -1,7 +1,5 @@
 import Foundation
 import Mockable
-import TuistCore
-import TuistSupport
 
 @Mockable
 public protocol UploadCacheActionItemServicing {
@@ -12,7 +10,7 @@ public protocol UploadCacheActionItemServicing {
     ) async throws -> ServerCacheActionItem
 }
 
-public enum UploadCacheActionItemServiceError: FatalError, Equatable {
+public enum UploadCacheActionItemServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case paymentRequired(String)
@@ -20,16 +18,7 @@ public enum UploadCacheActionItemServiceError: FatalError, Equatable {
     case unauthorized(String)
     case badRequest(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .notFound, .paymentRequired, .forbidden, .unauthorized, .badRequest:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The cache item could not be uploaded due to an unknown Tuist response of \(statusCode)."

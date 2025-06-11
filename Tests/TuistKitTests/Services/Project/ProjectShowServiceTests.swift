@@ -1,12 +1,12 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
+
 @testable import TuistKit
 
 final class ProjectShowServiceTests: TuistUnitTestCase {
@@ -45,7 +45,9 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
 
     func test_run_with_web_when_theFullHandleIsProvided() async throws {
         // Given
-        var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
+        var expectedURLComponents = URLComponents(
+            url: Constants.URLs.production, resolvingAgainstBaseURL: false
+        )!
         expectedURLComponents.path = "/tuist/tuist"
         given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
         given(configLoader)
@@ -59,10 +61,14 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
     }
 
-    func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithFullHandleCanBeLoaded() async throws {
+    func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithFullHandleCanBeLoaded()
+        async throws
+    {
         // Given
         let path = try temporaryPath()
-        var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
+        var expectedURLComponents = URLComponents(
+            url: Constants.URLs.production, resolvingAgainstBaseURL: false
+        )!
         expectedURLComponents.path = "/tuist/tuist"
         let config = Tuist.test(fullHandle: "tuist/tuist")
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
@@ -75,23 +81,29 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         verify(opener).open(url: .value(expectedURLComponents.url!)).called(1)
     }
 
-    func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithoutFullHandleCanBeLoaded() async throws {
+    func test_run_with_web_when_theFullHandleIsNotProvided_and_aConfigWithoutFullHandleCanBeLoaded()
+        async throws
+    {
         // Given
         let path = try temporaryPath()
-        var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
+        var expectedURLComponents = URLComponents(
+            url: Constants.URLs.production, resolvingAgainstBaseURL: false
+        )!
         expectedURLComponents.path = "/tuist/tuist"
         given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
         let config = Tuist.test(fullHandle: nil)
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
 
         // When/Then
-        await XCTAssertThrowsSpecific({
-            try await subject.run(fullHandle: nil, web: false, path: path.pathString)
-        }, ProjectShowServiceError.missingFullHandle)
+        await XCTAssertThrowsSpecific(
+            {
+                try await subject.run(fullHandle: nil, web: false, path: path.pathString)
+            }, ProjectShowServiceError.missingFullHandle
+        )
     }
 
     func test_run_when_full_handle_is_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -122,7 +134,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_project_is_public() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -151,7 +163,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_project_is_private() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -180,7 +192,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_repositoryURL_is_defined() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -213,7 +225,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_not_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

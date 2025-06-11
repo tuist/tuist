@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol CreateAccountTokenServicing {
@@ -12,22 +11,13 @@ public protocol CreateAccountTokenServicing {
     ) async throws -> String
 }
 
-enum CreateAccountTokenServiceError: FatalError {
+enum CreateAccountTokenServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .notFound, .unauthorized:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not create a new account token due to an unknown Tuist response of \(statusCode)."

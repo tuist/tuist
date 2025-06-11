@@ -7,12 +7,13 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SettingsMapperTests: XCTestCase {
-    // Test that the right combintations end up in the right fields
+    // Test that the right combinations end up in the right fields
     // Test that platforms exclude correctly
     // test that platform conflicts combine correctly
+
     func test_set_defaults() throws {
         let mapper = SettingsMapper(
             headerSearchPaths: [],

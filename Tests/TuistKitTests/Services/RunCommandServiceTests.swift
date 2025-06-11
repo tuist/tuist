@@ -2,9 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
-import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -12,25 +10,25 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 
-@testable import TuistAutomationTesting
-@testable import TuistCoreTesting
+import struct TSCUtility.Version
+
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 struct RunCommandServiceErrorTests {
     @Test
     func test_description() {
         #expect(
-            RunCommandServiceError.schemeNotFound(scheme: "Scheme", existing: ["A", "B"]).errorDescription ==
-                "Couldn't find scheme Scheme. The available schemes are: A, B."
+            RunCommandServiceError.schemeNotFound(scheme: "Scheme", existing: ["A", "B"])
+                .errorDescription == "Couldn't find scheme Scheme. The available schemes are: A, B."
         )
         #expect(
-            RunCommandServiceError.schemeWithoutRunnableTarget(scheme: "Scheme").errorDescription ==
-                "The scheme Scheme cannot be run because it contains no runnable target."
+            RunCommandServiceError.schemeWithoutRunnableTarget(scheme: "Scheme").errorDescription
+                == "The scheme Scheme cannot be run because it contains no runnable target."
         )
         #expect(
-            RunCommandServiceError.invalidVersion("1.0.0").errorDescription ==
-                "The version 1.0.0 is not a valid version specifier."
+            RunCommandServiceError.invalidVersion("1.0.0").errorDescription
+                == "The version 1.0.0 is not a valid version specifier."
         )
     }
 }
@@ -80,8 +78,13 @@ struct RunCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test())
         given(generator)
-            .generateWithGraph(path: .any)
-            .willReturn((try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test(), MapperEnvironment()))
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test(),
+                    MapperEnvironment()
+                )
+            )
         given(buildGraphInspector)
             .workspacePath(directory: .any)
             .willReturn(try! AbsolutePath(validating: "/path/to/project.xcworkspace"))
@@ -97,17 +100,18 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_generates_when_workspaceNotFound() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             given(generator)
-                .generateWithGraph(path: .any)
+                .generateWithGraph(path: .any, options: .any)
                 .willReturn((workspacePath, .test(), MapperEnvironment()))
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(.test())
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(buildGraphInspector)
                 .workspacePath(directory: .any)
@@ -126,14 +130,16 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_buildsTarget() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let schemeName = "AScheme"
             let clean = true
             let configuration = "Test"
             targetBuilder
-                .buildTargetStub = { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _, _ in
+                .buildTargetStub = {
+                    _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _, _ in
                     // Then
                     #expect(_workspacePath == workspacePath)
                     #expect(_scheme.name == schemeName)
@@ -141,7 +147,7 @@ struct RunCommandServiceTests {
                     #expect(_configuration == configuration)
                 }
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(configLoader)
                 .loadConfig(path: .any)
@@ -172,12 +178,15 @@ struct RunCommandServiceTests {
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let schemeName = "AScheme"
         let configuration = "Test"
-        let minVersion = Target.test().deploymentTargets.configuredVersions.first?.versionString.version()
+        let minVersion = Target.test().deploymentTargets.configuredVersions.first?.versionString
+            .version()
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
         targetRunner
-            .runTargetStub = { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _arguments in
+            .runTargetStub = {
+                _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName,
+                    _arguments in
                 // Then
                 #expect(_workspacePath == workspacePath)
                 #expect(_schemeName == schemeName)
@@ -191,7 +200,7 @@ struct RunCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test())
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
         targetRunner.assertCanRunTargetStub = { _ in }
         given(buildGraphInspector)
@@ -215,11 +224,12 @@ struct RunCommandServiceTests {
     }
 
     func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(configLoader)
                 .loadConfig(path: .any)
@@ -260,9 +270,13 @@ struct RunCommandServiceTests {
 
         // When / Then
         await #expect(
-            throws: RunCommandServiceError.appNotFound("https://tuist.io/tuist/tuist/preview/some-id")
+            throws: RunCommandServiceError.appNotFound(
+                "https://tuist.io/tuist/tuist/preview/some-id"
+            )
         ) {
-            try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!))
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+            )
         }
     }
 
@@ -280,8 +294,9 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_share_link_runs_app() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 given(getPreviewService)
                     .getPreview(
@@ -325,7 +340,9 @@ struct RunCommandServiceTests {
                     .willReturn(appBundle)
 
                 // When
-                try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!))
+                try await subject.run(
+                    runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+                )
 
                 // Then
                 verify(appRunner)
@@ -341,8 +358,9 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_preview_with_specifier_runs_app() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 given(getPreviewService)
                     .getPreview(
@@ -430,7 +448,9 @@ struct RunCommandServiceTests {
 
         // When / Then
         await #expect(
-            throws: RunCommandServiceError.missingFullHandle(displayName: "App", specifier: "latest")
+            throws: RunCommandServiceError.missingFullHandle(
+                displayName: "App", specifier: "latest"
+            )
         ) {
             try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest"))
         }
@@ -465,8 +485,9 @@ struct RunCommandServiceTests {
 
     @Test
     func test_run_share_link_runs_ipa() async throws {
-        try await ServiceContext.withTestingDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
                 // Given
                 given(getPreviewService)
                     .getPreview(
@@ -495,7 +516,9 @@ struct RunCommandServiceTests {
 
                 try await fileSystem.makeDirectory(at: unarchivedPath)
                 // The `.app` bundle is nested in an `Payload` directory in the `.ipa` archive
-                try await fileSystem.makeDirectory(at: unarchivedPath.appending(components: "Payload", "App.app"))
+                try await fileSystem.makeDirectory(
+                    at: unarchivedPath.appending(components: "Payload", "App.app")
+                )
 
                 given(appRunner)
                     .runApp(
@@ -511,7 +534,9 @@ struct RunCommandServiceTests {
                     .willReturn(appBundle)
 
                 // When
-                try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!))
+                try await subject.run(
+                    runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+                )
 
                 // Then
                 verify(appRunner)
@@ -526,7 +551,8 @@ struct RunCommandServiceTests {
     }
 
     func test_run_share_link_runs_with_destination_and_version() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
             // Given
             given(getPreviewService)
                 .getPreview(

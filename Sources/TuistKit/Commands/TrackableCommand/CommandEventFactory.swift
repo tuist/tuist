@@ -8,41 +8,33 @@ import TuistSupport
 import XcodeGraph
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information
-/// from different sources and tells `analyticsTagger` to send the event to a provider
-
+/// from different sources and tells `analyticsTagger` to send the event to a provider.
 public final class CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
-    private let swiftVersionProvider: SwiftVersionProviding
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitController: GitControlling = GitController(),
-        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.shared
+        gitController: GitControlling = GitController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.gitController = gitController
-        self.swiftVersionProvider = swiftVersionProvider
     }
 
     public func make(
         from info: TrackableCommandInfo,
-        path: AbsolutePath,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        path: AbsolutePath
     ) throws -> CommandEvent {
-        var gitCommitSHA: String?
-        var gitRemoteURLOrigin: String?
-        var gitBranch: String?
-        if gitController.isInGitRepository(workingDirectory: path) {
-            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
-                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
-            }
+        let gitInfo = gitController.gitInfo(workingDirectory: path)
+        let gitCommitSHA = gitInfo.sha
+        let gitBranch = gitInfo.branch
+        let gitRef = gitInfo.ref
 
+        var gitRemoteURLOrigin: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
             if try gitController.hasUrlOrigin(workingDirectory: path) {
                 gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
             }
-
-            gitBranch = try gitController.currentBranch(workingDirectory: path)
         }
         let graph = info.graph.map {
             map(
@@ -60,13 +52,13 @@ public final class CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: try swiftVersionProvider.swiftVersion(),
+            swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
-            isCI: machineEnvironment.isCI,
+            isCI: Environment.current.isCI,
             status: info.status,
             gitCommitSHA: gitCommitSHA,
-            gitRef: gitController.ref(environment: environment),
+            gitRef: gitRef,
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
             graph: graph,

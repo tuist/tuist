@@ -1,14 +1,13 @@
 import Foundation
 import Mockable
-import TuistCore
-import TuistSupport
+import TuistSimulator
 
 public enum ListPreviewsDistinctField {
     case bundleIdentifier
 }
 
 @Mockable
-public protocol ListPreviewsServicing {
+public protocol ListPreviewsServicing: Sendable {
     func listPreviews(
         displayName: String?,
         specifier: String?,
@@ -21,21 +20,12 @@ public protocol ListPreviewsServicing {
     ) async throws -> [Preview]
 }
 
-public enum ListPreviewsServiceError: FatalError, Equatable {
+public enum ListPreviewsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case forbidden(String)
     case unauthorized(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The previews could not be listed due to an unknown Tuist Cloud response of \(statusCode)."

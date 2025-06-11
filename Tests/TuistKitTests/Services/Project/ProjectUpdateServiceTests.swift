@@ -1,10 +1,9 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 
@@ -54,7 +53,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_not_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -110,7 +109,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configLoader)
                 .loadConfig(path: .any)

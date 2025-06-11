@@ -1,14 +1,10 @@
 import ArgumentParser
 import Foundation
-import ServiceContextModule
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
 public struct CacheCommand: AsyncParsableCommand {
     public init() {}
-
-    public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
-    public static var cacheService: CacheServicing = EmptyCacheService()
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -64,12 +60,12 @@ public struct CacheCommand: AsyncParsableCommand {
 
     public func run() async throws {
         if printHashes {
-            ServiceContext.current?.alerts?.warning(.alert(
+            AlertController.current.warning(.alert(
                 "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
-                nextStep: "Use \(.command("tuist hash cache")) instead."
+                takeaway: "Use \(.command("tuist hash cache")) instead."
             ))
             try await HashCacheCommandService(
-                generatorFactory: Self.generatorFactory
+                generatorFactory: Extension.generatorFactory
             ).run(
                 path: path,
                 configuration: configuration
@@ -77,7 +73,7 @@ public struct CacheCommand: AsyncParsableCommand {
             return
         }
 
-        try await Self.cacheService.run(
+        try await Extension.cacheService.run(
             path: path,
             configuration: configuration,
             targetsToBinaryCache: Set(targets),

@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -58,14 +57,14 @@ final class EditService {
             let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
-            let selectedXcode = try await XcodeController.shared.selected()
+            let selectedXcode = try await XcodeController.current.selected()
             let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            ServiceContext.current?.logger?.notice("Opening Xcode to edit the project.", metadata: .pretty)
+            Logger.current.notice("Opening Xcode to edit the project.", metadata: .pretty)
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
@@ -75,7 +74,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            ServiceContext.current?.alerts?.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
+            AlertController.current.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
         }
     }
 
@@ -91,7 +90,7 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? await configLoader.loadConfig(path: path) else {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning(
                     "Unable to load \(Constants.tuistManifestFileName), fix any compiler errors and re-run for plugins to be loaded."
                 )
@@ -103,7 +102,7 @@ final class EditService {
         }
 
         guard let plugins = try? await pluginService.loadPlugins(using: generatedProjectOptions) else {
-            ServiceContext.current?.logger?
+            Logger.current
                 .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }

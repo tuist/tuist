@@ -1,6 +1,6 @@
-import ServiceContextModule
-import TuistSupportTesting
+import TuistTesting
 import XCTest
+
 @testable import TuistSupport
 
 class UserInputReaderTests: TuistUnitTestCase {
@@ -87,7 +87,7 @@ class UserInputReaderTests: TuistUnitTestCase {
     }
 
     func test_read_value_when_multiple_values_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             var fakeReadLine = StringReader(input: "1")
             let reader: UserInputReader = .init { _ in
@@ -116,7 +116,7 @@ class UserInputReaderTests: TuistUnitTestCase {
     }
 }
 
-// Custom string reader to simulate user input
+/// Custom string reader to simulate user input.
 private struct StringReader {
     let input: String
     var index: String.Index

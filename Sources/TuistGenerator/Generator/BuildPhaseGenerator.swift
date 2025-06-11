@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -72,14 +71,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
-        /**
-         Targets that depend on a Swift Macro have the following dependency graph:
-         - Target -> MyMacro (Static framework) -> MyMacro (Executable)
-         - or, in some cases, they directly depend on the executable: Target -> MyMacro (Executable)
-
-         The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
-         to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build setting.
-         */
+        // Targets that depend on a Swift Macro have the following dependency graph:
+        // - Target -> MyMacro (Static framework) -> MyMacro (Executable)
+        // - or, in some cases, they directly depend on the executable: Target -> MyMacro (Executable)
+        //
+        // The executable is compiled transitively through the static library, and we place it inside the framework to make it
+        // available to the target depending on the framework
+        // to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build
+        // setting.
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
@@ -284,8 +283,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 settings["COMPILER_FLAGS"] = .string(compilerFlags)
             }
 
-            /// Source file ATTRIBUTES
-            /// example: `settings = {ATTRIBUTES = (codegen, )`}
+            // Source file ATTRIBUTES
+            // example: `settings = {ATTRIBUTES = (codegen, )}`
             if let codegen = buildFile.codeGen {
                 settings["ATTRIBUTES"] = .array([codegen.rawValue])
             }
@@ -417,8 +416,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 var settings: [String: BuildFileSetting]?
 
-                /// File ATTRIBUTES
-                /// example: `settings = {ATTRIBUTES = (Codesign, )`}
+                // File ATTRIBUTES
+                // example: `settings = {ATTRIBUTES = (Codesign, )}`
                 if file.codeSignOnCopy {
                     settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
                 }

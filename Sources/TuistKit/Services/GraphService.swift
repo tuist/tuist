@@ -4,7 +4,6 @@ import Foundation
 import GraphViz
 import Path
 import ProjectAutomation
-import ServiceContextModule
 import Tools
 import TuistCore
 import TuistGenerator
@@ -20,6 +19,7 @@ final class GraphService {
     private let fileSystem: FileSystem
     private let manifestLoader: ManifestLoading
     private let xcodeGraphMapper: XcodeGraphMapping
+    private let configLoader: ConfigLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -30,10 +30,12 @@ final class GraphService {
             graphMapper: SequentialGraphMapper([])
         )
         let graphVizMapper = GraphToGraphVizMapper()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
             graphVizGenerator: graphVizMapper,
             manifestGraphLoader: manifestGraphLoader,
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            configLoader: configLoader
         )
     }
 
@@ -42,13 +44,15 @@ final class GraphService {
         manifestGraphLoader: ManifestGraphLoading,
         manifestLoader: ManifestLoading,
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSystem = FileSystem(),
+        configLoader: ConfigLoading
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
         self.manifestLoader = manifestLoader
         self.xcodeGraphMapper = xcodeGraphMapper
         self.fileSystem = fileSystem
+        self.configLoader = configLoader
     }
 
     func run(
@@ -62,9 +66,13 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
+        let config = try await configLoader.loadConfig(path: path)
         let graph: XcodeGraph.Graph
         if try await manifestLoader.hasRootManifest(at: path) {
-            (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+            (graph, _, _, _) = try await manifestGraphLoader.load(
+                path: path,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
         }
@@ -77,7 +85,7 @@ final class GraphService {
         }
         let filePath = outputPath.appending(component: "graph.\(fileExtension)")
         if try await fileSystem.exists(filePath) {
-            ServiceContext.current?.logger?.notice("Deleting existing graph at \(filePath.pathString)")
+            Logger.current.notice("Deleting existing graph at \(filePath.pathString)")
             try await fileSystem.remove(filePath)
         }
 
@@ -99,7 +107,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        ServiceContext.current?.alerts?.success(.alert("Graph exported to \(filePath.pathString)"))
+        AlertController.current.success(.alert("Graph exported to \(filePath.pathString)"))
     }
 
     private func export(
@@ -166,8 +174,8 @@ final class GraphService {
     }
 
     private func installGraphViz() throws {
-        ServiceContext.current?.logger?.notice("Installing GraphViz...")
-        var env = System.shared.env
+        Logger.current.notice("Installing GraphViz...")
+        var env = Environment.current.variables
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
     }

@@ -1,12 +1,11 @@
 import Foundation
 import TSCUtility
-import TuistCoreTesting
 import TuistLoader
 import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
     var projectMapperFactory: ProjectMapperFactory!

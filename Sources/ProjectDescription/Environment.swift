@@ -1,4 +1,4 @@
-@_implementationOnly import Foundation
+internal import Foundation
 
 /// A convenience structure to read environment variables.
 @dynamicMemberLookup
@@ -55,7 +55,9 @@ extension Environment.Value? {
 }
 
 extension String {
-    // Taken from https://github.com/apple/swift/blob/88b093e9d77d6201935a2c2fb13f27d961836777/stdlib/public/Darwin/Foundation/JSONEncoder.swift#L161
+    /// Convert from "camelCaseKeys" to "snake_case_keys".
+    ///
+    /// Reference: https://github.com/apple/swift/blob/88b093e9d77d6201935a2c2fb13f27d961836777/stdlib/public/Darwin/Foundation/JSONEncoder.swift#L161
     fileprivate func camelCaseToSnakeCase() -> String {
         guard !isEmpty else { return self }
 

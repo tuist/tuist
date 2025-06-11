@@ -44,6 +44,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/auth/refresh_token`.
     /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
     func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    func createBundle(_ input: Operations.createBundle.Input) async throws -> Operations.createBundle.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -388,6 +393,21 @@ extension APIProtocol {
         body: Operations.refreshToken.Input.Body? = nil
     ) async throws -> Operations.refreshToken.Output {
         try await refreshToken(Operations.refreshToken.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    internal func createBundle(
+        path: Operations.createBundle.Input.Path,
+        headers: Operations.createBundle.Input.Headers = .init(),
+        body: Operations.createBundle.Input.Body? = nil
+    ) async throws -> Operations.createBundle.Output {
+        try await createBundle(Operations.createBundle.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -1051,6 +1071,114 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case organizations
+            }
+        }
+        /// Request schema for bundle creation
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleRequest`.
+        internal struct BundleRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
+            internal struct bundlePayload: Codable, Hashable, Sendable {
+                /// The bundle ID of the app
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/app_bundle_id`.
+                internal var app_bundle_id: Swift.String?
+                /// The artifacts in this bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
+                internal var artifacts: [Components.Schemas.BundleArtifact]
+                /// The bundle download size in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/download_size`.
+                internal var download_size: Swift.Int?
+                /// The git branch associated with the bundle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_branch`.
+                internal var git_branch: Swift.String?
+                /// The git commit SHA associated with the bundle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_commit_sha`.
+                internal var git_commit_sha: Swift.String?
+                /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_ref`.
+                internal var git_ref: Swift.String?
+                /// The bundle install size in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/install_size`.
+                internal var install_size: Swift.Int
+                /// The name of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/name`.
+                internal var name: Swift.String
+                /// List of supported platforms
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/supported_platforms`.
+                internal var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                /// The version of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/version`.
+                internal var version: Swift.String
+                /// Creates a new `bundlePayload`.
+                ///
+                /// - Parameters:
+                ///   - app_bundle_id: The bundle ID of the app
+                ///   - artifacts: The artifacts in this bundle
+                ///   - download_size: The bundle download size in bytes
+                ///   - git_branch: The git branch associated with the bundle.
+                ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                ///   - install_size: The bundle install size in bytes
+                ///   - name: The name of the bundle
+                ///   - supported_platforms: List of supported platforms
+                ///   - version: The version of the bundle
+                internal init(
+                    app_bundle_id: Swift.String? = nil,
+                    artifacts: [Components.Schemas.BundleArtifact],
+                    download_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    git_ref: Swift.String? = nil,
+                    install_size: Swift.Int,
+                    name: Swift.String,
+                    supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                    version: Swift.String
+                ) {
+                    self.app_bundle_id = app_bundle_id
+                    self.artifacts = artifacts
+                    self.download_size = download_size
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.git_ref = git_ref
+                    self.install_size = install_size
+                    self.name = name
+                    self.supported_platforms = supported_platforms
+                    self.version = version
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case app_bundle_id
+                    case artifacts
+                    case download_size
+                    case git_branch
+                    case git_commit_sha
+                    case git_ref
+                    case install_size
+                    case name
+                    case supported_platforms
+                    case version
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
+            internal var bundle: Components.Schemas.BundleRequest.bundlePayload
+            /// Creates a new `BundleRequest`.
+            ///
+            /// - Parameters:
+            ///   - bundle:
+            internal init(bundle: Components.Schemas.BundleRequest.bundlePayload) {
+                self.bundle = bundle
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case bundle
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1831,10 +1959,95 @@ internal enum Components {
         internal enum RunParams: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunParams/case1`.
             internal struct Case1Payload: Codable, Hashable, Sendable {
+                /// The category of the build run, can be clean or incremental.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
+                internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case clean = "clean"
+                    case incremental = "incremental"
+                }
+                /// The category of the build run, can be clean or incremental.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/category`.
+                internal var category: Components.Schemas.RunParams.Case1Payload.categoryPayload?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
                 internal var duration: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload`.
+                internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The duration of the compilation for the file in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/compilation_duration`.
+                    internal var compilation_duration: Swift.Int
+                    /// The file path where the issue occurred, relative to the project root.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/path`.
+                    internal var path: Swift.String
+                    /// The project name associated with the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/project`.
+                    internal var project: Swift.String
+                    /// The target name associated with the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/target`.
+                    internal var target: Swift.String
+                    /// The type of the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/type`.
+                    internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case swift = "swift"
+                        case c = "c"
+                    }
+                    /// The type of the file.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/filesPayload/type`.
+                    internal var _type: Components.Schemas.RunParams.Case1Payload.filesPayloadPayload._typePayload
+                    /// Creates a new `filesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                    ///   - path: The file path where the issue occurred, relative to the project root.
+                    ///   - project: The project name associated with the file.
+                    ///   - target: The target name associated with the file.
+                    ///   - _type: The type of the file.
+                    internal init(
+                        compilation_duration: Swift.Int,
+                        path: Swift.String,
+                        project: Swift.String,
+                        target: Swift.String,
+                        _type: Components.Schemas.RunParams.Case1Payload.filesPayloadPayload._typePayload
+                    ) {
+                        self.compilation_duration = compilation_duration
+                        self.path = path
+                        self.project = project
+                        self.target = target
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case compilation_duration
+                        case path
+                        case project
+                        case target
+                        case _type = "type"
+                    }
+                }
+                /// Compiled files associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/files`.
+                internal typealias filesPayload = [Components.Schemas.RunParams.Case1Payload.filesPayloadPayload]
+                /// Compiled files associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/files`.
+                internal var files: Components.Schemas.RunParams.Case1Payload.filesPayload?
+                /// The git branch.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/git_branch`.
+                internal var git_branch: Swift.String?
+                /// The commit SHA.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/git_commit_sha`.
+                internal var git_commit_sha: Swift.String?
                 /// UUID of a run generated by the system.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/id`.
@@ -1843,6 +2056,151 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/is_ci`.
                 internal var is_ci: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload`.
+                internal struct issuesPayloadPayload: Codable, Hashable, Sendable {
+                    /// The ending column number of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/ending_column`.
+                    internal var ending_column: Swift.Int
+                    /// The ending line number of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/ending_line`.
+                    internal var ending_line: Swift.Int
+                    /// The detailed message of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/message`.
+                    internal var message: Swift.String?
+                    /// The file path where the issue occurred, relative to the project root.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/path`.
+                    internal var path: Swift.String?
+                    /// The project name associated with the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/project`.
+                    internal var project: Swift.String
+                    /// The signature of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/signature`.
+                    internal var signature: Swift.String
+                    /// The starting column number of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/starting_column`.
+                    internal var starting_column: Swift.Int
+                    /// The starting line number of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/starting_line`.
+                    internal var starting_line: Swift.Int
+                    /// The step type where the issue occurred, such as swift_compilation.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/step_type`.
+                    internal enum step_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case c_compilation = "c_compilation"
+                        case swift_compilation = "swift_compilation"
+                        case script_execution = "script_execution"
+                        case create_static_library = "create_static_library"
+                        case linker = "linker"
+                        case copy_swift_libs = "copy_swift_libs"
+                        case compile_assets_catalog = "compile_assets_catalog"
+                        case compile_storyboard = "compile_storyboard"
+                        case write_auxiliary_file = "write_auxiliary_file"
+                        case link_storyboards = "link_storyboards"
+                        case copy_resource_file = "copy_resource_file"
+                        case merge_swift_module = "merge_swift_module"
+                        case xib_compilation = "xib_compilation"
+                        case swift_aggregated_compilation = "swift_aggregated_compilation"
+                        case precompile_bridging_header = "precompile_bridging_header"
+                        case other = "other"
+                        case validate_embedded_binary = "validate_embedded_binary"
+                        case validate = "validate"
+                    }
+                    /// The step type where the issue occurred, such as swift_compilation.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/step_type`.
+                    internal var step_type: Components.Schemas.RunParams.Case1Payload.issuesPayloadPayload.step_typePayload
+                    /// The target name associated with the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/target`.
+                    internal var target: Swift.String
+                    /// The title of the build issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/title`.
+                    internal var title: Swift.String
+                    /// The type of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/type`.
+                    internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case warning = "warning"
+                        case error = "error"
+                    }
+                    /// The type of the issue.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/issuesPayload/type`.
+                    internal var _type: Components.Schemas.RunParams.Case1Payload.issuesPayloadPayload._typePayload
+                    /// Creates a new `issuesPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - ending_column: The ending column number of the issue.
+                    ///   - ending_line: The ending line number of the issue.
+                    ///   - message: The detailed message of the issue.
+                    ///   - path: The file path where the issue occurred, relative to the project root.
+                    ///   - project: The project name associated with the issue.
+                    ///   - signature: The signature of the issue.
+                    ///   - starting_column: The starting column number of the issue.
+                    ///   - starting_line: The starting line number of the issue.
+                    ///   - step_type: The step type where the issue occurred, such as swift_compilation.
+                    ///   - target: The target name associated with the issue.
+                    ///   - title: The title of the build issue.
+                    ///   - _type: The type of the issue.
+                    internal init(
+                        ending_column: Swift.Int,
+                        ending_line: Swift.Int,
+                        message: Swift.String? = nil,
+                        path: Swift.String? = nil,
+                        project: Swift.String,
+                        signature: Swift.String,
+                        starting_column: Swift.Int,
+                        starting_line: Swift.Int,
+                        step_type: Components.Schemas.RunParams.Case1Payload.issuesPayloadPayload.step_typePayload,
+                        target: Swift.String,
+                        title: Swift.String,
+                        _type: Components.Schemas.RunParams.Case1Payload.issuesPayloadPayload._typePayload
+                    ) {
+                        self.ending_column = ending_column
+                        self.ending_line = ending_line
+                        self.message = message
+                        self.path = path
+                        self.project = project
+                        self.signature = signature
+                        self.starting_column = starting_column
+                        self.starting_line = starting_line
+                        self.step_type = step_type
+                        self.target = target
+                        self.title = title
+                        self._type = _type
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case ending_column
+                        case ending_line
+                        case message
+                        case path
+                        case project
+                        case signature
+                        case starting_column
+                        case starting_line
+                        case step_type
+                        case target
+                        case title
+                        case _type = "type"
+                    }
+                }
+                /// The build issues associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/issues`.
+                internal typealias issuesPayload = [Components.Schemas.RunParams.Case1Payload.issuesPayloadPayload]
+                /// The build issues associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/issues`.
+                internal var issues: Components.Schemas.RunParams.Case1Payload.issuesPayload?
                 /// The version of macOS used during the run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/macos_version`.
@@ -1866,6 +2224,72 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/status`.
                 internal var status: Components.Schemas.RunParams.Case1Payload.statusPayload?
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload`.
+                internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                    /// The build duration for the target in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/build_duration`.
+                    internal var build_duration: Swift.Int
+                    /// The duration of the compilation for the target in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/compilation_duration`.
+                    internal var compilation_duration: Swift.Int
+                    /// The target name.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/name`.
+                    internal var name: Swift.String
+                    /// The target's project name.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/project`.
+                    internal var project: Swift.String
+                    /// The status of the target's build.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/status`.
+                    internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                    }
+                    /// The status of the target's build.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/targetsPayload/status`.
+                    internal var status: Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload.statusPayload
+                    /// Creates a new `targetsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_duration: The build duration for the target in milliseconds.
+                    ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                    ///   - name: The target name.
+                    ///   - project: The target's project name.
+                    ///   - status: The status of the target's build.
+                    internal init(
+                        build_duration: Swift.Int,
+                        compilation_duration: Swift.Int,
+                        name: Swift.String,
+                        project: Swift.String,
+                        status: Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload.statusPayload
+                    ) {
+                        self.build_duration = build_duration
+                        self.compilation_duration = compilation_duration
+                        self.name = name
+                        self.project = project
+                        self.status = status
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case build_duration
+                        case compilation_duration
+                        case name
+                        case project
+                        case status
+                    }
+                }
+                /// Targets with build metadata associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targets`.
+                internal typealias targetsPayload = [Components.Schemas.RunParams.Case1Payload.targetsPayloadPayload]
+                /// Targets with build metadata associated with the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/targets`.
+                internal var targets: Components.Schemas.RunParams.Case1Payload.targetsPayload?
                 /// The type of the run, which is 'build' in this case.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/type`.
@@ -1883,44 +2307,68 @@ internal enum Components {
                 /// Creates a new `Case1Payload`.
                 ///
                 /// - Parameters:
+                ///   - category: The category of the build run, can be clean or incremental.
                 ///   - duration: Duration of the run in milliseconds.
+                ///   - files: Compiled files associated with the build run.
+                ///   - git_branch: The git branch.
+                ///   - git_commit_sha: The commit SHA.
                 ///   - id: UUID of a run generated by the system.
                 ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+                ///   - issues: The build issues associated with the build run.
                 ///   - macos_version: The version of macOS used during the run.
                 ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                 ///   - scheme: The scheme used for the build.
                 ///   - status: The status of the build run.
+                ///   - targets: Targets with build metadata associated with the build run.
                 ///   - _type: The type of the run, which is 'build' in this case.
                 ///   - xcode_version: The version of Xcode used during the run.
                 internal init(
+                    category: Components.Schemas.RunParams.Case1Payload.categoryPayload? = nil,
                     duration: Swift.Int,
+                    files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
                     id: Swift.String,
                     is_ci: Swift.Bool,
+                    issues: Components.Schemas.RunParams.Case1Payload.issuesPayload? = nil,
                     macos_version: Swift.String? = nil,
                     model_identifier: Swift.String? = nil,
                     scheme: Swift.String? = nil,
                     status: Components.Schemas.RunParams.Case1Payload.statusPayload? = nil,
+                    targets: Components.Schemas.RunParams.Case1Payload.targetsPayload? = nil,
                     _type: Components.Schemas.RunParams.Case1Payload._typePayload? = nil,
                     xcode_version: Swift.String? = nil
                 ) {
+                    self.category = category
                     self.duration = duration
+                    self.files = files
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
                     self.id = id
                     self.is_ci = is_ci
+                    self.issues = issues
                     self.macos_version = macos_version
                     self.model_identifier = model_identifier
                     self.scheme = scheme
                     self.status = status
+                    self.targets = targets
                     self._type = _type
                     self.xcode_version = xcode_version
                 }
                 internal enum CodingKeys: String, CodingKey {
+                    case category
                     case duration
+                    case files
+                    case git_branch
+                    case git_commit_sha
                     case id
                     case is_ci
+                    case issues
                     case macos_version
                     case model_identifier
                     case scheme
                     case status
+                    case targets
                     case _type = "type"
                     case xcode_version
                 }
@@ -1952,35 +2400,234 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPageSize`.
         internal typealias RunsIndexPageSize = Swift.Int
+        /// Response schema for bundle
+        ///
+        /// - Remark: Generated from `#/components/schemas/Bundle`.
+        internal struct Bundle: Codable, Hashable, Sendable {
+            /// The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/id`.
+            internal var id: Swift.String
+            /// The URL of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/url`.
+            internal var url: Swift.String
+            /// Creates a new `Bundle`.
+            ///
+            /// - Parameters:
+            ///   - id: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+            ///   - url: The URL of the bundle
+            internal init(
+                id: Swift.String,
+                url: Swift.String
+            ) {
+                self.id = id
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case url
+            }
+        }
+        /// A bundle artifact schema
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleArtifact`.
+        internal struct BundleArtifact: Codable, Hashable, Sendable {
+            /// The type of artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+            internal enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case directory = "directory"
+                case file = "file"
+                case font = "font"
+                case binary = "binary"
+                case localization = "localization"
+                case asset = "asset"
+            }
+            /// The type of artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+            internal var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload {
+                get  {
+                    storage.value.artifact_type
+                }
+                _modify {
+                    yield &storage.value.artifact_type
+                }
+            }
+            /// Nested child artifacts, for example for artifacts that represent a directory.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
+            internal var children: [Components.Schemas.BundleArtifact]? {
+                get  {
+                    storage.value.children
+                }
+                _modify {
+                    yield &storage.value.children
+                }
+            }
+            /// The path to the artifact relative to the root of the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
+            internal var path: Swift.String {
+                get  {
+                    storage.value.path
+                }
+                _modify {
+                    yield &storage.value.path
+                }
+            }
+            /// The SHA checksum of the artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
+            internal var shasum: Swift.String {
+                get  {
+                    storage.value.shasum
+                }
+                _modify {
+                    yield &storage.value.shasum
+                }
+            }
+            /// The size of the artifact in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
+            internal var size: Swift.Int {
+                get  {
+                    storage.value.size
+                }
+                _modify {
+                    yield &storage.value.size
+                }
+            }
+            /// Creates a new `BundleArtifact`.
+            ///
+            /// - Parameters:
+            ///   - artifact_type: The type of artifact
+            ///   - children: Nested child artifacts, for example for artifacts that represent a directory.
+            ///   - path: The path to the artifact relative to the root of the bundle.
+            ///   - shasum: The SHA checksum of the artifact
+            ///   - size: The size of the artifact in bytes
+            internal init(
+                artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload,
+                children: [Components.Schemas.BundleArtifact]? = nil,
+                path: Swift.String,
+                shasum: Swift.String,
+                size: Swift.Int
+            ) {
+                storage = .init(value: .init(
+                    artifact_type: artifact_type,
+                    children: children,
+                    path: path,
+                    shasum: shasum,
+                    size: size
+                ))
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case artifact_type
+                case children
+                case path
+                case shasum
+                case size
+            }
+            internal init(from decoder: any Decoder) throws {
+                storage = try .init(from: decoder)
+            }
+            internal func encode(to encoder: any Encoder) throws {
+                try storage.encode(to: encoder)
+            }
+            /// Internal reference storage to allow type recursion.
+            private var storage: OpenAPIRuntime.CopyOnWriteBox<Storage>
+            private struct Storage: Codable, Hashable, Sendable {
+                /// The type of artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+                enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case directory = "directory"
+                    case file = "file"
+                    case font = "font"
+                    case binary = "binary"
+                    case localization = "localization"
+                    case asset = "asset"
+                }
+                /// The type of artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+                var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload
+                /// Nested child artifacts, for example for artifacts that represent a directory.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
+                var children: [Components.Schemas.BundleArtifact]?
+                /// The path to the artifact relative to the root of the bundle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
+                var path: Swift.String
+                /// The SHA checksum of the artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
+                var shasum: Swift.String
+                /// The size of the artifact in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
+                var size: Swift.Int
+                init(
+                    artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload,
+                    children: [Components.Schemas.BundleArtifact]? = nil,
+                    path: Swift.String,
+                    shasum: Swift.String,
+                    size: Swift.Int
+                ) {
+                    self.artifact_type = artifact_type
+                    self.children = children
+                    self.path = path
+                    self.shasum = shasum
+                    self.size = size
+                }
+                typealias CodingKeys = Components.Schemas.BundleArtifact.CodingKeys
+            }
+        }
         /// Represents a single build run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
         internal struct RunsBuild: Codable, Hashable, Sendable {
+            /// The duration of the build run in milliseconds
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/duration`.
             internal var duration: Swift.Int
+            /// The unique identifier of the build run
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/id`.
             internal var id: Swift.String
+            /// The ID of the Tuist project associated with this build run
+            ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/project_id`.
             internal var project_id: Swift.Int
+            /// The URL to access the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/url`.
+            internal var url: Swift.String
             /// Creates a new `RunsBuild`.
             ///
             /// - Parameters:
-            ///   - duration:
-            ///   - id:
-            ///   - project_id:
+            ///   - duration: The duration of the build run in milliseconds
+            ///   - id: The unique identifier of the build run
+            ///   - project_id: The ID of the Tuist project associated with this build run
+            ///   - url: The URL to access the build run
             internal init(
                 duration: Swift.Int,
                 id: Swift.String,
-                project_id: Swift.Int
+                project_id: Swift.Int,
+                url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
                 case duration
                 case id
                 case project_id
+                case url
             }
         }
         /// A token to authenticate API requests as a project.
@@ -2253,6 +2900,14 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/preview_id`.
             internal var preview_id: Swift.String?
+            /// Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/ran_at`.
+            internal var ran_at: Swift.Int64
+            /// The account triggered the run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/ran_by`.
+            internal var ran_by: Swift.String?
             /// Remote cache target hits of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/remote_cache_target_hits`.
@@ -2300,6 +2955,8 @@ internal enum Components {
             ///   - macos_version: Version of macOS used
             ///   - name: Command name of the run
             ///   - preview_id: ID of the associated preview
+            ///   - ran_at: Unix timestamp in seconds since epoch (1970-01-01T00:00:00Z)
+            ///   - ran_by: The account triggered the run.
             ///   - remote_cache_target_hits: Remote cache target hits of the run
             ///   - remote_test_target_hits: Remote test target hits of the run
             ///   - status: Status of the command event
@@ -2321,6 +2978,8 @@ internal enum Components {
                 macos_version: Swift.String,
                 name: Swift.String,
                 preview_id: Swift.String? = nil,
+                ran_at: Swift.Int64,
+                ran_by: Swift.String? = nil,
                 remote_cache_target_hits: [Swift.String]? = nil,
                 remote_test_target_hits: [Swift.String]? = nil,
                 status: Swift.String,
@@ -2342,6 +3001,8 @@ internal enum Components {
                 self.macos_version = macos_version
                 self.name = name
                 self.preview_id = preview_id
+                self.ran_at = ran_at
+                self.ran_by = ran_by
                 self.remote_cache_target_hits = remote_cache_target_hits
                 self.remote_test_target_hits = remote_test_target_hits
                 self.status = status
@@ -2364,6 +3025,8 @@ internal enum Components {
                 case macos_version
                 case name
                 case preview_id
+                case ran_at
+                case ran_by
                 case remote_cache_target_hits
                 case remote_test_target_hits
                 case status
@@ -2373,6 +3036,20 @@ internal enum Components {
                 case tuist_version
                 case url
             }
+        }
+        /// A platform that a bundle can support (e.g. iOS)
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleSupportedPlatform`.
+        internal enum BundleSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
+            case ios = "ios"
+            case ios_simulator = "ios_simulator"
+            case tvos = "tvos"
+            case tvos_simulator = "tvos_simulator"
+            case watchos = "watchos"
+            case watchos_simulator = "watchos_simulator"
+            case visionos = "visionos"
+            case visionos_simulator = "visionos_simulator"
+            case macos = "macos"
         }
         /// The artifact exists in the cache and can be downloaded
         ///
@@ -2480,10 +3157,95 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/BuildRun`.
         internal struct BuildRun: Codable, Hashable, Sendable {
+            /// The category of the build run, can be clean or incremental.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
+            internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case clean = "clean"
+                case incremental = "incremental"
+            }
+            /// The category of the build run, can be clean or incremental.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/category`.
+            internal var category: Components.Schemas.BuildRun.categoryPayload?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
             internal var duration: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload`.
+            internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The duration of the compilation for the file in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/compilation_duration`.
+                internal var compilation_duration: Swift.Int
+                /// The file path where the issue occurred, relative to the project root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/path`.
+                internal var path: Swift.String
+                /// The project name associated with the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/project`.
+                internal var project: Swift.String
+                /// The target name associated with the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/target`.
+                internal var target: Swift.String
+                /// The type of the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/type`.
+                internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case swift = "swift"
+                    case c = "c"
+                }
+                /// The type of the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/filesPayload/type`.
+                internal var _type: Components.Schemas.BuildRun.filesPayloadPayload._typePayload
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                ///   - path: The file path where the issue occurred, relative to the project root.
+                ///   - project: The project name associated with the file.
+                ///   - target: The target name associated with the file.
+                ///   - _type: The type of the file.
+                internal init(
+                    compilation_duration: Swift.Int,
+                    path: Swift.String,
+                    project: Swift.String,
+                    target: Swift.String,
+                    _type: Components.Schemas.BuildRun.filesPayloadPayload._typePayload
+                ) {
+                    self.compilation_duration = compilation_duration
+                    self.path = path
+                    self.project = project
+                    self.target = target
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case compilation_duration
+                    case path
+                    case project
+                    case target
+                    case _type = "type"
+                }
+            }
+            /// Compiled files associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/files`.
+            internal typealias filesPayload = [Components.Schemas.BuildRun.filesPayloadPayload]
+            /// Compiled files associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/files`.
+            internal var files: Components.Schemas.BuildRun.filesPayload?
+            /// The git branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/git_branch`.
+            internal var git_branch: Swift.String?
+            /// The commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/git_commit_sha`.
+            internal var git_commit_sha: Swift.String?
             /// UUID of a run generated by the system.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/id`.
@@ -2492,6 +3254,151 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/is_ci`.
             internal var is_ci: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload`.
+            internal struct issuesPayloadPayload: Codable, Hashable, Sendable {
+                /// The ending column number of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/ending_column`.
+                internal var ending_column: Swift.Int
+                /// The ending line number of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/ending_line`.
+                internal var ending_line: Swift.Int
+                /// The detailed message of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/message`.
+                internal var message: Swift.String?
+                /// The file path where the issue occurred, relative to the project root.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/path`.
+                internal var path: Swift.String?
+                /// The project name associated with the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/project`.
+                internal var project: Swift.String
+                /// The signature of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/signature`.
+                internal var signature: Swift.String
+                /// The starting column number of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/starting_column`.
+                internal var starting_column: Swift.Int
+                /// The starting line number of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/starting_line`.
+                internal var starting_line: Swift.Int
+                /// The step type where the issue occurred, such as swift_compilation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/step_type`.
+                internal enum step_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case c_compilation = "c_compilation"
+                    case swift_compilation = "swift_compilation"
+                    case script_execution = "script_execution"
+                    case create_static_library = "create_static_library"
+                    case linker = "linker"
+                    case copy_swift_libs = "copy_swift_libs"
+                    case compile_assets_catalog = "compile_assets_catalog"
+                    case compile_storyboard = "compile_storyboard"
+                    case write_auxiliary_file = "write_auxiliary_file"
+                    case link_storyboards = "link_storyboards"
+                    case copy_resource_file = "copy_resource_file"
+                    case merge_swift_module = "merge_swift_module"
+                    case xib_compilation = "xib_compilation"
+                    case swift_aggregated_compilation = "swift_aggregated_compilation"
+                    case precompile_bridging_header = "precompile_bridging_header"
+                    case other = "other"
+                    case validate_embedded_binary = "validate_embedded_binary"
+                    case validate = "validate"
+                }
+                /// The step type where the issue occurred, such as swift_compilation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/step_type`.
+                internal var step_type: Components.Schemas.BuildRun.issuesPayloadPayload.step_typePayload
+                /// The target name associated with the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/target`.
+                internal var target: Swift.String
+                /// The title of the build issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/title`.
+                internal var title: Swift.String
+                /// The type of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/type`.
+                internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case warning = "warning"
+                    case error = "error"
+                }
+                /// The type of the issue.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/issuesPayload/type`.
+                internal var _type: Components.Schemas.BuildRun.issuesPayloadPayload._typePayload
+                /// Creates a new `issuesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - ending_column: The ending column number of the issue.
+                ///   - ending_line: The ending line number of the issue.
+                ///   - message: The detailed message of the issue.
+                ///   - path: The file path where the issue occurred, relative to the project root.
+                ///   - project: The project name associated with the issue.
+                ///   - signature: The signature of the issue.
+                ///   - starting_column: The starting column number of the issue.
+                ///   - starting_line: The starting line number of the issue.
+                ///   - step_type: The step type where the issue occurred, such as swift_compilation.
+                ///   - target: The target name associated with the issue.
+                ///   - title: The title of the build issue.
+                ///   - _type: The type of the issue.
+                internal init(
+                    ending_column: Swift.Int,
+                    ending_line: Swift.Int,
+                    message: Swift.String? = nil,
+                    path: Swift.String? = nil,
+                    project: Swift.String,
+                    signature: Swift.String,
+                    starting_column: Swift.Int,
+                    starting_line: Swift.Int,
+                    step_type: Components.Schemas.BuildRun.issuesPayloadPayload.step_typePayload,
+                    target: Swift.String,
+                    title: Swift.String,
+                    _type: Components.Schemas.BuildRun.issuesPayloadPayload._typePayload
+                ) {
+                    self.ending_column = ending_column
+                    self.ending_line = ending_line
+                    self.message = message
+                    self.path = path
+                    self.project = project
+                    self.signature = signature
+                    self.starting_column = starting_column
+                    self.starting_line = starting_line
+                    self.step_type = step_type
+                    self.target = target
+                    self.title = title
+                    self._type = _type
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case ending_column
+                    case ending_line
+                    case message
+                    case path
+                    case project
+                    case signature
+                    case starting_column
+                    case starting_line
+                    case step_type
+                    case target
+                    case title
+                    case _type = "type"
+                }
+            }
+            /// The build issues associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/issues`.
+            internal typealias issuesPayload = [Components.Schemas.BuildRun.issuesPayloadPayload]
+            /// The build issues associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/issues`.
+            internal var issues: Components.Schemas.BuildRun.issuesPayload?
             /// The version of macOS used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/macos_version`.
@@ -2515,6 +3422,72 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/status`.
             internal var status: Components.Schemas.BuildRun.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload`.
+            internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                /// The build duration for the target in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/build_duration`.
+                internal var build_duration: Swift.Int
+                /// The duration of the compilation for the target in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/compilation_duration`.
+                internal var compilation_duration: Swift.Int
+                /// The target name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/name`.
+                internal var name: Swift.String
+                /// The target's project name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/project`.
+                internal var project: Swift.String
+                /// The status of the target's build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/status`.
+                internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// The status of the target's build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/targetsPayload/status`.
+                internal var status: Components.Schemas.BuildRun.targetsPayloadPayload.statusPayload
+                /// Creates a new `targetsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - build_duration: The build duration for the target in milliseconds.
+                ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                ///   - name: The target name.
+                ///   - project: The target's project name.
+                ///   - status: The status of the target's build.
+                internal init(
+                    build_duration: Swift.Int,
+                    compilation_duration: Swift.Int,
+                    name: Swift.String,
+                    project: Swift.String,
+                    status: Components.Schemas.BuildRun.targetsPayloadPayload.statusPayload
+                ) {
+                    self.build_duration = build_duration
+                    self.compilation_duration = compilation_duration
+                    self.name = name
+                    self.project = project
+                    self.status = status
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case build_duration
+                    case compilation_duration
+                    case name
+                    case project
+                    case status
+                }
+            }
+            /// Targets with build metadata associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targets`.
+            internal typealias targetsPayload = [Components.Schemas.BuildRun.targetsPayloadPayload]
+            /// Targets with build metadata associated with the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/targets`.
+            internal var targets: Components.Schemas.BuildRun.targetsPayload?
             /// The type of the run, which is 'build' in this case.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/type`.
@@ -2532,44 +3505,68 @@ internal enum Components {
             /// Creates a new `BuildRun`.
             ///
             /// - Parameters:
+            ///   - category: The category of the build run, can be clean or incremental.
             ///   - duration: Duration of the run in milliseconds.
+            ///   - files: Compiled files associated with the build run.
+            ///   - git_branch: The git branch.
+            ///   - git_commit_sha: The commit SHA.
             ///   - id: UUID of a run generated by the system.
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+            ///   - issues: The build issues associated with the build run.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
+            ///   - targets: Targets with build metadata associated with the build run.
             ///   - _type: The type of the run, which is 'build' in this case.
             ///   - xcode_version: The version of Xcode used during the run.
             internal init(
+                category: Components.Schemas.BuildRun.categoryPayload? = nil,
                 duration: Swift.Int,
+                files: Components.Schemas.BuildRun.filesPayload? = nil,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
                 id: Swift.String,
                 is_ci: Swift.Bool,
+                issues: Components.Schemas.BuildRun.issuesPayload? = nil,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildRun.statusPayload? = nil,
+                targets: Components.Schemas.BuildRun.targetsPayload? = nil,
                 _type: Components.Schemas.BuildRun._typePayload? = nil,
                 xcode_version: Swift.String? = nil
             ) {
+                self.category = category
                 self.duration = duration
+                self.files = files
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
                 self.id = id
                 self.is_ci = is_ci
+                self.issues = issues
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
                 self.scheme = scheme
                 self.status = status
+                self.targets = targets
                 self._type = _type
                 self.xcode_version = xcode_version
             }
             internal enum CodingKeys: String, CodingKey {
+                case category
                 case duration
+                case files
+                case git_branch
+                case git_commit_sha
                 case id
                 case is_ci
+                case issues
                 case macos_version
                 case model_identifier
                 case scheme
                 case status
+                case targets
                 case _type = "type"
                 case xcode_version
             }
@@ -4396,6 +5393,57 @@ internal enum Operations {
                     }
                 }
             }
+            internal struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/POST/responses/429/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticate.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticate.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// You've exceeded the rate limit.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.authenticate.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            internal var tooManyRequests: Operations.authenticate.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -4575,6 +5623,364 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
             internal var unauthorized: Operations.refreshToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    internal enum createBundle {
+        internal static let id: Swift.String = "createBundle"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.createBundle.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBundle.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBundle.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createBundle.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// Request schema for bundle creation
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle`.
+                    internal struct bundlePayload: Codable, Hashable, Sendable {
+                        /// The bundle ID of the app
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/app_bundle_id`.
+                        internal var app_bundle_id: Swift.String?
+                        /// The artifacts in this bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/artifacts`.
+                        internal var artifacts: [Components.Schemas.BundleArtifact]
+                        /// The bundle download size in bytes
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/download_size`.
+                        internal var download_size: Swift.Int?
+                        /// The git branch associated with the bundle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_branch`.
+                        internal var git_branch: Swift.String?
+                        /// The git commit SHA associated with the bundle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_commit_sha`.
+                        internal var git_commit_sha: Swift.String?
+                        /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_ref`.
+                        internal var git_ref: Swift.String?
+                        /// The bundle install size in bytes
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/install_size`.
+                        internal var install_size: Swift.Int
+                        /// The name of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/name`.
+                        internal var name: Swift.String
+                        /// List of supported platforms
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/supported_platforms`.
+                        internal var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                        /// The version of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/version`.
+                        internal var version: Swift.String
+                        /// Creates a new `bundlePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - app_bundle_id: The bundle ID of the app
+                        ///   - artifacts: The artifacts in this bundle
+                        ///   - download_size: The bundle download size in bytes
+                        ///   - git_branch: The git branch associated with the bundle.
+                        ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                        ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+                        ///   - install_size: The bundle install size in bytes
+                        ///   - name: The name of the bundle
+                        ///   - supported_platforms: List of supported platforms
+                        ///   - version: The version of the bundle
+                        internal init(
+                            app_bundle_id: Swift.String? = nil,
+                            artifacts: [Components.Schemas.BundleArtifact],
+                            download_size: Swift.Int? = nil,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            install_size: Swift.Int,
+                            name: Swift.String,
+                            supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                            version: Swift.String
+                        ) {
+                            self.app_bundle_id = app_bundle_id
+                            self.artifacts = artifacts
+                            self.download_size = download_size
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.install_size = install_size
+                            self.name = name
+                            self.supported_platforms = supported_platforms
+                            self.version = version
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case app_bundle_id
+                            case artifacts
+                            case download_size
+                            case git_branch
+                            case git_commit_sha
+                            case git_ref
+                            case install_size
+                            case name
+                            case supported_platforms
+                            case version
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle`.
+                    internal var bundle: Operations.createBundle.Input.Body.jsonPayload.bundlePayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - bundle:
+                    internal init(bundle: Operations.createBundle.Input.Body.jsonPayload.bundlePayload) {
+                        self.bundle = bundle
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case bundle
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/content/application\/json`.
+                case json(Operations.createBundle.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.createBundle.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.createBundle.Input.Path,
+                headers: Operations.createBundle.Input.Headers = .init(),
+                body: Operations.createBundle.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Bundle)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Bundle {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The bundle was created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createBundle.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createBundle.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// An error occurred while updating the account.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createBundle.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.createBundle.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to update your account.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createBundle.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.createBundle.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -14903,10 +16309,95 @@ internal enum Operations {
                 internal enum jsonPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1`.
                     internal struct Case1Payload: Codable, Hashable, Sendable {
+                        /// The category of the build run, can be clean or incremental.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
+                        internal enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case clean = "clean"
+                            case incremental = "incremental"
+                        }
+                        /// The category of the build run, can be clean or incremental.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/category`.
+                        internal var category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
                         internal var duration: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload`.
+                        internal struct filesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The duration of the compilation for the file in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/compilation_duration`.
+                            internal var compilation_duration: Swift.Int
+                            /// The file path where the issue occurred, relative to the project root.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/path`.
+                            internal var path: Swift.String
+                            /// The project name associated with the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/project`.
+                            internal var project: Swift.String
+                            /// The target name associated with the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/target`.
+                            internal var target: Swift.String
+                            /// The type of the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/type`.
+                            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case swift = "swift"
+                                case c = "c"
+                            }
+                            /// The type of the file.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/filesPayload/type`.
+                            internal var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload._typePayload
+                            /// Creates a new `filesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - compilation_duration: The duration of the compilation for the file in milliseconds.
+                            ///   - path: The file path where the issue occurred, relative to the project root.
+                            ///   - project: The project name associated with the file.
+                            ///   - target: The target name associated with the file.
+                            ///   - _type: The type of the file.
+                            internal init(
+                                compilation_duration: Swift.Int,
+                                path: Swift.String,
+                                project: Swift.String,
+                                target: Swift.String,
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload._typePayload
+                            ) {
+                                self.compilation_duration = compilation_duration
+                                self.path = path
+                                self.project = project
+                                self.target = target
+                                self._type = _type
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case compilation_duration
+                                case path
+                                case project
+                                case target
+                                case _type = "type"
+                            }
+                        }
+                        /// Compiled files associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/files`.
+                        internal typealias filesPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload]
+                        /// Compiled files associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/files`.
+                        internal var files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload?
+                        /// The git branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/git_branch`.
+                        internal var git_branch: Swift.String?
+                        /// The commit SHA.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/git_commit_sha`.
+                        internal var git_commit_sha: Swift.String?
                         /// UUID of a run generated by the system.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/id`.
@@ -14915,6 +16406,151 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/is_ci`.
                         internal var is_ci: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload`.
+                        internal struct issuesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The ending column number of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/ending_column`.
+                            internal var ending_column: Swift.Int
+                            /// The ending line number of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/ending_line`.
+                            internal var ending_line: Swift.Int
+                            /// The detailed message of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/message`.
+                            internal var message: Swift.String?
+                            /// The file path where the issue occurred, relative to the project root.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/path`.
+                            internal var path: Swift.String?
+                            /// The project name associated with the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/project`.
+                            internal var project: Swift.String
+                            /// The signature of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/signature`.
+                            internal var signature: Swift.String
+                            /// The starting column number of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/starting_column`.
+                            internal var starting_column: Swift.Int
+                            /// The starting line number of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/starting_line`.
+                            internal var starting_line: Swift.Int
+                            /// The step type where the issue occurred, such as swift_compilation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/step_type`.
+                            internal enum step_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case c_compilation = "c_compilation"
+                                case swift_compilation = "swift_compilation"
+                                case script_execution = "script_execution"
+                                case create_static_library = "create_static_library"
+                                case linker = "linker"
+                                case copy_swift_libs = "copy_swift_libs"
+                                case compile_assets_catalog = "compile_assets_catalog"
+                                case compile_storyboard = "compile_storyboard"
+                                case write_auxiliary_file = "write_auxiliary_file"
+                                case link_storyboards = "link_storyboards"
+                                case copy_resource_file = "copy_resource_file"
+                                case merge_swift_module = "merge_swift_module"
+                                case xib_compilation = "xib_compilation"
+                                case swift_aggregated_compilation = "swift_aggregated_compilation"
+                                case precompile_bridging_header = "precompile_bridging_header"
+                                case other = "other"
+                                case validate_embedded_binary = "validate_embedded_binary"
+                                case validate = "validate"
+                            }
+                            /// The step type where the issue occurred, such as swift_compilation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/step_type`.
+                            internal var step_type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload.step_typePayload
+                            /// The target name associated with the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/target`.
+                            internal var target: Swift.String
+                            /// The title of the build issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/title`.
+                            internal var title: Swift.String
+                            /// The type of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/type`.
+                            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case warning = "warning"
+                                case error = "error"
+                            }
+                            /// The type of the issue.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issuesPayload/type`.
+                            internal var _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload._typePayload
+                            /// Creates a new `issuesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - ending_column: The ending column number of the issue.
+                            ///   - ending_line: The ending line number of the issue.
+                            ///   - message: The detailed message of the issue.
+                            ///   - path: The file path where the issue occurred, relative to the project root.
+                            ///   - project: The project name associated with the issue.
+                            ///   - signature: The signature of the issue.
+                            ///   - starting_column: The starting column number of the issue.
+                            ///   - starting_line: The starting line number of the issue.
+                            ///   - step_type: The step type where the issue occurred, such as swift_compilation.
+                            ///   - target: The target name associated with the issue.
+                            ///   - title: The title of the build issue.
+                            ///   - _type: The type of the issue.
+                            internal init(
+                                ending_column: Swift.Int,
+                                ending_line: Swift.Int,
+                                message: Swift.String? = nil,
+                                path: Swift.String? = nil,
+                                project: Swift.String,
+                                signature: Swift.String,
+                                starting_column: Swift.Int,
+                                starting_line: Swift.Int,
+                                step_type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload.step_typePayload,
+                                target: Swift.String,
+                                title: Swift.String,
+                                _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload._typePayload
+                            ) {
+                                self.ending_column = ending_column
+                                self.ending_line = ending_line
+                                self.message = message
+                                self.path = path
+                                self.project = project
+                                self.signature = signature
+                                self.starting_column = starting_column
+                                self.starting_line = starting_line
+                                self.step_type = step_type
+                                self.target = target
+                                self.title = title
+                                self._type = _type
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case ending_column
+                                case ending_line
+                                case message
+                                case path
+                                case project
+                                case signature
+                                case starting_column
+                                case starting_line
+                                case step_type
+                                case target
+                                case title
+                                case _type = "type"
+                            }
+                        }
+                        /// The build issues associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issues`.
+                        internal typealias issuesPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload]
+                        /// The build issues associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/issues`.
+                        internal var issues: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayload?
                         /// The version of macOS used during the run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/macos_version`.
@@ -14938,6 +16574,72 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/status`.
                         internal var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload`.
+                        internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The build duration for the target in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/build_duration`.
+                            internal var build_duration: Swift.Int
+                            /// The duration of the compilation for the target in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/compilation_duration`.
+                            internal var compilation_duration: Swift.Int
+                            /// The target name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/name`.
+                            internal var name: Swift.String
+                            /// The target's project name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/project`.
+                            internal var project: Swift.String
+                            /// The status of the target's build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/status`.
+                            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// The status of the target's build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targetsPayload/status`.
+                            internal var status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.statusPayload
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - build_duration: The build duration for the target in milliseconds.
+                            ///   - compilation_duration: The duration of the compilation for the target in milliseconds.
+                            ///   - name: The target name.
+                            ///   - project: The target's project name.
+                            ///   - status: The status of the target's build.
+                            internal init(
+                                build_duration: Swift.Int,
+                                compilation_duration: Swift.Int,
+                                name: Swift.String,
+                                project: Swift.String,
+                                status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.statusPayload
+                            ) {
+                                self.build_duration = build_duration
+                                self.compilation_duration = compilation_duration
+                                self.name = name
+                                self.project = project
+                                self.status = status
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case build_duration
+                                case compilation_duration
+                                case name
+                                case project
+                                case status
+                            }
+                        }
+                        /// Targets with build metadata associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targets`.
+                        internal typealias targetsPayload = [Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload]
+                        /// Targets with build metadata associated with the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/targets`.
+                        internal var targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload?
                         /// The type of the run, which is 'build' in this case.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/type`.
@@ -14955,44 +16657,68 @@ internal enum Operations {
                         /// Creates a new `Case1Payload`.
                         ///
                         /// - Parameters:
+                        ///   - category: The category of the build run, can be clean or incremental.
                         ///   - duration: Duration of the run in milliseconds.
+                        ///   - files: Compiled files associated with the build run.
+                        ///   - git_branch: The git branch.
+                        ///   - git_commit_sha: The commit SHA.
                         ///   - id: UUID of a run generated by the system.
                         ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
+                        ///   - issues: The build issues associated with the build run.
                         ///   - macos_version: The version of macOS used during the run.
                         ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                         ///   - scheme: The scheme used for the build.
                         ///   - status: The status of the build run.
+                        ///   - targets: Targets with build metadata associated with the build run.
                         ///   - _type: The type of the run, which is 'build' in this case.
                         ///   - xcode_version: The version of Xcode used during the run.
                         internal init(
+                            category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload? = nil,
                             duration: Swift.Int,
+                            files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
                             id: Swift.String,
                             is_ci: Swift.Bool,
+                            issues: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayload? = nil,
                             macos_version: Swift.String? = nil,
                             model_identifier: Swift.String? = nil,
                             scheme: Swift.String? = nil,
                             status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? = nil,
+                            targets: Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayload? = nil,
                             _type: Operations.createRun.Input.Body.jsonPayload.Case1Payload._typePayload? = nil,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.category = category
                             self.duration = duration
+                            self.files = files
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
                             self.id = id
                             self.is_ci = is_ci
+                            self.issues = issues
                             self.macos_version = macos_version
                             self.model_identifier = model_identifier
                             self.scheme = scheme
                             self.status = status
+                            self.targets = targets
                             self._type = _type
                             self.xcode_version = xcode_version
                         }
                         internal enum CodingKeys: String, CodingKey {
+                            case category
                             case duration
+                            case files
+                            case git_branch
+                            case git_commit_sha
                             case id
                             case is_ci
+                            case issues
                             case macos_version
                             case model_identifier
                             case scheme
                             case status
+                            case targets
                             case _type = "type"
                             case xcode_version
                         }

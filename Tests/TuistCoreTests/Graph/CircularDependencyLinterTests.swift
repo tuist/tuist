@@ -4,8 +4,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class CircularDependencyLinterTests: TuistUnitTestCase {
     // MARK: - Dependency Cycle

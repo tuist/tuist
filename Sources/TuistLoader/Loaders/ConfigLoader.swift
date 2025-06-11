@@ -3,8 +3,8 @@ import Foundation
 import Mockable
 import Path
 import struct ProjectDescription.Config
-import ServiceContextModule
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 @Mockable
@@ -48,7 +48,7 @@ public final class ConfigLoader: ConfigLoading {
         }
 
         if configPath.pathString.contains("Config.swift") {
-            ServiceContext.current?.alerts?
+            AlertController.current
                 .warning(.alert("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
         }
 

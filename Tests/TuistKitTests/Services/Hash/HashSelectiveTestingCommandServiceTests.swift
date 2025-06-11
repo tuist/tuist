@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import SnapshotTesting
 import Testing
 import TuistCache
@@ -9,7 +8,7 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistKit
@@ -56,7 +55,7 @@ struct HashSelectiveTestingCommandServiceTests {
     }
 
     @Test func run_outputsTheHashes_when_generatedProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -70,7 +69,7 @@ struct HashSelectiveTestingCommandServiceTests {
                 config: .value(config),
                 includedTargets: .value([])
             ).willReturn(generator)
-            given(generator).load(path: .value(path)).willReturn(graph)
+            given(generator).load(path: .value(path), options: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
                 graph: .value(graph),
                 additionalStrings: .value(
@@ -86,12 +85,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try ServiceContext.expectLogs("Target - hash")
+            try TuistTest.expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_generatedProject_and_noHashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -104,7 +103,7 @@ struct HashSelectiveTestingCommandServiceTests {
                 config: .value(config),
                 includedTargets: .value([])
             ).willReturn(generator)
-            given(generator).load(path: .value(path)).willReturn(graph)
+            given(generator).load(path: .value(path), options: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
                 graph: .value(graph),
                 additionalStrings: .value(
@@ -120,12 +119,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 
     @Test func run_outputsTheHashes_when_xcodeProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -149,12 +148,12 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            try ServiceContext.expectLogs("Target - hash")
+            try TuistTest.expectLogs("Target - hash")
         }
     }
 
     @Test func run_outputsAWarning_when_xcodeProject_and_noHashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project/")
             let passthroughXcodebuildArguments = ["-configuration", "Debug"]
@@ -177,7 +176,7 @@ struct HashSelectiveTestingCommandServiceTests {
             )
 
             // Then
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            assertSnapshot(of: ui(), as: .lines)
         }
     }
 }

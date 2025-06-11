@@ -1,15 +1,13 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistSupport
 import XCTest
 
 @testable import TuistServer
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ServerSessionControllerTests: TuistUnitTestCase {
     private var credentialsStore: MockServerCredentialsStoring!
-    private var ciChecker: MockCIChecking!
     private var opener: MockOpening!
     private var serverURL: URL!
     private var getAuthTokenService: MockGetAuthTokenServicing!
@@ -20,15 +18,13 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         credentialsStore = .init()
-        ciChecker = .init()
-        opener = MockOpening()
         serverURL = URL.test()
         getAuthTokenService = MockGetAuthTokenServicing()
         uniqueIDGenerator = MockUniqueIDGenerating()
         serverAuthenticationController = MockServerAuthenticationControlling()
+        opener = MockOpening()
         subject = ServerSessionController(
             credentialsStore: credentialsStore,
-            ciChecker: ciChecker,
             opener: opener,
             getAuthTokenService: getAuthTokenService,
             uniqueIDGenerator: uniqueIDGenerator,
@@ -42,7 +38,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
     override func tearDown() {
         credentialsStore = nil
-        ciChecker = nil
         opener = nil
         serverURL = nil
         uniqueIDGenerator = nil
@@ -55,12 +50,18 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         // Given
         given(getAuthTokenService)
             .getAuthToken(serverURL: .any, deviceCode: .any)
-            .willReturn(ServerAuthenticationTokens(accessToken: "access-token", refreshToken: "refresh-token"))
+            .willReturn(
+                ServerAuthenticationTokens(
+                    accessToken: "access-token", refreshToken: "refresh-token"
+                )
+            )
         given(uniqueIDGenerator).uniqueID().willReturn("id")
         given(credentialsStore)
             .read(serverURL: .value(serverURL))
             .willReturn(
-                ServerCredentials(token: nil, accessToken: "access-token", refreshToken: "refresh-token")
+                ServerCredentials(
+                    token: nil, accessToken: "access-token", refreshToken: "refresh-token"
+                )
             )
         given(credentialsStore)
             .store(credentials: .any, serverURL: .value(serverURL))
@@ -174,7 +175,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesLegacyCredentials() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: "token",
@@ -196,7 +197,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesCredentials() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let credentials = ServerCredentials(
                 token: nil,

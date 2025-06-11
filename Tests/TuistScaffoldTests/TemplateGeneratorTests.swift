@@ -5,9 +5,8 @@ import TuistSupport
 import XCTest
 
 @testable import TuistCore
-@testable import TuistCoreTesting
 @testable import TuistScaffold
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class TemplateGeneratorTests: TuistUnitTestCase {
     private var subject: TemplateGenerator!

@@ -2,13 +2,12 @@ import FileSystem
 import Foundation
 import MCP
 import Mockable
-import ServiceContextModule
 import SwiftyJSON
 import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistKit
@@ -32,11 +31,11 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func list() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
 
                 // When
                 let got = try await subject.list()
@@ -53,7 +52,7 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func listTemplates() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // When
             let got = try await subject.listTemplates()
 
@@ -69,18 +68,23 @@ struct MCPResourcesRepositoryTests {
     }
 
     @Test func read_when_tuistProject() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-                let recentPaths = (ServiceContext.current!.recentPaths as! MockRecentPathsStoring)
-                given(recentPaths).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
                 let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
                     .test(name: "Test"),
                 ])])
                 given(configLoader).loadConfig(path: .value(temporaryDirectory))
                     .willReturn(Tuist.test(project: .testGeneratedProject()))
                 given(manifestLoader).hasRootManifest(at: .value(temporaryDirectory)).willReturn(true)
-                given(manifestGraphLoader).load(path: .value(temporaryDirectory)).willReturn((graph, [], .init(), []))
+                given(manifestGraphLoader).load(path: .value(temporaryDirectory), disableSandbox: .any).willReturn((
+                    graph,
+                    [],
+                    .init(),
+                    []
+                ))
 
                 // When
                 let got = try await subject.read(.init(uri: "tuist://\(temporaryDirectory.pathString)"))

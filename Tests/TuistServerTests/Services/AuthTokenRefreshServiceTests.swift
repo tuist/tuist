@@ -21,13 +21,20 @@ struct AuthTokenRefreshServiceTests {
 
     @Test func stores_new_tokens() async throws {
         // Given
-        given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .value("token")).willReturn(.init(accessToken:
-            "new-access-token", refreshToken: "new-refresh-token"))
-        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(
-            legacyToken: nil,
-            accessToken: .test(),
-            refreshToken: .test()
-        ))
+        given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .value("token"))
+            .willReturn(
+                .init(
+                    accessToken:
+                    "new-access-token", refreshToken: "new-refresh-token"
+                )
+            )
+        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(
+            .user(
+                legacyToken: nil,
+                accessToken: .test(),
+                refreshToken: .test()
+            )
+        )
         given(serverCredentialsStore)
             .store(credentials: .any, serverURL: .any)
             .willReturn()

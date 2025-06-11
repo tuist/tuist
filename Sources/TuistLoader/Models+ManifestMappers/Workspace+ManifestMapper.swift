@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -37,7 +36,7 @@ extension XcodeGraph.Workspace {
                 // FIXME: This should be done in a linter.
                 // Before we can do that we have to change the linters to run with the TuistCore models and not the
                 // ProjectDescription ones.
-                ServiceContext.current?.logger?.warning("No projects found at: \(path.pathString)")
+                Logger.current.warning("No projects found at: \(path.pathString)")
             }
 
             return Array(projects)

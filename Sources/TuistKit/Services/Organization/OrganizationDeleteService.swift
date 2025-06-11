@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -33,7 +32,9 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -45,6 +46,6 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("Tuist organization \(organizationName) was successfully deleted.")
+        Logger.current.info("Tuist organization \(organizationName) was successfully deleted.")
     }
 }

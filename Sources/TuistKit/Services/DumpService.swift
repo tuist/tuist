@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TSCBasic
 import TuistCore
 import TuistLoader
@@ -9,9 +8,23 @@ import TuistSupport
 
 final class DumpService {
     private let manifestLoader: ManifestLoading
+    private let configLoader: ConfigLoading
 
-    init(manifestLoader: ManifestLoading = CachedManifestLoader()) {
+    convenience init() {
+        let manifestLoader = CachedManifestLoader()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        self.init(
+            manifestLoader: manifestLoader,
+            configLoader: configLoader
+        )
+    }
+
+    init(
+        manifestLoader: ManifestLoading,
+        configLoader: ConfigLoading
+    ) {
         self.manifestLoader = manifestLoader
+        self.configLoader = configLoader
     }
 
     func run(path: String?, manifest: DumpableManifest) async throws {
@@ -32,9 +45,17 @@ final class DumpService {
         let encoded: Encodable
         switch manifest {
         case .project:
-            encoded = try await manifestLoader.loadProject(at: projectPath)
+            let config = try await configLoader.loadConfig(path: projectPath)
+            encoded = try await manifestLoader.loadProject(
+                at: projectPath,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         case .workspace:
-            encoded = try await manifestLoader.loadWorkspace(at: projectPath)
+            let config = try await configLoader.loadConfig(path: projectPath)
+            encoded = try await manifestLoader.loadWorkspace(
+                at: projectPath,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         case .config:
             encoded = try await manifestLoader.loadConfig(at: projectPath)
         case .template:
@@ -42,11 +63,15 @@ final class DumpService {
         case .plugin:
             encoded = try await manifestLoader.loadPlugin(at: projectPath)
         case .package:
-            encoded = try await manifestLoader.loadPackageSettings(at: projectPath)
+            let config = try await configLoader.loadConfig(path: projectPath)
+            encoded = try await manifestLoader.loadPackageSettings(
+                at: projectPath,
+                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? false
+            )
         }
 
         let json: JSON = try encoded.toJSON()
-        ServiceContext.current?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+        Logger.current.notice("\(json.toString(prettyPrint: true))", metadata: .json)
     }
 }
 

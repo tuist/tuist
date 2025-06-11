@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -46,6 +45,6 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
             ssoOrganization: nil
         )
 
-        ServiceContext.current?.logger?.info("SSO for \(organizationName) was removed.")
+        Logger.current.info("SSO for \(organizationName) was removed.")
     }
 }

@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -48,6 +47,6 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
+        Logger.current.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

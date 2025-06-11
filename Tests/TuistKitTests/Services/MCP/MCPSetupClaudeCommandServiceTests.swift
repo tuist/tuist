@@ -2,9 +2,9 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
-import TuistSupportTesting
+import TuistTesting
+
 @testable import TuistKit
 
 struct MCPSetupClaudeCommandServiceTests {
@@ -20,28 +20,34 @@ struct MCPSetupClaudeCommandServiceTests {
     }
 
     @Test func run() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(configurationFileController)
-                .update(at: .value(try AbsolutePath(validating: NSHomeDirectory()).appending(components: [
-                    "Library",
-                    "Application Support",
-                    "Claude",
-                    "claude_desktop_config.json",
-                ]))).willReturn()
+                .update(
+                    at: .value(
+                        try AbsolutePath(validating: NSHomeDirectory()).appending(components: [
+                            "Library",
+                            "Application Support",
+                            "Claude",
+                            "claude_desktop_config.json",
+                        ])
+                    )
+                ).willReturn()
 
             // When
             try await subject.run()
 
             // Then
-            #expect(ServiceContext.current?.recordedUI() == """
-            ✔ Success
-              Claude configured to point to the Tuist's MCP server.
+            #expect(
+                ui() == """
+                ✔ Success
+                  Claude configured to point to the Tuist's MCP server.
 
-              Recommended next steps:
-               ▸ Restart the Claude app if it was opened
-               ▸ Check out Claude's <documentation: https://modelcontextprotocol.io/quickstart/user>
-            """)
+                  Takeaways:
+                   ▸ Restart the Claude app if it was opened
+                   ▸ Check out Claude's <documentation: https://modelcontextprotocol.io/quickstart/user>
+                """
+            )
         }
     }
 }

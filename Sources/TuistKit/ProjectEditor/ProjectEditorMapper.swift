@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -58,8 +57,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
-        ServiceContext.current?.logger?.notice("Building the editable project graph")
-        let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
+        Logger.current.notice("Building the editable project graph")
+        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -245,7 +244,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let packagesTarget: Target? = try await {
             guard let packageManifestPath else { return nil }
-            let xcode = try await XcodeController.shared.selected()
+            let xcode = try await XcodeController.current.selected()
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
@@ -263,7 +262,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                         "-D", "TUIST",
                     ]),
                     "SWIFT_INCLUDE_PATHS": .array([
-                        "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                        "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
                 uniquingKeysWith: {

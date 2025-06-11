@@ -12,11 +12,11 @@ let project = Project(
             infoPlist: "App/Info.plist",
             sources: ["App/Sources/**"],
             resources: [
-                /* Path to resources can be defined here */
+                // Path to resources can be defined here
                 // "Resources/**"
             ],
             dependencies: [
-                /* Target dependencies can be defined here */
+                // Target dependencies can be defined here
                 // .framework(path: "Frameworks/MyFramework.framework")
                 .project(target: "FrameworkA", path: "Frameworks/FeatureAFramework"),
             ]

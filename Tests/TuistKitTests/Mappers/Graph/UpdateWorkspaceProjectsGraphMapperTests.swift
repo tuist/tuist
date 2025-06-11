@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import TuistCoreTesting
 import TuistGenerator
 import TuistSupport
 import XcodeGraph
@@ -8,7 +7,7 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
     var subject: UpdateWorkspaceProjectsGraphMapper!

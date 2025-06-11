@@ -17,10 +17,10 @@ public struct ServerCommandEvent: Codable, Equatable {
     }
 
     public struct Artifact: Equatable {
-        let type: ArtifactType
-        let name: String?
+        public let type: ArtifactType
+        public let name: String?
 
-        init(
+        public init(
             type: ArtifactType,
             name: String? = nil
         ) {
@@ -28,7 +28,7 @@ public struct ServerCommandEvent: Codable, Equatable {
             self.name = name
         }
 
-        enum ArtifactType {
+        public enum ArtifactType {
             case resultBundle, invocationRecord, resultBundleObject
         }
     }
@@ -43,13 +43,13 @@ extension ServerCommandEvent {
 }
 
 extension Components.Schemas.CommandEventArtifact {
-    init(_ artifact: ServerCommandEvent.Artifact) {
+    public init(_ artifact: ServerCommandEvent.Artifact) {
         self = .init(name: artifact.name, _type: .init(artifact.type))
     }
 }
 
 extension Components.Schemas.CommandEventArtifact._typePayload {
-    init(_ type: ServerCommandEvent.Artifact.ArtifactType) {
+    public init(_ type: ServerCommandEvent.Artifact.ArtifactType) {
         switch type {
         case .resultBundle:
             self = .result_bundle

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Testing
+
 import class TuistServer.MockServerSessionControlling
 
 @testable import TuistApp
@@ -84,7 +85,10 @@ import class TuistServer.MockServerSessionControlling
         #expect(subject.accountHandle == "tuist")
 
         verify(appStorage)
-            .set(.value(AuthenticationStateKey.self), value: .value(.loggedIn(accountHandle: "tuist")))
+            .set(
+                .value(AuthenticationStateKey.self),
+                value: .value(.loggedIn(accountHandle: "tuist"))
+            )
             .called(1)
     }
 

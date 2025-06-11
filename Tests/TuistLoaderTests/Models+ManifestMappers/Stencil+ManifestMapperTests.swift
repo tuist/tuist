@@ -2,8 +2,8 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import TuistLoaderTesting
-import TuistSupportTesting
+import TuistRootDirectoryLocator
+import TuistTesting
 import XCTest
 
 @testable import TuistLoader

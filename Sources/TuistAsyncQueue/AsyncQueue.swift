@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Queuer
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -33,7 +32,6 @@ public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
 
     private let queue: Queuing
-    private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
     private var dispatchers: [String: AsyncQueueDispatching] = [:]
 
@@ -43,11 +41,9 @@ public class AsyncQueue: AsyncQueuing {
 
     init(
         queue: Queuing = Queuer.shared,
-        ciChecker: CIChecking = CIChecker(),
         persistor: AsyncQueuePersisting = AsyncQueuePersistor()
     ) {
         self.queue = queue
-        self.ciChecker = ciChecker
         self.persistor = persistor
     }
 
@@ -64,7 +60,7 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     public func waitIfCI() {
-        if !ciChecker.isCI() { return }
+        if !Environment.current.isCI { return }
         wait()
     }
 
@@ -74,7 +70,7 @@ public class AsyncQueue: AsyncQueuing {
 
     public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
-            ServiceContext.current?.logger?
+            Logger.current
                 .debug("Couldn't find dispatcher with id: \(event.dispatcherId), skipping dispatching \(event.id)")
             return
         }
@@ -91,7 +87,7 @@ public class AsyncQueue: AsyncQueuing {
 
     private func liveDispatchOperation(event: some AsyncQueueEvent, dispatcher: AsyncQueueDispatching) -> Operation {
         AsyncConcurrentOperation(name: event.id.uuidString) { operation in
-            ServiceContext.current?.logger?
+            Logger.current
                 .debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {
                 try dispatcher.dispatch(event: event) {
@@ -111,7 +107,7 @@ public class AsyncQueue: AsyncQueuing {
     private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) async throws {
         guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
             try await deletePersistedEvent(filename: eventTuple.filename)
-            ServiceContext.current?.logger?
+            Logger.current
                 .error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
             return
         }
@@ -126,13 +122,13 @@ public class AsyncQueue: AsyncQueuing {
     ) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
-                ServiceContext.current?.logger?
+                Logger.current
                     .debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
                 try dispatcher.dispatchPersisted(data: event.data) {
                     try await self.deletePersistedEvent(filename: event.filename)
                 }
             } catch {
-                ServiceContext.current?.logger?
+                Logger.current
                     .debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             }
         }
@@ -145,7 +141,7 @@ public class AsyncQueue: AsyncQueuing {
                 try await dispatchPersisted(eventTuple: event)
             }
         } catch {
-            ServiceContext.current?.logger?.debug("Error loading persisted events: \(error)")
+            Logger.current.debug("Error loading persisted events: \(error)")
         }
     }
 
@@ -153,3 +149,74 @@ public class AsyncQueue: AsyncQueuing {
         try await persistor.delete(filename: filename)
     }
 }
+
+#if DEBUG
+    public enum MockAsyncQueueDispatcherError: Error {
+        case dispatchError
+    }
+
+    public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
+        public init() {}
+
+        public var invokedIdentifierGetter = false
+        public var invokedIdentifierGetterCount = 0
+        public var stubbedIdentifier: String! = ""
+
+        public var identifier: String {
+            invokedIdentifierGetter = true
+            invokedIdentifierGetterCount += 1
+            return stubbedIdentifier
+        }
+
+        public var invokedDispatch = false
+        public var invokedDispatchCallBack: () -> Void = {}
+        public var invokedDispatchCount = 0
+        public var invokedDispatchParameterEvent: AsyncQueueEvent?
+        public var invokedDispatchParametersEventsList = [AsyncQueueEvent]()
+        public var stubbedDispatchError: Error?
+
+        public func dispatch(event: AsyncQueueEvent, completion: @escaping () async throws -> Void) throws {
+            invokedDispatch = true
+            invokedDispatchCount += 1
+            invokedDispatchParameterEvent = event
+            invokedDispatchParametersEventsList.append(event)
+            if let error = stubbedDispatchError {
+                invokedDispatchCallBack()
+                throw error
+            }
+            invokedDispatchCallBack()
+            let semaphore = DispatchSemaphore(value: 0)
+            Task {
+                try await completion()
+                semaphore.signal()
+            }
+            semaphore.wait()
+        }
+
+        public var invokedDispatchPersisted = false
+        public var invokedDispatchPersistedCount = 0
+        public var invokedDispatchPersistedCallBack: () -> Void = {}
+        public var invokedDispatchPersistedDataParameter: Data?
+        public var invokedDispatchPersistedParametersDataList = [Data]()
+        public var stubbedDispatchPersistedError: Error?
+
+        public func dispatchPersisted(data: Data, completion: @escaping () async throws -> Void) throws {
+            invokedDispatchPersisted = true
+            invokedDispatchPersistedCount += 1
+            invokedDispatchPersistedDataParameter = data
+            invokedDispatchPersistedParametersDataList.append(data)
+            if let error = stubbedDispatchPersistedError {
+                invokedDispatchPersistedCallBack()
+                throw error
+            }
+            invokedDispatchPersistedCallBack()
+            let semaphore = DispatchSemaphore(value: 0)
+            Task {
+                try await completion()
+                semaphore.signal()
+            }
+            semaphore.wait()
+        }
+    }
+
+#endif

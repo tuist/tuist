@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -19,7 +18,8 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
     private let configLoader: ConfigLoading
 
     init(
-        cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing = CancelOrganizationInviteService(),
+        cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing =
+            CancelOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
@@ -35,7 +35,9 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            directoryPath = try AbsolutePath(
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
@@ -48,7 +50,9 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.current?.logger?
-            .info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        Logger.current
+            .info(
+                "The invitation for \(email) to the \(organizationName) organization was successfully cancelled."
+            )
     }
 }

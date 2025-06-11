@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import ServiceContextModule
 import Command
 import XcodeGraph
 
@@ -19,7 +18,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
     )
 
     private let formatter: Formatting
-    private let environment: Environmenting
     private let simulatorController: SimulatorController
     private let system: Systeming
     private let commandRunner: CommandRunning
@@ -27,20 +25,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public convenience init() {
         self.init(
             formatter: Formatter(),
-            environment: Environment.shared,
-            commandRunner: CommandRunner()
+            commandRunner: CommandRunner(),
+            system: System.shared
         )
     }
 
     init(
         formatter: Formatting,
-        environment: Environmenting,
-        commandRunner: CommandRunning
+        commandRunner: CommandRunning,
+        system: Systeming
     ) {
         self.formatter = formatter
-        self.environment = environment
         self.simulatorController = SimulatorController()
-        self.system = System.shared
+        self.system = system
         self.commandRunner = commandRunner
     }
 
@@ -84,9 +81,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination()])
         case .macCatalyst:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
@@ -158,9 +155,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination()])
         case .macCatalyst:
-            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
+            arguments.append(contentsOf: ["-destination", try await simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
@@ -319,11 +316,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     public func run(arguments: [String]) async throws {
-        let logger = ServiceContext.current?.logger
+        let logger = Logger.current
         
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
-            if self.environment.isVerbose == true {
+            if Environment.current.isVerbose == true {
                 return string
             } else {
                 return self.format(string)
@@ -334,26 +331,25 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    logger?.error("\(line)")
+                    logger.error("\(line)")
                 } else {
-                    logger?.info("\(line)")
+                    logger.info("\(line)")
                 }
             }
         }
         
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
-        logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,
-                       environment: system.env,
+                       environment: Environment.current.variables,
                        redirection: .stream(stdout: { bytes in
             log(bytes)
         }, stderr: { bytes in
             log(bytes, isError: true)
         }))
-       
     }
     
     public func version() async throws -> Version? {

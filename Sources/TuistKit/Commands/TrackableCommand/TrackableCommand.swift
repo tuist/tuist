@@ -2,7 +2,6 @@ import ArgumentParser
 import Foundation
 import OpenAPIRuntime
 import Path
-import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
@@ -35,7 +34,6 @@ public class TrackableCommand {
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
     private let fileHandler: FileHandling
-    private let ciChecker: CIChecking
 
     public init(
         command: ParsableCommand,
@@ -44,7 +42,6 @@ public class TrackableCommand {
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
         fileHandler: FileHandling = FileHandler.shared,
-        ciChecker: CIChecking = CIChecker()
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -52,7 +49,6 @@ public class TrackableCommand {
         self.commandEventFactory = commandEventFactory
         self.asyncQueue = asyncQueue
         self.fileHandler = fileHandler
-        self.ciChecker = ciChecker
     }
 
     public func run(
@@ -68,9 +64,7 @@ public class TrackableCommand {
             path = fileHandler.currentPath
         }
         let runMetadataStorage = RunMetadataStorage()
-        var context = ServiceContext.current ?? ServiceContext.topLevel
-        context.runMetadataStorage = runMetadataStorage
-        try await ServiceContext.withValue(context) {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             do {
                 if var asyncCommand = command as? AsyncParsableCommand {
                     try await asyncCommand.run()
@@ -136,19 +130,19 @@ public class TrackableCommand {
             from: info,
             path: path
         )
-        if (command as? TrackableParsableCommand)?.analyticsRequired == true || ciChecker.isCI() {
-            ServiceContext.current?.logger?.info("Uploading run metadata...")
+        if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
+            Logger.current.info("Uploading run metadata...")
             do {
                 let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
-                ServiceContext.current?.logger?
+                Logger.current
                     .info(
                         "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                     )
             } catch let error as ClientError {
-                ServiceContext.current?.logger?
+                Logger.current
                     .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
             } catch {
-                ServiceContext.current?.logger?.warning("Failed to upload run metadata: \(String(describing: error))")
+                Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
             }
         } else {
             try asyncQueue.dispatch(event: commandEvent)

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
@@ -76,7 +75,7 @@ public protocol SimulatorControlling {
     ) async throws -> String
 
     /// Returns the simulator destination for the macOS platform
-    func macOSDestination(catalyst: Bool) -> String
+    func macOSDestination(catalyst: Bool) async throws -> String
 
     /// Returns the list of simulator devices that are available in the system.
     func devices() async throws -> [SimulatorDevice]
@@ -125,19 +124,13 @@ public final class SimulatorController: SimulatorControlling {
     private let userInputReader: UserInputReading
 
     private let system: Systeming
-    private let devEnvironment: DeveloperEnvironmenting
-    private let xcodeController: XcodeControlling
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
-        system: Systeming = System.shared,
-        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
-        xcodeController: XcodeControlling = XcodeController.shared
+        system: Systeming = System.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
-        self.devEnvironment = devEnvironment
-        self.xcodeController = xcodeController
     }
 
     /// Returns the list of simulator devices that are available in the system.
@@ -312,16 +305,16 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
-        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        Logger.current.debug("Installing app at \(path) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
-        ServiceContext.current?.logger?
+        Logger.current
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        let simulator = try await xcodeController.selected().path.appending(
+        let simulator = try await XcodeController.current.selected().path.appending(
             components: "Contents",
             "Developer",
             "Applications",
@@ -353,7 +346,7 @@ public final class SimulatorController: SimulatorControlling {
         case .tvOS: platform = .tvOS
         case .visionOS: platform = .visionOS
         case .macOS:
-            return macOSDestination()
+            return try await macOSDestination()
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
@@ -365,9 +358,9 @@ public final class SimulatorController: SimulatorControlling {
         return "id=\(deviceAndRuntime.device.udid)"
     }
 
-    public func macOSDestination(catalyst: Bool = false) -> String {
+    public func macOSDestination(catalyst: Bool = false) async throws -> String {
         let arch: String
-        switch devEnvironment.architecture {
+        switch try await Environment.current.architecture() {
         case .arm64:
             arch = "arm64"
         case .x8664:

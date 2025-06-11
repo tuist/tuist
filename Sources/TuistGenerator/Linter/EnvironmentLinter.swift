@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 public protocol EnvironmentLinting {
@@ -23,7 +24,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     }
 
     func lintXcodeVersion(configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws -> [LintingIssue] {
-        let xcode = try await XcodeController.shared.selected()
+        let xcode = try await XcodeController.current.selected()
 
         let version = xcode.infoPlist.version
 
@@ -37,3 +38,17 @@ public class EnvironmentLinter: EnvironmentLinting {
         }
     }
 }
+
+#if DEBUG
+    public final class MockEnvironmentLinter: EnvironmentLinting {
+        public var lintStub: [LintingIssue]?
+        public var lintArgs: [TuistGeneratedProjectOptions] = []
+
+        public init() {}
+
+        public func lint(configGeneratedProjectOptions: TuistGeneratedProjectOptions) throws -> [LintingIssue] {
+            lintArgs.append(configGeneratedProjectOptions)
+            return lintStub ?? []
+        }
+    }
+#endif

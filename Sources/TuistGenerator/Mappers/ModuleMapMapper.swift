@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -28,7 +27,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
     // swiftlint:disable function_body_length
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.current?.logger?
+        Logger.current
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )

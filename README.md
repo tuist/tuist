@@ -2,7 +2,6 @@
   <div>
     <a href="https://tuist.io" target="_blank"><img src="assets/header.jpg" alt="header"/></a>
   </div>
-  <img src="https://api.codemagic.io/apps/65ca555c190cfbe9f5dd792f/unit_tests/status_badge.svg" alt="CI status">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
   <a href="https://bsky.app/profile/tuist.dev"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=bluesky" alt="Bluesky badge"></a>
@@ -46,14 +45,6 @@ You can check out [the project documentation](https://docs.tuist.io).
 ### 🔬 Sample projects
 
 You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
-
-## ✅ CI Sponsor
-
-<a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-  <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
-</a>
-
-[Codemagic](https://codemagic.io), a CI/CD tool for building world-class mobile apps, supports the development of Tuist by providing fast and reliable CI environments.
 
 ## 💰 Sponsors
 
@@ -300,16 +291,13 @@ Great companies support the project by giving us access to their service through
       <td width="25%" align="center">
         <img src="assets/cal-com.svg" alt="calcom_logo"/>
       </td>
-      <td width="25%" align="center">
-        <img src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
-      </td>
     </tr>
   </tbody>
 </table>
 
 ## 🧑‍💻 Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://console.algora.io/org/tuist) for some highly-valued issues.
+You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## ✨ Core Team
 
@@ -605,6 +593,12 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://mustafataibah.vercel.app/"><img src="https://avatars.githubusercontent.com/u/83141712?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Taibah</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/vkondrashkov"><img src="https://avatars.githubusercontent.com/u/16046780?v=4" width="100px;" alt=""/><br /><sub><b>Vladislav Kondrashkov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/chrisjrex"><img src="https://avatars.githubusercontent.com/u/4457170?v=4" width="100px;" alt=""/><br /><sub><b>Christopher Rex</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/bahattinkoc"><img src="https://avatars.githubusercontent.com/u/61124759?v=4" width="100px;" alt=""/><br /><sub><b>baaddin</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mattjung"><img src="https://avatars.githubusercontent.com/u/19891158?v=4" width="100px;" alt=""/><br /><sub><b>Matt Jung</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://imaginativeworld.org"><img src="https://avatars.githubusercontent.com/u/1952630?v=4" width="100px;" alt=""/><br /><sub><b>Md. Mahmudul Hasan Shohag</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://ma.tyas.cz"><img src="https://avatars.githubusercontent.com/u/6033733?v=4" width="100px;" alt=""/><br /><sub><b>Matty Cross</b></sub></a></td>
     </tr>
   </tbody>
 </table>

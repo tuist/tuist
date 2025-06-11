@@ -1,14 +1,12 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     private var subject: SynthesizedResourceInterfaceProjectMapper!
@@ -34,7 +32,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     }
 
     func test_map() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             var templateStrings: [String] = []
             var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]

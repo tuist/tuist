@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import OpenAPIURLSession
-import TuistSupport
 
 @Mockable
 public protocol GetAuthTokenServicing {
@@ -11,20 +10,11 @@ public protocol GetAuthTokenServicing {
     ) async throws -> ServerAuthenticationTokens?
 }
 
-public enum GetAuthTokenServiceError: FatalError, Equatable {
+public enum GetAuthTokenServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case badRequest(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError:
-            return .bug
-        case .badRequest:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The CLI authentication failed due to an unknown Tuist response of \(statusCode)."

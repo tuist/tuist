@@ -1,7 +1,7 @@
 import Foundation
 import XCTest
 @testable import TuistMigration
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class EmptyBuildSettingsCheckerErrorTests: TuistUnitTestCase {
     func test_description() {
@@ -19,7 +19,7 @@ final class EmptyBuildSettingsCheckerErrorTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Tuist"]).description,
-            "The following configurations have non-empty build setttings: Tuist"
+            "The following configurations have non-empty build settings: Tuist"
         )
     }
 

@@ -1,61 +1,38 @@
 import Foundation
 import Mockable
 import Queuer
+import Testing
 import TuistCore
 import TuistSupport
-import XCTest
 
 @testable import TuistAsyncQueue
-@testable import TuistAsyncQueueTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
-final class AsyncQueueTests: TuistUnitTestCase {
+struct AsyncQueueTests {
     private var subject: AsyncQueue!
-
     private let dispatcher1ID = "Dispatcher1"
     private let dispatcher2ID = "Dispatcher2"
-
     private var mockAsyncQueueDispatcher1: MockAsyncQueueDispatcher!
     private var mockAsyncQueueDispatcher2: MockAsyncQueueDispatcher!
-
-    private var ciChecker: MockCIChecking!
-
     private var mockPersistor: MockAsyncQueuePersistor<AnyAsyncQueueEvent>!
     private var mockQueuer: MockQueuer!
-
     private let timeout = 3.0
 
-    override func setUp() {
-        super.setUp()
+    init() {
         mockAsyncQueueDispatcher1 = MockAsyncQueueDispatcher()
         mockAsyncQueueDispatcher1.stubbedIdentifier = dispatcher1ID
-
         mockAsyncQueueDispatcher2 = MockAsyncQueueDispatcher()
         mockAsyncQueueDispatcher2.stubbedIdentifier = dispatcher2ID
-
-        ciChecker = .init()
         mockPersistor = MockAsyncQueuePersistor()
         mockQueuer = MockQueuer()
     }
 
-    override func tearDown() {
-        mockAsyncQueueDispatcher1 = nil
-        mockAsyncQueueDispatcher2 = nil
-        ciChecker = nil
-        mockPersistor = nil
-        mockQueuer = nil
-        subject = nil
-        super.tearDown()
-    }
-
     func makeSubject(
         queue: Queuing? = nil,
-        ciChecker: CIChecking? = nil,
         persistor: AsyncQueuePersisting? = nil
     ) -> AsyncQueue {
         let asyncQueue = AsyncQueue(
             queue: queue ?? mockQueuer,
-            ciChecker: ciChecker ?? self.ciChecker,
             persistor: persistor ?? mockPersistor
         )
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher1)
@@ -63,7 +40,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         return asyncQueue
     }
 
-    func test_dispatch_eventIsPersisted() throws {
+    @Test mutating func test_dispatch_eventIsPersisted() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
@@ -72,14 +49,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
         try subject.dispatch(event: event)
 
         // Then
-        guard let persistedEvent = mockPersistor.invokedWriteEvent else {
-            XCTFail("Event not passed to the persistor")
-            return
-        }
-        XCTAssertEqual(event.id, persistedEvent.id)
+        let persistedEvent = try #require(mockPersistor.invokedWriteEvent)
+        #expect(event.id == persistedEvent.id)
     }
 
-    func test_dispatch_eventIsQueued() throws {
+    @Test mutating func test_dispatch_eventIsQueued() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
@@ -87,152 +61,143 @@ final class AsyncQueueTests: TuistUnitTestCase {
         // When
         try subject.dispatch(event: event)
         // Then
-        guard let queuedOperation = mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation else {
-            XCTFail("Operation not added to the queuer")
-            return
-        }
-        XCTAssertEqual(queuedOperation.name, event.id.uuidString)
+        let queuedOperation = try #require(mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation)
+        #expect(queuedOperation.name == event.id.uuidString)
     }
 
-    func test_dispatch_eventIsPersistedOnDispatcherSuccess() throws {
-        // Given
-        let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
-        subject = makeSubject(queue: Queuer.shared)
-        let expectation = XCTestExpectation(description: #function)
-        mockPersistor.invokedDeleteCallBack = {
-            expectation.fulfill()
-        }
-        // When
-        try subject.dispatch(event: event)
-        wait(for: [expectation], timeout: timeout)
-        guard let deletedEvent = mockPersistor.invokedDeleteEvent else {
-            XCTFail("Event was not deleted by the persistor")
-            return
-        }
-        // Then
-        XCTAssertEqual(event.id, deletedEvent.id)
-    }
-
-    func test_dispatch_eventIsPersistedOnCompletion() throws {
+    @Test mutating func test_dispatch_eventIsPersistedOnDispatcherSuccess() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
 
         // When
-        try subject.dispatch(event: event)
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockPersistor.invokedDeleteCallBack = {
+                    continuation.resume(returning: ())
+                }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
 
         // Then
-        XCTAssertEqual(mockPersistor.invokedWriteEvent?.id, event.id)
+        let deletedEvent = try #require(mockPersistor.invokedDeleteEvent)
+        #expect(event.id == deletedEvent.id)
     }
 
-    func test_dispatch_eventIsDispatchedByTheRightDispatcher() throws {
+    @Test mutating func test_dispatch_eventIsPersistedOnCompletion() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
-        let expectation = XCTestExpectation(description: #function)
-        mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-            expectation.fulfill()
-        }
+
         // When
         try subject.dispatch(event: event)
 
         // Then
-        wait(for: [expectation], timeout: timeout)
-
-        guard let dispatchedEvent = mockAsyncQueueDispatcher1.invokedDispatchParameterEvent else {
-            XCTFail("Event was not dispatched")
-            return
-        }
-        // Then
-        XCTAssertEqual(event.id, dispatchedEvent.id)
-        XCTAssertEqual(mockAsyncQueueDispatcher1.invokedDispatchCount, 1)
-        XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchCount, 0)
-        XCTAssertNil(mockAsyncQueueDispatcher2.invokedDispatchParameterEvent)
+        #expect(mockPersistor.invokedWriteEvent?.id == event.id)
     }
 
-    func test_dispatch_queuerTriesThreeTimesToDispatch() throws {
+    @Test mutating func test_dispatch_eventIsDispatchedByTheRightDispatcher() async throws {
+        // Given
+        let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
+        subject = makeSubject(queue: Queuer.shared)
+
+        // When
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    continuation.resume(returning: ())
+                }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+
+        // Then
+        let dispatchedEvent = try #require(mockAsyncQueueDispatcher1.invokedDispatchParameterEvent)
+        #expect(event.id == dispatchedEvent.id)
+        #expect(mockAsyncQueueDispatcher1.invokedDispatchCount == 1)
+        #expect(mockAsyncQueueDispatcher2.invokedDispatchCount == 0)
+        #expect(mockAsyncQueueDispatcher2.invokedDispatchParameterEvent == nil)
+    }
+
+    @Test mutating func test_dispatch_queuerTriesThreeTimesToDispatch() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
         mockAsyncQueueDispatcher1.stubbedDispatchError = MockAsyncQueueDispatcherError.dispatchError
-        let expectation = XCTestExpectation(description: #function)
 
+        // When
         var count = 0
-        mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-            count += 1
-            if count == 3 {
-                expectation.fulfill()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    count += 1
+                    if count == 3 {
+                        continuation.resume(returning: ())
+                    }
+                }
+
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
             }
         }
 
-        // When
-        try subject.dispatch(event: event)
-
         // Then
-        wait(for: [expectation], timeout: timeout)
-        XCTAssertEqual(count, 3)
+        #expect(count == 3)
     }
 
-    func test_dispatch_doesNotDeleteEventOnError() throws {
+    @Test mutating func test_dispatch_doesNotDeleteEventOnError() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
         mockAsyncQueueDispatcher1.stubbedDispatchError = MockAsyncQueueDispatcherError.dispatchError
-        let expectation = XCTestExpectation(description: #function)
 
+        // When
         var count = 0
-        mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
-            count += 1
-            if count == 3 {
-                expectation.fulfill()
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                mockAsyncQueueDispatcher1.invokedDispatchCallBack = {
+                    count += 1
+                    if count == 3 {
+                        continuation.resume()
+                    }
+                }
+                try subject.dispatch(event: event)
+            } catch {
+                continuation.resume(throwing: error)
             }
         }
 
-        // When
-        try subject.dispatch(event: event)
-
         // Then
-        wait(for: [expectation], timeout: timeout)
-        XCTAssertEqual(count, 3)
-        XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
+        #expect(count == 3)
+        #expect(mockPersistor.invokedDeleteEventCount == 0)
     }
 
-    func test_waits_for_queue_to_finish_when_CI() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_waits_for_queue_to_finish_when_CI() async throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
-        given(ciChecker)
-            .isCI()
-            .willReturn(true)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["CI": "1"]
 
         // When
         subject = makeSubject(queue: Queuer.shared)
         await subject.start()
 
         // Then
-        XCTAssertEqual(Queuer.shared.operationCount, 0)
+        #expect(Queuer.shared.operationCount == 0)
     }
 
-    // TODO: fix flaky test
-    // func test_does_not_wait_for_queue_to_finish_when_not_CI() throws {
-    //     // Given
-    //     let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
-    //     mockPersistor.stubbedReadAllResult = [eventTuple1]
-    //     mockCIChecker.isCIStub = false
-
-    //     // When
-    //     subject = makeSubject(queue: Queuer.shared)
-    //     subject.start()
-
-    //     // Then
-    //     XCTAssertEqual(Queuer.shared.operationCount, 1)
-    // }
-
-    func test_start_readsPersistedEventsInitialization() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_readsPersistedEventsInitialization() async throws {
         // Given
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
+
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         let eventTuple2: AsyncQueueEventTuple = makeEventTuple(id: 2)
         let eventTuple3: AsyncQueueEventTuple = makeEventTuple(id: 3)
@@ -244,80 +209,56 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // Then
         let numberOfOperationsQueued = mockQueuer.invokedAddOperationCount
-        XCTAssertEqual(numberOfOperationsQueued, 3)
+        #expect(numberOfOperationsQueued == 3)
 
-        guard let queuedOperation1 = mockQueuer.invokedAddOperationParametersOperationsList[0] as? ConcurrentOperation else {
-            XCTFail("Operation for event tuple 1 not added to the queuer")
-            return
-        }
-        XCTAssertEqual(queuedOperation1.name, eventTuple1.id.uuidString)
-
-        guard let queuedOperation2 = mockQueuer.invokedAddOperationParametersOperationsList[1] as? ConcurrentOperation else {
-            XCTFail("Operation for event tuple 2 not added to the queuer")
-            return
-        }
-        XCTAssertEqual(queuedOperation2.name, eventTuple2.id.uuidString)
-
-        guard let queuedOperation3 = mockQueuer.invokedAddOperationParametersOperationsList[2] as? ConcurrentOperation else {
-            XCTFail("Operation for event tuple 3 not added to the queuer")
-            return
-        }
-        XCTAssertEqual(queuedOperation3.name, eventTuple3.id.uuidString)
+        let queuedOperation1 = try #require(mockQueuer.invokedAddOperationParametersOperationsList[0] as? ConcurrentOperation)
+        #expect(queuedOperation1.name == eventTuple1.id.uuidString)
+        let queuedOperation2 = try #require(mockQueuer.invokedAddOperationParametersOperationsList[1] as? ConcurrentOperation)
+        #expect(queuedOperation2.name == eventTuple2.id.uuidString)
+        let queuedOperation3 = try #require(mockQueuer.invokedAddOperationParametersOperationsList[2] as? ConcurrentOperation)
+        #expect(queuedOperation3.name == eventTuple3.id.uuidString)
     }
 
-    func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
         // Given
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [:]
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
 
-        let expectation = XCTestExpectation(description: #function)
-        mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
-            expectation.fulfill()
-        }
-
         // When
-        subject = makeSubject(queue: Queuer.shared)
-        await subject.start()
+        await withCheckedContinuation { continuation in
+            mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
+                continuation.resume(returning: ())
+            }
+
+            let _subject = makeSubject(queue: Queuer.shared)
+            Task { await _subject.start() }
+        }
 
         // Then
-        await fulfillment(of: [expectation], timeout: timeout)
-        guard let dispatchedEventData = mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter else {
-            XCTFail("Data from persisted event was not dispatched")
-            return
-        }
-        XCTAssertEqual(eventTuple1.data, dispatchedEventData)
-        XCTAssertEqual(mockAsyncQueueDispatcher1.invokedDispatchPersistedCount, 1)
-        XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount, 0)
+        let dispatchedEventData = try #require(mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter)
+
+        #expect(eventTuple1.data == dispatchedEventData)
+        #expect(mockAsyncQueueDispatcher1.invokedDispatchPersistedCount == 1)
+        #expect(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount == 0)
     }
 
-    func test_start_sentPersistedEventIsThenDeleted() async throws {
+    @Test(.withMockedEnvironment()) mutating func test_start_sentPersistedEventIsThenDeleted() async throws {
         // Given
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["CI": "0"]
         let id: UInt = 1
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: id)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
-
-        let expectation = XCTestExpectation(description: #function)
-        mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
-            expectation.fulfill()
-        }
+        let subject = makeSubject(queue: Queuer.shared)
 
         // When
-        subject = makeSubject(queue: Queuer.shared)
         await subject.start()
 
         // Then
-        await fulfillment(of: [expectation], timeout: timeout)
-        guard let filename = mockPersistor.invokedDeleteFilenameParameter else {
-            XCTFail("Sent persisted event was then not deleted")
-            return
-        }
-        XCTAssertEqual(filename, self.filename(with: id))
+        let filename = try #require(mockPersistor.invokedDeleteFilenameParameter)
+        #expect(filename == self.filename(with: id))
     }
 
     // MARK: Private

@@ -1,21 +1,22 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistGenerator
 
-final class GraphLinterTests: TuistUnitTestCase {
+struct GraphLinterTests {
     private var subject: GraphLinter!
     private var graphTraverser: MockGraphTraversing!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         graphTraverser = .init()
         subject = GraphLinter(
             projectLinter: MockProjectLinter(),
@@ -23,15 +24,9 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        graphTraverser = nil
-        super.tearDown()
-    }
-
-    func test_lint_when_frameworks_are_missing() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_frameworks_are_missing() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/B.framework"))
         try FileHandler.shared.createFolder(frameworkAPath)
@@ -45,18 +40,21 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(
+        #expect(
             result
-                .contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error))
+                .contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)) ==
+                true
         )
     }
 
-    func test_lint_when_packages_and_xcode_10() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_packages_and_xcode_10() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(10, 0, 0)
-        given(xcodeController)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
@@ -68,15 +66,17 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         let reason =
             "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
-        XCTAssertTrue(result.contains(LintingIssue(reason: reason, severity: .error)))
+        #expect(result.contains(LintingIssue(reason: reason, severity: .error)) == true)
     }
 
-    func test_lint_when_packages_and_xcode_11() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_packages_and_xcode_11() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let versionStub = Version(11, 0, 0)
-        given(xcodeController)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
@@ -88,10 +88,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         let reason =
             "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
-        XCTAssertFalse(result.contains(LintingIssue(reason: reason, severity: .error)))
+        #expect(result.contains(LintingIssue(reason: reason, severity: .error)) == false)
     }
 
-    func test_lint_when_scheme_has_unknown_target() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_scheme_has_unknown_target() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "UnknownReferenceTarget")
@@ -132,16 +132,16 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            result,
-            [LintingIssue(
-                reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
-                severity: .warning
-            )]
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
+                    severity: .warning
+                )]
         )
     }
 
-    func test_lint_when_scheme_has_known_target() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_scheme_has_known_target() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let unknownBuildReferenceTarget = TargetReference(projectPath: "/project", name: "KnownReferenceTarget")
@@ -182,18 +182,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            result,
-            []
+        #expect(
+            result ==
+                []
         )
     }
 
-    func test_lint_when_no_version_available() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_no_version_available() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let package = Package.remote(url: "remote", requirement: .branch("master"))
         let error = NSError.test()
-        given(xcodeController)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
             .selectedVersion()
             .willThrow(error)
         let graph = Graph.test(packages: [path: ["package": package]])
@@ -203,10 +205,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
+        #expect(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)) == true)
     }
 
-    func test_lint_when_staticFramework_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_staticFramework_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -243,10 +248,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_when_staticLibrary_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_staticLibrary_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -283,10 +291,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_when_messagesExtension_depends_on_static_products() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_messagesExtension_depends_on_static_products() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -326,10 +337,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_appExtension_canDependOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_appExtension_canDependOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appExtension = Target.empty(name: "app_extension", product: .appExtension)
@@ -352,10 +363,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_frameworkDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_frameworkDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -378,10 +389,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_applicationDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_applicationDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -404,10 +415,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_xpcCanDependOnAllTypesOfFrameworksAndLibraries() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_xpcCanDependOnAllTypesOfFrameworksAndLibraries() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let dynamicFramework = Target.empty(name: "DynamicFramework", destinations: [.mac], product: .framework)
@@ -442,10 +456,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 
-    func test_lint_testTargetsDependsOnBundle() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_testTargetsDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let bundle = Target.empty(name: "bundle", product: .bundle)
@@ -470,10 +484,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_staticProductsCanDependOnDynamicFrameworks() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_staticProductsCanDependOnDynamicFrameworks() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(name: "StaticFramework", product: .staticFramework)
@@ -498,10 +515,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_macStaticProductsCantDependOniOSStaticProducts() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_macStaticProductsCantDependOniOSStaticProducts() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let macStaticFramework = Target.empty(name: "MacStaticFramework", destinations: .macOS, product: .staticFramework)
@@ -532,10 +552,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertFalse(result.isEmpty)
+        #expect(result.isEmpty == false)
     }
 
-    func test_lint_watch_canDependOnWatchExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_canDependOnWatchExtension() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let watchExtension = Target.empty(name: "WatckExtension", destinations: .watchOS, product: .watch2Extension)
@@ -558,10 +578,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty == true)
     }
 
-    func test_lint_watch_canOnlyDependOnWatchExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_canOnlyDependOnWatchExtension() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let invalidDependency = Target.empty(name: "Framework", destinations: .watchOS, product: .framework)
@@ -584,10 +604,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertFalse(result.isEmpty)
+        #expect(result.isEmpty == false)
     }
 
-    func test_lint_when_watchOS_UITests_depends_on_watch2App() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_watch2App() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let watchApp = Target.empty(
@@ -620,10 +643,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_watchOS_UITests_depends_on_staticLibrary() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_staticLibrary() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticLibrary = Target.empty(
@@ -656,10 +682,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_watchOS_UITests_depends_on_framework() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_framework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let framework = Target.empty(
@@ -692,10 +721,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_watchOS_UITests_depends_on_staticFramework() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_watchOS_UITests_depends_on_staticFramework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(
@@ -728,10 +760,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_watch_application() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_application() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use the regular application (.app) product identifier
 
@@ -779,10 +811,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_watch_application_withWidgetExtension() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_watch_application_withWidgetExtension() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use WidgetKit extensions
 
@@ -822,10 +854,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_iOSApp_withCompanionWatchApplication() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_iOSApp_withCompanionWatchApplication() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.empty(
@@ -862,10 +894,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_missingProjectConfigurationsFromDependencyProjects() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_missingProjectConfigurationsFromDependencyProjects() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let customConfigurations: [BuildConfiguration: Configuration?] = [
@@ -922,7 +957,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(result, [
+        #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
                 severity: .warning
@@ -930,7 +965,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_mismatchingProjectConfigurationsFromDependencyProjects() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let customConfigurations: [BuildConfiguration: Configuration?] = [
@@ -994,7 +1032,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(result, [
+        #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
                 severity: .warning
@@ -1002,7 +1040,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_doesNotFlagDependenciesWithExtraConfigurations() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_doesNotFlagDependenciesWithExtraConfigurations() async throws {
         // Lower level dependencies could be shared by projects in different workspaces as such
         // it is ok for them to contain more configurations than the entry node projects
 
@@ -1068,10 +1109,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 
-    func test_lint_doesNotFlagDependenciesWithLessConfigurations() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_doesNotFlagDependenciesWithLessConfigurations() async throws {
         // If a dependency is used by multiple projects, project are allowed to have less configurations
         // as long as the dependency has them.
         // For example: a dependency has configurations Debug, Testing, Beta, Release.
@@ -1138,10 +1182,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 
-    func test_lint_valid_watchTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1181,10 +1225,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_invalid_watchTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_invalid_watchTargetBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1224,7 +1268,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             LintingIssue(
                 reason: "Watch app 'WatchApp' bundleId: watchapp isn't prefixed with its parent's app 'app' bundleId 'app'",
                 severity: .error
@@ -1236,11 +1280,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_valid_appClipTargetBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_valid_appClipTargetBundleIdentifiers() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1276,14 +1320,17 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_invalid_appClipTargetBundleIdentifiers() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_invalid_appClipTargetBundleIdentifiers() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1320,7 +1367,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             LintingIssue(
                 reason: "AppClip 'TestAppClip' bundleId: com.example1.app.clip isn't prefixed with its parent's app 'TestApp' bundleId 'com.example.app'",
                 severity: .error
@@ -1328,7 +1375,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_when_appclip_is_missing_required_entitlements() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appclip_is_missing_required_entitlements() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1361,7 +1411,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             LintingIssue(
                 reason: "An AppClip 'AppClip' requires its Parent Application Identifiers Entitlement to be set",
                 severity: .error
@@ -1369,7 +1419,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_when_appclip_entitlements_does_not_exist() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appclip_entitlements_does_not_exist() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(
@@ -1403,7 +1456,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             LintingIssue(
                 reason: "The entitlements at path '/entitlements/AppClip.entitlements' referenced by target does not exist",
                 severity: .error
@@ -1411,11 +1464,14 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_when_app_contains_more_than_one_appClip() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_app_contains_more_than_one_appClip() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1468,7 +1524,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             LintingIssue(
                 reason: "Target 'App' at path '\(temporaryPath.pathString)' cannot depend on more than one app clip: AppClip1 and AppClip2",
                 severity: .error
@@ -1476,11 +1532,14 @@ final class GraphLinterTests: TuistUnitTestCase {
         ])
     }
 
-    func test_lint_when_appClip_has_a_framework_dependency() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_appClip_has_a_framework_dependency() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
-        try await createFiles([
+        try await TuistTest.createFiles([
             "entitlements/AppClip.entitlements",
         ])
 
@@ -1520,10 +1579,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_cli_tool_links_dynamic_framework() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_cli_tool_links_dynamic_framework() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let tool = Target.test(
@@ -1558,10 +1617,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_cli_tool_links_dynamic_library() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_when_cli_tool_links_dynamic_library() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let tool = Target.test(
@@ -1596,10 +1655,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_when_cli_tool_links_supported_dependencies() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_when_cli_tool_links_supported_dependencies() async throws {
         // Given
         let path: AbsolutePath = "/project"
 
@@ -1645,10 +1707,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lint_ios_uitests_allows_macos_bundle_dependency() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_ios_uitests_allows_macos_bundle_dependency() async throws {
         let path: AbsolutePath = "/project"
 
         let uitests = Target.test(name: "UITests", platform: .iOS, product: .uiTests)
@@ -1673,10 +1738,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
-    func test_lint_macos_bundle_allows_ios_dependencies() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_macos_bundle_allows_ios_dependencies() async throws {
         let path: AbsolutePath = "/project"
 
         let bundle = Target.test(name: "Bundle", platform: .macOS, product: .bundle)
@@ -1703,10 +1768,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintDifferentBundleIdentifiers() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintDifferentBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -1741,10 +1806,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintBundleIdentifiersShouldIgnoreVariables() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintBundleIdentifiersShouldIgnoreVariables() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
@@ -1775,10 +1840,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintCodeCoverage_none() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_none() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test())
 
@@ -1786,10 +1851,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
-    func test_lintCodeCoverage_all() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_all() async throws {
         // Given
         let graphTraverser = GraphTraverser(
             graph: .test(
@@ -1805,12 +1870,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintCodeCoverage_relevant() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_relevant() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let targetA = Target.test(name: "TargetA")
         let targetB = Target.test(name: "TargetB")
         let project = Project.test(
@@ -1851,10 +1916,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintCodeCoverage_relevant_notConfigured() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_relevant_notConfigured() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
@@ -1868,20 +1933,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
-                LintingIssue(
-                    reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
-                    severity: .warning
-                ),
-            ]
+        #expect(
+            got ==
+                [
+                    LintingIssue(
+                        reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
+                        severity: .warning
+                    ),
+                ]
         )
     }
 
-    func test_lintCodeCoverage_targets() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
             path: temporaryPath,
             targets: [
@@ -1906,10 +1971,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty == true)
     }
 
-    func test_lintCodeCoverage_targets_empty() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets_empty() async throws {
         // Given
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
@@ -1923,20 +1988,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
-                LintingIssue(
-                    reason: "List of targets for code coverage is empty",
-                    severity: .warning
-                ),
-            ]
+        #expect(
+            got ==
+                [
+                    LintingIssue(
+                        reason: "List of targets for code coverage is empty",
+                        severity: .warning
+                    ),
+                ]
         )
     }
 
-    func test_lintCodeCoverage_targets_nonExisting() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lintCodeCoverage_targets_nonExisting() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
             path: temporaryPath,
             targets: [
@@ -1961,20 +2026,20 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
-                LintingIssue(
-                    reason: "Target 'TargetA' at '\(project.path)' doesn't exist",
-                    severity: .error
-                ),
-            ]
+        #expect(
+            got ==
+                [
+                    LintingIssue(
+                        reason: "Target 'TargetA' at '\(project.path)' doesn't exist",
+                        severity: .error
+                    ),
+                ]
         )
     }
 
-    func test_lint_multiDestinationTarget_validLinks() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_multiDestinationTarget_validLinks() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
         let macOnlyTarget = Target.test(name: "MacOnlyTarget", destinations: [.mac], product: .framework)
 
@@ -1997,7 +2062,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: iOSAndMacTarget.name, path: path),
                     to: .target(name: macOnlyTarget.name, path: path)
-                ): try XCTUnwrap(.test([.macos])),
+                ): try #require(try .test([.macos])),
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -2006,12 +2071,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(results.isEmpty)
+        #expect(results.isEmpty == true)
     }
 
-    func test_lint_multiDestinationTarget_invalidLinks() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_lint_multiDestinationTarget_invalidLinks() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
         let watchOnlyTarget = Target.test(name: "WatchOnlyTarget", destinations: [.appleWatch], product: .framework)
 
@@ -2037,12 +2102,15 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertFalse(results.isEmpty)
+        #expect(results.isEmpty == false)
     }
 
-    func test_lint_multiDestinationTarget_dependsOnTargetWithFewerSupportedPlatforms() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multiDestinationTarget_dependsOnTargetWithFewerSupportedPlatforms() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
         let iOSOnlyTarget = Target.test(name: "iOSOnlyTarget", destinations: [.iPhone], product: .framework)
 
@@ -2082,18 +2150,21 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            results,
-            [LintingIssue(
-                reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget does not support the required platforms: macos. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: ios.",
-                severity: .error
-            )]
+        #expect(
+            results ==
+                [LintingIssue(
+                    reason: "Target IOSAndMacTarget which depends on iOSOnlyTarget does not support the required platforms: macos. The dependency on iOSOnlyTarget must have a dependency condition constraining to at most: ios.",
+                    severity: .error
+                )]
         )
     }
 
-    func test_lint_multipleDependencies_when_directAndTransitiveDependenciesWithSameProductName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multipleDependencies_when_directAndTransitiveDependenciesWithSameProductName() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let directFramework = Target.test(name: "Direct", destinations: [.iPhone], product: .framework, productName: "Framework")
         let transitiveFramework = Target.test(
@@ -2127,18 +2198,21 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            results,
-            [LintingIssue(
-                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                severity: .error
-            )]
+        #expect(
+            results ==
+                [LintingIssue(
+                    reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                    severity: .error
+                )]
         )
     }
 
-    func test_lint_multipleDependencies_when_multipleDirectDependenciesWithSameProductName() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_lint_multipleDependencies_when_multipleDirectDependenciesWithSameProductName() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let targetA = Target.test(name: "TargetA", destinations: [.iPhone], product: .framework, productName: "Framework")
         let targetB = Target.test(name: "TargetB", destinations: [.iPhone], product: .framework, productName: "Framework")
@@ -2165,29 +2239,32 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(
-            results,
-            [LintingIssue(
-                reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                severity: .error
-            )]
+        #expect(
+            results ==
+                [LintingIssue(
+                    reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
+                    severity: .error
+                )]
         )
     }
 
-    func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_extensionKitExtension_canBeEmbeddedToTheApp_includingDependencies() async throws {
         let platforms: [Platform] = [.macOS, .iOS]
 
         for platform in platforms {
             // Given
-            let path = try temporaryPath()
+            let path = try #require(FileSystem.temporaryTestDirectory)
 
-            /* extension kit target is under test */
+            // extension kit target is under test
             let sut = Target.test(name: "Extension", platform: platform, product: .extensionKitExtension)
 
-            /* app embedding the extension */
+            // app embedding the extension
             let app = Target.test(name: "App", platform: platform, product: .app)
 
-            /* extension dependencies */
+            // extension dependencies
             let dynamicFramework = Target.test(name: "DynamicFramework", platform: platform, product: .framework)
             let staticFramework = Target.test(name: "StaticFramework", platform: platform, product: .staticFramework)
             let dynamicLibrary = Target.test(name: "DynamicLibrary", platform: platform, product: .dynamicLibrary)
@@ -2228,13 +2305,16 @@ final class GraphLinterTests: TuistUnitTestCase {
             let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
             // Then
-            XCTAssertTrue(results.isEmpty, "Expected to get no lint failures on \(platform), got \(results)")
+            #expect(results.isEmpty == true)
         }
     }
 
-    func test_extensionKitExtension_macOS_canEmbedAnXPCService() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func test_extensionKitExtension_macOS_canEmbedAnXPCService() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
 
         let sut = Target.test(name: "Extension", platform: .macOS, product: .extensionKitExtension)
         let xpcService = Target.test(name: "XPCService", platform: .macOS, product: .xpc)
@@ -2262,6 +2342,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertTrue(results.isEmpty, "Expected to get no lint failures, got \(results)")
+        #expect(results.isEmpty == true)
     }
 }

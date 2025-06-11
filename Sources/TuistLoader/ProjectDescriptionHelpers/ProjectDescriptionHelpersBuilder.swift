@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -126,7 +125,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ) async throws -> ProjectDescriptionHelpersModule? {
         guard let tuistHelpersDirectory = try await helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
-            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
+            if let sourceRoot = Environment.current.variables["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
                    // swiftlint:disable:next force_try
                    of: try! AbsolutePath(validating: sourceRoot).appending(component: Constants.tuistDirectoryName)
@@ -191,10 +190,10 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 )
 
                 let timer = clock.startTimer()
-                try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+                try System.shared.runAndPrint(command, verbose: false, environment: Environment.current.manifestLoadingVariables)
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
-                ServiceContext.current?.logger?.debug("Built \(name) in (\(time)s)")
+                Logger.current.debug("Built \(name) in (\(time)s)")
 
                 return module
             }
@@ -250,3 +249,31 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         return command
     }
 }
+
+#if DEBUG
+    public final class MockProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
+        public init() {}
+
+        public var buildStub: (
+            AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]
+        ) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
+        public func build(
+            at path: AbsolutePath,
+            projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+            projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+        ) throws -> [ProjectDescriptionHelpersModule] {
+            buildStub(path, projectDescriptionSearchPaths, projectDescriptionHelperPlugins)
+        }
+
+        public var buildPluginsStub: (
+            AbsolutePath, ProjectDescriptionSearchPaths, [ProjectDescriptionHelpersPlugin]
+        ) -> [ProjectDescriptionHelpersModule] = { _, _, _ in [] }
+        public func buildPlugins(
+            at path: AbsolutePath,
+            projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
+            projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
+        ) throws -> [ProjectDescriptionHelpersModule] {
+            buildPluginsStub(path, projectDescriptionSearchPaths, projectDescriptionHelperPlugins)
+        }
+    }
+#endif

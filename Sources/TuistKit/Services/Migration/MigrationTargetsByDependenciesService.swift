@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistMigration
 import TuistSupport
 
@@ -20,7 +19,7 @@ final class MigrationTargetsByDependenciesService {
     func run(xcodeprojPath: AbsolutePath) async throws {
         let sortedTargets = try await targetsExtractor.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath)
         let sortedTargetsJson = try makeJson(from: sortedTargets)
-        ServiceContext.current?.logger?.notice("\(sortedTargetsJson)")
+        Logger.current.notice("\(sortedTargetsJson)")
     }
 
     private func makeJson(from sortedTargets: [TargetDependencyCount]) throws -> String {

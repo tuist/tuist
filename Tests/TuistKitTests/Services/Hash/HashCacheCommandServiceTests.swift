@@ -1,13 +1,12 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import Testing
 import TuistCache
 import TuistCore
 import TuistLoader
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistKit
@@ -74,13 +73,18 @@ struct HashCacheCommandServiceTests {
                 destination: .any
             )
             .willReturn([:])
-        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(graph)
+        given(xcodeGraphMapper).map(at: .value(try AbsolutePath(validating: fullPath))).willReturn(
+            graph
+        )
 
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(false)
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
+            .willReturn(false)
 
         // When
         await #expect(
-            throws: HashCacheCommandServiceError.generatedProjectNotFound(try AbsolutePath(validating: fullPath)),
+            throws: HashCacheCommandServiceError.generatedProjectNotFound(
+                try AbsolutePath(validating: fullPath)
+            ),
             performing: {
                 try await subject.run(path: fullPath, configuration: nil)
             }
@@ -108,16 +112,17 @@ struct HashCacheCommandServiceTests {
             )
             .willReturn([:])
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
-        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath))).willReturn(true)
+        given(manifestLoader).hasRootManifest(at: .value(try AbsolutePath(validating: fullPath)))
+            .willReturn(true)
 
         // When
         _ = try await subject.run(path: fullPath, configuration: nil)
 
         // Then
         verify(generator)
-            .load(path: .value(try AbsolutePath(validating: fullPath)))
+            .load(path: .value(try AbsolutePath(validating: fullPath)), options: .any)
             .called(1)
     }
 
@@ -141,7 +146,7 @@ struct HashCacheCommandServiceTests {
             )
             .willReturn([:])
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
         given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
@@ -150,7 +155,7 @@ struct HashCacheCommandServiceTests {
 
         // Then
         verify(generator)
-            .load(path: .value(FileHandler.shared.currentPath))
+            .load(path: .value(FileHandler.shared.currentPath), options: .any)
             .called(1)
     }
 
@@ -174,7 +179,7 @@ struct HashCacheCommandServiceTests {
             )
             .willReturn([:])
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
         given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
@@ -183,7 +188,14 @@ struct HashCacheCommandServiceTests {
 
         // Then
         verify(generator)
-            .load(path: .value(try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)))
+            .load(
+                path: .value(
+                    try AbsolutePath(
+                        validating: "RelativePath", relativeTo: FileHandler.shared.currentPath
+                    )
+                ),
+                options: .any
+            )
             .called(1)
     }
 
@@ -207,7 +219,7 @@ struct HashCacheCommandServiceTests {
             )
             .willReturn([:])
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
         given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
@@ -216,7 +228,7 @@ struct HashCacheCommandServiceTests {
 
         // Then
         verify(generator)
-            .load(path: .value(try AbsolutePath(validating: "/Test")))
+            .load(path: .value(try AbsolutePath(validating: "/Test")), options: .any)
             .called(1)
     }
 
@@ -232,7 +244,7 @@ struct HashCacheCommandServiceTests {
         )
         let graph = Graph.test()
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(graph)
 
         given(cacheGraphContentHasher)
@@ -251,7 +263,7 @@ struct HashCacheCommandServiceTests {
     }
 
     @Test func test_run_outputs_correct_hashes() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
             let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
@@ -266,7 +278,7 @@ struct HashCacheCommandServiceTests {
                 .willReturn([target1: "hash1", target2: "hash2"])
 
             given(generator)
-                .load(path: .any)
+                .load(path: .any, options: .any)
                 .willReturn(.test())
             given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
@@ -283,8 +295,8 @@ struct HashCacheCommandServiceTests {
             _ = try await subject.run(path: path, configuration: nil)
 
             // Then
-            try ServiceContext.expectLogs("ShakiOne - hash1")
-            try ServiceContext.expectLogs("ShakiTwo - hash2")
+            try TuistTest.expectLogs("ShakiOne - hash1")
+            try TuistTest.expectLogs("ShakiTwo - hash2")
         }
     }
 
@@ -302,7 +314,7 @@ struct HashCacheCommandServiceTests {
         given(manifestLoader).hasRootManifest(at: .any).willReturn(true)
 
         given(generator)
-            .load(path: .any)
+            .load(path: .any, options: .any)
             .willReturn(.test())
 
         // When / Then

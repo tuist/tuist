@@ -5,8 +5,6 @@ import TuistSupport
 
 /// A command to hash an Xcode or generated project.
 public struct HashSelectiveTestingCommand: AsyncParsableCommand {
-    public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = EmptySelectiveTestingGraphHasher()
-
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -32,7 +30,7 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Self.selectiveTestingGraphHasher).run(
+        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher).run(
             path: path,
             passthroughXcodebuildArguments: passthroughXcodebuildArguments
         )

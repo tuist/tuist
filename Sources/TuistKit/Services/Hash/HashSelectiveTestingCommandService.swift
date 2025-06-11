@@ -1,6 +1,5 @@
 import Foundation
 import Path
-import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistHasher
@@ -71,7 +70,10 @@ final class HashSelectiveTestingCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            graph = try await generator.load(path: absolutePath)
+            graph = try await generator.load(
+                path: absolutePath,
+                options: config.project.generatedProject?.generationOptions
+            )
         } else {
             graph = try await xcodeGraphMapper.map(at: absolutePath)
         }
@@ -85,10 +87,10 @@ final class HashSelectiveTestingCommandService {
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
 
         if sortedHashes.isEmpty {
-            ServiceContext.current?.alerts?.warning(.alert("The project contains no hasheable targets for selective testing."))
+            AlertController.current.warning(.alert("The project contains no hasheable targets for selective testing."))
         } else {
             for (target, hash) in sortedHashes {
-                ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
+                Logger.current.info("\(target.target.name) - \(hash)")
             }
         }
     }

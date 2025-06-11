@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
-import ServiceContextModule
 import TuistSupport
 import XcodeProj
 
@@ -26,7 +25,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
         case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
         case .missingProject: return "The project's pbxproj file contains no projects."
         case let .targetNotFound(name): return "Couldn't find target with name '\(name)' in the project."
-        case let .nonEmptyBuildSettings(configurations): return "The following configurations have non-empty build setttings: \(configurations.joined(separator: ", "))"
+        case let .nonEmptyBuildSettings(configurations): return "The following configurations have non-empty build settings: \(configurations.joined(separator: ", "))"
         }
     }
 
@@ -66,7 +65,7 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
             for (key, _) in config.buildSettings {
-                ServiceContext.current?.logger?
+                Logger.current
                     .notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
             }
             return config.name
@@ -92,3 +91,25 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         }
     }
 }
+
+#if DEBUG
+    public class MockEmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
+        public init() {}
+
+        public var invokedCheck = false
+        public var invokedCheckCount = 0
+        public var invokedCheckParameters: (xcodeprojPath: AbsolutePath, targetName: String?)?
+        public var invokedCheckParametersList = [(xcodeprojPath: AbsolutePath, targetName: String?)]()
+        public var stubbedCheckError: Error?
+
+        public func check(xcodeprojPath: AbsolutePath, targetName: String?) throws {
+            invokedCheck = true
+            invokedCheckCount += 1
+            invokedCheckParameters = (xcodeprojPath, targetName)
+            invokedCheckParametersList.append((xcodeprojPath, targetName))
+            if let error = stubbedCheckError {
+                throw error
+            }
+        }
+    }
+#endif

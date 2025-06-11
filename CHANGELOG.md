@@ -1,5 +1,145 @@
 # Changelog
 
+## 4.52.1 - 2025-06-10
+
+### CLI
+
+#### Changed
+
+- Bump Rosalind [#7654](https://github.com/tuist/tuist/pull/7654) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix CircleCI PR variable [#7653](https://github.com/tuist/tuist/pull/7653) by [@cschmatzler](https://github.com/cschmatzler)
+- Fix app extensions redundant-imports checking [#7651](https://github.com/tuist/tuist/pull/7651) by [@PSKuznetsov](https://github.com/PSKuznetsov)
+- Attempt to fix token renewals [#7655](https://github.com/tuist/tuist/pull/7655) by [@pepicrft](https://github.com/pepicrft)
+- Further fix for issue where builds were not run when building for testing but not specifying a test plan [#7643](https://github.com/tuist/tuist/pull/7643) by [@cooksimo](https://github.com/cooksimo)
+- Fix paths in the reported build insights [#7662](https://github.com/tuist/tuist/pull/7662) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.52.0 - 2025-06-05
+
+### CLI
+
+#### Changed
+
+- Ignore missing glob directory for resources and additional files [#7638](https://github.com/tuist/tuist/pull/7638) by [@hiltonc](https://github.com/hiltonc)
+- Bump noora [#7644](https://github.com/tuist/tuist/pull/7644) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add buildOrder to Scheme's Build Action [#7609](https://github.com/tuist/tuist/pull/7609) by [@mattjung](https://github.com/mattjung)
+- Add file and module metadata to inspected builds [#7639](https://github.com/tuist/tuist/pull/7639) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix running CI in forks [#7640](https://github.com/tuist/tuist/pull/7640) by [@fortmarek](https://github.com/fortmarek)
+- Remove redundant dependencies checking between App and UITest target [#7628](https://github.com/tuist/tuist/pull/7628) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Fix App Device Build pipeline in forks [#7645](https://github.com/tuist/tuist/pull/7645) by [@fortmarek](https://github.com/fortmarek)
+- fix: use TOOLCHAIN_DIR for Swift include paths [#7650](https://github.com/tuist/tuist/pull/7650) by [@KrzysztofLema](https://github.com/KrzysztofLema)
+- Fix redundant import check for UITests with host application [#7649](https://github.com/tuist/tuist/pull/7649) by [@rofle100lvl](https://github.com/rofle100lvl)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.51.1 - 2025-06-04
+
+### CLI
+
+#### Changed
+
+- Remove generated bundles for inspecting in implicit and redundant dependencies search [#7614](https://github.com/tuist/tuist/pull/7614) by [@rofle100lvl](https://github.com/rofle100lvl)
+
+#### Fixed
+
+- Fix sandbox failure on CI [#7631](https://github.com/tuist/tuist/pull/7631) by [@hiltonc](https://github.com/hiltonc)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.51.0 - 2025-06-03
+
+### CLI
+
+#### Changed
+
+- When uploading build insights, attach git metadata [#7601](https://github.com/tuist/tuist/pull/7601) by [@fortmarek](https://github.com/fortmarek)
+- Remove unmatched resource glob warnings [#7611](https://github.com/tuist/tuist/pull/7611) by [@hiltonc](https://github.com/hiltonc)
+- Migrate Codemagic pipelines to GitHub Actions [#7621](https://github.com/tuist/tuist/pull/7621) by [@pepicrft](https://github.com/pepicrft)
+- Remove integration test targets [#7625](https://github.com/tuist/tuist/pull/7625) by [@pepicrft](https://github.com/pepicrft)
+- Remove Testing targets [#7626](https://github.com/tuist/tuist/pull/7626) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for variable InfoPlist file paths [#7404](https://github.com/tuist/tuist/pull/7404) by [@alexmx](https://github.com/alexmx)
+- Add support for category in inspected builds [#7606](https://github.com/tuist/tuist/pull/7606) by [@fortmarek](https://github.com/fortmarek)
+- feat: add default configuration name to the settings [#7577](https://github.com/tuist/tuist/pull/7577) by [@ImaginativeShohag](https://github.com/ImaginativeShohag)
+- Add error and warning tracking for inspected builds [#7612](https://github.com/tuist/tuist/pull/7612) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fixed typos and spelling errors across the codebase. [#7602](https://github.com/tuist/tuist/pull/7602) by [@bahattinkoc](https://github.com/bahattinkoc)
+- Add missing `XcodeMetadata` dependency on `TuistCore` [#7623](https://github.com/tuist/tuist/pull/7623) by [@pepicrft](https://github.com/pepicrft)
+- Fix failing app and docs jobs [#7624](https://github.com/tuist/tuist/pull/7624) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.2 - 2025-05-19
+
+### CLI
+
+#### Changed
+
+- Send git reference when inspecting bundle [#7580](https://github.com/tuist/tuist/pull/7580) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Support .apinotes files [#7572](https://github.com/tuist/tuist/pull/7572) by [@rw-garmin](https://github.com/rw-garmin)
+
+#### Fixed
+
+- Fix missing bundle git metadata [#7578](https://github.com/tuist/tuist/pull/7578) by [@fortmarek](https://github.com/fortmarek)
+- Reorder enable directives so SwiftFormat runs before SwiftLint [#7583](https://github.com/tuist/tuist/pull/7583) by [@rakuyoMo](https://github.com/rakuyoMo)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.1 - 2025-05-15
+
+### CLI
+
+#### Fixed
+
+- Fix `--verbose` not working [#7573](https://github.com/tuist/tuist/pull/7573) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.50.0 - 2025-05-15
+
+### CLI
+
+#### Added
+
+- Add bundle analysis [#7436](https://github.com/tuist/tuist/pull/7436) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix implicit import detection when target points to absent files [#7558](https://github.com/tuist/tuist/pull/7558) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.49.1 - 2025-05-06
 
 ### CLI

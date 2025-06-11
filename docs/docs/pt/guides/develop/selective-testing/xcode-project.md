@@ -4,7 +4,7 @@ titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: Learn how to leverage selective testing with `xcodebuild`.
 ---
 
-# xcodebuild {#xcodebuild}
+# Xcode project {#xcode-project}
 
 > [!IMPORTANT] REQUIREMENTS
 >

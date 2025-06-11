@@ -1,20 +1,12 @@
 import Foundation
-import TuistSupport
 
-enum ServerCacheArtifactError: FatalError, Equatable {
+enum ServerCacheArtifactError: LocalizedError, Equatable {
     case invalidURL(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .invalidURL(url):
             return "Invalid URL for the remote cache artifact: \(url)."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .invalidURL:
-            return .bug
         }
     }
 }
@@ -45,7 +37,7 @@ extension ServerCacheArtifact {
 #if DEBUG
     extension ServerCacheArtifact {
         public static func test(
-            url: URL = Constants.URLs.production,
+            url: URL = URL(string: "https://tuist.dev")!,
             expiresAt: Int = 0
         ) -> Self {
             .init(

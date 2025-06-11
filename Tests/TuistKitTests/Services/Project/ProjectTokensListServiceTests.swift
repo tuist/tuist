@@ -1,9 +1,8 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistLoader
 import TuistServer
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistKit
@@ -46,7 +45,7 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
     }
 
     func test_list_project_tokens() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listProjectTokensService)
                 .listProjectTokens(
@@ -82,7 +81,7 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
     }
 
     func test_list_project_tokens_when_none_present() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(listProjectTokensService)
                 .listProjectTokens(
@@ -96,7 +95,8 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
 
             // Then
             XCTAssertStandardOutput(
-                pattern: "No project tokens found. Create one by running `tuist project tokens create tuist-org/tuist."
+                pattern:
+                "No project tokens found. Create one by running `tuist project tokens create tuist-org/tuist."
             )
         }
     }

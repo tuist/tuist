@@ -100,9 +100,10 @@ final class DeviceService: DeviceServicing {
         let devices = try await deviceController.findAvailableDevices()
         let simulators = try await simulatorController.devicesAndRuntimes().sorted()
 
-        let selectedDevice = storedSelectedDevice(
-            simulators: simulators
-        ) ?? simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
+        let selectedDevice =
+            storedSelectedDevice(
+                simulators: simulators
+            ) ?? simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
         await MainActor.run {
             self.devices = devices
             self.simulators = simulators
@@ -113,10 +114,14 @@ final class DeviceService: DeviceServicing {
     func launchPreviewDeeplink(with previewDeeplinkURL: URL) async throws {
         await menuBarFocusService.focus()
         let urlComponents = URLComponents(url: previewDeeplinkURL, resolvingAgainstBaseURL: false)
-        guard let previewId = urlComponents?.queryItems?.first(where: { $0.name == "preview_id" })?.value,
-              let fullHandle = urlComponents?.queryItems?.first(where: { $0.name == "full_handle" })?.value,
-              let serverURLString = urlComponents?.queryItems?.first(where: { $0.name == "server_url" })?.value,
-              let serverURL = URL(string: serverURLString)
+        guard let previewId = urlComponents?.queryItems?.first(where: { $0.name == "preview_id" })?
+            .value,
+            let fullHandle = urlComponents?.queryItems?.first(where: { $0.name == "full_handle" })?
+            .value,
+            let serverURLString = urlComponents?.queryItems?.first(where: {
+                $0.name == "server_url"
+            })?.value,
+            let serverURL = URL(string: serverURLString)
         else { throw SimulatorsViewModelError.invalidDeeplink(previewDeeplinkURL.absoluteString) }
 
         try await launchPreview(
@@ -154,11 +159,15 @@ final class DeviceService: DeviceServicing {
                 selectedDevice: selectedDevice
             )
 
-            await status.update(state: .running(message: "Launching preview", progress: .indeterminate))
+            await status.update(
+                state: .running(message: "Launching preview", progress: .indeterminate)
+            )
 
             try await launchApp(app, on: selectedDevice)
             if let gitCommitSHA = preview.gitCommitSHA {
-                await status.markAsDone(message: "Installed \(app.infoPlist.name)@\(gitCommitSHA.prefix(7))")
+                await status.markAsDone(
+                    message: "Installed \(app.infoPlist.name)@\(gitCommitSHA.prefix(7))"
+                )
             } else {
                 await status.markAsDone(message: "Installed \(app.infoPlist.name)")
             }
@@ -177,7 +186,9 @@ final class DeviceService: DeviceServicing {
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        let apps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]).collect()
+        let apps = try await fileSystem.glob(
+            directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
+        ).collect()
             .concurrentMap {
                 try await self.appBundleLoader.load($0)
             }
@@ -229,9 +240,13 @@ final class DeviceService: DeviceServicing {
     ) async throws {
         switch device {
         case let .simulator(simulator):
-            let bootedDevice = try simulatorController.booted(device: simulator.device, forced: true)
+            let bootedDevice = try simulatorController.booted(
+                device: simulator.device, forced: true
+            )
             try simulatorController.installApp(at: app.path, device: bootedDevice)
-            try await simulatorController.launchApp(bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: [])
+            try await simulatorController.launchApp(
+                bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: []
+            )
         case let .device(device):
             try await deviceController.installApp(at: app.path, device: device)
             try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)

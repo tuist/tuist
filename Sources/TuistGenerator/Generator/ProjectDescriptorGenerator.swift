@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -85,7 +84,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
-        ServiceContext.current?.logger?.notice("Generating project \(project.name)")
+        Logger.current.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)
@@ -220,7 +219,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             nativeTargets[target.name] = nativeTarget
         }
 
-        /// Target dependencies
+        // Target dependencies
         try targetGenerator.generateTargetDependencies(
             path: project.path,
             targets: Array(project.targets.values),
@@ -319,17 +318,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         // BuildIndependentTargetsInParallel
         attributes["BuildIndependentTargetsInParallel"] = "YES"
 
-        /// Organization name
+        // Organization name
         if let organizationName = project.organizationName {
             attributes["ORGANIZATIONNAME"] = .string(organizationName)
         }
 
-        /// Class prefix
+        // Class prefix
         if let classPrefix = project.classPrefix {
             attributes["CLASSPREFIX"] = .string(classPrefix)
         }
 
-        /// Last upgrade check
+        // Last upgrade check
         if let lastUpgradeCheck = project.lastUpgradeCheck {
             attributes["LastUpgradeCheck"] = .string(lastUpgradeCheck.xcodeStringValue)
         }

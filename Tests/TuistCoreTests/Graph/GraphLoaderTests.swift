@@ -1,12 +1,13 @@
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
+import XcodeMetadata
 import XCTest
 
 @testable import TuistCore
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphLoaderTests: TuistUnitTestCase {
     private var stubbedFrameworks = [AbsolutePath: PrecompiledMetadata]()
@@ -14,7 +15,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
     private var stubbedXCFrameworks = [AbsolutePath: XCFrameworkMetadata]()
     private var frameworkMetadataProvider: MockFrameworkMetadataProvider!
     private var libraryMetadataProvider: MockLibraryMetadataProvider!
-    private var xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider!
+    private var xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding!
 
     override func setUpWithError() throws {
         frameworkMetadataProvider = makeFrameworkMetadataProvider()
@@ -733,9 +734,9 @@ final class GraphLoaderTests: TuistUnitTestCase {
         return provider
     }
 
-    private func makeXCFrameworkMetadataProvider() -> MockXCFrameworkMetadataProvider {
-        let provider = MockXCFrameworkMetadataProvider()
-        provider.loadMetadataStub = { [weak self] path in
+    private func makeXCFrameworkMetadataProvider() -> MockXCFrameworkMetadataProviding {
+        let provider = MockXCFrameworkMetadataProviding()
+        given(provider).loadMetadata(at: .any, expectedSignature: .any, status: .any).willProduce { [weak self] path, _, _ in
             guard let metadata = self?.stubbedXCFrameworks[path] else {
                 throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
             }

@@ -1,15 +1,13 @@
 import Foundation
 import Mockable
-import ServiceContextModule
 import TuistCore
-import TuistCoreTesting
 import TuistLoader
-import TuistLoaderTesting
 import TuistServer
 import TuistSupport
 import XCTest
+
 @testable import TuistKit
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class LoginServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
@@ -80,7 +78,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     }
 
     func test_authenticate_when_password_is_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(userInputReader)
                 .readString(asking: .value("Email:"))
@@ -120,17 +118,18 @@ final class LoginServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            let output = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
-            ✔ Success
-              Successfully logged in.
-            """
-            XCTAssertEqual(output, expectedOutput)
+            XCTAssertEqual(
+                ui(),
+                """
+                ✔ Success
+                  Successfully logged in.
+                """
+            )
         }
     }
 
     func test_authenticate_when_email_is_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(userInputReader)
                 .readString(asking: .value("Password:"))
@@ -170,17 +169,18 @@ final class LoginServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            let output = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
-            ✔ Success
-              Successfully logged in.
-            """
-            XCTAssertEqual(output, expectedOutput)
+            XCTAssertEqual(
+                ui(),
+                """
+                ✔ Success
+                  Successfully logged in.
+                """
+            )
         }
     }
 
     func test_authenticate_when_email_and_password_are_provided() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             // Given
             given(serverCredentialsStore)
                 .store(
@@ -216,12 +216,13 @@ final class LoginServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            let output = ServiceContext.current?.recordedUI()
-            let expectedOutput = """
-            ✔ Success
-              Successfully logged in.
-            """
-            XCTAssertEqual(output, expectedOutput)
+            XCTAssertEqual(
+                ui(),
+                """
+                ✔ Success
+                  Successfully logged in.
+                """
+            )
             verify(userInputReader)
                 .readString(asking: .any)
                 .called(0)

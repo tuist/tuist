@@ -1,16 +1,15 @@
 import Foundation
 import Mockable
 import Path
-import ServiceContextModule
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
@@ -298,13 +297,47 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: temporaryPath.appending(try RelativePath(validating: "Documentation"))),
-        ])
+        XCTAssertEqual(
+            model.additionalFiles,
+            [
+                .folderReference(
+                    path: temporaryPath.appending(try RelativePath(validating: "Documentation"))
+                ),
+            ]
+        )
     }
 
-    func test_loadWorkspace_withInvalidProjectsPaths() async throws {
-        try await ServiceContext.withTestingDependencies {
+    func test_loadWorkspace_withInvalidProjectPath() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
+
+            try await fileSystem.makeDirectory(at: rootDirectory.appending(component: "Resources"))
+
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/Image.png")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains(
+                "No files found at: \(rootDirectory.appending(components: "Resources", "Image.png"))"
+            )
+            XCTAssertEqual(model, [])
+        }
+    }
+
+    func test_loadWorkspace_withUnmatchedProjectGlob() async throws {
+        try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
             let rootDirectory = temporaryPath
@@ -325,7 +358,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertPrinterOutputContains(
+            XCTAssertPrinterOutputNotContains(
                 "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
             )
             XCTAssertEqual(model, [])
@@ -347,8 +380,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()
         given(manifestLoader)
-            .loadProject(at: .any)
-            .willProduce { path in
+            .loadProject(at: .any, disableSandbox: .any)
+            .willProduce { path, _ in
                 guard let manifest = projects[path] else {
                     throw ManifestLoaderError.manifestNotFound(path)
                 }
@@ -384,8 +417,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()
         given(manifestLoader)
-            .loadWorkspace(at: .any)
-            .willProduce { path in
+            .loadWorkspace(at: .any, disableSandbox: .any)
+            .willProduce { path, _ in
                 guard let manifest = workspaces[path] else {
                     throw ManifestLoaderError.manifestNotFound(path)
                 }

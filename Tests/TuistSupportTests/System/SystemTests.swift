@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import XCTest
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ProcessResultTests: TuistUnitTestCase {
     func test_command_returns_the_right_command_when_xcrun() {

@@ -1,5 +1,5 @@
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 @testable import TuistKit
 

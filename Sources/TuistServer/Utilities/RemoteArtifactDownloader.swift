@@ -1,20 +1,12 @@
 import Foundation
 import Mockable
 import Path
-import TuistSupport
 
-enum RemoteArtifactDownloaderError: FatalError, Equatable {
+enum RemoteArtifactDownloaderError: LocalizedError, Equatable {
     case urlSessionError(url: URL, httpMethod: String, description: String)
     case noURLResponse(URL?)
 
-    var type: ErrorType {
-        switch self {
-        case .urlSessionError: return .abort
-        case .noURLResponse: return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .urlSessionError(url, httpMethod, error):
             return "Received a session error when sending \(httpMethod) request to \(url.absoluteString): \(error)"

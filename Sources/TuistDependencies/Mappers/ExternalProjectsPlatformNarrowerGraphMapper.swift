@@ -1,15 +1,13 @@
 import Foundation
-import ServiceContextModule
+import Logging
 import TuistCore
 import XcodeGraph
 
-/**
- When Swift Packages don't declare the platforms that they support, the Swift Package Manager defaults the value
- to 'support all the platforms'. This default behaviour is inherited into the Xcode projects that we generate off the packages
- and that causes compilation issues. Xcode must resolve this issue at build-time by cascading the platform requirements
- down from nodes in the graph that are closer to the root. This is a behaviour that we need to copy over to Tuist. In our case
- the logic is executed at generation time.
- */
+/// When Swift Packages don't declare the platforms that they support, the Swift Package Manager defaults the value
+/// to 'support all the platforms'. This default behaviour is inherited into the Xcode projects that we generate off the packages
+/// and that causes compilation issues. Xcode must resolve this issue at build-time by cascading the platform requirements
+/// down from nodes in the graph that are closer to the root. This is a behaviour that we need to copy over to Tuist. In our case
+/// the logic is executed at generation time.
 public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swiftlint:disable:this type_name
     public init() {}
 
@@ -17,7 +15,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
+        Logger.current.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
 
         // If the project has no external dependencies we skip this.
         if graph.projects.values.first(
@@ -57,9 +55,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         project: Project,
         externalTargetSupportedPlatforms: [GraphTarget: Set<Platform>]
     ) -> Target {
-        /**
-         We only include the destinations whose platform is included in the list of the target supported platforms.
-         */
+        // We only include the destinations whose platform is included in the list of the target supported platforms.
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         if case .external = project.type, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {

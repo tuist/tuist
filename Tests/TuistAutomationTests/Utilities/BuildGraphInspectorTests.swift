@@ -6,8 +6,7 @@ import XcodeGraph
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistCoreTesting
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class BuildGraphInspectorTests: TuistUnitTestCase {
     var subject: BuildGraphInspector!
@@ -174,7 +173,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: nil,
             testTargets: [],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -208,7 +208,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: nil,
             testTargets: [],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -256,7 +257,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: testPlan.name,
             testTargets: [],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -304,7 +306,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: testPlan.name,
             testTargets: [TestIdentifier(target: targetReference2.name)],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -352,7 +355,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: testPlan.name,
             testTargets: [],
             skipTestTargets: [TestIdentifier(target: targetReference1.name)],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -400,7 +404,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: testPlan.name,
             testTargets: [TestIdentifier(target: targetReference1.name)],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
         )
 
         // Then
@@ -775,7 +780,64 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             testPlan: nil,
             testTargets: [],
             skipTestTargets: [],
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            action: .test
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target2)
+    }
+
+    func test_testableTarget_withMultipleTestPlans_noneSpecified_findsTargetInNonDefaultPlan_when_action_is_build() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: false),
+            ],
+            isDefault: true
+        )
+
+        let testPlan2 = TestPlan(
+            path: path.appending(component: "Test2.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: false
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan, testPlan2]
+            )
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testableTarget(
+            scheme: scheme,
+            testPlan: nil,
+            testTargets: [],
+            skipTestTargets: [try TestIdentifier(target: "Test1")],
+            graphTraverser: graphTraverser,
+            action: .build
         )
 
         // Then

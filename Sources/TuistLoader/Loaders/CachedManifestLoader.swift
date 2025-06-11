@@ -3,7 +3,6 @@ import Foundation
 import NIOFileSystem
 import Path
 import ProjectDescription
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -19,7 +18,6 @@ public class CachedManifestLoader: ManifestLoading {
     private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileSystem: FileSysteming
-    private let environment: Environmenting
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let tuistVersion: String
     private let decoder = JSONDecoder()
@@ -29,13 +27,11 @@ public class CachedManifestLoader: ManifestLoading {
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
-        let environment = TuistSupport.Environment.shared
         self.init(
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
             helpersDirectoryLocator: HelpersDirectoryLocator(),
             fileSystem: FileSystem(),
-            environment: environment,
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             tuistVersion: Constants.version
         )
@@ -46,7 +42,6 @@ public class CachedManifestLoader: ManifestLoading {
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
         helpersDirectoryLocator: HelpersDirectoryLocating,
         fileSystem: FileSysteming,
-        environment: Environmenting,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         tuistVersion: String
     ) {
@@ -54,7 +49,6 @@ public class CachedManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileSystem = fileSystem
-        self.environment = environment
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.tuistVersion = tuistVersion
         cacheDirectory = ThrowableCaching {
@@ -63,44 +57,46 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
-        try await load(manifest: .config, at: path) {
+        try await load(manifest: .config, at: path, disableSandbox: false) {
             let projectDescriptionConfig = try await manifestLoader.loadConfig(at: path)
             return projectDescriptionConfig
         }
     }
 
-    public func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project {
-        try await load(manifest: .project, at: path) {
-            try await manifestLoader.loadProject(at: path)
+    public func loadProject(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Project {
+        try await load(manifest: .project, at: path, disableSandbox: disableSandbox) {
+            try await manifestLoader.loadProject(at: path, disableSandbox: disableSandbox)
         }
     }
 
-    public func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace {
-        try await load(manifest: .workspace, at: path) {
-            try await manifestLoader.loadWorkspace(at: path)
+    public func loadWorkspace(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Workspace {
+        try await load(manifest: .workspace, at: path, disableSandbox: disableSandbox) {
+            try await manifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
         }
     }
 
     public func loadTemplate(at path: AbsolutePath) async throws -> ProjectDescription.Template {
-        try await load(manifest: .template, at: path) {
+        try await load(manifest: .template, at: path, disableSandbox: true) {
             try await manifestLoader.loadTemplate(at: path)
         }
     }
 
     public func loadPlugin(at path: AbsolutePath) async throws -> ProjectDescription.Plugin {
-        try await load(manifest: .plugin, at: path) {
+        try await load(manifest: .plugin, at: path, disableSandbox: true) {
             try await manifestLoader.loadPlugin(at: path)
         }
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) async throws -> ProjectDescription.PackageSettings {
-        try await load(manifest: .packageSettings, at: path) {
-            try await manifestLoader.loadPackageSettings(at: path)
+    public func loadPackageSettings(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription
+        .PackageSettings
+    {
+        try await load(manifest: .packageSettings, at: path, disableSandbox: disableSandbox) {
+            try await manifestLoader.loadPackageSettings(at: path, disableSandbox: disableSandbox)
         }
     }
 
     public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await load(manifest: .package, at: path) {
+        try await load(manifest: .package, at: path, disableSandbox: false) {
             try await manifestLoader.loadPackage(at: path)
         }
     }
@@ -124,7 +120,12 @@ public class CachedManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
-    private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () async throws -> T) async throws -> T {
+    private func load<T: Codable>(
+        manifest: Manifest,
+        at path: AbsolutePath,
+        disableSandbox: Bool,
+        loader: () async throws -> T
+    ) async throws -> T {
         let manifestPathCandidates = [
             path.appending(component: manifest.fileName(path)),
             manifest.alternativeFileName(path).map { path.appending(component: $0) },
@@ -145,11 +146,12 @@ public class CachedManifestLoader: ManifestLoading {
         let calculatedHashes = try? await calculateHashes(
             path: path,
             manifestPath: manifestPath,
-            manifest: manifest
+            manifest: manifest,
+            disableSandbox: disableSandbox
         )
 
         guard let hashes = calculatedHashes else {
-            ServiceContext.current?.logger?.warning("Unable to calculate manifest hash at path: \(path)")
+            Logger.current.warning("Unable to calculate manifest hash at path: \(path)")
             return try await loader()
         }
 
@@ -176,17 +178,20 @@ public class CachedManifestLoader: ManifestLoading {
     private func calculateHashes(
         path: AbsolutePath,
         manifestPath: AbsolutePath,
-        manifest: Manifest
+        manifest: Manifest,
+        disableSandbox: Bool
     ) async throws -> Hashes {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
         let helpersHash = try await calculateHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
+        let disableSandboxHash = "\(disableSandbox)".md5
 
         return Hashes(
             manifestHash: manifestHash,
             helpersHash: helpersHash,
             pluginsHash: try await pluginsHashCache.value?.value,
-            environmentHash: environmentHash
+            environmentHash: environmentHash,
+            disableSandboxHash: disableSandboxHash
         )
     }
 
@@ -227,7 +232,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = environment.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         guard !tuistEnvVariables.isEmpty else {
             return nil
         }
@@ -287,7 +292,7 @@ public class CachedManifestLoader: ManifestLoading {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
         } catch let error as NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
-                ServiceContext.current?.logger?.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
+                Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {
                 throw error
             }
@@ -313,12 +318,15 @@ private struct Hashes: Equatable, Codable {
     var helpersHash: String?
     var pluginsHash: String?
     var environmentHash: String?
+    var disableSandboxHash: String
 }
 
 private struct CachedManifest: Codable {
-    // Note: please bump the version in case the cache structure is modifed
-    // this ensures older cache versions are not loaded using this structure
+    // Note: please bump the version in case the cache structure is modified.
+    // This ensures older cache versions are not loaded using this structure.
+
     static let currentCacheVersion = 1
+
     var cacheVersion: Int = currentCacheVersion
     var tuistVersion: String
     var hashes: Hashes

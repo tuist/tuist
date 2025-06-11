@@ -301,7 +301,7 @@ public class GraphLinter: GraphLinting {
 
         let version: Version
         do {
-            version = try await XcodeController.shared.selectedVersion()
+            version = try await XcodeController.current.selectedVersion()
         } catch {
             return [LintingIssue(reason: "Could not determine Xcode version", severity: .error)]
         }
@@ -849,3 +849,27 @@ public class GraphLinter: GraphLinting {
         ],
     ]
 } // swiftlint:enable type_body_length
+
+#if DEBUG
+    public class MockGraphLinter: GraphLinting {
+        var invokedLint = false
+        var invokedLintCount = 0
+        var invokedLintParameters: (graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions)?
+        var invokedLintParametersList = [(
+            graphTraverser: GraphTraversing,
+            configGeneratedProjectOptions: TuistGeneratedProjectOptions
+        )]()
+        var stubbedLintResult: [LintingIssue]! = []
+
+        public func lint(
+            graphTraverser: GraphTraversing,
+            configGeneratedProjectOptions: TuistGeneratedProjectOptions
+        ) async throws -> [LintingIssue] {
+            invokedLint = true
+            invokedLintCount += 1
+            invokedLintParameters = (graphTraverser, configGeneratedProjectOptions)
+            invokedLintParametersList.append((graphTraverser, configGeneratedProjectOptions))
+            return stubbedLintResult
+        }
+    }
+#endif

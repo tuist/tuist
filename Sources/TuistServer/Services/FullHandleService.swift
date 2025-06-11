@@ -1,17 +1,10 @@
 import Foundation
 import Mockable
-import TuistSupport
 
-enum FullHandleServiceError: FatalError, Equatable {
+enum FullHandleServiceError: LocalizedError, Equatable {
     case invalidHandle(String)
-    var type: ErrorType {
-        switch self {
-        case .invalidHandle:
-            return .abort
-        }
-    }
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .invalidHandle(fullHandle):
             return "The project full handle \(fullHandle) is not in the format of account-handle/project-handle."
@@ -20,7 +13,7 @@ enum FullHandleServiceError: FatalError, Equatable {
 }
 
 @Mockable
-public protocol FullHandleServicing {
+public protocol FullHandleServicing: Sendable {
     func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String)
 }
 

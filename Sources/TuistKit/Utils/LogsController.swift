@@ -12,8 +12,7 @@ public struct LogsController {
 
     public func setup(
         stateDirectory: AbsolutePath,
-        logFilePath: AbsolutePath! = nil,
-        forceVerbose: Bool = false,
+        logFilePath: AbsolutePath! = nil
     ) async throws -> (@Sendable (String) -> any LogHandler, AbsolutePath) {
         var logFilePath = logFilePath
         if logFilePath == nil {
@@ -29,10 +28,10 @@ public struct LogsController {
             if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
                 LoggingConfig(
                     loggerType: .json,
-                    verbose: ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] != nil
+                    verbose: Environment.current.isVerbose
                 )
             } else {
-                LoggingConfig.default
+                LoggingConfig.default()
             }
 
         try await clean(logsDirectory: logFilePath!.parentDirectory)

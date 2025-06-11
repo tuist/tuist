@@ -1,12 +1,13 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
-import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 
@@ -190,7 +191,7 @@ struct RunCommandService {
               previewLink.pathComponents.count > 4 // We expect at least four path components
         else { throw RunCommandServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
-        let archivePath = try await ServiceContext.current?.ui?.progressStep(message: "Downloading preview...") { _ in
+        let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
             let preview = try await getPreviewService.getPreview(
                 previewLink.lastPathComponent,
                 fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
@@ -234,10 +235,16 @@ struct RunCommandService {
         let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {
-            ServiceContext.current?.logger?.notice("Generating project for running", metadata: .section)
-            graph = try await generator.generateWithGraph(path: path).1
+            Logger.current.notice("Generating project for running", metadata: .section)
+            graph = try await generator.generateWithGraph(
+                path: path,
+                options: config.project.generatedProject?.generationOptions
+            ).1
         } else {
-            graph = try await generator.load(path: path)
+            graph = try await generator.load(
+                path: path,
+                options: config.project.generatedProject?.generationOptions
+            )
         }
 
         guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
@@ -247,7 +254,7 @@ struct RunCommandService {
         let graphTraverser = GraphTraverser(graph: graph)
         let runnableSchemes = buildGraphInspector.runnableSchemes(graphTraverser: graphTraverser)
 
-        ServiceContext.current?.logger?
+        Logger.current
             .debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
 
         guard let scheme = runnableSchemes.first(where: { $0.name == scheme }) else {

@@ -3,7 +3,7 @@ import TuistSupport
 import XCTest
 
 @testable import TuistServer
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class ServerCredentialsStoreTests: TuistUnitTestCase {
     var subject: ServerCredentialsStore!
@@ -45,7 +45,9 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             configDirectory: temporaryDirectory
         )
-        let credentials = ServerCredentials(token: nil, accessToken: "access-token", refreshToken: "refresh-token")
+        let credentials = ServerCredentials(
+            token: nil, accessToken: "access-token", refreshToken: "refresh-token"
+        )
         let serverURL = URL(string: "https://tuist.io")!
 
         // When

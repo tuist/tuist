@@ -1,12 +1,11 @@
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistLoaderTesting
 import TuistSupport
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistSupportTesting
+@testable import TuistTesting
 @testable import XcodeGraph
 
 final class ProjectManifestMapperTests: TuistUnitTestCase {

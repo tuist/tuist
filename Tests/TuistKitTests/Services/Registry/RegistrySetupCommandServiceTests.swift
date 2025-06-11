@@ -1,11 +1,11 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import Testing
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistTesting
 
 @testable import TuistKit
 
@@ -44,7 +44,7 @@ struct RegistrySetupCommandServiceTests {
     }
 
     @Test func test_setup_when_a_package_manifest_is_found() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)
@@ -64,37 +64,38 @@ struct RegistrySetupCommandServiceTests {
                 try await subject.run(path: temporaryPath.pathString)
 
                 // Then
-                let configurationPath = temporaryPath.appending(components: ".swiftpm", "configuration", "registries.json")
+                let configurationPath = temporaryPath.appending(
+                    components: ".swiftpm", "configuration", "registries.json"
+                )
                 let exists = try await fileSystem.exists(configurationPath)
                 #expect(exists)
                 let fileContents = try await fileSystem.readTextFile(at: configurationPath)
                 #expect(
-                    fileContents ==
-                        """
-                        {
-                          "security": {
-                            "default": {
-                              "signing": {
-                                "onUnsigned": "silentAllow"
-                              }
-                            }
-                          },
-                          "authentication": {
-                            "test.tuist.io": {
-                              "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
-                              "type": "token"
-                            }
-                          },
-                          "registries": {
-                            "[default]": {
-                              "supportsAvailability": false,
-                              "url": "\(URL.test())/api/accounts/tuist/registry/swift"
-                            }
-                          },
-                          "version": 1
+                    fileContents == """
+                    {
+                      "security": {
+                        "default": {
+                          "signing": {
+                            "onUnsigned": "silentAllow"
+                          }
                         }
+                      },
+                      "authentication": {
+                        "test.tuist.io": {
+                          "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
+                          "type": "token"
+                        }
+                      },
+                      "registries": {
+                        "[default]": {
+                          "supportsAvailability": false,
+                          "url": "\(URL.test())/api/accounts/tuist/registry/swift"
+                        }
+                      },
+                      "version": 1
+                    }
 
-                        """
+                    """
                 )
                 verify(createAccountTokenService)
                     .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
@@ -110,7 +111,7 @@ struct RegistrySetupCommandServiceTests {
     }
 
     @Test func test_setup_when_an_xcode_project_is_found() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)
@@ -125,38 +126,41 @@ struct RegistrySetupCommandServiceTests {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
-                try await fileSystem.makeDirectory(at: temporaryPath.appending(component: "Tuist.xcodeproj"))
+                try await fileSystem.makeDirectory(
+                    at: temporaryPath.appending(component: "Tuist.xcodeproj")
+                )
 
                 // When
                 try await subject.run(path: temporaryPath.pathString)
 
                 // Then
-                let exists = try await fileSystem.exists(temporaryPath.appending(
-                    components: "Tuist.xcodeproj",
-                    "project.xcworkspace",
-                    "xcshareddata",
-                    "swiftpm",
-                    "configuration",
-                    "registries.json"
-                ))
+                let exists = try await fileSystem.exists(
+                    temporaryPath.appending(
+                        components: "Tuist.xcodeproj",
+                        "project.xcworkspace",
+                        "xcshareddata",
+                        "swiftpm",
+                        "configuration",
+                        "registries.json"
+                    )
+                )
                 #expect(exists)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(1)
-                #expect(ServiceContext.current?.recordedUI().contains("Logged in to the tuist registry") == true)
+                #expect(ui().contains("Logged in to the tuist registry") == true)
                 #expect(
-                    ServiceContext.current?.recordedUI()
+                    ui()
                         .contains(
                             "Generated the tuist registry configuration file at Tuist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json"
-                        ) ==
-                        true
+                        ) == true
                 )
             }
         }
     }
 
     @Test func test_setup_when_an_xcode_workspace_is_found() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
                 given(configLoader)
@@ -171,19 +175,23 @@ struct RegistrySetupCommandServiceTests {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
-                try await fileSystem.makeDirectory(at: temporaryPath.appending(component: "Tuist.xcworkspace"))
+                try await fileSystem.makeDirectory(
+                    at: temporaryPath.appending(component: "Tuist.xcworkspace")
+                )
 
                 // When
                 try await subject.run(path: temporaryPath.pathString)
 
                 // Then
-                let exists = try await fileSystem.exists(temporaryPath.appending(
-                    components: "Tuist.xcworkspace",
-                    "xcshareddata",
-                    "swiftpm",
-                    "configuration",
-                    "registries.json"
-                ))
+                let exists = try await fileSystem.exists(
+                    temporaryPath.appending(
+                        components: "Tuist.xcworkspace",
+                        "xcshareddata",
+                        "swiftpm",
+                        "configuration",
+                        "registries.json"
+                    )
+                )
                 #expect(exists)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)

@@ -1,6 +1,5 @@
 import FileSystem
 import Path
-import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -95,7 +94,7 @@ public final class TargetBuilder: TargetBuilding {
         graphTraverser: GraphTraversing,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        ServiceContext.current?.logger?.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
+        Logger.current.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,
@@ -146,7 +145,7 @@ public final class TargetBuilder: TargetBuilding {
         platform: XcodeGraph.Platform,
         configuration: String
     ) async throws {
-        let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(
+        let xcodeSchemeBuildPath = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: .simulator(platform),
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
@@ -160,7 +159,7 @@ public final class TargetBuilder: TargetBuilding {
         if try await !fileSystem.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
-        ServiceContext.current?.logger?.log(
+        Logger.current.log(
             level: .notice,
             "Copying build products to \(buildOutputPath.pathString)",
             metadata: .subsection
@@ -176,3 +175,55 @@ public final class TargetBuilder: TargetBuilding {
         }
     }
 }
+
+#if DEBUG
+    public final class MockTargetBuilder: TargetBuilding {
+        public init() {}
+
+        public var buildTargetStub: ((
+            GraphTarget,
+            AbsolutePath,
+            Scheme,
+            Bool,
+            String?,
+            AbsolutePath?,
+            AbsolutePath?,
+            String?,
+            XcodeGraph.Version?,
+            Bool,
+            GraphTraversing,
+            [String]
+        ) throws -> Void)?
+
+        public func buildTarget(
+            _ target: GraphTarget,
+            platform _: XcodeGraph.Platform,
+            workspacePath: AbsolutePath,
+            scheme: Scheme,
+            clean: Bool,
+            configuration: String?,
+            buildOutputPath: AbsolutePath?,
+            derivedDataPath: AbsolutePath?,
+            device: String?,
+            osVersion: XcodeGraph.Version?,
+            rosetta: Bool,
+            graphTraverser: GraphTraversing,
+            passthroughXcodeBuildArguments: [String]
+        ) throws {
+            try buildTargetStub?(
+                target,
+                workspacePath,
+                scheme,
+                clean,
+                configuration,
+                buildOutputPath,
+                derivedDataPath,
+                device,
+                osVersion,
+                rosetta,
+                graphTraverser,
+                passthroughXcodeBuildArguments
+            )
+        }
+    }
+#endif

@@ -1,24 +1,51 @@
+import FileSystem
 import Path
-import ServiceContextModule
+import Testing
 import TuistAcceptanceTesting
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XcodeProj
 import XCTest
 
-final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
-    func test_app_with_framework_and_tests() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
-        try await run(GenerateCommand.self)
-        try XCTAssertFrameworkNotEmbedded("Framework", by: "AppExtension")
-    }
-}
+struct GeneratorAcceptanceTests {
+    @Test(.withFixture("app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
 
-final class GenerateAcceptanceTestAppWithExponeaSDK: TuistAcceptanceTestCase {
-    func test_app_with_exponea_sdk() async throws {
-        try await setUpFixture(.appWithExponeaSDK)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then
+        try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
+    }
+
+    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger()) func test_app_with_exponea_sdk() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+    }
+
+    @Test(
+        .withFixture("framework_with_environment_variables"),
+        .withMockedLogger(),
+        .withMockedEnvironment()
+    ) func framework_with_environment_variables() async throws {
+        // Given
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["FrameworkA", "--path", fixtureDirectory.pathString])
+
+        mockEnvironment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["FrameworkB", "--path", fixtureDirectory.pathString])
     }
 }
 
@@ -421,7 +448,7 @@ final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.iosAppWithIncompatibleXcode)
             do {
                 try await run(GenerateCommand.self)
@@ -644,18 +671,6 @@ final class GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptan
     }
 }
 
-final class GenerateAcceptanceTestFrameworkWithEnvironmentVariables: TuistAcceptanceTestCase {
-    func test_framework_with_environment_variables() async throws {
-        try await setUpFixture(.frameworkWithEnvironmentVariables)
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "FrameworkA")
-        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "FrameworkB")
-    }
-}
-
 final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
     func test_ios_app_with_coredata() async throws {
         try await setUpFixture(.iosAppWithCoreData)
@@ -778,7 +793,7 @@ final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase
 
 final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     func test_manifest_with_logs() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.manifestWithLogs)
             try await run(GenerateCommand.self)
             XCTAssertStandardOutput(pattern: "Target name - App")
@@ -1007,6 +1022,22 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     func test_app_with_custom_default_configuration() async throws {
         try await setUpFixture(.appWithCustomDefaultConfiguration)
         try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithDefaultConfigurationSettings: TuistAcceptanceTestCase {
+    func test_app_with_custom_default_configuration_settings() async throws {
+        try await setUpFixture(.appWithCustomDefaultConfigurationSettings)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+
+        let project = try XCTUnwrap(xcodeproj.pbxproj.projects.first)
+        XCTAssertEqual(project.buildConfigurationList.defaultConfigurationName, "CustomDebug")
+
         try await run(BuildCommand.self)
     }
 }
@@ -1283,7 +1314,7 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 
     func test_app_with_mismatching_signed_xcframework_dependencies() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await setUpFixture(.appWithSignedXCFrameworkDependenciesMismatchingSignature)
             do {
                 try await run(GenerateCommand.self)
@@ -1301,7 +1332,37 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
-// frameworkWithMacroAndPluginPackages
+struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
+    @Test(
+        .withFixture("ios_app_with_sandbox_disabled")
+    )
+    func test_sandbox_disabled() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(BuildCommand.self, ["App", "--path", fixtureDirectory.pathString])
+    }
+
+    @Test(
+        .withFixture("ios_app_with_sandbox_disabled"),
+        .withMockedEnvironment()
+    )
+    func test_sandbox_enabled_fails() async throws {
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.manifestLoadingVariables["TUIST_DISABLE_SANDBOX"] = "NO"
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        do {
+            try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+            Issue.record("Generate should have failed with crash")
+        } catch {
+            #expect(
+                String(describing: error)
+                    .contains("The file “hosts” couldn’t be opened because you don’t have permission to view it.")
+            )
+        }
+    }
+}
 
 extension TuistAcceptanceTestCase {
     private func resourcePath(

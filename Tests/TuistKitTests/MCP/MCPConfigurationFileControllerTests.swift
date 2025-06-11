@@ -1,10 +1,9 @@
 import FileSystem
 import Foundation
 import Mockable
-import ServiceContextModule
 import SwiftyJSON
 import Testing
-import TuistSupportTesting
+import TuistTesting
 
 @testable import TuistKit
 
@@ -18,7 +17,7 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test func update_createsTheFile_when_itDoesntExist() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp"]))
@@ -36,7 +35,7 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test func update_modifiesAnExistingConfiguration_when_itExists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp"]))
@@ -57,7 +56,7 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test func update_overridesAnExistingTuistServerConfiguration_when_itExists() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
                 given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp"]))

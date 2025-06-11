@@ -5,7 +5,7 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistSupport
-@testable import TuistSupportTesting
+@testable import TuistTesting
 
 final class GraphDependencyReferenceTests: TuistUnitTestCase {
     func test_compare() {
@@ -124,7 +124,8 @@ private enum KnownGraphDependencyReference: CaseIterable {
 }
 
 extension GraphDependencyReference {
-    // This is added to enforce keeping `KnownGraphDependencyReference` and `GraphDependencyReference` in sync
+    // This is added to enforce keeping `KnownGraphDependencyReference` and `GraphDependencyReference` in sync.
+
     private var correspondingKnownType: KnownGraphDependencyReference {
         switch self {
         case .xcframework:

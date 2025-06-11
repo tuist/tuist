@@ -45,12 +45,12 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) async throws -> XCConfigurationList {
-        /// Configuration list
+        // Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: project.settings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
 
@@ -82,7 +82,7 @@ final class ConfigGenerator: ConfigGenerating {
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
             buildConfigurations: [],
-            defaultConfigurationName: defaultConfiguration?.name
+            defaultConfigurationName: projectSettings.defaultConfiguration ?? defaultConfiguration?.name
         )
         pbxproj.add(object: configurationList)
         pbxTarget.buildConfigurationList = configurationList
@@ -238,12 +238,16 @@ final class ConfigGenerator: ConfigGenerating {
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
-            let relativePath = path.relative(to: sourceRootPath).pathString
-            if project.xcodeProjPath.parentDirectory == sourceRootPath {
-                settings["INFOPLIST_FILE"] = .string(relativePath)
-            } else {
-                settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+        if let infoPlist = target.infoPlist {
+            if let path = infoPlist.path {
+                let relativePath = path.relative(to: sourceRootPath).pathString
+                if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                    settings["INFOPLIST_FILE"] = .string(relativePath)
+                } else {
+                    settings["INFOPLIST_FILE"] = .string("$(SRCROOT)/\(relativePath)")
+                }
+            } else if case let .variable(configName, configuration: _) = infoPlist {
+                settings["INFOPLIST_FILE"] = .string(configName)
             }
         }
 

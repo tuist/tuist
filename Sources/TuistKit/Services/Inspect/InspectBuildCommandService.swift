@@ -1,12 +1,12 @@
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 
 enum InspectBuildCommandServiceError: Equatable, LocalizedError {
     case projectNotFound(AbsolutePath)
@@ -19,20 +19,20 @@ enum InspectBuildCommandServiceError: Equatable, LocalizedError {
         case let .projectNotFound(path):
             return "No Xcode project found at \(path.pathString). Make sure it exists."
         case .missingFullHandle:
-            return "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
+            return
+                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
         case .executablePathMissing:
             return "We couldn't find tuist's executable path to run inspect build in a background."
         case let .mostRecentActivityLogNotFound(projectPath):
-            return "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
+            return
+                "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
         }
     }
 }
 
 struct InspectBuildCommandService {
-    private let environment: Environmenting
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
-    private let ciChecker: CIChecking
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let xcodeBuildController: XcodeBuildControlling
     private let createBuildService: CreateBuildServicing
@@ -41,12 +41,11 @@ struct InspectBuildCommandService {
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let dateService: DateServicing
     private let serverURLService: ServerURLServicing
+    private let gitController: GitControlling
 
     init(
-        environment: Environmenting = Environment.shared,
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         fileSystem: FileSysteming = FileSystem(),
-        ciChecker: CIChecking = CIChecker(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         createBuildService: CreateBuildServicing = CreateBuildService(),
@@ -54,12 +53,11 @@ struct InspectBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
-        serverURLService: ServerURLServicing = ServerURLService()
+        serverURLService: ServerURLServicing = ServerURLService(),
+        gitController: GitControlling = GitController()
     ) {
-        self.environment = environment
         self.derivedDataLocator = derivedDataLocator
         self.fileSystem = fileSystem
-        self.ciChecker = ciChecker
         self.machineEnvironment = machineEnvironment
         self.xcodeBuildController = xcodeBuildController
         self.createBuildService = createBuildService
@@ -68,18 +66,22 @@ struct InspectBuildCommandService {
         self.backgroundProcessRunner = backgroundProcessRunner
         self.dateService = dateService
         self.serverURLService = serverURLService
+        self.gitController = gitController
     }
 
     func run(
-        path: String?
+        path: String?,
+        projectDerivedDataPath: String? = nil
     ) async throws {
         let referenceDate = dateService.now()
-        guard let executablePath = Bundle.main.executablePath else { throw InspectBuildCommandServiceError.executablePathMissing }
+        guard let executablePath = Bundle.main.executablePath else {
+            throw InspectBuildCommandServiceError.executablePathMissing
+        }
 
-        if environment.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
-           environment.workspacePath != nil
+        if Environment.current.variables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
+           Environment.current.workspacePath != nil
         {
-            var environment = ProcessInfo.processInfo.environment
+            var environment = Environment.current.variables
             environment["TUIST_INSPECT_BUILD_WAIT"] = "YES"
             // We don't want to prolongue the build action for analytics reasons.
             // Additionally, the `.xcactivitylog` might not be immediately available.
@@ -94,14 +96,24 @@ struct InspectBuildCommandService {
             return
         }
         let projectPath = try await projectPath(path)
-        let projectDerivedDataDirectory = try derivedDataLocator.locate(for: projectPath)
-        guard let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogPath(
-            projectDerivedDataDirectory: projectDerivedDataDirectory,
-            after: referenceDate
-        ) else {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        var projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try AbsolutePath(
+            validating: $0,
+            relativeTo: currentWorkingDirectory
+        ) }
+        if projectDerivedDataDirectory == nil {
+            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+        }
+
+        guard let mostRecentActivityLogPath =
+            try await xcActivityLogController.mostRecentActivityLogPath(
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                after: referenceDate
+            )
+        else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try xcActivityLogController.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
@@ -112,47 +124,59 @@ struct InspectBuildCommandService {
         for xcactivityLog: XCActivityLog,
         projectPath: AbsolutePath
     ) async throws {
-        let config = try await configLoader
-            .loadConfig(path: projectPath)
+        let config =
+            try await configLoader
+                .loadConfig(path: projectPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        guard let fullHandle = config.fullHandle else { throw InspectBuildCommandServiceError.missingFullHandle }
-        try await createBuildService.createBuild(
+        guard let fullHandle = config.fullHandle else {
+            throw InspectBuildCommandServiceError.missingFullHandle
+        }
+
+        let gitInfo = gitController.gitInfo(workingDirectory: projectPath)
+        let gitCommitSHA = gitInfo.sha
+        let gitBranch = gitInfo.branch
+        let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
-            duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000) -
-                Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
-            isCI: ciChecker.isCI(),
+            category: xcactivityLog.category,
+            duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
+                - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
+            files: xcactivityLog.files,
+            gitBranch: gitBranch,
+            gitCommitSHA: gitCommitSHA,
+            isCI: Environment.current.isCI,
+            issues: xcactivityLog.issues,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
-            scheme: environment.schemeName,
+            scheme: Environment.current.schemeName,
+            targets: xcactivityLog.targets,
             xcodeVersion: try await xcodeBuildController.version()?.description,
             status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure
         )
-        ServiceContext.current?.ui?.success(
-            .alert(
-                "Uploaded a build to the server."
-            )
+        AlertController.current.success(
+            .alert("View the analyzed build at \(build.url.absoluteString)")
         )
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
-        if let workspacePath = environment.workspacePath {
+        if let workspacePath = Environment.current.workspacePath {
             if workspacePath.parentDirectory.extension == "xcodeproj" {
                 return workspacePath.parentDirectory
             } else {
                 return workspacePath
             }
         } else {
-            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
-            let basePath = if let path {
-                try AbsolutePath(
-                    validating: path,
-                    relativeTo: currentWorkingDirectory
-                )
-            } else {
-                currentWorkingDirectory
-            }
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let basePath =
+                if let path {
+                    try AbsolutePath(
+                        validating: path,
+                        relativeTo: currentWorkingDirectory
+                    )
+                } else {
+                    currentWorkingDirectory
+                }
             if let workspacePath = try await fileSystem.glob(
                 directory: basePath,
                 include: ["*.xcworkspace"]

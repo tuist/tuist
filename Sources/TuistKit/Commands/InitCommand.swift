@@ -2,7 +2,7 @@ import ArgumentParser
 import FileSystem
 import Foundation
 import Path
-import ServiceContextModule
+import TuistSupport
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     public static var configuration: CommandConfiguration {
@@ -31,16 +31,10 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
 
     public func run() async throws {
-        try await InitCommandService().run(from: try await directory(), answers: answers())
-    }
-
-    private func directory() async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await FileSystem().currentWorkingDirectory()
-        if let pathString = path {
-            return try AbsolutePath(validating: pathString, relativeTo: currentWorkingDirectory)
-        } else {
-            return currentWorkingDirectory
-        }
+        try await InitCommandService().run(
+            from: try await Environment.current.pathRelativeToWorkingDirectory(path),
+            answers: answers()
+        )
     }
 
     private func answers() async throws -> InitPromptAnswers? {

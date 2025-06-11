@@ -1,5 +1,4 @@
 import Foundation
-import ServiceContextModule
 import TuistSupport
 
 public struct LintingError: FatalError, Equatable {
@@ -43,7 +42,7 @@ extension [LintingIssue] {
         let errorIssues = filter { $0.severity == .error }
 
         for issue in errorIssues {
-            ServiceContext.current?.logger?.error("\(issue.description)")
+            Logger.current.error("\(issue.description)")
         }
 
         if !errorIssues.isEmpty { throw LintingError() }
@@ -54,7 +53,7 @@ extension [LintingIssue] {
 
         let warningIssues = filter { $0.severity == .warning }
         for issue in warningIssues {
-            ServiceContext.current?.alerts?.warning(.alert("\(issue.description)"))
+            AlertController.current.warning(.alert("\(issue.description)"))
         }
     }
 }

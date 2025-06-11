@@ -1816,6 +1816,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "bahattinkoc",
+      "name": "baaddin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/61124759?v=4",
+      "profile": "https://github.com/bahattinkoc",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "mattjung",
+      "name": "Matt Jung",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19891158?v=4",
+      "profile": "https://github.com/mattjung",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "ImaginativeShohag",
+      "name": "Md. Mahmudul Hasan Shohag",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1952630?v=4",
+      "profile": "https://imaginativeworld.org",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "MatyasKriz",
+      "name": "Matty Cross",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6033733?v=4",
+      "profile": "http://ma.tyas.cz",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
