@@ -15,6 +15,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Authentication
 
@@ -434,6 +435,86 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, :remote]
+    end
+
+    test "returns newly created command event with build_run_id", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      {:ok, build_run} = RunsFixtures.build_fixture(project_id: project.id, user_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "build",
+            subcommand: "build",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            build_run_id: build_run.id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      command_event = response["id"] |> CommandEvents.get_command_event_by_id() |> Repo.preload(:build_run)
+
+      assert response == %{
+               "name" => "build",
+               "id" => response["id"],
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+             }
+
+      assert command_event.build_run.id == build_run.id
+      command_event_with_build_run = Repo.preload(command_event, :build_run)
+      assert command_event_with_build_run.build_run.id == build_run.id
+    end
+
+    test "returns command event URL with runs route when build_run_id is not provided", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "build",
+            subcommand: "build",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
     end
   end
 

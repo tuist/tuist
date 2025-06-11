@@ -44,7 +44,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         git_ref: Keyword.get(attrs, :git_ref),
         git_branch: Keyword.get(attrs, :git_branch),
         created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
-        ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now())
+        ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now()),
+        build_run_id: Keyword.get(attrs, :build_run_id)
       },
       preload: Keyword.get(attrs, :preload, [])
     )

@@ -10,6 +10,7 @@ defmodule Tuist.CommandEvents.Event do
   alias Tuist.Accounts.User
   alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
+  alias Tuist.Runs.Build
 
   @derive {
     Flop.Schema,
@@ -62,6 +63,7 @@ defmodule Tuist.CommandEvents.Event do
     belongs_to :preview, Preview, type: UUIDv7
     belongs_to :project, Project
     belongs_to :user, User
+    belongs_to :build_run, Build, type: UUIDv7
 
     has_one :xcode_graph, Tuist.Xcode.XcodeGraph, foreign_key: :command_event_id
 
@@ -104,7 +106,8 @@ defmodule Tuist.CommandEvents.Event do
         :git_commit_sha,
         :git_ref,
         :git_branch,
-        :ran_at
+        :ran_at,
+        :build_run_id
       ])
 
     is_ci = get_field(changeset, :is_ci)

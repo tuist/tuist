@@ -226,7 +226,8 @@ for _event <- 1..8000 do
           Enum.random(0..999_999)
         )
       ),
-    ran_at: ran_at
+    ran_at: ran_at,
+    build_run_id: nil
   })
 end
 

@@ -56,3 +56,4 @@ uuid
 
 # Local development
 .opencode/
+.claude/

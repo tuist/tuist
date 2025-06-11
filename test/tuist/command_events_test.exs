@@ -77,7 +77,8 @@ defmodule Tuist.CommandEventsTest do
           git_commit_sha: nil,
           git_branch: nil,
           error_message: nil,
-          ran_at: ~U[2024-03-04 01:00:00Z]
+          ran_at: ~U[2024-03-04 01:00:00Z],
+          build_run_id: nil
         })
 
       # Then

@@ -7,6 +7,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Runs
   alias TuistWeb.Errors.NotFoundError
@@ -24,7 +25,10 @@ defmodule TuistWeb.BuildRunLive do
 
     slug = Projects.get_project_slug_from_id(project.id)
 
-    run = run |> Tuist.Repo.preload([:project, :ran_by_account]) |> Tuist.ClickHouseRepo.preload([:issues])
+    run =
+      run
+      |> Tuist.Repo.preload([:project, :ran_by_account, :command_event])
+      |> Tuist.ClickHouseRepo.preload([:issues])
 
     if run.project.id != project.id do
       raise NotFoundError, gettext("Build not found.")
@@ -46,6 +50,9 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:file_breakdown_active_filters, [])
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
+      |> assign_async(:has_result_bundle, fn ->
+        {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run.command_event)}}
+      end)
 
     {:ok, socket}
   end

@@ -100,7 +100,7 @@
             }
           }
 
-          & > [data-part="command"] {
+          & > [data-part="command-label"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
           }

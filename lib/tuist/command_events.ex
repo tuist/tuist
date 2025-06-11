@@ -416,7 +416,8 @@ defmodule Tuist.CommandEvents do
           git_commit_sha: git_commit_sha,
           git_ref: git_ref,
           git_branch: git_branch,
-          ran_at: ran_at
+          ran_at: ran_at,
+          build_run_id: build_run_id
         } = event,
         opts \\ []
       ) do
@@ -449,7 +450,8 @@ defmodule Tuist.CommandEvents do
         git_branch: git_branch,
         git_ref: git_ref,
         created_at: Map.get(event, :created_at, Time.utc_now()),
-        ran_at: ran_at
+        ran_at: ran_at,
+        build_run_id: build_run_id
       })
       |> Repo.insert!()
       |> Repo.preload(Keyword.get(opts, :preload, []))

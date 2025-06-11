@@ -166,6 +166,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The preview identifier."
            },
+           build_run_id: %Schema{
+             type: :string,
+             description: "The build run identifier."
+           },
            xcode_graph: %Schema{
              type: :object,
              description: "The schema for the Xcode graph.",
@@ -272,6 +276,7 @@ defmodule TuistWeb.API.AnalyticsController do
     git_ref = Map.get(body_params, :git_ref)
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
+    build_run_id = Map.get(body_params, :build_run_id)
 
     cache_metadata = cache_metadata(body_params)
     selective_testing_metadata = selective_testing_metadata(body_params)
@@ -302,7 +307,8 @@ defmodule TuistWeb.API.AnalyticsController do
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
-        ran_at: date(body_params)
+        ran_at: date(body_params),
+        build_run_id: build_run_id
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)
@@ -323,13 +329,22 @@ defmodule TuistWeb.API.AnalyticsController do
       bundle_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/bundles/#{&1.bundle.id}")
     })
 
+    url =
+      if is_nil(build_run_id) do
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
+      else
+        url(
+          ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
+        )
+      end
+
     conn
     |> put_status(:ok)
     |> json(%{
       id: command_event.id,
       project_id: command_event.project_id,
       name: command_event.name,
-      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
+      url: url
     })
   end
 
