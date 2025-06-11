@@ -106,7 +106,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
   - `Client ID`를 복사하고 `TUIST_GITHUB_APP_CLIENT_ID`로 설정합니다.
   - 새로운 `client secret`을 생성하고 복사한 다음에 `TUIST_GITHUB_APP_CLIENT_SECRET`로 설정합니다.
   - `Callback URL`을 `http://YOUR_APP_URL/users/auth/github/callback`으로 설정합니다. `YOUR_APP_URL`은 서버의 IP 주소도 사용할 수 있습니다.
-- The following permissions are required:
+- 다음의 권한을 요구합니다:
   - Repositories:
     - Pull requests: Read and write
   - Accounts:
