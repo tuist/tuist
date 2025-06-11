@@ -51,7 +51,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
       |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run.command_event)}}
+        {:ok, %{has_result_bundle: (run.command_event && CommandEvents.has_result_bundle?(run.command_event)) || false}}
       end)
 
     {:ok, socket}
