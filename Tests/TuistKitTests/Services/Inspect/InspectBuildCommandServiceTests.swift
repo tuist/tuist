@@ -120,19 +120,6 @@ struct InspectBuildCommandServiceTests {
             components: "\(UUID().uuidString).xcactivitylog"
         )
 
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeAsPlist(
-            XCLogStoreManifestPlist(
-                logs: [
-                    "id": XCLogStoreManifestPlist.ActivityLog(
-                        fileName: "id.xcactivitylog",
-                        timeStartedRecording: 10,
-                        timeStoppedRecording: 20
-                    ),
-                ]
-            ),
-            at: buildLogsPath.appending(component: "LogStoreManifest.plist")
-        )
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(
@@ -154,7 +141,12 @@ struct InspectBuildCommandServiceTests {
             )
         given(xcActivityLogController).mostRecentActivityLogFile(
             projectDerivedDataDirectory: .value(derivedDataPath)
-        ).willReturn(.test(path: activityLogPath))
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
 
         gitController.reset()
         given(gitController)
