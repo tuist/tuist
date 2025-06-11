@@ -105,19 +105,43 @@ struct InspectBuildCommandService {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
 
-        guard let mostRecentActivityLogPath =
-            try await xcActivityLogController.mostRecentActivityLogPath(
-                projectDerivedDataDirectory: projectDerivedDataDirectory,
-                after: referenceDate
-            )
-        else {
-            throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
-        }
+        let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
+            projectPath: projectPath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            referenceDate: referenceDate
+        )
         let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
         )
+    }
+
+    private func mostRecentActivityLogPath(
+        projectPath: AbsolutePath,
+        projectDerivedDataDirectory: AbsolutePath,
+        referenceDate: Date
+    ) async throws -> AbsolutePath {
+        var mostRecentActivityLogPath: AbsolutePath!
+        try await withTimeout(
+            .seconds(1),
+            onTimeout: {
+                throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
+            }
+        ) {
+            while true {
+                mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogPath(
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    after: referenceDate
+                )
+                if mostRecentActivityLogPath != nil {
+                    return
+                }
+
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+        return mostRecentActivityLogPath
     }
 
     private func createBuild(
