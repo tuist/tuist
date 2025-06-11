@@ -10,8 +10,8 @@ import struct TSCBasic.RegEx
 
 @Mockable
 public protocol XCActivityLogControlling {
-    func mostRecentActivityLogPath(projectDerivedDataDirectory: AbsolutePath, after: Date)
-        async throws -> AbsolutePath?
+    func mostRecentActivityLogFile(projectDerivedDataDirectory: AbsolutePath)
+        async throws -> XCActivityLogFile?
     func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [
         String: Double
     ]
@@ -94,8 +94,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
-    public func mostRecentActivityLogPath(projectDerivedDataDirectory: AbsolutePath, after: Date)
-        async throws -> AbsolutePath?
+    public func mostRecentActivityLogFile(projectDerivedDataDirectory: AbsolutePath)
+        async throws -> XCActivityLogFile?
     {
         let logsBuildDirectoryPath = projectDerivedDataDirectory.appending(
             components: "Logs", "Build"
@@ -110,17 +110,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         guard let latestLog = plist.logs.values.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
-        }).first,
-            environment
-            .workspacePath == nil
-            || (
-                after.timeIntervalSinceReferenceDate - 10 ..< after.timeIntervalSinceReferenceDate
-                    + 10
-            ) ~= latestLog.timeStoppedRecording
+        }).first
         else {
             return nil
         }
-        return logsBuildDirectoryPath.appending(component: latestLog.fileName)
+        return XCActivityLogFile(
+            path: logsBuildDirectoryPath.appending(component: latestLog.fileName),
+            timeStoppedRecording: Date(timeIntervalSinceReferenceDate: latestLog.timeStoppedRecording)
+        )
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {

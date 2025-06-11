@@ -105,15 +105,18 @@ struct InspectBuildCommandService {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
 
-        guard let mostRecentActivityLogPath =
-            try await xcActivityLogController.mostRecentActivityLogPath(
-                projectDerivedDataDirectory: projectDerivedDataDirectory,
-                after: referenceDate
-            )
+        guard let mostRecentActivityLogFile =
+            try await xcActivityLogController.mostRecentActivityLogFile(
+                projectDerivedDataDirectory: projectDerivedDataDirectory
+            ),
+            Environment.current.workspacePath == nil || (
+                referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                    + 10
+            ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
         else {
             throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
         }
-        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogFile.path)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath

@@ -4169,6 +4169,10 @@ internal enum Operations {
             internal enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json`.
                 internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build run identifier.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/build_run_id`.
+                    internal var build_run_id: Swift.String?
                     /// The client id of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/client_id`.
@@ -4499,6 +4503,7 @@ internal enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - build_run_id: The build run identifier.
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
@@ -4519,6 +4524,7 @@ internal enum Operations {
                     ///   - tuist_version: The version of Tuist that ran the command.
                     ///   - xcode_graph: The schema for the Xcode graph.
                     internal init(
+                        build_run_id: Swift.String? = nil,
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Int,
@@ -4539,6 +4545,7 @@ internal enum Operations {
                         tuist_version: Swift.String,
                         xcode_graph: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload? = nil
                     ) {
+                        self.build_run_id = build_run_id
                         self.client_id = client_id
                         self.command_arguments = command_arguments
                         self.duration = duration
@@ -4560,6 +4567,7 @@ internal enum Operations {
                         self.xcode_graph = xcode_graph
                     }
                     internal enum CodingKeys: String, CodingKey {
+                        case build_run_id
                         case client_id
                         case command_arguments
                         case duration

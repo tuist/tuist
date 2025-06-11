@@ -855,7 +855,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
         let parsedArguments =
-            xcodeBuildAgumentParser
+            try await xcodeBuildAgumentParser
                 .parse(arguments)
         if let destination = parsedArguments.destination {
             if let id = destination.id {

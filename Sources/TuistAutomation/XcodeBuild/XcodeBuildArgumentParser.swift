@@ -1,45 +1,18 @@
 import Foundation
 import Mockable
+import Path
+import TuistSupport
 import XcodeGraph
-
-public struct XcodeBuildArguments: Equatable {
-    public struct Destination: Equatable {
-        public let name: String?
-        public let platform: String?
-        public let id: String?
-        public let os: Version?
-
-        public init(
-            name: String?,
-            platform: String?,
-            id: String?,
-            os: Version?
-        ) {
-            self.name = name
-            self.platform = platform
-            self.id = id
-            self.os = os
-        }
-    }
-
-    public let destination: Destination?
-
-    public init(
-        destination: Destination?
-    ) {
-        self.destination = destination
-    }
-}
 
 @Mockable
 public protocol XcodeBuildArgumentParsing {
-    func parse(_ arguments: [String]) -> XcodeBuildArguments
+    func parse(_ arguments: [String]) async throws -> XcodeBuildArguments
 }
 
 public struct XcodeBuildArgumentParser: XcodeBuildArgumentParsing {
     public init() {}
 
-    public func parse(_ arguments: [String]) -> XcodeBuildArguments {
+    public func parse(_ arguments: [String]) async throws -> XcodeBuildArguments {
         let destination: XcodeBuildArguments.Destination?
         if let destinationValue = passedValue(for: "-destination", arguments: arguments) {
             let os: Version?
@@ -58,8 +31,16 @@ public struct XcodeBuildArgumentParser: XcodeBuildArgumentParsing {
             destination = nil
         }
 
-        return XcodeBuildArguments(
-            destination: destination
+        let currentDirectory = try await Environment.current.currentWorkingDirectory()
+
+        return try XcodeBuildArguments(
+            derivedDataPath: passedValue(for: "-derivedDataPath", arguments: arguments)
+                .map { try AbsolutePath(validating: $0, relativeTo: currentDirectory) },
+            destination: destination,
+            projectPath: passedValue(for: "-project", arguments: arguments)
+                .map { try AbsolutePath(validating: $0, relativeTo: currentDirectory) },
+            workspacePath: passedValue(for: "-workspace", arguments: arguments)
+                .map { try AbsolutePath(validating: $0, relativeTo: currentDirectory) }
         )
     }
 

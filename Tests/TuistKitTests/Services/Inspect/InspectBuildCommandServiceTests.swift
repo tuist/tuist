@@ -152,10 +152,9 @@ struct InspectBuildCommandServiceTests {
                     ]
                 )
             )
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(.test(path: activityLogPath))
 
         gitController.reset()
         given(gitController)
@@ -243,10 +242,9 @@ struct InspectBuildCommandServiceTests {
             ),
             at: buildLogsPath.appending(component: "LogStoreManifest.plist")
         )
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(.test(path: activityLogPath))
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(.test())
@@ -295,10 +293,9 @@ struct InspectBuildCommandServiceTests {
             given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(activityLogPath)
+            given(xcActivityLogController).mostRecentActivityLogFile(
+                projectDerivedDataDirectory: .value(derivedDataPath)
+            ).willReturn(.test(path: activityLogPath))
 
             given(gitController)
                 .gitInfo(workingDirectory: .any)
@@ -343,9 +340,8 @@ struct InspectBuildCommandServiceTests {
         given(derivedDataLocator)
             .locate(for: .any)
             .willReturn(derivedDataPath)
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
         ).willReturn(nil)
 
         given(gitController)
@@ -393,10 +389,9 @@ struct InspectBuildCommandServiceTests {
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(.test())
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(.test(path: activityLogPath))
         configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)

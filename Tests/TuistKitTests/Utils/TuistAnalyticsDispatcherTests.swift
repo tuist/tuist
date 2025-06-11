@@ -96,7 +96,8 @@ struct TuistAnalyticsDispatcherTests {
             graph: nil,
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: Date()
+            ranAt: Date(),
+            buildRunId: nil
         )
     }
 

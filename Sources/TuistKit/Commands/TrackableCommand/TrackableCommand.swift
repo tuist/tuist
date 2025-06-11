@@ -24,6 +24,7 @@ public struct TrackableCommandInfo {
     let previewId: String?
     let resultBundlePath: AbsolutePath?
     let ranAt: Date
+    let buildRunId: String?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -124,7 +125,8 @@ public class TrackableCommand {
             selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
             previewId: runMetadataStorage.previewId,
             resultBundlePath: runMetadataStorage.resultBundlePath,
-            ranAt: Date()
+            ranAt: Date(),
+            buildRunId: runMetadataStorage.buildRunId
         )
         let commandEvent = try commandEventFactory.make(
             from: info,

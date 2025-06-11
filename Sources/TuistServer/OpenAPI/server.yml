@@ -1939,6 +1939,11 @@ paths:
           application/json:
             schema:
               properties:
+                build_run_id:
+                  description: The build run identifier.
+                  type: string
+                  x-struct:
+                  x-validate:
                 client_id:
                   description: The client id of the command.
                   type: string

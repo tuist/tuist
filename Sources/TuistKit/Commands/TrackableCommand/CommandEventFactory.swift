@@ -64,7 +64,8 @@ public final class CommandEventFactory {
             graph: graph,
             previewId: info.previewId,
             resultBundlePath: info.resultBundlePath,
-            ranAt: info.ranAt
+            ranAt: info.ranAt,
+            buildRunId: info.buildRunId
         )
         return commandEvent
     }
