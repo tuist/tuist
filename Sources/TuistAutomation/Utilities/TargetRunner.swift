@@ -1,4 +1,5 @@
 import FileSystem
+import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistCore
@@ -34,21 +35,12 @@ public protocol TargetRunning {
     func assertCanRunTarget(_ target: Target) throws
 }
 
-public enum TargetRunnerError: Equatable, FatalError {
+public enum TargetRunnerError: LocalizedError, Equatable {
     case runnableNotFound(path: String)
     case runningNotSupported(target: Target)
     case targetNotRunnableOnPlatform(target: Target, platform: Platform)
 
-    public var type: ErrorType {
-        switch self {
-        case .runningNotSupported, .targetNotRunnableOnPlatform:
-            return .abort
-        case .runnableNotFound:
-            return .bug
-        }
-    }
-
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .runningNotSupported(target):
             return "Product type \(target.product.caseValue) of \(target.name) is not runnable"

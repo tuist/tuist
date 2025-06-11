@@ -143,7 +143,13 @@ func schemes() -> [Scheme] {
         .scheme(
             name: $0,
             hidden: true,
-            buildAction: .buildAction(targets: [.target($0)]),
+            buildAction: .buildAction(
+                targets: [.target($0)],
+                postActions: [
+                    inspectBuildPostAction,
+                ],
+                runPostActionsOnFailure: true
+            ),
             testAction: .targets([.testableTarget(target: .target($0))]),
             runAction: .runAction(
                 arguments: .arguments(
