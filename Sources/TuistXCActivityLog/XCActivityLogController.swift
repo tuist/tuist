@@ -79,7 +79,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
                 .filter({ $0.title.starts(with: "Build target") }).map({
                     ($0.signature, $0.subSteps.reduce(into: 0) { duration, subStep in
-                        duration += subStep.compilationDuration
+                        duration += subStep.compilationDuration * 1000 // From seconds to miliseconds
                     })
                 })
             {
