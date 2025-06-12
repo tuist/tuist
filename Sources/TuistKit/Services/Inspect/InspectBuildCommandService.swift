@@ -174,7 +174,7 @@ struct InspectBuildCommandService {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             isCI: Environment.current.isCI,
-            issues: xcactivityLog.issues,
+            issues: truncateIssuesIfNeeded(xcactivityLog.issues),
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
             scheme: Environment.current.schemeName,
@@ -185,6 +185,19 @@ struct InspectBuildCommandService {
         AlertController.current.success(
             .alert("View the analyzed build at \(build.url.absoluteString)")
         )
+    }
+
+    /// This method truncates the number of warnings to 1000 and the message to 1000 characters.
+    private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
+        issues
+            .prefix(1000)
+            .map {
+                var issue = $0
+                if let message = issue.message, message.count > 1000 {
+                    issue.message = message.prefix(1000) + "..."
+                }
+                return issue
+            }
     }
 
     private func projectPath(_ path: String?) async throws -> AbsolutePath {
