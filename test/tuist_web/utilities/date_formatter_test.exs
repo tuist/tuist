@@ -1,7 +1,7 @@
-defmodule TuistWeb.Utilities.DateFormatterTest do
+defmodule Tuist.Utilities.DateFormatterTest do
   use ExUnit.Case, async: true
 
-  alias TuistWeb.Utilities.DateFormatter
+  alias Tuist.Utilities.DateFormatter
 
   describe "from_now/1" do
     test "formats seconds ago correctly" do

@@ -1520,7 +1520,7 @@ msgid "No credit card required"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:76
-#: lib/tuist_web/live/build_runs_live.html.heex:140
+#: lib/tuist_web/live/build_runs_live.html.heex:138
 #: lib/tuist_web/live/builds_live.html.heex:473
 #: lib/tuist_web/live/builds_live.html.heex:599
 #: lib/tuist_web/live/builds_live.html.heex:732
@@ -2640,9 +2640,9 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:28
 #: lib/tuist_web/live/build_runs_live.html.heex:98
-#: lib/tuist_web/live/build_runs_live.html.heex:117
-#: lib/tuist_web/live/build_runs_live.html.heex:120
-#: lib/tuist_web/live/build_runs_live.html.heex:125
+#: lib/tuist_web/live/build_runs_live.html.heex:115
+#: lib/tuist_web/live/build_runs_live.html.heex:118
+#: lib/tuist_web/live/build_runs_live.html.heex:123
 #: lib/tuist_web/live/builds_live.ex:275
 #: lib/tuist_web/live/builds_live.html.heex:693
 #: lib/tuist_web/live/builds_live.html.heex:703
@@ -3076,7 +3076,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:126
 #: lib/tuist_web/live/build_runs_live.ex:259
-#: lib/tuist_web/live/build_runs_live.html.heex:119
+#: lib/tuist_web/live/build_runs_live.html.heex:117
 #: lib/tuist_web/live/builds_live.ex:264
 #: lib/tuist_web/live/builds_live.html.heex:510
 #: lib/tuist_web/live/run_detail_live.html.heex:158
@@ -3711,7 +3711,7 @@ msgstr ""
 msgid "Configuration Insights"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.html.heex:122
+#: lib/tuist_web/live/build_runs_live.html.heex:120
 #: lib/tuist_web/live/builds_live.ex:265
 #: lib/tuist_web/live/builds_live.html.heex:502
 #, elixir-autogen, elixir-format
@@ -3767,7 +3767,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:120
 #: lib/tuist_web/live/build_runs_live.ex:251
-#: lib/tuist_web/live/build_runs_live.html.heex:116
+#: lib/tuist_web/live/build_runs_live.html.heex:114
 #: lib/tuist_web/live/builds_live.ex:263
 #: lib/tuist_web/live/builds_live.html.heex:494
 #: lib/tuist_web/live/builds_live.html.heex:702

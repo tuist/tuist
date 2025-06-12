@@ -34,6 +34,7 @@ defmodule Tuist.Runs.Build do
     field :category, Ecto.Enum, values: [clean: 0, incremental: 1]
     field :git_branch, :string
     field :git_commit_sha, :string
+    field :git_ref, :string
     belongs_to :project, Tuist.Projects.Project
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
     has_one :command_event, Tuist.CommandEvents.Event, foreign_key: :build_run_id
@@ -60,7 +61,8 @@ defmodule Tuist.Runs.Build do
       :status,
       :category,
       :git_branch,
-      :git_commit_sha
+      :git_commit_sha,
+      :git_ref
     ])
     |> validate_required([
       :id,

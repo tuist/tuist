@@ -1,4 +1,4 @@
-defmodule TuistWeb.Utilities.DateFormatter do
+defmodule Tuist.Utilities.DateFormatter do
   @moduledoc false
   def from_now(date) do
     case date |> Timex.from_now() |> String.split(" ") do

@@ -78,6 +78,7 @@ defmodule Tuist do
       Repo,
       Storage,
       Time,
+      Utilities.DateFormatter,
       VCS,
       UUIDv7
     ]

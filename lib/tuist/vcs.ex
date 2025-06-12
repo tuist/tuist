@@ -12,9 +12,9 @@ defmodule Tuist.VCS do
   alias Tuist.GitHub
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runs
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
-
-  @reportable_commands ["test", "share", "bundle"]
 
   def supported_vcs_hosts do
     ["GitHub"]
@@ -151,12 +151,12 @@ defmodule Tuist.VCS do
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
         git_commit_sha: git_commit_sha,
-        command_name: command_name,
         project: project,
         preview_url: preview_url,
         preview_qr_code_url: preview_qr_code_url,
         command_run_url: command_run_url,
-        bundle_url: bundle_url
+        bundle_url: bundle_url,
+        build_url: build_url
       }) do
     repository_full_handle =
       if is_nil(git_remote_url_origin) do
@@ -166,8 +166,7 @@ defmodule Tuist.VCS do
       end
 
     should_post_report =
-      Enum.member?(@reportable_commands, command_name) and
-        not is_nil(git_commit_sha) and
+      not is_nil(git_commit_sha) and
         not is_nil(git_ref) and
         not is_nil(repository_full_handle) and
         connected?(%{
@@ -195,6 +194,7 @@ defmodule Tuist.VCS do
           preview_url: preview_url,
           preview_qr_code_url: preview_qr_code_url,
           command_run_url: command_run_url,
+          build_url: build_url,
           bundle_url: bundle_url,
           project: project
         })
@@ -252,6 +252,7 @@ defmodule Tuist.VCS do
          preview_url: preview_url,
          preview_qr_code_url: preview_qr_code_url,
          command_run_url: command_run_url,
+         build_url: build_url,
          bundle_url: bundle_url,
          project: project
        }) do
@@ -270,6 +271,12 @@ defmodule Tuist.VCS do
       get_latest_command_events(%{
         name: "test",
         get_identifier: & &1.command_arguments,
+        git_ref: git_ref,
+        project: project
+      })
+
+    builds =
+      get_latest_builds(%{
         git_ref: git_ref,
         project: project
       })
@@ -299,12 +306,20 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url
       })
 
-    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) do
+    builds_body =
+      get_builds_body(%{
+        builds: builds,
+        git_remote_url_origin: git_remote_url_origin,
+        build_url: build_url,
+        project: project
+      })
+
+    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and is_nil(builds_body) do
       nil
     else
       """
       ### 🛠️ Tuist Run Report 🛠️
-      """ <> (previews_body || "") <> (test_body || "") <> (bundles_body || "")
+      """ <> (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
     end
   end
 
@@ -499,6 +514,67 @@ defmodule Tuist.VCS do
 
   defp get_status_text(command_event) do
     case command_event.status do
+      :failure -> "❌"
+      :success -> "✅"
+    end
+  end
+
+  defp get_latest_builds(%{git_ref: git_ref, project: project}) do
+    from(b in Runs.Build)
+    |> where([b], b.project_id == ^project.id and b.git_ref == ^git_ref)
+    |> order_by([b], desc: b.inserted_at)
+    |> Repo.all()
+    |> Enum.filter(&(not is_nil(&1.scheme)))
+    |> Enum.reduce(%{}, fn build, acc ->
+      scheme = build.scheme
+
+      current_build = Map.get(acc, scheme)
+
+      if current_build == nil or
+           NaiveDateTime.after?(
+             build.inserted_at,
+             current_build.inserted_at
+           ) do
+        Map.put(acc, scheme, build)
+      else
+        acc
+      end
+    end)
+    |> Map.values()
+  end
+
+  defp get_builds_body(%{
+         builds: builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    if Enum.empty?(builds) do
+      nil
+    else
+      """
+
+      #### Builds 🔨
+
+      | Scheme | Status | Duration | Commit |
+      |:-:|:-:|:-:|:-:|
+      #{Enum.map(builds, fn build ->
+        git_commit_sha = build.git_commit_sha
+        build_url = build_url.(%{project: project, build: build})
+
+        scheme = build.scheme
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration)
+
+        """
+        | [#{scheme}](#{build_url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        """
+      end)}
+      """
+    end
+  end
+
+  defp get_build_status_text(build) do
+    case build.status do
       :failure -> "❌"
       :success -> "✅"
     end

@@ -84,7 +84,7 @@
           >
             <.text_cell
               label={
-                TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   build_run.duration
                 )
               }
@@ -109,9 +109,7 @@
                 sort_icon(@build_runs_sort_order)
             }
           >
-            <.text_cell sublabel={
-              TuistWeb.Utilities.DateFormatter.from_now(build_run.inserted_at)
-            } />
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build_run.inserted_at)} />
           </:col>
           <:col :let={build_run} label={gettext("Xcode version")}>
             <.text_cell label={build_run.xcode_version || gettext("Unknown")} />

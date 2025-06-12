@@ -317,17 +317,20 @@ defmodule TuistWeb.API.AnalyticsController do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
     end
 
-    VCS.post_vcs_pull_request_comment(%{
-      command_name: body_params.name,
-      git_commit_sha: git_commit_sha,
-      git_ref: git_ref,
-      git_remote_url_origin: git_remote_url_origin,
-      project: selected_project,
-      preview_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
-      preview_qr_code_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.png"),
-      command_run_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}"),
-      bundle_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/bundles/#{&1.bundle.id}")
-    })
+    if Enum.member?(["test", "share", "bundle"], body_params.name) do
+      VCS.post_vcs_pull_request_comment(%{
+        git_commit_sha: git_commit_sha,
+        git_ref: git_ref,
+        git_remote_url_origin: git_remote_url_origin,
+        project: selected_project,
+        preview_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
+        preview_qr_code_url:
+          &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.png"),
+        command_run_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}"),
+        bundle_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/bundles/#{&1.bundle.id}"),
+        build_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/builds/build-runs/#{&1.build.id}")
+      })
+    end
 
     url =
       if is_nil(build_run_id) do

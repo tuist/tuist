@@ -232,6 +232,14 @@ defmodule TuistWeb.API.RunsController do
                  type: :string,
                  description: "The git branch."
                },
+               git_ref: %Schema{
+                 type: :string,
+                 description: "The git reference."
+               },
+               git_remote_url_origin: %Schema{
+                 type: :string,
+                 description: "The git remote URL origin."
+               },
                issues: %Schema{
                  type: :array,
                  description: "The build issues associated with the build run.",
@@ -428,6 +436,19 @@ defmodule TuistWeb.API.RunsController do
 
     case get_or_create_build(build_params) do
       {:ok, build} ->
+        Tuist.VCS.post_vcs_pull_request_comment(%{
+          git_commit_sha: build.git_commit_sha,
+          git_ref: build.git_ref,
+          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+          project: selected_project,
+          preview_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
+          preview_qr_code_url:
+            &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.png"),
+          command_run_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}"),
+          bundle_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/bundles/#{&1.bundle.id}"),
+          build_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/builds/build-runs/#{&1.build.id}")
+        })
+
         conn
         |> put_status(:ok)
         |> json(%{
@@ -462,6 +483,7 @@ defmodule TuistWeb.API.RunsController do
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
+          git_ref: Map.get(params, :git_ref),
           issues: Map.get(params, :issues, []),
           files: Map.get(params, :files, []),
           targets: Map.get(params, :targets, [])

@@ -27,6 +27,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       account_id: account_id,
       inserted_at: Keyword.get(attrs, :inserted_at),
       status: Keyword.get(attrs, :status, :success),
+      category: Keyword.get(attrs, :category, :incremental),
+      git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+      git_branch: Keyword.get(attrs, :git_branch),
+      git_ref: Keyword.get(attrs, :git_ref),
       issues: Keyword.get(attrs, :issues, []),
       files: Keyword.get(attrs, :files, []),
       targets: Keyword.get(attrs, :targets, [])

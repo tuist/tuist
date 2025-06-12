@@ -91,7 +91,7 @@
               <div data-part="title">{gettext("Build duration")}</div>
               <span data-part="label">
                 <.history />
-                {TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration)}
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration)}
               </span>
             </div>
             <div data-part="metadata">
@@ -301,7 +301,7 @@
           >
             <.text_cell
               label={
-                TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   module.build_duration
                 )
               }
@@ -322,7 +322,7 @@
           >
             <.text_cell
               label={
-                TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   module.compilation_duration
                 )
               }
@@ -461,7 +461,7 @@
           >
             <.text_cell
               label={
-                TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   file.compilation_duration
                 )
               }

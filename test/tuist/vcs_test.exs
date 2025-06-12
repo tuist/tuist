@@ -15,6 +15,7 @@ defmodule Tuist.VCSTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
@@ -390,7 +391,6 @@ defmodule Tuist.VCSTest do
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
-        command_name: "share",
         project: project,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -402,7 +402,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -474,7 +475,6 @@ defmodule Tuist.VCSTest do
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
-        command_name: "share",
         project: project,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -486,7 +486,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -522,7 +523,6 @@ defmodule Tuist.VCSTest do
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
-        command_name: "share",
         project: project,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -534,7 +534,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -570,7 +571,6 @@ defmodule Tuist.VCSTest do
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
-        command_name: "share",
         project: project,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -582,7 +582,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -636,7 +637,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
@@ -647,7 +647,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -665,7 +666,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
@@ -676,36 +676,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
-      })
-    end
-
-    test "does not create a comment when the command is not reportable" do
-      # Given
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_repository_full_handle: "tuist/tuist",
-          vcs_provider: :github
-        )
-
-      reject(GitHub.Client, :get_comments, 1)
-      reject(GitHub.Client, :create_comment, 1)
-
-      # When / Then
-      VCS.post_vcs_pull_request_comment(%{
-        project: project,
-        command_name: "generate",
-        git_commit_sha: @git_commit_sha,
-        git_ref: @git_ref,
-        git_remote_url_origin: @git_remote_url_origin,
-        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
-        preview_qr_code_url: fn %{preview: preview} ->
-          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
-        end,
-        command_run_url: fn %{command_event: command_event} ->
-          "https://tuist.dev/runs/#{command_event.id}"
-        end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -724,7 +696,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
         git_remote_url_origin: @git_remote_url_origin,
@@ -735,7 +706,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -749,7 +721,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_commit_sha: @git_commit_sha,
         git_ref: "tags/1.0.0",
         git_remote_url_origin: @git_remote_url_origin,
@@ -760,7 +731,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -778,7 +750,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_ref: nil,
         git_commit_sha: @git_commit_sha,
         git_remote_url_origin: @git_remote_url_origin,
@@ -789,7 +760,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -807,7 +779,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_remote_url_origin: nil,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -818,7 +789,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -836,7 +808,6 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        command_name: "test",
         git_remote_url_origin: @git_remote_url_origin,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -847,7 +818,8 @@ defmodule Tuist.VCSTest do
         command_run_url: fn %{command_event: command_event} ->
           "https://tuist.dev/runs/#{command_event.id}"
         end,
-        bundle_url: fn _ -> "" end
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
       })
     end
 
@@ -918,7 +890,73 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
-        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment with builds" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: :success,
+          duration: 45_000,
+          category: :clean,
+          xcode_version: "15.0",
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn [
+                           finch: Tuist.Finch,
+                           headers: @default_headers,
+                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                         ] ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
+
+        """
+
+      expect(Req, :post, fn [
+                              finch: Tuist.Finch,
+                              headers: @default_headers,
+                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                              json: %{body: ^expected_body}
+                            ] ->
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
       })
     end
 
@@ -973,7 +1011,6 @@ defmodule Tuist.VCSTest do
 
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
-        command_name: "bundle",
         project: project,
         git_commit_sha: @git_commit_sha,
         git_ref: @git_ref,
@@ -981,7 +1018,8 @@ defmodule Tuist.VCSTest do
         preview_url: fn _ -> "" end,
         preview_qr_code_url: fn _ -> "" end,
         command_run_url: fn _ -> "" end,
-        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
       })
     end
   end

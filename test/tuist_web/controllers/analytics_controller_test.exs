@@ -215,10 +215,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
-        :ok
-      end)
-
       # When
       conn =
         conn
@@ -264,10 +260,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
-        :ok
-      end)
 
       # When
       conn =
@@ -366,10 +358,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      expect(VCS, :post_vcs_pull_request_comment, fn _ ->
-        :ok
-      end)
 
       # When
       conn =

@@ -237,7 +237,7 @@
             <.run_ran_by_badge_cell run={test_run} />
           </:col>
           <:col :let={test_run} label={gettext("Ran at")}>
-            <.text_cell sublabel={TuistWeb.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
           </:col>
         </.table>
         <.pagination

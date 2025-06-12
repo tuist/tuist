@@ -51,7 +51,7 @@ defmodule TuistWeb.Previews.AppPreview do
                 <.history />
               </div>
               <span data-part="label">
-                {TuistWeb.Utilities.DateFormatter.from_now(@preview.inserted_at)}
+                {Tuist.Utilities.DateFormatter.from_now(@preview.inserted_at)}
               </span>
             </div>
           </div>

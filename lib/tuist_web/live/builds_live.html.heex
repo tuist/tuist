@@ -153,7 +153,7 @@
         legend_color="secondary"
         description={gettext("The average build duration with individual percentile intervals.")}
         value={
-          TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(
+          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
             @builds_duration_analytics.total_average_duration
           )
         }
@@ -708,7 +708,7 @@
         <:col :let={build} label={gettext("Duration")}>
           <.text_cell
             label={
-              TuistWeb.Utilities.DateFormatter.format_duration_from_milliseconds(build.duration)
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(build.duration)
             }
             icon="history"
           />
@@ -723,7 +723,7 @@
           />
         </:col>
         <:col :let={build} label={gettext("Ran at")}>
-          <.text_cell sublabel={TuistWeb.Utilities.DateFormatter.from_now(build.inserted_at)} />
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
         </:col>
       </.table>
     </.card_section>
