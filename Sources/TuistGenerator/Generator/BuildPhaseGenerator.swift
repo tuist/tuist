@@ -160,6 +160,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
+        try generateLoginItemBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
         if target.canEmbedSystemExtensions() {
             try generateEmbedSystemExtensionBuildPhase(
                 path: path,
@@ -312,7 +321,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         // such as `.framework`
         switch target.product {
         case .app, .appClip, .appExtension, .watch2App, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
-             .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension:
+             .systemExtension, .commandLineTool, .stickerPackExtension, .extensionKitExtension, .loginItem:
             if pbxBuildFiles.isEmpty { return }
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
@@ -749,6 +758,43 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedPluginsBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateLoginItemBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let loginItems = targetDependencies.filter { $0.target.product == .loginItem }
+        guard !loginItems.isEmpty else { return }
+
+        let loginItemsBuildPhase = PBXCopyFilesBuildPhase(
+            dstPath: "Contents/Library/LoginItems",
+            dstSubfolderSpec: .wrapper,
+            name: "Login Items"
+        )
+        pbxproj.add(object: loginItemsBuildPhase)
+        pbxTarget.buildPhases.append(loginItemsBuildPhase)
+
+        let pbxBuildFiles: [PBXBuildFile] = loginItems.compactMap { graphTarget in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
+
+            let pbxBuildFile = PBXBuildFile(
+                file: fileReference,
+                settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]
+            )
+            if target.supportsCatalyst {
+                pbxBuildFile.applyPlatformFilters([.catalyst])
+            }
+            return pbxBuildFile
+        }
+
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        loginItemsBuildPhase.files = pbxBuildFiles
     }
 
     func generateEmbedSystemExtensionBuildPhase(
