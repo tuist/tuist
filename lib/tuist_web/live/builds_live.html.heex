@@ -118,6 +118,23 @@
         empty={@total_builds_analytics.count == 0}
       />
       <.widget
+        title={gettext("Build success rate")}
+        legend_color="primary"
+        description={gettext("The percentage of builds that succeeded.")}
+        value={
+          gettext("%{percentage}%",
+            percentage: Float.round(@build_success_rate_analytics.success_rate * 100, 1)
+          )
+        }
+        id="widget-build-success-rate"
+        patch={"?#{Query.put(@uri.query, "analytics-selected-widget", "build-success-rate")}"}
+        replace={true}
+        selected={@analytics_selected_widget == "build-success-rate"}
+        trend_value={@build_success_rate_analytics.trend}
+        trend_label={@analytics_trend_label}
+        empty={@total_builds_analytics.count == 0}
+      />
+      <.widget
         title={gettext("Failed builds")}
         legend_color="destructive"
         description={gettext("The number of builds that failed.")}
@@ -387,6 +404,68 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "build-success-rate"}
+        id="build-success-rate-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @build_success_rate_analytics.dates |> List.first(),
+                  @build_success_rate_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+            },
+            legend: %{
+              show: false
+            },
+            tooltip: %{
+              valueFormat: "{value}%"
+            }
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-success",
+            data:
+              Enum.zip(
+                @build_success_rate_analytics.dates,
+                @build_success_rate_analytics.values
+                |> Enum.map(&(&1 * 100))
+                |> Enum.map(&Decimal.from_float/1)
+                |> Enum.map(&Decimal.round(&1, 1))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: gettext("Build success rate"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+        y_axis_max={100}
       />
     </.card_section>
     <.empty_card_section

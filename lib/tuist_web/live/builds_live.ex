@@ -102,6 +102,10 @@ defmodule TuistWeb.BuildsLive do
       Analytics.builds_analytics(project.id, Keyword.put(opts, :status, :failure))
     )
     |> assign(
+      :build_success_rate_analytics,
+      Analytics.builds_success_rate_analytics(project.id, opts)
+    )
+    |> assign(
       :analytics_selected_widget,
       params["analytics-selected-widget"] || "build-duration"
     )

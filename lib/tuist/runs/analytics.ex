@@ -313,6 +313,140 @@ defmodule Tuist.Runs.Analytics do
     })
   end
 
+  def builds_success_rate_analytics(project_id, opts \\ []) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    current_success_rate =
+      builds_success_rate(
+        project_id,
+        start_date: start_date,
+        end_date: end_date,
+        opts: opts
+      )
+
+    previous_success_rate =
+      builds_success_rate(
+        project_id,
+        start_date: Date.add(start_date, -days_delta),
+        end_date: start_date,
+        opts: opts
+      )
+
+    success_rates =
+      builds_success_rates_per_period(project_id,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period,
+        opts: opts
+      )
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_success_rate,
+          current_value: current_success_rate
+        ),
+      success_rate: current_success_rate,
+      dates:
+        Enum.map(
+          success_rates,
+          & &1.date
+        ),
+      values:
+        Enum.map(
+          success_rates,
+          & &1.success_rate
+        )
+    }
+  end
+
+  defp builds_success_rate(project_id, opts) do
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    filter_opts = Keyword.get(opts, :opts, [])
+
+    result =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+            b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+        select: %{
+          total_builds: count(b),
+          successful_builds: fragment("COUNT(CASE WHEN ? = 0 THEN 1 END)", b.status)
+        }
+      )
+      |> add_filters(filter_opts)
+      |> Repo.one()
+
+    total_builds = result.total_builds
+    successful_builds = result.successful_builds
+
+    if total_builds == 0 do
+      0.0
+    else
+      successful_builds / total_builds
+    end
+  end
+
+  defp builds_success_rates_per_period(project_id, opts) do
+    start_date = Keyword.get(opts, :start_date)
+    end_date = Keyword.get(opts, :end_date)
+    date_period = Keyword.get(opts, :date_period)
+    filter_opts = Keyword.get(opts, :opts, [])
+
+    time_bucket = time_bucket_for_date_period(date_period)
+
+    success_rate_metadata_map =
+      from(b in Build,
+        group_by: selected_as(^date_period),
+        where:
+          b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+            b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+            b.project_id == ^project_id,
+        select: %{
+          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+          total_builds: count(b),
+          successful_builds: fragment("COUNT(CASE WHEN ? = 0 THEN 1 END)", b.status)
+        }
+      )
+      |> add_filters(filter_opts)
+      |> Repo.all()
+      |> Map.new(
+        &{normalise_date(&1.date, date_period),
+         %{
+           total_builds: &1.total_builds,
+           successful_builds: &1.successful_builds
+         }}
+      )
+
+    date_period
+    |> date_range_for_date_period(start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      success_rate_metadata = Map.get(success_rate_metadata_map, date)
+
+      if is_nil(success_rate_metadata) or success_rate_metadata.total_builds == 0 do
+        %{
+          date: date,
+          success_rate: 0.0
+        }
+      else
+        total_builds = success_rate_metadata.total_builds
+        successful_builds = success_rate_metadata.successful_builds
+
+        %{
+          date: date,
+          success_rate: successful_builds / total_builds
+        }
+      end
+    end)
+  end
+
   def cache_hit_rate_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))

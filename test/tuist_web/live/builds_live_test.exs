@@ -42,4 +42,33 @@ defmodule TuistWeb.BuildsLiveTest do
     assert has_element?(lv, "span", "AppOne")
     assert has_element?(lv, "span", "AppTwo")
   end
+
+  test "displays build success rate widget", %{
+    conn: conn,
+    project: project
+  } do
+    # Given
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :failure
+    )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
+
+    # Then
+    assert has_element?(lv, "#widget-build-success-rate")
+    assert has_element?(lv, "span", "Build success rate")
+    assert has_element?(lv, "span", "66.7%")
+  end
 end

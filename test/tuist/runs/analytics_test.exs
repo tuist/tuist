@@ -741,6 +741,268 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
+  describe "builds_success_rate_analytics/2" do
+    test "returns success rate analytics for builds" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create successful builds
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # Create failed build
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        inserted_at: ~U[2024-04-29 01:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      # 3 successful out of 4 total builds
+      assert got.success_rate == 0.75
+      assert length(got.dates) == 3
+      assert length(got.values) == 3
+      # Exact success rates for each day
+      assert got.values == [0.0, 0.5, 1.0]
+    end
+
+    test "returns 0% success rate when all builds fail" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.success_rate == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
+    end
+
+    test "returns 100% success rate when all builds succeed" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.success_rate == 1.0
+      assert got.values == [0.0, 1.0, 1.0]
+    end
+
+    test "returns 0% success rate when no builds exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.success_rate == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
+    end
+
+    test "calculates trend correctly with previous period data" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Previous period: 1 success out of 2 builds = 50%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        # -4 days from test date
+        inserted_at: ~U[2024-04-26 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        # -4 days from test date
+        inserted_at: ~U[2024-04-26 02:00:00Z]
+      )
+
+      # Current period (last 2 days): 3 success out of 4 builds = 75%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        inserted_at: ~U[2024-04-29 01:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      # 3 success out of 4 builds in current period
+      assert got.success_rate == 0.75
+      # From 50% to 75% = +50%
+      assert got.trend == 50.0
+    end
+
+    test "respects build scheme filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # AppOne builds: 3 success, 1 failure = 75%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-28 02:00:00Z]
+      )
+
+      # AppTwo builds: all failures
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        scheme: "AppTwo",
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.builds_success_rate_analytics(
+          project.id,
+          start_date: Date.add(DateTime.utc_now(), -3),
+          end_date: DateTime.to_date(DateTime.utc_now()),
+          scheme: "AppOne"
+        )
+
+      # Then
+      assert got.success_rate == 0.75
+    end
+  end
+
   describe "trend/2" do
     test "returns a trend when current_value is smaller" do
       # Given / When
