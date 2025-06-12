@@ -323,7 +323,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             filePath: tuistPath,
             arguments: arguments,
             diagnosticsOptions: SchemeDiagnosticsOptions(),
-            metalOptions: MetalOptions()
+            metalOptions: MetalOptions(),
+            appClipInvocationURL: nil
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
