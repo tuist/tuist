@@ -11,14 +11,19 @@ defmodule TuistWeb.BuildRunsLive do
   alias Tuist.Accounts
   alias Tuist.Projects
   alias Tuist.Runs
+  alias TuistWeb.Utilities.Query
 
-  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
     socket =
       socket
       |> assign(:head_title, "#{gettext("Build Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+    end
 
     {:ok, socket}
   end
@@ -32,6 +37,7 @@ defmodule TuistWeb.BuildRunsLive do
     socket =
       socket
       |> assign(:uri, uri)
+      |> assign(:current_params, params)
       |> assign(:build_runs_sort_by, build_runs_sort_by)
       |> assign(:build_runs_sort_order, build_runs_sort_order)
       |> assign_build_runs(params)
@@ -40,6 +46,19 @@ defmodule TuistWeb.BuildRunsLive do
       :noreply,
       socket
     }
+  end
+
+  def handle_info({:build_created, _build}, socket) do
+    # Only update when pagination is inactive
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply, assign_build_runs(socket, socket.assigns.current_params)}
+    end
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   defp assign_build_runs(

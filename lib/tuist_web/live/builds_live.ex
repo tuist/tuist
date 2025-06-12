@@ -11,16 +11,22 @@ defmodule TuistWeb.BuildsLive do
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
 
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
-    {:ok,
-     socket
-     |> assign(
-       :head_title,
-       "#{gettext("Builds")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
-     )
-     |> assign_configuration_insights_options(params)
-     |> assign_initial_configuration_insights()
-     |> assign_recent_builds()}
+  def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
+    socket =
+      socket
+      |> assign(
+        :head_title,
+        "#{gettext("Builds")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+      )
+      |> assign_configuration_insights_options(params)
+      |> assign_initial_configuration_insights()
+      |> assign_recent_builds()
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+    end
+
+    {:ok, socket}
   end
 
   def handle_params(params, _uri, socket) do
@@ -45,6 +51,7 @@ defmodule TuistWeb.BuildsLive do
         :uri,
         uri
       )
+      |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_configuration_insights_options(params)
       |> assign_configuration_insights()
@@ -150,7 +157,9 @@ defmodule TuistWeb.BuildsLive do
 
   defp assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
-    configuration_insights_date_range = params["configuration-insights-date-range"] || "last-30-days"
+
+    configuration_insights_date_range =
+      params["configuration-insights-date-range"] || "last-30-days"
 
     socket =
       socket
@@ -184,7 +193,25 @@ defmodule TuistWeb.BuildsLive do
   end
 
   def handle_info(:update_configuration_insights, socket) do
-    {:noreply, assign(socket, :configuration_insights_analytics, socket.assigns.next_configuration_insights_analytics)}
+    {:noreply,
+     assign(
+       socket,
+       :configuration_insights_analytics,
+       socket.assigns.next_configuration_insights_analytics
+     )}
+  end
+
+  def handle_info({:build_created, _build}, socket) do
+    # Only update when pagination is inactive
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply, socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()}
+    end
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do

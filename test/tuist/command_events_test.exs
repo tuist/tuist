@@ -43,6 +43,9 @@ defmodule Tuist.CommandEventsTest do
 
     test "sends telemetry events" do
       # Given
+      user = AccountsFixtures.user_fixture()
+      project = ProjectsFixtures.project_fixture()
+
       run_create_ref =
         :telemetry_test.attach_event_handlers(self(), [
           Tuist.Telemetry.event_name_run_command()
@@ -61,7 +64,7 @@ defmodule Tuist.CommandEventsTest do
           tuist_version: "4.1.0",
           swift_version: "5.2",
           macos_version: "10.15",
-          project_id: 1,
+          project_id: project.id,
           cacheable_targets: ["A", "B", "C", "D"],
           local_cache_target_hits: ["A"],
           remote_cache_target_hits: ["B", "C"],
@@ -69,7 +72,7 @@ defmodule Tuist.CommandEventsTest do
           local_test_target_hits: [],
           remote_test_target_hits: [],
           is_ci: false,
-          user_id: 1,
+          user_id: user.id,
           client_id: "client-id",
           status: :success,
           preview_id: nil,
@@ -109,7 +112,7 @@ defmodule Tuist.CommandEventsTest do
       got = CommandEvents.get_command_event_by_id(command_event.id)
 
       # Then
-      assert got == command_event
+      assert got == command_event |> Repo.reload() |> Repo.preload(user: :account)
     end
   end
 
@@ -230,9 +233,19 @@ defmodule Tuist.CommandEventsTest do
         CommandEvents.list_command_events(Flop.to_next_cursor(got_meta_second_page))
 
       # Then
-      assert got_command_events_first_page == [command_event_five, command_event_four]
-      assert got_command_events_second_page == [command_event_three, command_event_two]
-      assert got_command_events_third_page == [command_event_one]
+      assert got_command_events_first_page == [
+               command_event_five |> Repo.reload() |> Repo.preload(:user),
+               command_event_four |> Repo.reload() |> Repo.preload(:user)
+             ]
+
+      assert got_command_events_second_page == [
+               command_event_three |> Repo.reload() |> Repo.preload(:user),
+               command_event_two |> Repo.reload() |> Repo.preload(:user)
+             ]
+
+      assert got_command_events_third_page == [
+               command_event_one |> Repo.reload() |> Repo.preload(:user)
+             ]
     end
   end
 
@@ -298,8 +311,14 @@ defmodule Tuist.CommandEventsTest do
         CommandEvents.list_test_runs(Flop.to_next_cursor(got_meta_first_page))
 
       # Then
-      assert got_command_events_first_page == [command_event_five, command_event_three]
-      assert got_command_events_second_page == [command_event_two]
+      assert got_command_events_first_page == [
+               command_event_five |> Repo.reload() |> Repo.preload(:user),
+               command_event_three |> Repo.reload() |> Repo.preload(:user)
+             ]
+
+      assert got_command_events_second_page == [
+               command_event_two |> Repo.reload() |> Repo.preload(:user)
+             ]
     end
   end
 
@@ -881,7 +900,7 @@ defmodule Tuist.CommandEventsTest do
         })
 
       # Then
-      assert got == [command_event_one, command_event_two]
+      assert got == [Repo.reload(command_event_one), Repo.reload(command_event_two)]
     end
 
     test "gets command events by name, git ref and project when there are none" do

@@ -105,8 +105,8 @@ defmodule Tuist.RunsTest do
         Runs.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
 
       # Then
-      assert got_builds_first_page == [build_two]
-      assert got_builds_second_page == [build_one]
+      assert got_builds_first_page == [Repo.reload(build_two)]
+      assert got_builds_second_page == [Repo.reload(build_one)]
     end
   end
 

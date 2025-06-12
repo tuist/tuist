@@ -11,14 +11,19 @@ defmodule TuistWeb.CacheRunsLive do
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias TuistWeb.Utilities.Query
 
-  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
 
     socket =
       socket
       |> assign(:head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+    end
 
     {:ok, socket}
   end
@@ -113,6 +118,7 @@ defmodule TuistWeb.CacheRunsLive do
         :cache_runs_sort_order,
         cache_runs_sort_order
       )
+      |> assign(:current_params, params)
       |> assign_cache_runs(params)
     }
   end
@@ -142,6 +148,19 @@ defmodule TuistWeb.CacheRunsLive do
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_info({:command_event_created, %{name: "cache"}}, socket) do
+    # Only update when pagination is inactive
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply, assign_cache_runs(socket, socket.assigns.current_params)}
+    end
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   def assign_cache_runs(

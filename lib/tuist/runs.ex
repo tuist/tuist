@@ -26,6 +26,14 @@ defmodule Tuist.Runs do
         create_build_files(build, attrs.files)
         create_build_targets(build, attrs.targets)
 
+        build = Repo.preload(build, project: :account)
+
+        Tuist.PubSub.broadcast(
+          build,
+          "#{build.project.account.name}/#{build.project.name}",
+          :build_created
+        )
+
         {:ok, build}
 
       {:error, changeset} ->

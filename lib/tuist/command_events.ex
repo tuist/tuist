@@ -455,6 +455,13 @@ defmodule Tuist.CommandEvents do
       })
       |> Repo.insert!()
       |> Repo.preload(Keyword.get(opts, :preload, []))
+      |> Repo.preload(project: :account)
+
+    Tuist.PubSub.broadcast(
+      command_event,
+      "#{command_event.project.account.name}/#{command_event.project.name}",
+      :command_event_created
+    )
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_run_command(),
