@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.53.0 - 2025-06-12
+
+### CLI
+
+#### Added
+
+- Associate tuist xcodebuild metadata with inspected builds [#7670](https://github.com/tuist/tuist/pull/7670) by [@fortmarek](https://github.com/fortmarek)
+- Attach git remote url origin metadata to the inspected build [#7674](https://github.com/tuist/tuist/pull/7674) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Poll for the latest activity log when it's not immediately available [#7671](https://github.com/tuist/tuist/pull/7671) by [@fortmarek](https://github.com/fortmarek)
+- Fix inspecting build with too many issues [#7676](https://github.com/tuist/tuist/pull/7676) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.52.2 - 2025-06-11
 
 ### CLI
