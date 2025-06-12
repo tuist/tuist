@@ -4,7 +4,7 @@ import Foundation
 /// Inspired by: https://alejandromp.com/development/blog/the-importance-of-cooperative-cancellation/
 public func withTimeout(
     _ timeout: Duration,
-    onTimeout: @escaping () -> Void,
+    onTimeout: @escaping () throws -> Void,
     action: @escaping () async throws -> Void
 ) async throws {
     try await withThrowingTaskGroup(of: Void.self) { group in
@@ -13,7 +13,7 @@ public func withTimeout(
         }
         group.addTask {
             try await Task.sleep(for: timeout)
-            onTimeout()
+            try onTimeout()
         }
         try await group.next()
         group.cancelAll()
