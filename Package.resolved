@@ -1,5 +1,5 @@
 {
-  "originHash" : "ebbe622da4fe96c9ee5ab50559157b281d665635a6e6a24e94c5fc4c34053b47",
+  "originHash" : "0804554ebb94898aa7ac8314bcb2b995b6de8fa9ddb1f6c350b6e5f9c52ae34e",
   "pins" : [
     {
       "identity" : "aexml",
@@ -465,7 +465,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MobileNativeFoundation/XCLogParser",
       "state" : {
-        "revision" : "f9f32de91ee46a24620fb14921fa9d9aab6d583f"
+        "revision" : "5facacc3813b38514e759c5ce5aec4b0fdcfa8d1",
+        "version" : "0.2.42"
       }
     },
     {

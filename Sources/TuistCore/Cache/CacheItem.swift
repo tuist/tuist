@@ -11,7 +11,7 @@ public struct CacheItem: Hashable, Equatable, Codable {
     public let source: Source
     public let cacheCategory: RemoteCacheCategory
     public let buildTime: Double?
-    
+
     public init(
         name: String,
         hash: String,
