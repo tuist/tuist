@@ -179,6 +179,71 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func test_createsBuild_generated_after_initial_run() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(
+                .test()
+            )
+        var numberOfAttempts = 0
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willProduce { _ in
+            numberOfAttempts = numberOfAttempts + 1
+            if numberOfAttempts > 2 {
+                return .test(path: activityLogPath, timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20))
+            } else {
+                return nil
+            }
+        }
+
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn((ref: nil, branch: "branch", sha: "sha"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any
+            )
+            .called(1)
+    }
+
     @Test(.withMockedEnvironment())
     func test_when_should_not_wait() async throws {
         // Given

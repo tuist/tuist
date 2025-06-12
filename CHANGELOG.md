@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.52.2 - 2025-06-11
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.52.1 - 2025-06-10
 
 ### CLI

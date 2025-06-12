@@ -6,14 +6,14 @@ description: Узнайте, как внести вклад в Tuist, прово
 
 # Логирование {#logging}
 
-CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) интерфейс для логирования. Пакет абстрагирует детали реализации логирования, позволяя CLI быть независимым от её исполнения. Логер внедряется с помощью зависимости [swift-service-context](https://github.com/apple/swift-service-context) и может быть доступен из любого места с помощью:
+CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) интерфейс для логирования. Пакет абстрагирует детали реализации логирования, позволяя CLI быть независимым от её исполнения. The logger is dependency-injected using task locals and can be accessed anywhere using:
 
 ```bash
-ServiceContext.current?.logger
+Logger.current
 ```
 
-> [!ПРИМЕЧАНИЕ]
-> `swift-service-context` передает экземпляр с помощью [локальных переменных задачи](https://developer.apple.com/documentation/swift/tasklocal), которые не распространяют значение при использовании `Dispatch`, поэтому если вы запускаете асинхронный код с помощью `Dispatch`, вам нужно будет получить экземпляр из контекста и передать его в асинхронную операцию.
+> [!NOTE]
+> Task locals don't propagate the value when using `Dispatch` or detached tasks, so if you use them, you'll need to get it and pass it to the asynchronous operation.
 
 ## Что логировать {#what-to-log}
 

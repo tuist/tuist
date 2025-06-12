@@ -105,22 +105,47 @@ struct InspectBuildCommandService {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
 
-        guard let mostRecentActivityLogFile =
-            try await xcActivityLogController.mostRecentActivityLogFile(
-                projectDerivedDataDirectory: projectDerivedDataDirectory
-            ),
-            Environment.current.workspacePath == nil || (
-                referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
-                    + 10
-            ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
-        else {
-            throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
-        }
-        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogFile.path)
+        let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
+            projectPath: projectPath,
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            referenceDate: referenceDate
+        )
+        let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
         try await createBuild(
             for: xcactivityLog,
             projectPath: projectPath
         )
+    }
+
+    private func mostRecentActivityLogPath(
+        projectPath: AbsolutePath,
+        projectDerivedDataDirectory: AbsolutePath,
+        referenceDate: Date
+    ) async throws -> AbsolutePath {
+        var mostRecentActivityLogPath: AbsolutePath!
+        try await withTimeout(
+            .seconds(1),
+            onTimeout: {
+                throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
+            }
+        ) {
+            while true {
+                if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+                    projectDerivedDataDirectory: projectDerivedDataDirectory
+                ), Environment.current.workspacePath == nil || (
+                    referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                        + 10
+                ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate {
+                    mostRecentActivityLogPath = mostRecentActivityLogFile.path
+                }
+                if mostRecentActivityLogPath != nil {
+                    return
+                }
+
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+        return mostRecentActivityLogPath
     }
 
     private func createBuild(

@@ -319,8 +319,8 @@
                 "selective-testing": {
                   "text": "Selective testing"
                 },
-                "xcodebuild": {
-                  "text": "xcode 빌드"
+                "xcode-project": {
+                  "text": "Xcode project"
                 },
                 "generated-project": {
                   "text": "Generated project"
@@ -329,6 +329,9 @@
             },
             "insights": {
               "text": "Insights"
+            },
+            "bundle-size": {
+              "text": "Bundle size"
             }
           }
         },

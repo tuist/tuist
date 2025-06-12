@@ -13,7 +13,7 @@ Tuist는 프로젝트 생성이 필요하면 프로젝트를 생성하고 그런
 - **단일 명령어:** <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink>는 프로젝트를 컴파일하기 전에 필요한 경우 프로젝트를 생성하도록 보장합니다.
 - **보기좋은 출력:** Tuist는 출력을 더 사용자 친화적으로 만들어 주는 [xcbeautify](https://github.com/cpisciotta/xcbeautify)와 같은 툴을 사용하여 출력합니다.
 - <0><1>캐시:</1></0> 원격 캐시에서 빌드 artifact를 재사용하여 빌드를 최적화 합니다.
-- <LocalizedLink href="/guides/develop/test/selective-testing"><bold>스마트 러너:</bold></LocalizedLink> 필요한 테스트만 수행하므로 시간과 리소스를 절약할 수 있습니다.
+- <LocalizedLink href="/guides/develop/test/selective-testing"><bold>선택적 테스트:</bold></LocalizedLink> 필요한 테스트만 실행되므로 시간과 리소스를 절약할 수 있습니다.
 - <LocalizedLink href="/guides/develop/test/flakiness"><bold>불안정성:</bold></LocalizedLink> 불안정한 테스트를 방지하고, 감지, 그리고 수정할 수 있습니다.
 
 ## 사용법 {#usage}

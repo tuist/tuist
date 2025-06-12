@@ -64,18 +64,21 @@ let project = Project(
         .scheme(
             name: "MyApp",
             shared: true,
-            buildAction: .buildAction(targets: ["MyApp"]),
+            buildAction: .buildAction(
+                targets: ["MyApp"],
+                postActions: [
+                    .executionAction(
+                        name: "Inspect Build",
+                        scriptText: """
+                        eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
+                        tuist inspect build
+                        """
+                    )
+                ],
+                runPostActionsOnFailure: true
+            ),
             testAction: .testAction(targets: ["MyAppTests"]),
-            runAction: .runAction(configuration: "Debug"),
-            postActions: [
-                .postAction(
-                    name: "Inspect Build",
-                    scriptText: """
-                    eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
-                    tuist inspect build
-                    """
-                )
-            ]
+            runAction: .runAction(configuration: "Debug")
         )
     ]
 )

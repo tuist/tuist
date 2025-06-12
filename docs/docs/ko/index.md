@@ -47,6 +47,12 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         details="Get project insights to maintain a productive developer environment."
         linkText="Track project health"
         link="/guides/develop/insights"/>
+    <HomeCard
+        icon="🧰"
+        title="Bundle size"
+        details="Find out how to make and keep your app's memory footprint as small as possible."
+        linkText="Analyze your app bundle"
+        link="/guides/develop/bundle-size"/>
 </HomeCards>
 
 ## Installation
