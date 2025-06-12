@@ -25,7 +25,7 @@ struct XCActivityLogControllerTests {
         let got = try await subject.buildTimesByTarget(projectDerivedDataDirectory: projectDerivedDataDirectory)
 
         // Then
-        #expect(got == ["Framework": 0.004696011543273926])
+        #expect(got == ["Framework": 4.696011543273926])
     }
 
     @Test func parseCleanBuildXCActivityLog() async throws {

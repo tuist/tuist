@@ -10,17 +10,20 @@ public struct CacheItem: Hashable, Equatable, Codable {
     public let hash: String
     public let source: Source
     public let cacheCategory: RemoteCacheCategory
+    public let buildTime: Double?
 
     public init(
         name: String,
         hash: String,
         source: Source,
-        cacheCategory: RemoteCacheCategory
+        cacheCategory: RemoteCacheCategory,
+        buildTime: Double? = nil
     ) {
         self.name = name
         self.hash = hash
         self.source = source
         self.cacheCategory = cacheCategory
+        self.buildTime = buildTime
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -35,13 +38,15 @@ public struct CacheItem: Hashable, Equatable, Codable {
             name: String = "Target",
             hash: String = "cache-item-hash",
             source: Source = .local,
-            cacheCategory: RemoteCacheCategory = .selectiveTests
+            cacheCategory: RemoteCacheCategory = .selectiveTests,
+            buildTime: Double? = nil
         ) -> Self {
             .init(
                 name: name,
                 hash: hash,
                 source: source,
-                cacheCategory: cacheCategory
+                cacheCategory: cacheCategory,
+                buildTime: buildTime
             )
         }
     }

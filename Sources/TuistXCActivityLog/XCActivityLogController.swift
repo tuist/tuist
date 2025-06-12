@@ -15,6 +15,8 @@ public protocol XCActivityLogControlling {
     func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [
         String: Double
     ]
+    func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
+        -> [String: Double]
     func parse(_ path: AbsolutePath) async throws -> XCActivityLog
 }
 
@@ -54,6 +56,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
             buildLogsPath.appending(components: ["\($0).xcactivitylog"])
         }
 
+        return try await buildTimesByTarget(activityLogPaths: activityLogPaths)
+    }
+
+    public func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
+        -> [String: Double]
+    {
         var buildTimes: [String: Double] = [:]
         for activityLogPath in activityLogPaths {
             let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
@@ -70,7 +78,9 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
                 .filter({ $0.title.starts(with: "Build target") }).map({
-                    ($0.signature, $0.duration)
+                    ($0.signature, $0.subSteps.reduce(into: 0) { duration, subStep in
+                        duration += subStep.compilationDuration * 1000 // From seconds to miliseconds
+                    })
                 })
             {
                 // If a target supports multiple platforms, the time will persist is the time of the latest platform that we
