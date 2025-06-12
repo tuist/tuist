@@ -74,7 +74,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcodeBuildArgumentParser)
             .parse(.any)
             .willReturn(
-                XcodeBuildArguments(destination: nil)
+                .test(destination: nil)
             )
 
         subject = TestService(

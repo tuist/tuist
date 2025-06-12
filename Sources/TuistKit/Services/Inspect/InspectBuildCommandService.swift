@@ -130,10 +130,14 @@ struct InspectBuildCommandService {
             }
         ) {
             while true {
-                mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogPath(
-                    projectDerivedDataDirectory: projectDerivedDataDirectory,
-                    after: referenceDate
-                )
+                if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+                    projectDerivedDataDirectory: projectDerivedDataDirectory
+                ), Environment.current.workspacePath == nil || (
+                    referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                        + 10
+                ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate {
+                    mostRecentActivityLogPath = mostRecentActivityLogFile.path
+                }
                 if mostRecentActivityLogPath != nil {
                     return
                 }

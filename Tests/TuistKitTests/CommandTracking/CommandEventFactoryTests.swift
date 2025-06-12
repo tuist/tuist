@@ -109,7 +109,8 @@ struct CommandEventFactoryTests {
             ],
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: ranAt
+            ranAt: ranAt,
+            buildRunId: nil
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -189,7 +190,8 @@ struct CommandEventFactoryTests {
             ),
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: ranAt
+            ranAt: ranAt,
+            buildRunId: nil
         )
 
         given(gitController)
@@ -257,7 +259,8 @@ struct CommandEventFactoryTests {
             selectiveTestingCacheItems: [:],
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: Date()
+            ranAt: Date(),
+            buildRunId: nil
         )
 
         given(gitController)
@@ -298,7 +301,8 @@ struct CommandEventFactoryTests {
             selectiveTestingCacheItems: [:],
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: Date()
+            ranAt: Date(),
+            buildRunId: nil
         )
 
         given(gitController)
@@ -351,7 +355,8 @@ struct CommandEventFactoryTests {
             selectiveTestingCacheItems: [:],
             previewId: nil,
             resultBundlePath: nil,
-            ranAt: Date()
+            ranAt: Date(),
+            buildRunId: nil
         )
 
         given(gitController)

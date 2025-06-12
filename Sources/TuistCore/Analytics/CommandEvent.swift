@@ -23,6 +23,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let previewId: String?
     public let resultBundlePath: AbsolutePath?
     public let ranAt: Date
+    public let buildRunId: String?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -56,6 +57,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case previewId
         case resultBundlePath
         case ranAt
+        case buildRunId
     }
 
     public init(
@@ -78,7 +80,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         graph: RunGraph?,
         previewId: String?,
         resultBundlePath: AbsolutePath?,
-        ranAt: Date
+        ranAt: Date,
+        buildRunId: String?
     ) {
         self.runId = runId
         self.name = name
@@ -100,6 +103,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.previewId = previewId
         self.resultBundlePath = resultBundlePath
         self.ranAt = ranAt
+        self.buildRunId = buildRunId
     }
 }
 
@@ -124,7 +128,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             graph: RunGraph = RunGraph(name: "Graph", projects: []),
             previewId: String? = nil,
             resultBundlePath: AbsolutePath? = nil,
-            ranAt: Date = Date()
+            ranAt: Date = Date(),
+            buildRunId: String? = nil
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -146,7 +151,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 graph: graph,
                 previewId: previewId,
                 resultBundlePath: resultBundlePath,
-                ranAt: ranAt
+                ranAt: ranAt,
+                buildRunId: buildRunId
             )
         }
     }

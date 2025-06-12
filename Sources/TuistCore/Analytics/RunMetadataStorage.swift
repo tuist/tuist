@@ -40,4 +40,10 @@ public actor RunMetadataStorage {
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
     }
+
+    /// The ID of the latest build run.
+    public private(set) var buildRunId: String?
+    public func update(buildRunId: String?) {
+        self.buildRunId = buildRunId
+    }
 }

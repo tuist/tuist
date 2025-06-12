@@ -55,6 +55,7 @@
                     ),
                     body: .json(
                         .init(
+                            build_run_id: commandEvent.buildRunId,
                             client_id: commandEvent.clientId,
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,

@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistSupport
+import TuistXCActivityLog
 
 struct XcodeBuildBuildCommandService {
     private let fileSystem: FileSysteming
@@ -12,19 +13,28 @@ struct XcodeBuildBuildCommandService {
     private let configLoader: ConfigLoading
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let uniqueIDGenerator: UniqueIDGenerating
+    private let xcodeBuildArgumentParser: XcodeBuildArgumentParsing
+    private let derivedDataLocator: DerivedDataLocating
+    private let xcActivityLogController: XCActivityLogControlling
 
     init(
         fileSystem: FileSysteming = FileSystem(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         configLoader: ConfigLoading = ConfigLoader(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
-        uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator()
+        uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
+        xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
         self.configLoader = configLoader
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.uniqueIDGenerator = uniqueIDGenerator
+        self.xcodeBuildArgumentParser = xcodeBuildArgumentParser
+        self.derivedDataLocator = derivedDataLocator
+        self.xcActivityLogController = xcActivityLogController
     }
 
     func run(
@@ -35,6 +45,44 @@ struct XcodeBuildBuildCommandService {
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
         try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+        let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
+        var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
+        if derivedDataPath == nil {
+            guard let projectPath = try await projectPath(xcodeBuildArguments: xcodeBuildArguments) else { return }
+            derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
+        }
+        guard let derivedDataPath,
+              let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogFile(
+                  projectDerivedDataDirectory: derivedDataPath
+              )
+        else { return }
+
+        await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+    }
+
+    private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
+        let currentDirectory = try await Environment.current.currentWorkingDirectory()
+        if let workspacePath = xcodeBuildArguments.workspacePath {
+            return workspacePath
+        } else if let projectPath = xcodeBuildArguments.projectPath {
+            return projectPath
+        } else if let xcodeProjPath = try await fileSystem.glob(
+            directory: currentDirectory,
+            include: ["*.xcodeproj"]
+        )
+        .collect()
+        .first {
+            return xcodeProjPath
+        } else if let workspacePath = try await fileSystem.glob(
+            directory: currentDirectory,
+            include: ["*.xcworkspace"]
+        )
+        .collect()
+        .first {
+            return workspacePath
+        } else {
+            return nil
+        }
     }
 
     private func resultBundlePathArguments(

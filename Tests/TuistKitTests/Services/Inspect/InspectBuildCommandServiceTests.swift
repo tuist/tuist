@@ -120,19 +120,6 @@ struct InspectBuildCommandServiceTests {
             components: "\(UUID().uuidString).xcactivitylog"
         )
 
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeAsPlist(
-            XCLogStoreManifestPlist(
-                logs: [
-                    "id": XCLogStoreManifestPlist.ActivityLog(
-                        fileName: "id.xcactivitylog",
-                        timeStartedRecording: 10,
-                        timeStoppedRecording: 20
-                    ),
-                ]
-            ),
-            at: buildLogsPath.appending(component: "LogStoreManifest.plist")
-        )
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(
@@ -152,10 +139,14 @@ struct InspectBuildCommandServiceTests {
                     ]
                 )
             )
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
 
         gitController.reset()
         given(gitController)
@@ -211,13 +202,12 @@ struct InspectBuildCommandServiceTests {
                 .test()
             )
         var numberOfAttempts = 0
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willProduce { _, _ in
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willProduce { _ in
             numberOfAttempts = numberOfAttempts + 1
             if numberOfAttempts > 2 {
-                return activityLogPath
+                return .test(path: activityLogPath, timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20))
             } else {
                 return nil
             }
@@ -309,10 +299,9 @@ struct InspectBuildCommandServiceTests {
             ),
             at: buildLogsPath.appending(component: "LogStoreManifest.plist")
         )
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(.test(path: activityLogPath))
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(.test())
@@ -361,10 +350,9 @@ struct InspectBuildCommandServiceTests {
             given(xcActivityLogController)
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
-            given(xcActivityLogController).mostRecentActivityLogPath(
-                projectDerivedDataDirectory: .value(derivedDataPath),
-                after: .any
-            ).willReturn(activityLogPath)
+            given(xcActivityLogController).mostRecentActivityLogFile(
+                projectDerivedDataDirectory: .value(derivedDataPath)
+            ).willReturn(.test(path: activityLogPath))
 
             given(gitController)
                 .gitInfo(workingDirectory: .any)
@@ -409,9 +397,8 @@ struct InspectBuildCommandServiceTests {
         given(derivedDataLocator)
             .locate(for: .any)
             .willReturn(derivedDataPath)
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
         ).willReturn(nil)
 
         given(gitController)
@@ -459,10 +446,9 @@ struct InspectBuildCommandServiceTests {
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
             .willReturn(.test())
-        given(xcActivityLogController).mostRecentActivityLogPath(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            after: .any
-        ).willReturn(activityLogPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath)
+        ).willReturn(.test(path: activityLogPath))
         configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)
