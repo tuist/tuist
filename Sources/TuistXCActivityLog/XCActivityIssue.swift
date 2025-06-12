@@ -9,7 +9,7 @@ public struct XCActivityIssue: Hashable, Equatable {
     public let signature: String
     public let stepType: XCActivityStepType
     public let path: RelativePath?
-    public let message: String?
+    public var message: String?
     public let startingLine: Int
     public let endingLine: Int
     public let startingColumn: Int
