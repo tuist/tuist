@@ -82,8 +82,10 @@ public final class AlertController: @unchecked Sendable {
         for warning in warnings() {
             Noora.current.warning(warning)
         }
-        for success in success() {
-            Noora.current.success(success)
+        if let success = success().last {
+            var mergedTakeaways = success.takeaways
+            mergedTakeaways.append(contentsOf: takeaways())
+            Noora.current.success(.alert(success.message, takeaways: mergedTakeaways))
         }
     }
 }
