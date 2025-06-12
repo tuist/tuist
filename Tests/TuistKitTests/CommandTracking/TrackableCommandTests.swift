@@ -100,7 +100,7 @@ final class TrackableCommandTests: TuistTestCase {
             .dispatch(event: Parameter<CommandEvent>.any)
             .called(1)
         verify(gitController)
-            .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
+            .gitInfo(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
             .called(1)
     }
 
@@ -132,7 +132,7 @@ final class TrackableCommandTests: TuistTestCase {
             .dispatch(event: Parameter<CommandEvent>.any)
             .called(1)
         verify(gitController)
-            .isInGitRepository(workingDirectory: .value(fileHandler.currentPath))
+            .gitInfo(workingDirectory: .value(fileHandler.currentPath))
             .called(1)
     }
 
