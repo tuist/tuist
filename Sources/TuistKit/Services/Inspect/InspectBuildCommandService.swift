@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -160,9 +161,7 @@ struct InspectBuildCommandService {
             throw InspectBuildCommandServiceError.missingFullHandle
         }
 
-        let gitInfo = gitController.gitInfo(workingDirectory: projectPath)
-        let gitCommitSHA = gitInfo.sha
-        let gitBranch = gitInfo.branch
+        let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
         let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -171,8 +170,10 @@ struct InspectBuildCommandService {
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
             files: xcactivityLog.files,
-            gitBranch: gitBranch,
-            gitCommitSHA: gitCommitSHA,
+            gitBranch: gitInfo.branch,
+            gitCommitSHA: gitInfo.sha,
+            gitRef: gitInfo.ref,
+            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
             isCI: Environment.current.isCI,
             issues: xcactivityLog.issues,
             modelIdentifier: machineEnvironment.modelIdentifier(),

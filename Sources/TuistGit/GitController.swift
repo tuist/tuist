@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistSupport
 
 @Mockable
 public protocol GitControlling {
@@ -56,8 +57,7 @@ public protocol GitControlling {
 
     /// Returns git information including ref, branch, and SHA with CI provider fallbacks.
     /// - Parameter workingDirectory: The working directory of the git repository
-    /// - Returns: A tuple containing git ref, branch name, and commit SHA
-    func gitInfo(workingDirectory: AbsolutePath) -> (ref: String?, branch: String?, sha: String?)
+    func gitInfo(workingDirectory: AbsolutePath) throws -> GitInfo
 
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath
@@ -183,7 +183,7 @@ public final class GitController: GitControlling {
         "BUILD_SOURCEBRANCHNAME",
     ]
 
-    public func gitInfo(workingDirectory: AbsolutePath) -> (ref: String?, branch: String?, sha: String?) {
+    public func gitInfo(workingDirectory: AbsolutePath) throws -> GitInfo {
         let environment = environment.variables
 
         // Ref
@@ -228,19 +228,37 @@ public final class GitController: GitControlling {
             branchName = nil
         }
 
+        guard isInGitRepository(workingDirectory: workingDirectory)
+        else {
+            return GitInfo(
+                ref: gitRef,
+                branch: branchName,
+                sha: nil,
+                remoteURLOrigin: nil
+            )
+        }
+
         // SHA
         let commitSHA: String?
-        if isInGitRepository(workingDirectory: workingDirectory) {
-            if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-                commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
-            } else {
-                commitSHA = nil
-            }
+        if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+            commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
         } else {
             commitSHA = nil
         }
 
-        return (ref: gitRef, branch: branchName, sha: commitSHA)
+        let remoteURLOrigin: String?
+        if try hasUrlOrigin(workingDirectory: workingDirectory) {
+            remoteURLOrigin = try urlOrigin(workingDirectory: workingDirectory)
+        } else {
+            remoteURLOrigin = nil
+        }
+
+        return GitInfo(
+            ref: gitRef,
+            branch: branchName,
+            sha: commitSHA,
+            remoteURLOrigin: remoteURLOrigin
+        )
     }
 
     private func run(command: String...) throws {

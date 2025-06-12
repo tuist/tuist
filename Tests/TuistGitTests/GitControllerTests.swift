@@ -2,7 +2,8 @@ import FileSystem
 import FileSystemTesting
 import Testing
 import TSCUtility
-@testable import TuistSupport
+import TuistSupport
+@testable import TuistGit
 @testable import TuistTesting
 
 struct GitControllerTests {
@@ -162,14 +163,20 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "abc123\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == "refs/pull/1/merge")
         #expect(gitInfo.branch == "feature-branch")
         #expect(gitInfo.sha == "abc123")
+        #expect(gitInfo.remoteURLOrigin == "https://github.com/tuist/tuist")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_gitlab_ci() throws {
@@ -186,9 +193,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "def456\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == "refs/pull/42/merge")
@@ -210,9 +218,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "ghi789\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == "refs/pull/6740/merge")
@@ -234,9 +243,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "jkl012\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == "refs/pull/123/merge")
@@ -259,9 +269,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: "local-branch\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)
@@ -277,7 +288,7 @@ struct GitControllerTests {
         system.errorCommand(["git", "-C", path.pathString, "rev-parse"])
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)
@@ -296,9 +307,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: "main\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)
@@ -321,9 +333,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: ""
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)
@@ -344,9 +357,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "stu901\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)
@@ -371,9 +385,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: "local-branch\n"
         )
+        system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
-        let gitInfo = subject.gitInfo(workingDirectory: path)
+        let gitInfo = try subject.gitInfo(workingDirectory: path)
 
         // Then
         #expect(gitInfo.ref == nil)

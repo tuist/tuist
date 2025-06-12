@@ -5,6 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
+import TuistGit
 import TuistServer
 import TuistSupport
 import XCTest
@@ -33,7 +34,7 @@ final class TrackableCommandTests: TuistTestCase {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
     }
 
     override func tearDown() {

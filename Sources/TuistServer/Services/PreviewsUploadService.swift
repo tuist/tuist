@@ -4,6 +4,7 @@
     import Mockable
     import Path
     import TuistCore
+    import TuistGit
     import TuistSimulator
     import TuistSupport
 
@@ -103,7 +104,7 @@
                 previewType = .appBundle
             }
 
-            let gitInfo = gitController.gitInfo(workingDirectory: path)
+            let gitInfo = try gitController.gitInfo(workingDirectory: path)
             let gitCommitSHA = gitInfo.sha
             let gitBranch = gitInfo.branch
             updateProgress(0.1)

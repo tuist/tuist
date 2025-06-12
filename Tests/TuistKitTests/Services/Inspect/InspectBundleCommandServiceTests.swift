@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Rosalind
 import Testing
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -37,7 +38,7 @@ struct InspectBundleCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: "refs/pull/1/merge", branch: nil, sha: nil))
+            .willReturn(.test(ref: "refs/pull/1/merge", branch: nil, sha: nil))
 
         given(serverURLService)
             .url(configServerURL: .any)

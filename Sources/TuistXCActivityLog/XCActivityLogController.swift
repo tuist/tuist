@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistGit
 import TuistRootDirectoryLocator
 import TuistSupport
 import XCLogParser

@@ -3,6 +3,7 @@ import Foundation
 import Noora
 import Path
 import Rosalind
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -71,7 +72,7 @@ struct InspectBundleCommandService {
             throw InspectBundleCommandServiceError.missingFullHandle
         }
 
-        let gitInfo = gitController.gitInfo(workingDirectory: path)
+        let gitInfo = try gitController.gitInfo(workingDirectory: path)
         let gitRef = gitInfo.ref
         let gitBranch = gitInfo.branch
         let gitCommitSHA = gitInfo.sha

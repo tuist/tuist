@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -61,6 +62,8 @@ struct InspectBuildCommandServiceTests {
                 files: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
                 isCI: .any,
                 issues: .any,
                 modelIdentifier: .any,
@@ -96,7 +99,7 @@ struct InspectBuildCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
 
         Matcher.register([XCActivityIssue].self)
         Matcher.register([XCActivityBuildFile].self)
@@ -151,7 +154,14 @@ struct InspectBuildCommandServiceTests {
         gitController.reset()
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: "branch", sha: "sha"))
+            .willReturn(
+                .test(
+                    ref: "git-ref",
+                    branch: "branch",
+                    sha: "sha",
+                    remoteURLOrigin: "https://github.com/tuist/tuist"
+                )
+            )
 
         // When
         try await subject.run(path: nil)
@@ -167,6 +177,8 @@ struct InspectBuildCommandServiceTests {
                 files: .value([.test()]),
                 gitBranch: .value("branch"),
                 gitCommitSHA: .value("sha"),
+                gitRef: .value("git-ref"),
+                gitRemoteURLOrigin: .value("https://github.com/tuist/tuist"),
                 isCI: .value(false),
                 issues: .value([.test()]),
                 modelIdentifier: .value("Mac15,3"),
@@ -216,7 +228,7 @@ struct InspectBuildCommandServiceTests {
         gitController.reset()
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: "branch", sha: "sha"))
+            .willReturn(.test(ref: nil, branch: "branch", sha: "sha"))
 
         // When
         try await subject.run(path: nil)
@@ -232,6 +244,8 @@ struct InspectBuildCommandServiceTests {
                 files: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
                 isCI: .any,
                 issues: .any,
                 modelIdentifier: .any,
@@ -308,7 +322,7 @@ struct InspectBuildCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
 
         // When / Then
         try await subject.run(path: temporaryDirectory.pathString)
@@ -356,7 +370,7 @@ struct InspectBuildCommandServiceTests {
 
             given(gitController)
                 .gitInfo(workingDirectory: .any)
-                .willReturn((ref: nil, branch: nil, sha: nil))
+                .willReturn(.test())
 
             // When
             try await subject.run(path: temporaryDirectory.pathString)
@@ -403,7 +417,7 @@ struct InspectBuildCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
 
         // When / Then
         await #expect(
@@ -456,7 +470,7 @@ struct InspectBuildCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
 
         // When / Then
         await #expect(
