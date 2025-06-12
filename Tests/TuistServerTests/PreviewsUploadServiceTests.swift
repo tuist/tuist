@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistGit
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -73,7 +74,7 @@ struct PreviewsUploadServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
@@ -186,7 +187,7 @@ struct PreviewsUploadServiceTests {
                 .willReturn("commit-sha")
             given(gitController)
                 .gitInfo(workingDirectory: .any)
-                .willReturn((ref: nil, branch: "main", sha: "commit-sha"))
+                .willReturn(.test(ref: nil, branch: "main", sha: "commit-sha"))
 
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!

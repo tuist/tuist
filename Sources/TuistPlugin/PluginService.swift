@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistScaffold
 import TuistSupport

@@ -1,4 +1,5 @@
 import TuistCore
+import TuistGit
 import TuistSupport
 
 public protocol TemplateGitLoading {

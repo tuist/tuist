@@ -274,6 +274,7 @@ let targets: [Target] = [
             "ProjectDescription",
             "FileSystem",
             "TuistRootDirectoryLocator",
+            "TuistGit",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -379,8 +380,21 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistRootDirectoryLocator",
+            "TuistGit",
             "FileSystem",
             "XCLogParser",
+            swiftToolsSupportDependency,
+            pathDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistGit",
+        dependencies: [
+            "TuistSupport",
+            "FileSystem",
             swiftToolsSupportDependency,
             pathDependency,
         ],

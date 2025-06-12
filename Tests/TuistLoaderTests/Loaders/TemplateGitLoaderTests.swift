@@ -2,6 +2,7 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistGit
 import TuistSupport
 import TuistTesting
 import XCTest

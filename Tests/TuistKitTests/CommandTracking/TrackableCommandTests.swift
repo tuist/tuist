@@ -5,6 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
+import TuistGit
 import TuistServer
 import TuistSupport
 import XCTest
@@ -33,7 +34,7 @@ final class TrackableCommandTests: TuistTestCase {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn((ref: nil, branch: nil, sha: nil))
+            .willReturn(.test())
     }
 
     override func tearDown() {
@@ -99,7 +100,7 @@ final class TrackableCommandTests: TuistTestCase {
             .dispatch(event: Parameter<CommandEvent>.any)
             .called(1)
         verify(gitController)
-            .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
+            .gitInfo(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
             .called(1)
     }
 
@@ -131,7 +132,7 @@ final class TrackableCommandTests: TuistTestCase {
             .dispatch(event: Parameter<CommandEvent>.any)
             .called(1)
         verify(gitController)
-            .isInGitRepository(workingDirectory: .value(fileHandler.currentPath))
+            .gitInfo(workingDirectory: .value(fileHandler.currentPath))
             .called(1)
     }
 
