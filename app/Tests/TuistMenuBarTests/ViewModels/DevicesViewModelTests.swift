@@ -5,7 +5,7 @@ import TuistCore
 import TuistTesting
 import XCTest
 
-@testable import TuistApp
+@testable import TuistMenuBar
 
 final class DevicesViewModelTests: TuistUnitTestCase {
     private var subject: DevicesViewModel!

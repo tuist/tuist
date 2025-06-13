@@ -4,7 +4,7 @@ import Testing
 
 import class TuistServer.MockServerSessionControlling
 
-@testable import TuistApp
+@testable import TuistMenuBar
 
 @Suite struct AppCredentialsServiceTests {
     private let subject: AppCredentialsService

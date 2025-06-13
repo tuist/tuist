@@ -17,6 +17,15 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
     ]
 }
 
+let inspectBuildPostAction: ExecutionAction = .executionAction(
+    title: "Inspect build",
+    scriptText: """
+    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+    tuist inspect build
+    """
+)
+
 let project = Project(
     name: "TuistApp",
     settings: .settings(
@@ -114,6 +123,36 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
             ]
+        ),
+    ],
+    schemes: [
+        .scheme(
+            name: "TuistApp",
+            buildAction: .buildAction(
+                targets: [
+                    .target("TuistApp"),
+                ],
+                postActions: [
+                    inspectBuildPostAction,
+                ],
+                runPostActionsOnFailure: true
+            ),
+            testAction: .targets(
+                [
+                    .testableTarget(target: "TuistMenuBarTests"),
+                ],
+                options: .options(
+                    language: "en"
+                )
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: [
+                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                    ]
+                )
+            )
         ),
     ]
 )

@@ -75,13 +75,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             .willReturn(Constants.URLs.production)
 
         given(previewsUploadService)
-            .uploadPreviews(
+            .uploadPreview(
                 .any,
-                displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
-                icon: .any,
-                supportedPlatforms: .any,
                 path: .any,
                 fullHandle: .any,
                 serverURL: .any,
@@ -240,13 +235,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             // Then
             verify(previewsUploadService)
-                .uploadPreviews(
+                .uploadPreview(
                     .any,
-                    displayName: .any,
-                    version: .any,
-                    bundleIdentifier: .any,
-                    icon: .any,
-                    supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
@@ -437,13 +427,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             // Then
             verify(previewsUploadService)
-                .uploadPreviews(
+                .uploadPreview(
                     .any,
-                    displayName: .any,
-                    version: .value("1.0.0"),
-                    bundleIdentifier: .value("com.tuist.app"),
-                    icon: .any,
-                    supportedPlatforms: .value([.simulator(.iOS)]),
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
@@ -531,14 +516,11 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             XCTAssertStandardOutput(
                 pattern: """
-                {
                   "bundleIdentifier": "com.tuist.app",
                   "displayName": "App",
-                  "iconURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png",
+                  "iconURL": "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png",
                   "id": "preview-id",
                   "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
-                  "url": "https://test.tuist.io"
-                }
                 """
             )
         }
@@ -790,13 +772,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             // Then
             verify(previewsUploadService)
-                .uploadPreviews(
+                .uploadPreview(
                     .any,
-                    displayName: .any,
-                    version: .any,
-                    bundleIdentifier: .any,
-                    icon: .any,
-                    supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
@@ -924,13 +901,15 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             // Then
             verify(previewsUploadService)
-                .uploadPreviews(
-                    .value(.appBundles([iosApp, visionOSApp])),
-                    displayName: .value("App"),
-                    version: .any,
-                    bundleIdentifier: .any,
-                    icon: .value(iosIconPath),
-                    supportedPlatforms: .any,
+                .uploadPreview(
+                    .matching {
+                        switch $0 {
+                        case let .appBundles(appBundles):
+                            return appBundles.count == 2
+                        default:
+                            return false
+                        }
+                    },
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
@@ -995,13 +974,15 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             // Then
             verify(previewsUploadService)
-                .uploadPreviews(
-                    .value(.ipa(ipaPath)),
-                    displayName: .value("App"),
-                    version: .value("1.0.0"),
-                    bundleIdentifier: .value("com.tuist.app"),
-                    icon: .value(iconPath),
-                    supportedPlatforms: .any,
+                .uploadPreview(
+                    .matching {
+                        switch $0 {
+                        case .ipa:
+                            return true
+                        default:
+                            return false
+                        }
+                    },
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),

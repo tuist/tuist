@@ -109,7 +109,7 @@ final class AppPreviewsViewModel: Sendable {
         let previews = try await listPreviewsService.listPreviews(
             displayName: nil,
             specifier: "latest",
-            supportedPlatforms: [deviceService.selectedDevice?.destinationType].compactMap { $0 },
+            supportedPlatforms: [try deviceService.selectedDevice?.destinationType()].compactMap { $0 },
             page: nil,
             pageSize: 1,
             distinctField: nil,

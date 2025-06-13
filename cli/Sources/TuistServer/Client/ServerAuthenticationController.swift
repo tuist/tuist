@@ -97,7 +97,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 )
                 if isTuistDevURL(serverURL), credentials == nil {
                     credentials = try await credentialsStore.read(
-                        serverURL: URL(string: "https://cloud.tuist.io")!
+                        serverURL: URL(string: "https://tuist.dev")!
                     )
                 }
                 return try credentials.map {

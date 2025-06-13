@@ -71,7 +71,7 @@ struct ServerAuthenticationControllerTests {
             .read(serverURL: .value(URL(string: "https://tuist.dev")!))
             .willReturn(nil)
         given(credentialsStore)
-            .read(serverURL: .value(URL(string: "https://cloud.tuist.io")!))
+            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
             .willReturn(credentials)
 
         // When

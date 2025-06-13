@@ -73,7 +73,7 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
-    @Option(help: "The simulator device name to run the target or scheme on.")
+    @Option(help: "The simulator or physical device name to run the target, scheme, or preview on.")
     var device: String?
 
     @Option(
@@ -90,7 +90,7 @@ public struct RunCommand: AsyncParsableCommand {
     var rosetta: Bool = false
 
     @Argument(
-        parsing: .captureForPassthrough,
+        parsing: .postTerminator,
         help: "The arguments to pass to the runnable target during execution.",
         envKey: .runArguments
     )

@@ -111,3 +111,5 @@ Tuist/Dependencies/graph.json
 
 # Release artifacts
 .bundle
+
+.claude/

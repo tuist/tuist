@@ -4,15 +4,19 @@ import Mockable
 import TuistAutomation
 import TuistCore
 import TuistServer
+import TuistSimulator
 import TuistSupport
 
 enum DeviceServiceError: FatalError, Equatable {
     case appDownloadFailed(String)
+    case appBundleNotFoundInArchive
 
     var description: String {
         switch self {
         case let .appDownloadFailed(id):
             return "The app preview \(id) was not found."
+        case .appBundleNotFoundInArchive:
+            return "Could not find app bundle in the downloaded archive"
         }
     }
 
@@ -20,6 +24,8 @@ enum DeviceServiceError: FatalError, Equatable {
         switch self {
         case .appDownloadFailed:
             return .abort
+        case .appBundleNotFoundInArchive:
+            return .bug
         }
     }
 }
@@ -181,57 +187,34 @@ final class DeviceService: DeviceServicing {
         for preview: Preview,
         selectedDevice: Device
     ) async throws -> AppBundle {
-        guard let archivePath = try await remoteArtifactDownloader.download(url: preview.url)
+        let destination: DestinationType
+        switch selectedDevice {
+        case let .device(physicalDevice):
+            destination = .device(physicalDevice.platform)
+        case let .simulator(simulator):
+            destination = .simulator(try simulator.runtime.platform())
+        }
+        guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url
+        else {
+            throw SimulatorsViewModelError.appNotFound(
+                selectedDevice,
+                preview.appBuilds.flatMap(\.supportedPlatforms)
+            )
+        }
+
+        guard let archivePath = try await remoteArtifactDownloader.download(url: url)
         else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        let apps = try await fileSystem.glob(
+        guard let appPath = try await fileSystem.glob(
             directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
-        ).collect()
-            .concurrentMap {
-                try await self.appBundleLoader.load($0)
-            }
-
-        guard let app = apps.first(
-            where: {
-                $0.infoPlist.supportedPlatforms.contains(
-                    where: {
-                        switch $0 {
-                        case let .device(platform):
-                            switch selectedDevice {
-                            case let .device(device):
-                                return device.platform == platform
-                            case .simulator:
-                                return false
-                            }
-                        case let .simulator(platform):
-                            switch selectedDevice {
-                            case .device:
-                                return false
-                            case let .simulator(simulator):
-                                return simulator.runtime.platform == platform
-                            }
-                        }
-                    }
-                )
-            }
         )
-        else {
-            throw SimulatorsViewModelError.appNotFound(
-                selectedDevice,
-                apps.flatMap(\.infoPlist.supportedPlatforms).compactMap {
-                    switch $0 {
-                    case .device:
-                        return nil
-                    case let .simulator(platform):
-                        return platform
-                    }
-                }
-            )
-        }
+        .collect()
+        .first
+        else { throw DeviceServiceError.appBundleNotFoundInArchive }
 
-        return app
+        return try await appBundleLoader.load(appPath)
     }
 
     private func launchApp(

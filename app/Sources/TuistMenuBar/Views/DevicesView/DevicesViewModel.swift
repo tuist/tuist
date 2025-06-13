@@ -5,30 +5,43 @@ import SwiftUI
 import TuistAutomation
 import TuistCore
 import TuistServer
+import TuistSimulator
 import TuistSupport
 import XcodeGraph
 
 enum SimulatorsViewModelError: FatalError, Equatable {
     case noSelectedSimulator
     case invalidDeeplink(String)
-    case appNotFound(Device, [Platform])
+    case appNotFound(Device, [DestinationType])
 
     var description: String {
         switch self {
         case .noSelectedSimulator:
             return "To run a preview, you must have a simulator selected."
-        case let .appNotFound(device, platforms):
+        case let .appNotFound(device, destinations):
             let name: String
             let platform: String
             switch device {
             case let .simulator(simulator):
                 name = simulator.device.name
-                platform = simulator.runtime.platform?.caseValue ?? simulator.runtime.name
+                platform = (try? simulator.runtime.platform().caseValue) ?? simulator.runtime.name
             case let .device(device):
                 name = device.name
                 platform = device.platform.caseValue
             }
-            return "Couldn't install the app for \(name). The \(name)'s platform is \(platform) and the app includes only the following platforms: \(platforms.map(\.caseValue).joined(separator: ", "))"
+            let platforms = destinations.map {
+                switch $0 {
+                case let .device(platform):
+                    return platform.caseValue
+                case let .simulator(platform):
+                    return "\(platform.caseValue) simulator"
+                }
+            }
+            if platforms.isEmpty {
+                return "Couldn't install the app for \(name) as it doesn't include any valid app builds."
+            } else {
+                return "Couldn't install the app for \(name). The \(name)'s platform is \(platform) and the app includes only the following platforms: \(platforms.joined(separator: ", "))"
+            }
         case let .invalidDeeplink(deeplink):
             return "The preview deeplink \(deeplink) is invalid."
         }

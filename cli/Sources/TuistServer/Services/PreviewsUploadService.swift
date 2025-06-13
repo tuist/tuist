@@ -3,25 +3,21 @@
     import Foundation
     import Mockable
     import Path
+    import TuistAutomation
     import TuistCore
     import TuistGit
     import TuistSimulator
     import TuistSupport
 
     public enum PreviewUploadType: Equatable {
-        case ipa(AbsolutePath)
-        case appBundles([AbsolutePath])
+        case ipa(AppBundle)
+        case appBundles([AppBundle])
     }
 
     @Mockable
     public protocol PreviewsUploadServicing {
-        func uploadPreviews(
+        func uploadPreview(
             _ previewUploadType: PreviewUploadType,
-            displayName: String,
-            version: String?,
-            bundleIdentifier: String?,
-            icon: AbsolutePath?,
-            supportedPlatforms: [DestinationType],
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
@@ -79,34 +75,81 @@
             self.gitController = gitController
         }
 
-        public func uploadPreviews(
+        public func uploadPreview(
             _ previewUploadType: PreviewUploadType,
-            displayName: String,
-            version: String?,
-            bundleIdentifier: String?,
-            icon: AbsolutePath?,
-            supportedPlatforms: [DestinationType],
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Preview {
-            let previewType: PreviewType
-            let buildPath: AbsolutePath
-            switch previewUploadType {
-            case let .ipa(ipaPath):
-                buildPath = ipaPath
-                previewType = .ipa
-            case let .appBundles(previewPaths):
-                buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(
-                    name: "previews.zip"
-                )
-                previewType = .appBundle
-            }
-
             let gitInfo = try gitController.gitInfo(workingDirectory: path)
             let gitCommitSHA = gitInfo.sha
             let gitBranch = gitInfo.branch
+
+            switch previewUploadType {
+            case let .ipa(bundle):
+                let preview = try await uploadPreview(
+                    buildPath: bundle.path,
+                    previewType: .ipa,
+                    displayName: bundle.infoPlist.name,
+                    version: bundle.infoPlist.version,
+                    bundleIdentifier: bundle.infoPlist.bundleId,
+                    icon: iconPaths(for: previewUploadType).first,
+                    supportedPlatforms: bundle.infoPlist.supportedPlatforms,
+                    gitBranch: gitBranch,
+                    gitCommitSHA: gitCommitSHA,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    updateProgress: updateProgress
+                )
+                return preview
+
+            case let .appBundles(bundles):
+                var preview: Preview!
+
+                for (index, bundle) in bundles.enumerated() {
+                    let progressOffset = Double(index) / Double(bundles.count)
+                    let progressScale = 1.0 / Double(bundles.count)
+                    let bundleArchivePath = try await fileArchiver
+                        .makeFileArchiver(for: [bundle.path])
+                        .zip(name: bundle.path.basename)
+
+                    preview = try await uploadPreview(
+                        buildPath: bundleArchivePath,
+                        previewType: .appBundle,
+                        displayName: bundle.infoPlist.name,
+                        version: bundle.infoPlist.version,
+                        bundleIdentifier: bundle.infoPlist.bundleId,
+                        icon: iconPaths(for: bundle).first,
+                        supportedPlatforms: bundle.infoPlist.supportedPlatforms,
+                        gitBranch: gitBranch,
+                        gitCommitSHA: gitCommitSHA,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        updateProgress: { progress in
+                            updateProgress(progressOffset + progress * progressScale)
+                        }
+                    )
+                }
+
+                return preview
+            }
+        }
+
+        private func uploadPreview(
+            buildPath: AbsolutePath,
+            previewType: PreviewType,
+            displayName: String,
+            version: String?,
+            bundleIdentifier: String?,
+            icon: AbsolutePath?,
+            supportedPlatforms: [DestinationType],
+            gitBranch: String?,
+            gitCommitSHA: String?,
+            fullHandle: String,
+            serverURL: URL,
+            updateProgress: @escaping (Double) -> Void
+        ) async throws -> Preview {
             updateProgress(0.1)
 
             let preview = try await retryProvider.runWithRetries {
@@ -128,7 +171,7 @@
                 let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                     artifactPath: buildPath,
                     generateUploadURL: { part in
-                        try await multipartUploadGenerateURLPreviewsService.uploadPreviews(
+                        try await multipartUploadGenerateURLPreviewsService.uploadPreview(
                             previewUpload.previewId,
                             partNumber: part.number,
                             uploadId: previewUpload.uploadId,
@@ -161,6 +204,37 @@
             }
 
             return preview
+        }
+
+        private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
+            switch previewUploadType {
+            case let .appBundles(appBundles):
+                return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }
+            case let .ipa(appBundle):
+                let unarchiver = try fileArchiver.makeFileUnarchiver(for: appBundle.path)
+                guard let appPath = try await fileSystem.glob(directory: unarchiver.unzip(), include: ["*.app", "Payload/*.app"])
+                    .collect()
+                    .first
+                else {
+                    return []
+                }
+
+                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                    // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
+                    .map { appPath.appending(component: $0 + "@2x.png") }
+                    .concurrentFilter {
+                        try await fileSystem.exists($0)
+                    }
+            }
+        }
+
+        private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
+            try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
+                .map { appBundle.path.appending(component: $0 + "@2x.png") }
+                .concurrentFilter {
+                    try await fileSystem.exists($0)
+                }
         }
     }
 #endif

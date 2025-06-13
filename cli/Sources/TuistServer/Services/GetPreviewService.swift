@@ -18,7 +18,7 @@ public enum GetPreviewServiceError: LocalizedError, Equatable {
     case invalidPreview(String)
     case badRequest(String)
 
-    public var description: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The preview could not be downloaded due to an unknown Tuist server response of \(statusCode)."

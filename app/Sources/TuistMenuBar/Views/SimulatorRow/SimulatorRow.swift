@@ -15,9 +15,9 @@ struct SimulatorRow: View, ErrorViewHandling {
     @EnvironmentObject var errorHandling: ErrorHandling
     @State private var highlighted = false
 
-    private func deviceImage() -> some View {
-        switch simulator.runtime.platform {
-        case .iOS, .none:
+    private func deviceImage() throws -> some View {
+        switch try simulator.runtime.platform() {
+        case .iOS:
             if simulator.device.name.contains("iPad") {
                 Image(systemName: "ipad")
             } else {
@@ -40,7 +40,7 @@ struct SimulatorRow: View, ErrorViewHandling {
                 Circle()
                     .fill(selected ? .blue : .gray.opacity(0.4))
 
-                deviceImage()
+                try? deviceImage()
                     .foregroundColor(
                         selected ? TuistMenuBarAsset.Assets.light.swiftUIColor : TuistMenuBarAsset.Assets.dark
                             .swiftUIColor

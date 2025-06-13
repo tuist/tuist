@@ -1880,6 +1880,8 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/Preview`.
         internal struct Preview: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Preview/builds`.
+            internal var builds: [Components.Schemas.AppBuild]
             /// The bundle identifier of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/bundle_identifier`.
@@ -1908,6 +1910,8 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
             internal var qr_code_url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Preview/supported_platforms`.
+            internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
             /// The URL to download the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/url`.
@@ -1915,6 +1919,7 @@ internal enum Components {
             /// Creates a new `Preview`.
             ///
             /// - Parameters:
+            ///   - builds:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
@@ -1922,8 +1927,10 @@ internal enum Components {
             ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - supported_platforms:
             ///   - url: The URL to download the preview
             internal init(
+                builds: [Components.Schemas.AppBuild],
                 bundle_identifier: Swift.String? = nil,
                 display_name: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
@@ -1931,8 +1938,10 @@ internal enum Components {
                 icon_url: Swift.String,
                 id: Swift.String,
                 qr_code_url: Swift.String,
+                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 url: Swift.String
             ) {
+                self.builds = builds
                 self.bundle_identifier = bundle_identifier
                 self.display_name = display_name
                 self.git_branch = git_branch
@@ -1940,9 +1949,11 @@ internal enum Components {
                 self.icon_url = icon_url
                 self.id = id
                 self.qr_code_url = qr_code_url
+                self.supported_platforms = supported_platforms
                 self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
+                case builds
                 case bundle_identifier
                 case display_name
                 case git_branch
@@ -1950,6 +1961,7 @@ internal enum Components {
                 case icon_url
                 case id
                 case qr_code_url
+                case supported_platforms
                 case url
             }
         }
@@ -3140,6 +3152,54 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case data
                 case status
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AppBuild`.
+        internal struct AppBuild: Codable, Hashable, Sendable {
+            /// Unique identifier of the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/id`.
+            internal var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AppBuild/supported_platforms`.
+            internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]
+            /// The type of the build
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
+            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case app_bundle = "app_bundle"
+                case ipa = "ipa"
+            }
+            /// The type of the build
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/type`.
+            internal var _type: Components.Schemas.AppBuild._typePayload
+            /// The URL to download the build
+            ///
+            /// - Remark: Generated from `#/components/schemas/AppBuild/url`.
+            internal var url: Swift.String
+            /// Creates a new `AppBuild`.
+            ///
+            /// - Parameters:
+            ///   - id: Unique identifier of the build.
+            ///   - supported_platforms:
+            ///   - _type: The type of the build
+            ///   - url: The URL to download the build
+            internal init(
+                id: Swift.String,
+                supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
+                _type: Components.Schemas.AppBuild._typePayload,
+                url: Swift.String
+            ) {
+                self.id = id
+                self.supported_platforms = supported_platforms
+                self._type = _type
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case supported_platforms
+                case _type = "type"
+                case url
             }
         }
         /// This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.

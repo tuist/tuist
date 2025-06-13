@@ -592,6 +592,12 @@ components:
       x-validate:
     Preview:
       properties:
+        builds:
+          items:
+            $ref: '#/components/schemas/AppBuild'
+          type: array
+          x-struct:
+          x-validate:
         bundle_identifier:
           description: The bundle identifier of the preview
           type: string
@@ -627,6 +633,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        supported_platforms:
+          items:
+            $ref: '#/components/schemas/PreviewSupportedPlatform'
+          type: array
+          x-struct:
+          x-validate:
         url:
           description: The URL to download the preview
           type: string
@@ -637,6 +649,8 @@ components:
         - url
         - qr_code_url
         - icon_url
+        - builds
+        - supported_platforms
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
@@ -1425,6 +1439,41 @@ components:
       title: ArtifactMultipartUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+      x-validate:
+    AppBuild:
+      properties:
+        id:
+          description: Unique identifier of the build.
+          type: string
+          x-struct:
+          x-validate:
+        supported_platforms:
+          items:
+            $ref: '#/components/schemas/PreviewSupportedPlatform'
+          type: array
+          x-struct:
+          x-validate:
+        type:
+          description: The type of the build
+          enum:
+            - app_bundle
+            - ipa
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL to download the build
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - url
+        - type
+        - supported_platforms
+      title: AppBuild
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AppBuild
       x-validate:
     CacheArtifactMultipartUploadCompletion:
       description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
