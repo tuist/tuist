@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.53.1 - 2025-06-13
+
+### CLI
+
+#### Fixed
+
+- Merge the takeaways before printing [#7677](https://github.com/tuist/tuist/pull/7677) by [@pepicrft](https://github.com/pepicrft)
+- Ensure cache items are only fetched once [#7678](https://github.com/tuist/tuist/pull/7678) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.53.0 - 2025-06-12
 
 ### CLI
