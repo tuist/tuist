@@ -1,3 +1,4 @@
+import Foundation
 import Path
 
 public struct CacheItem: Hashable, Equatable, Codable {
@@ -10,20 +11,20 @@ public struct CacheItem: Hashable, Equatable, Codable {
     public let hash: String
     public let source: Source
     public let cacheCategory: RemoteCacheCategory
-    public let buildTime: Double?
+    public let buildDuration: TimeInterval?
 
     public init(
         name: String,
         hash: String,
         source: Source,
         cacheCategory: RemoteCacheCategory,
-        buildTime: Double? = nil
+        buildDuration: TimeInterval? = nil
     ) {
         self.name = name
         self.hash = hash
         self.source = source
         self.cacheCategory = cacheCategory
-        self.buildTime = buildTime
+        self.buildDuration = buildDuration
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -39,14 +40,14 @@ public struct CacheItem: Hashable, Equatable, Codable {
             hash: String = "cache-item-hash",
             source: Source = .local,
             cacheCategory: RemoteCacheCategory = .selectiveTests,
-            buildTime: Double? = nil
+            buildDuration: TimeInterval? = nil
         ) -> Self {
             .init(
                 name: name,
                 hash: hash,
                 source: source,
                 cacheCategory: cacheCategory,
-                buildTime: buildTime
+                buildDuration: buildDuration
             )
         }
     }

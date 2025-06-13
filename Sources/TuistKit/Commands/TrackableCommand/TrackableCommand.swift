@@ -19,6 +19,7 @@ public struct TrackableCommandInfo {
     let durationInMs: Int
     let status: CommandEvent.Status
     let graph: Graph?
+    let graphBinaryBuildDuration: TimeInterval?
     let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
     let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
     let previewId: String?
@@ -121,6 +122,7 @@ public class TrackableCommand {
             durationInMs: durationInMs,
             status: status,
             graph: runMetadataStorage.graph,
+            graphBinaryBuildDuration: runMetadataStorage.graphBinaryBuildDuration,
             binaryCacheItems: runMetadataStorage.binaryCacheItems,
             selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
             previewId: runMetadataStorage.previewId,
