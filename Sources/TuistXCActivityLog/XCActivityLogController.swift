@@ -210,7 +210,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
     ) async throws
         -> [XCActivityBuildFile]
     {
-        try await steps
+        let derivedDataDirectory = try await Environment.current.derivedDataDirectory()
+        return try await steps
             .filter { $0.type == .detail }
             .concurrentCompactMap { step -> XCActivityBuildFile? in
                 let type: XCActivityBuildFileType
@@ -235,7 +236,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 if let absolutePath = try? AbsolutePath(
                     validating: step.documentURL
                         .replacingOccurrences(of: "file://", with: "")
-                ), try await Environment.current.derivedDataDirectory().isAncestor(of: absolutePath) {
+                ), derivedDataDirectory.isAncestor(of: absolutePath) {
                     return nil
                 }
 
