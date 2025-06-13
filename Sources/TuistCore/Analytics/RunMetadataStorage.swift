@@ -11,10 +11,17 @@ public actor RunMetadataStorage {
 
     /// A unique ID associated with a specific run
     public var runId: String { Environment.current.processId }
+
     /// Graph associated with the current run
     public private(set) var graph: Graph?
     public func update(graph: Graph?) {
         self.graph = graph
+    }
+
+    /// Graph associated with the current run
+    public private(set) var graphBinaryBuildDuration: TimeInterval?
+    public func update(graphBinaryBuildDuration: TimeInterval?) {
+        self.graphBinaryBuildDuration = graphBinaryBuildDuration
     }
 
     /// Binar cache-specific cache items

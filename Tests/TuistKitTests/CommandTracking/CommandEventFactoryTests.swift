@@ -76,6 +76,7 @@ struct CommandEventFactoryTests {
                     ),
                 ]
             ),
+            graphBinaryBuildDuration: 1000,
             binaryCacheItems: [
                 projectPath: [
                     "A": .test(
@@ -187,7 +188,8 @@ struct CommandEventFactoryTests {
                             ),
                         ]
                     ),
-                ]
+                ],
+                binaryBuildDuration: 1000
             ),
             previewId: nil,
             resultBundlePath: nil,
@@ -259,6 +261,7 @@ struct CommandEventFactoryTests {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
+            graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,
@@ -301,6 +304,7 @@ struct CommandEventFactoryTests {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
+            graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,
@@ -355,6 +359,7 @@ struct CommandEventFactoryTests {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
+            graphBinaryBuildDuration: 1000,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,

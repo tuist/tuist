@@ -101,6 +101,7 @@
 
         private func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
             .init(
+                binary_build_duration: graph.binaryBuildDuration.map { Int($0) },
                 name: graph.name,
                 projects: graph.projects.map { project in
                     .init(
@@ -123,6 +124,7 @@
                                             .miss
                                         }
                                         return .init(
+                                            build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit
                                         )

@@ -21,7 +21,7 @@ components:
       properties:
         organizations:
           items:
-            $ref: '#/components/schemas/Organization'
+            $ref: "#/components/schemas/Organization"
           type: array
           x-struct:
           x-validate:
@@ -44,7 +44,7 @@ components:
             artifacts:
               description: The artifacts in this bundle
               items:
-                $ref: '#/components/schemas/BundleArtifact'
+                $ref: "#/components/schemas/BundleArtifact"
               type: array
               x-struct:
               x-validate:
@@ -81,7 +81,7 @@ components:
             supported_platforms:
               description: List of supported platforms
               items:
-                $ref: '#/components/schemas/BundleSupportedPlatform'
+                $ref: "#/components/schemas/BundleSupportedPlatform"
               type: array
               x-struct:
               x-validate:
@@ -186,7 +186,7 @@ components:
       properties:
         tokens:
           items:
-            $ref: '#/components/schemas/ProjectToken'
+            $ref: "#/components/schemas/ProjectToken"
           type: array
           x-struct:
           x-validate:
@@ -405,7 +405,7 @@ components:
           x-struct:
           x-validate:
         inviter:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         organization_id:
           description: The id of the organization the invitee is invited to
           type: number
@@ -499,14 +499,14 @@ components:
         invitations:
           description: A list of organization invitations
           items:
-            $ref: '#/components/schemas/Invitation'
+            $ref: "#/components/schemas/Invitation"
           type: array
           x-struct:
           x-validate:
         members:
           description: A list of organization members
           items:
-            $ref: '#/components/schemas/OrganizationMember'
+            $ref: "#/components/schemas/OrganizationMember"
           type: array
           x-struct:
           x-validate:
@@ -972,7 +972,7 @@ components:
         children:
           description: Nested child artifacts, for example for artifacts that represent a directory.
           items:
-            $ref: '#/components/schemas/BundleArtifact'
+            $ref: "#/components/schemas/BundleArtifact"
           type: array
           x-struct:
           x-validate:
@@ -1080,7 +1080,7 @@ components:
         previews:
           description: Previews list.
           items:
-            $ref: '#/components/schemas/Preview'
+            $ref: "#/components/schemas/Preview"
           type: array
           x-struct:
           x-validate:
@@ -1828,7 +1828,7 @@ paths:
           name: cache_category
           required: false
           schema:
-            $ref: '#/components/schemas/CacheCategory'
+            $ref: "#/components/schemas/CacheCategory"
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
@@ -1918,25 +1918,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It completes a multi-part upload.
       tags:
@@ -2121,6 +2121,11 @@ paths:
                 xcode_graph:
                   description: The schema for the Xcode graph.
                   properties:
+                    binary_build_duration:
+                      description: The estimated time in milliseconds that would take to build the part of the graph that has been replaced as binaries.
+                      type: integer
+                      x-struct:
+                      x-validate:
                     name:
                       description: Name of the Xcode graph
                       type: string
@@ -2147,6 +2152,11 @@ paths:
                                 binary_cache_metadata:
                                   description: Binary cache metadata
                                   properties:
+                                    build_duration:
+                                      description: The compilation time of a binary in milliseconds.
+                                      type: integer
+                                      x-struct:
+                                      x-validate:
                                     hash:
                                       description: Hash of the target
                                       type: string
@@ -2236,19 +2246,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CommandEvent'
+                $ref: "#/components/schemas/CommandEvent"
           description: The command event was created
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You don't have permission to create command events for the project.
       summary: Create a a new command analytics event
       tags:
@@ -2303,7 +2313,7 @@ paths:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
-                    $ref: '#/components/schemas/PreviewSupportedPlatform'
+                    $ref: "#/components/schemas/PreviewSupportedPlatform"
                   type: array
                   x-struct:
                   x-validate:
@@ -2371,19 +2381,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It initiates a multipart upload for a preview artifact.
       tags:
@@ -2422,19 +2432,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationTokens'
+                $ref: "#/components/schemas/AuthenticationTokens"
           description: Successfully authenticated and returned new API tokens.
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Invalid email or password.
         429:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You've exceeded the rate limit.
       summary: Authenticate with email and password.
       tags:
@@ -2467,13 +2477,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationTokens'
+                $ref: "#/components/schemas/AuthenticationTokens"
           description: Succcessfully generated new API tokens.
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to issue new tokens
       summary: Request new tokens.
       tags:
@@ -2515,7 +2525,7 @@ paths:
                     artifacts:
                       description: The artifacts in this bundle
                       items:
-                        $ref: '#/components/schemas/BundleArtifact'
+                        $ref: "#/components/schemas/BundleArtifact"
                       type: array
                       x-struct:
                       x-validate:
@@ -2552,7 +2562,7 @@ paths:
                     supported_platforms:
                       description: List of supported platforms
                       items:
-                        $ref: '#/components/schemas/BundleSupportedPlatform'
+                        $ref: "#/components/schemas/BundleSupportedPlatform"
                       type: array
                       x-struct:
                       x-validate:
@@ -2584,19 +2594,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Bundle'
+                $ref: "#/components/schemas/Bundle"
           description: The bundle was created
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: An error occurred while updating the account.
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to update your account.
       summary: Create a new bundle with artifacts
       tags:
@@ -2655,7 +2665,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The request was not accepted, e.g., when the device code is expired
       summary: Get a specific device code.
       tags:
@@ -2678,7 +2688,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CommandEventArtifact'
+              $ref: "#/components/schemas/CommandEventArtifact"
         description: Artifact to upload
         required: false
       responses:
@@ -2686,25 +2696,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactUploadID'
+                $ref: "#/components/schemas/ArtifactUploadID"
           description: The upload has been started
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The command event doesn't exist
       summary: It initiates a multipart upload for a command event artifact.
       tags:
@@ -2722,7 +2732,7 @@ paths:
                 properties:
                   projects:
                     items:
-                      $ref: '#/components/schemas/Project'
+                      $ref: "#/components/schemas/Project"
                     type: array
                     x-struct:
                     x-validate:
@@ -2736,7 +2746,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
       summary: List projects the authenticated user has access to.
       tags:
@@ -2778,25 +2788,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: "#/components/schemas/Project"
           description: The project was created
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account was not found
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
       summary: Create a new project.
       tags:
@@ -2832,7 +2842,7 @@ paths:
                 properties:
                   tokens:
                     items:
-                      $ref: '#/components/schemas/ProjectToken'
+                      $ref: "#/components/schemas/ProjectToken"
                     type: array
                     x-struct:
                     x-validate:
@@ -2847,19 +2857,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to list tokens
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authorized to list tokens
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project was not found
       summary: List all project tokens.
       tags:
@@ -2908,19 +2918,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to issue new tokens
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authorized to issue new tokens
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project was not found
       summary: Create a new project token.
       tags:
@@ -2944,25 +2954,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationUsage'
+                $ref: "#/components/schemas/OrganizationUsage"
           description: The organization usage
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization with the given name was not found
       summary: Shows the usage of an organization
       tags:
@@ -2978,7 +2988,7 @@ paths:
           name: cache_category
           required: false
           schema:
-            $ref: '#/components/schemas/CacheCategory'
+            $ref: "#/components/schemas/CacheCategory"
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
@@ -3008,31 +3018,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactUploadID'
+                $ref: "#/components/schemas/ArtifactUploadID"
           description: The upload has been started
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It initiates a multipart upload in the cache.
       tags:
@@ -3072,31 +3082,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CacheActionItem'
+                $ref: "#/components/schemas/CacheActionItem"
           description: The item exists in the action cache
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The item doesn't exist in the actino cache
       summary: Get a cache action item.
       tags:
@@ -3112,7 +3122,7 @@ paths:
           name: cache_category
           required: false
           schema:
-            $ref: '#/components/schemas/CacheCategory'
+            $ref: "#/components/schemas/CacheCategory"
         - description: The size in bytes of the part that will be uploaded. It's used to generate the signed URL.
           in: query
           name: content_length
@@ -3166,31 +3176,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+                $ref: "#/components/schemas/ArtifactMultipartUploadURL"
           description: The URL has been generated
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
       tags:
@@ -3238,43 +3248,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CacheActionItem'
+                $ref: "#/components/schemas/CacheActionItem"
           description: The request is valid but the cache action item already exists
         201:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CacheActionItem'
+                $ref: "#/components/schemas/CacheActionItem"
           description: The action item was cached
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The request has missing or invalid parameters
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It uploads a given cache action item.
       tags:
@@ -3300,19 +3310,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization with the given name was not found
       summary: Deletes an organization
       tags:
@@ -3335,25 +3345,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
+                $ref: "#/components/schemas/Organization"
           description: The organization
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization with the given name was not found
       summary: Shows an organization
       tags:
@@ -3401,31 +3411,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
+                $ref: "#/components/schemas/Organization"
           description: The organization
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization could not be updated due to a validation error
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization with the given name was not found
       summary: Updates an organization
       tags:
@@ -3473,31 +3483,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
+                $ref: "#/components/schemas/Organization"
           description: The organization
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization could not be updated due to a validation error
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization with the given name was not found
       summary: Updates an organization
       tags:
@@ -3530,7 +3540,7 @@ paths:
             schema:
               properties:
                 multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                  $ref: "#/components/schemas/ArtifactMultipartUploadPart"
                 preview_id:
                   description: The id of the preview.
                   type: string
@@ -3549,25 +3559,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+                $ref: "#/components/schemas/ArtifactMultipartUploadURL"
           description: The URL has been generated
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
       tags:
@@ -3636,19 +3646,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to issue new tokens
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authorized to issue new tokens
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account was not found
       summary: Create a new account token.
       tags:
@@ -3673,9 +3683,9 @@ paths:
             schema:
               properties:
                 command_event_artifact:
-                  $ref: '#/components/schemas/CommandEventArtifact'
+                  $ref: "#/components/schemas/CommandEventArtifact"
                 multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                  $ref: "#/components/schemas/ArtifactMultipartUploadPart"
               required:
                 - command_event_artifact
                 - multipart_upload_part
@@ -3689,25 +3699,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+                $ref: "#/components/schemas/ArtifactMultipartUploadURL"
           description: The URL has been generated
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
       tags:
@@ -3740,19 +3750,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project was not found
       summary: Cleans cache for a given project
       tags:
@@ -3795,19 +3805,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The invitation with the given invitee email and organization name was not found
       summary: Cancels an invitation
       tags:
@@ -3847,31 +3857,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invitation'
+                $ref: "#/components/schemas/Invitation"
           description: The user was invited
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The user could not be invited due to a validation error
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization was not found
       summary: Creates an invitation
       tags:
@@ -3914,18 +3924,18 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: ''
+        - description: ""
           in: query
           name: supported_platforms
           required: false
           schema:
             description: The supported platforms of the preview.
             items:
-              $ref: '#/components/schemas/PreviewSupportedPlatform'
+              $ref: "#/components/schemas/PreviewSupportedPlatform"
             type: array
             x-struct:
             x-validate:
-        - description: ''
+        - description: ""
           in: query
           name: page_size
           required: false
@@ -3938,7 +3948,7 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - description: ""
           in: query
           name: page
           required: false
@@ -3969,7 +3979,7 @@ paths:
                   previews:
                     description: Previews list.
                     items:
-                      $ref: '#/components/schemas/Preview'
+                      $ref: "#/components/schemas/Preview"
                     type: array
                     x-struct:
                     x-validate:
@@ -3984,13 +3994,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
       summary: List previews.
       tags:
@@ -4006,7 +4016,7 @@ paths:
           name: cache_category
           required: false
           schema:
-            $ref: '#/components/schemas/CacheCategory'
+            $ref: "#/components/schemas/CacheCategory"
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
@@ -4036,31 +4046,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CacheArtifactDownloadURL'
+                $ref: "#/components/schemas/CacheArtifactDownloadURL"
           description: The artifact exists and is downloadable
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project or the cache artifact doesn't exist
       summary: Downloads an artifact from the cache.
       tags:
@@ -4085,9 +4095,9 @@ paths:
             schema:
               properties:
                 command_event_artifact:
-                  $ref: '#/components/schemas/CommandEventArtifact'
+                  $ref: "#/components/schemas/CommandEventArtifact"
                 multipart_upload_parts:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+                  $ref: "#/components/schemas/ArtifactMultipartUploadParts"
               required:
                 - command_event_artifact
                 - multipart_upload_parts
@@ -4103,25 +4113,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
         500:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: An internal server error occurred
       summary: It completes a multi-part upload.
       tags:
@@ -4141,7 +4151,7 @@ paths:
                 properties:
                   organizations:
                     items:
-                      $ref: '#/components/schemas/Organization'
+                      $ref: "#/components/schemas/Organization"
                     type: array
                     x-struct:
                     x-validate:
@@ -4156,13 +4166,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
       summary: Lists the organizations
       tags:
@@ -4194,13 +4204,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
+                $ref: "#/components/schemas/Organization"
           description: The organization was created
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization could not be created due to a validation error
       summary: Creates an organization
       tags:
@@ -4240,31 +4250,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Preview'
+                $ref: "#/components/schemas/Preview"
           description: The preview exists and can be downloaded
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The request is invalid
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The preview does not exist
       summary: Returns a preview with a given id.
       tags:
@@ -4281,7 +4291,7 @@ paths:
           name: cache_category
           required: false
           schema:
-            $ref: '#/components/schemas/CacheCategory'
+            $ref: "#/components/schemas/CacheCategory"
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
@@ -4334,19 +4344,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         402:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The account has an invalid plan
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
@@ -4415,25 +4425,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The provided token ID is not valid
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project token was not found
       summary: Revokes a project token.
       tags:
@@ -4464,25 +4474,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: "#/components/schemas/Project"
           description: The project to show
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project was not found
       summary: Returns a project based on the handle.
       tags:
@@ -4541,31 +4551,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Project'
+                $ref: "#/components/schemas/Project"
           description: The updated project
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project with the given account and project handles was not found
       summary: Updates a project
       tags:
@@ -4623,7 +4633,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: ''
+        - description: ""
           in: query
           name: page_size
           required: false
@@ -4636,7 +4646,7 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - description: ""
           in: query
           name: page
           required: false
@@ -4656,7 +4666,7 @@ paths:
                 properties:
                   runs:
                     items:
-                      $ref: '#/components/schemas/Run'
+                      $ref: "#/components/schemas/Run"
                     type: array
                     x-struct:
                     x-validate:
@@ -4670,7 +4680,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You don't have permission to access this resource
       summary: List runs associated with a given project.
       tags:
@@ -4990,7 +5000,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/RunsBuild'
+                  - $ref: "#/components/schemas/RunsBuild"
                 x-struct:
                 x-validate:
           description: The created build
@@ -4998,25 +5008,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The request parameters are invalid
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to create a run
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project doesn't exist
       summary: Create a new build.
       tags:
@@ -5050,25 +5060,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The member could not be removed due to a validation error
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization or the user with the given name was not found
       summary: Removes a member from an organization
       tags:
@@ -5119,31 +5129,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationMember'
+                $ref: "#/components/schemas/OrganizationMember"
           description: The member was updated
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The member could not be updated due to a validation error
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The organization or the user with the given name was not found
       summary: Updates a member in an organization
       tags:
@@ -5183,25 +5193,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactUploadURL'
+                $ref: "#/components/schemas/ArtifactUploadURL"
           description: The presigned upload URL
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project or preview doesn't exist
       summary: Uploads a preview icon.
       tags:
@@ -5235,7 +5245,7 @@ paths:
               description: The request body to complete the multipart upload of a preview.
               properties:
                 multipart_upload_parts:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+                  $ref: "#/components/schemas/ArtifactMultipartUploadParts"
                 preview_id:
                   description: The id of the preview.
                   type: string
@@ -5254,25 +5264,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Preview'
+                $ref: "#/components/schemas/Preview"
           description: The upload has been completed
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project or preview doesn't exist
       summary: It completes a multi-part upload.
       tags:
@@ -5297,19 +5307,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The project was not found
       summary: Deletes a project with a given id.
       tags:
@@ -5348,31 +5358,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
+                $ref: "#/components/schemas/Account"
           description: Account successfully updated
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: An error occurred while updating the account.
         401:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to update your account.
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You don't have permission to update this account.
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: An account with this handle was not found.
       summary: Update account
       tags:
@@ -5409,19 +5419,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: You need to be authenticated to access this resource
         403:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The authenticated subject is not authorized to perform this action
         404:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: The command event doesn't exist
       summary: Completes artifacts uploads for a given command event
       tags:

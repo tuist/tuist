@@ -31,6 +31,7 @@ public final class CommandEventFactory {
         let graph = info.graph.map {
             map(
                 $0,
+                graphBinaryBuildDuration: info.graphBinaryBuildDuration,
                 binaryCacheItems: info.binaryCacheItems,
                 selectiveTestingCacheItems: info.selectiveTestingCacheItems
             )
@@ -64,62 +65,66 @@ public final class CommandEventFactory {
 
     private func map(
         _ graph: Graph,
+        graphBinaryBuildDuration: TimeInterval?,
         binaryCacheItems: [AbsolutePath: [String: CacheItem]],
         selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
     ) -> RunGraph {
-        RunGraph(
-            name: graph.name,
-            projects: graph.projects.map { project in
-                RunProject(
-                    name: project.value.name,
-                    path: project.value.path.relative(to: graph.path),
-                    targets: project.value.targets.map { target in
-                        let binaryCacheMetadata: RunCacheTargetMetadata?
-                        if let cacheItem = binaryCacheItems[project.value.path]?[target.value.name] {
-                            let hit: RunCacheHit = switch cacheItem.source {
-                            case .miss:
-                                .miss
-                            case .local:
-                                .local
-                            case .remote:
-                                .remote
-                            }
-
-                            binaryCacheMetadata = RunCacheTargetMetadata(
-                                hash: cacheItem.hash,
-                                hit: hit
-                            )
-                        } else {
-                            binaryCacheMetadata = nil
-                        }
-                        let selectiveTestingMetadata: RunCacheTargetMetadata?
-                        if let cacheItem = selectiveTestingCacheItems[project.value.path]?[target.value.name] {
-                            let hit: RunCacheHit = switch cacheItem.source {
-                            case .miss:
-                                .miss
-                            case .local:
-                                .local
-                            case .remote:
-                                .remote
-                            }
-
-                            selectiveTestingMetadata = RunCacheTargetMetadata(
-                                hash: cacheItem.hash,
-                                hit: hit
-                            )
-                        } else {
-                            selectiveTestingMetadata = nil
+        let graphProjects = graph.projects.map { project in
+            RunProject(
+                name: project.value.name,
+                path: project.value.path.relative(to: graph.path),
+                targets: project.value.targets.map { target in
+                    let binaryCacheMetadata: RunCacheTargetMetadata?
+                    if let cacheItem = binaryCacheItems[project.value.path]?[target.value.name] {
+                        let hit: RunCacheHit = switch cacheItem.source {
+                        case .miss:
+                            .miss
+                        case .local:
+                            .local
+                        case .remote:
+                            .remote
                         }
 
-                        return RunTarget(
-                            name: target.value.name,
-                            binaryCacheMetadata: binaryCacheMetadata,
-                            selectiveTestingMetadata: selectiveTestingMetadata
+                        binaryCacheMetadata = RunCacheTargetMetadata(
+                            hash: cacheItem.hash,
+                            hit: hit,
+                            buildDuration: cacheItem.buildDuration
                         )
+                    } else {
+                        binaryCacheMetadata = nil
                     }
-                    .sorted(by: { $0.name < $1.name })
-                )
-            }
+                    let selectiveTestingMetadata: RunCacheTargetMetadata?
+                    if let cacheItem = selectiveTestingCacheItems[project.value.path]?[target.value.name] {
+                        let hit: RunCacheHit = switch cacheItem.source {
+                        case .miss:
+                            .miss
+                        case .local:
+                            .local
+                        case .remote:
+                            .remote
+                        }
+
+                        selectiveTestingMetadata = RunCacheTargetMetadata(
+                            hash: cacheItem.hash,
+                            hit: hit
+                        )
+                    } else {
+                        selectiveTestingMetadata = nil
+                    }
+
+                    return RunTarget(
+                        name: target.value.name,
+                        binaryCacheMetadata: binaryCacheMetadata,
+                        selectiveTestingMetadata: selectiveTestingMetadata
+                    )
+                }
+                .sorted(by: { $0.name < $1.name })
+            )
+        }
+        return RunGraph(
+            name: graph.name,
+            projects: graphProjects,
+            binaryBuildDuration: graphBinaryBuildDuration
         )
     }
 }
