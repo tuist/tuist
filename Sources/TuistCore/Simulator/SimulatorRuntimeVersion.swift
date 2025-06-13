@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Codable {
+public struct SimulatorRuntimeVersion: Sendable, CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Codable {
     // MARK: - Attributes
 
     public let major: Int

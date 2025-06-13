@@ -174,9 +174,7 @@ public struct TuistCommand: AsyncParsableCommand {
                   let underlyingServerClientError = clientError.underlyingError
                   as? ServerClientAuthenticationError
         {
-            errorAlertMessage =
-                // swiftlint:disable:next force_cast
-                "\((clientError.underlyingError as! ServerClientAuthenticationError).errorDescription ?? "Unknown error")"
+            errorAlertMessage = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
         } else if let fatalError = error as? FatalError {
             let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
             if !fatalError.description.isEmpty, !isSilent {

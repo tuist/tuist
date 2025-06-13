@@ -5,7 +5,7 @@ import XcodeGraph
 
 /// It represents a runtime that is available in the system. The list of available runtimes is obtained
 /// using Xcode's simctl cli tool.
-public struct SimulatorRuntime: Equatable, Codable, Hashable, CustomStringConvertible {
+public struct SimulatorRuntime: Sendable, Equatable, Codable, Hashable, CustomStringConvertible {
     /// Runtime bundle path (e.g. /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime)
     public let bundlePath: AbsolutePath
 
