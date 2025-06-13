@@ -1332,6 +1332,74 @@ final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcc
     }
 }
 
+final class GenerateAcceptanceTestiOSppWithTemplateParameters: TuistAcceptanceTestCase {
+    func test_app_with_all_resources() async throws {
+        try await setUpFixture(.iosAppWithTemplateParameters)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try XCTAssertDirectoryContentEqual(
+            fixturePath.appending(components: "Derived", "Sources"),
+            [
+                "TuistAssets+App.swift",
+                "TuistBundle+App.swift",
+                "TuistFiles+App.swift",
+                "TuistFonts+App.swift",
+                "TuistJSON+App.swift",
+                "TuistPlists+App.swift",
+                "TuistStrings+App.swift",
+                "TuistYAML+App.swift",
+            ]
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFiles+App.swift")
+            )
+            .contains(
+                """
+                internal enum MyFiles {
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFiles+App.swift")
+            )
+            .contains(
+                """
+                internal struct MyFile {
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistFonts+App.swift")
+            )
+            .contains(
+                """
+                internal enum MyFontsFontFamily
+                """
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistYAML+App.swift")
+            )
+            .contains(
+                """
+                internal enum MyYAMLFiles
+                """
+            )
+        )
+
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
         .withFixture("ios_app_with_sandbox_disabled")

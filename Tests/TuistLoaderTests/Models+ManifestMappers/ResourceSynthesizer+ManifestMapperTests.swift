@@ -49,7 +49,8 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                 parser: .strings,
                 parserOptions: [:],
                 extensions: ["strings", "stringsdict"],
-                template: .defaultTemplate("Strings")
+                template: .defaultTemplate("Strings"),
+                templateParameters: [:]
             )
         )
     }
@@ -88,7 +89,8 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                     "doubleValue": 1.0,
                 ],
                 extensions: ["strings", "stringsdict"],
-                template: .defaultTemplate("Strings")
+                template: .defaultTemplate("Strings"),
+                templateParameters: [:]
             )
         )
     }
@@ -121,7 +123,8 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                 parser: .strings,
                 parserOptions: [:],
                 extensions: ["strings", "stringsdict"],
-                template: .file(manifestDirectory.appending(component: "Template.stencil"))
+                template: .file(manifestDirectory.appending(component: "Template.stencil")),
+                templateParameters: [:]
             )
         )
         XCTAssertEqual(gotResourceName, "Strings")
@@ -174,7 +177,8 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                     "doubleValue": .init(value: 1.0),
                 ],
                 extensions: ["xcassets"],
-                template: .file(manifestDirectory.appending(component: "PluginTemplate.stencil"))
+                template: .file(manifestDirectory.appending(component: "PluginTemplate.stencil")),
+                templateParameters: [:]
             )
         )
         XCTAssertEqual(

@@ -77,6 +77,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithStaticFrameworks
     case iosAppWithStaticLibraries
     case iosAppWithStaticLibraryAndPackage
+    case iosAppWithTemplateParameters
     case iosAppWithTemplates
     case iosAppWithTests
     case iosAppWithTransitiveFramework
@@ -270,6 +271,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_static_libraries"
         case .iosAppWithStaticLibraryAndPackage:
             return "ios_app_with_static_library_and_package"
+        case .iosAppWithTemplateParameters:
+            return "ios_app_with_template_parameters"
         case .iosAppWithTemplates:
             return "ios_app_with_templates"
         case .iosAppWithTests:
