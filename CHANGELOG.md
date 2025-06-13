@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.53.3 - 2025-06-13
+
+### CLI
+
+#### Fixed
+
+- Fix inspecting build stuck when the activity log has too many files [#7680](https://github.com/tuist/tuist/pull/7680) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.53.2 - 2025-06-13
 
 ### CLI
