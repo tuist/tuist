@@ -4351,7 +4351,7 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph`.
                     internal struct xcode_graphPayload: Codable, Hashable, Sendable {
-                        /// The estimated time in miliseconds that would take to build the part of the graph that has been replaced as binaries.
+                        /// The estimated time in milliseconds that would take to build the part of the graph that has been replaced as binaries.
                         ///
                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/binary_build_duration`.
                         internal var binary_build_duration: Swift.Int?
@@ -4375,7 +4375,7 @@ internal enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata`.
                                 internal struct binary_cache_metadataPayload: Codable, Hashable, Sendable {
-                                    /// The compilation time of a binary in miliseconds.
+                                    /// The compilation time of a binary in milliseconds.
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/build_duration`.
                                     internal var build_duration: Swift.Int?
@@ -4398,7 +4398,7 @@ internal enum Operations {
                                     /// Creates a new `binary_cache_metadataPayload`.
                                     ///
                                     /// - Parameters:
-                                    ///   - build_duration: The compilation time of a binary in miliseconds.
+                                    ///   - build_duration: The compilation time of a binary in milliseconds.
                                     ///   - hash: Hash of the target
                                     ///   - hit: The binary cache hit status
                                     internal init(
@@ -4526,7 +4526,7 @@ internal enum Operations {
                         /// Creates a new `xcode_graphPayload`.
                         ///
                         /// - Parameters:
-                        ///   - binary_build_duration: The estimated time in miliseconds that would take to build the part of the graph that has been replaced as binaries.
+                        ///   - binary_build_duration: The estimated time in milliseconds that would take to build the part of the graph that has been replaced as binaries.
                         ///   - name: Name of the Xcode graph
                         ///   - projects: Projects present in an Xcode graph
                         internal init(

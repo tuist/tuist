@@ -2122,7 +2122,7 @@ paths:
                   description: The schema for the Xcode graph.
                   properties:
                     binary_build_duration:
-                      description: The estimated time in miliseconds that would take to build the part of the graph that has been replaced as binaries.
+                      description: The estimated time in milliseconds that would take to build the part of the graph that has been replaced as binaries.
                       type: integer
                       x-struct:
                       x-validate:
@@ -2153,7 +2153,7 @@ paths:
                                   description: Binary cache metadata
                                   properties:
                                     build_duration:
-                                      description: The compilation time of a binary in miliseconds.
+                                      description: The compilation time of a binary in milliseconds.
                                       type: integer
                                       x-struct:
                                       x-validate:
