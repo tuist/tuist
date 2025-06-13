@@ -19,8 +19,12 @@
         }
 
         public func hash(into hasher: inout Hasher) {
-            hasher.combine("cache-storable")
             hasher.combine(hash)
+            hasher.combine(name)
+        }
+
+        public static func == (lhs: Self, rhs: Self) -> Bool {
+            return lhs.hash == rhs.hash && lhs.name == rhs.name
         }
     }
 
@@ -36,8 +40,12 @@
         }
 
         public func hash(into hasher: inout Hasher) {
-            hasher.combine("cache-storable")
             hasher.combine(hash)
+            hasher.combine(name)
+        }
+
+        public static func == (lhs: Self, rhs: Self) -> Bool {
+            return lhs.hash == rhs.hash && lhs.name == rhs.name
         }
     }
 
