@@ -12,10 +12,10 @@ func debugSettings() -> SettingsDictionary {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-    tuist inspect build
-    """
+        tuist inspect build
+        """
 )
 
 func releaseSettings() -> SettingsDictionary {
@@ -49,14 +49,18 @@ func schemes() -> [Scheme] {
         .scheme(
             name: "Tuist-Workspace",
             buildAction: .buildAction(
-                targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map { .target($0) },
+                targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map {
+                    .target($0)
+                },
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.testTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.testTargets).map {
+                    .testableTarget(target: .target($0.name))
+                }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -70,12 +74,14 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.acceptanceTestTargets).map { .testableTarget(target: .target($0.name)) }
+                Module.allCases.flatMap(\.acceptanceTestTargets).map {
+                    .testableTarget(target: .target($0.name))
+                }
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -89,12 +95,14 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
-                Module.allCases.flatMap(\.unitTestTargets).map { .testableTarget(target: .target($0.name)) },
+                Module.allCases.flatMap(\.unitTestTargets).map {
+                    .testableTarget(target: .target($0.name))
+                },
                 options: .options(
                     language: "en"
                 )
@@ -116,48 +124,50 @@ func schemes() -> [Scheme] {
             testAction: .targets([])
         ),
     ]
-    schemes.append(contentsOf: Module.allCases.filter(\.isRunnable).map {
-        .scheme(
-            name: $0.targetName,
-            buildAction: .buildAction(
-                targets: [.target($0.targetName)],
-                postActions: [
-                    inspectBuildPostAction,
-                ],
-                runPostActionsOnFailure: true
-            ),
-            runAction: .runAction(
-                executable: .target($0.targetName),
-                arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+    schemes.append(
+        contentsOf: Module.allCases.filter(\.isRunnable).map {
+            .scheme(
+                name: $0.targetName,
+                buildAction: .buildAction(
+                    targets: [.target($0.targetName)],
+                    postActions: [
+                        inspectBuildPostAction
                     ],
-                    launchArguments: launchArgumentsFor($0)
+                    runPostActionsOnFailure: true
+                ),
+                runAction: .runAction(
+                    executable: .target($0.targetName),
+                    arguments: .arguments(
+                        environmentVariables: [
+                            "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                            "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                        ],
+                        launchArguments: launchArgumentsFor($0)
+                    )
                 )
             )
-        )
-    })
+        })
 
-    schemes.append(contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
-        .scheme(
-            name: $0,
-            hidden: true,
-            buildAction: .buildAction(
-                targets: [.target($0)],
-                postActions: [
-                    inspectBuildPostAction,
-                ],
-                runPostActionsOnFailure: true
-            ),
-            testAction: .targets([.testableTarget(target: .target($0))]),
-            runAction: .runAction(
-                arguments: .arguments(
-                    environmentVariables: acceptanceTestsEnvironmentVariables()
+    schemes.append(
+        contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
+            .scheme(
+                name: $0,
+                hidden: true,
+                buildAction: .buildAction(
+                    targets: [.target($0)],
+                    postActions: [
+                        inspectBuildPostAction
+                    ],
+                    runPostActionsOnFailure: true
+                ),
+                testAction: .targets([.testableTarget(target: .target($0))]),
+                runAction: .runAction(
+                    arguments: .arguments(
+                        environmentVariables: acceptanceTestsEnvironmentVariables()
+                    )
                 )
             )
-        )
-    })
+        })
 
     return schemes
 }
@@ -176,8 +186,5 @@ let project = Project(
     ),
     targets: Module.allCases.flatMap(\.targets),
     schemes: schemes(),
-    additionalFiles: [
-        "CHANGELOG.md",
-        "README.md",
-    ]
+    additionalFiles: []
 )
