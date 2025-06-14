@@ -1,5 +1,5 @@
 .build
 docs
-fixtures
-Sources/ProjectDescription
-Tests
+cli/Fixtures
+cli/Sources/ProjectDescription
+cli/Tests
