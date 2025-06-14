@@ -4,4 +4,4 @@ set -euo pipefail
 
 swiftformat cli/ app/ --lint
 swiftlint lint --quiet --config .swiftlint.yml cli/Sources
-tuist inspect implicit-imports --path cli/
+tuist inspect implicit-imports

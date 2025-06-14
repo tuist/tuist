@@ -58,7 +58,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
 
     public func setUpFixture(_ fixture: TuistAcceptanceFixtures) async throws {
         let fixturesPath = sourceRootPath
-            .appending(component: "fixtures")
+            .appending(components: ["cli", "Fixtures"])
 
         fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
 
