@@ -2,8 +2,8 @@
 # mise description="Bundles Tuist and outputs it along with its dynamic frameworks into the /build directory"
 set -e
 
-source $MISE_PROJECT_ROOT/.mise/utilities/setup.sh
-XCODE_PATH_SCRIPT_PATH=$MISE_PROJECT_ROOT/.mise/utilities/xcode_path.sh
+source $MISE_PROJECT_ROOT/mise/utilities/setup.sh
+XCODE_PATH_SCRIPT_PATH=$MISE_PROJECT_ROOT/mise/utilities/xcode_path.sh
 BUILD_DIRECTORY=$MISE_PROJECT_ROOT/build
 # Xcode 15 has a bug that causes the /var/folders... temporary directory, which is a symlink to
 # /private/var/folders to crash Xcode.

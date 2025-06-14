@@ -692,10 +692,10 @@ public enum Module: String, CaseIterable {
         let rootFolder: String
         switch product {
         case .unitTests:
-            rootFolder = "Tests"
+            rootFolder = "cli/Tests"
             debugSettings["CODE_SIGN_IDENTITY"] = ""
         default:
-            rootFolder = "Sources"
+            rootFolder = "cli/Sources"
         }
 
         var baseSettings = settings.base

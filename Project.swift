@@ -12,10 +12,10 @@ func debugSettings() -> SettingsDictionary {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-        tuist inspect build
-        """
+    tuist inspect build
+    """
 )
 
 func releaseSettings() -> SettingsDictionary {
@@ -53,7 +53,7 @@ func schemes() -> [Scheme] {
                     .target($0)
                 },
                 postActions: [
-                    inspectBuildPostAction
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -74,7 +74,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    inspectBuildPostAction
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -95,7 +95,7 @@ func schemes() -> [Scheme] {
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
                     .map { .target($0) },
                 postActions: [
-                    inspectBuildPostAction
+                    inspectBuildPostAction,
                 ],
                 runPostActionsOnFailure: true
             ),
@@ -131,7 +131,7 @@ func schemes() -> [Scheme] {
                 buildAction: .buildAction(
                     targets: [.target($0.targetName)],
                     postActions: [
-                        inspectBuildPostAction
+                        inspectBuildPostAction,
                     ],
                     runPostActionsOnFailure: true
                 ),
@@ -146,7 +146,8 @@ func schemes() -> [Scheme] {
                     )
                 )
             )
-        })
+        }
+    )
 
     schemes.append(
         contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
@@ -156,7 +157,7 @@ func schemes() -> [Scheme] {
                 buildAction: .buildAction(
                     targets: [.target($0)],
                     postActions: [
-                        inspectBuildPostAction
+                        inspectBuildPostAction,
                     ],
                     runPostActionsOnFailure: true
                 ),
@@ -167,7 +168,8 @@ func schemes() -> [Scheme] {
                     )
                 )
             )
-        })
+        }
+    )
 
     return schemes
 }
