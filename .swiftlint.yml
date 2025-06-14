@@ -23,4 +23,4 @@ type_name:
     error: 1
     warning: 1
 excluded:
-  - Sources/TuistServer/OpenAPI
+  - cli/Sources/TuistServer/OpenAPI

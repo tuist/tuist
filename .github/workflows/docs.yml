@@ -7,7 +7,7 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
-      - "Sources/**"
+      - "cli/Sources/**"
       - "Package.swift"
       - "Package.resolved"
       - "mise/tasks/docs"

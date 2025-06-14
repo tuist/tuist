@@ -1,4 +1,1 @@
 CHANGELOG merge=union
-
-yarn.lock linguist-generated
-.tuist-cloud-version merge=ours
