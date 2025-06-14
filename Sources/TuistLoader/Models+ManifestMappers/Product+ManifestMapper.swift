@@ -45,6 +45,8 @@ extension XcodeGraph.Product {
             return .extensionKitExtension
         case .macro:
             return .macro
+        case .loginItem:
+            return .loginItem
         }
     }
 }
