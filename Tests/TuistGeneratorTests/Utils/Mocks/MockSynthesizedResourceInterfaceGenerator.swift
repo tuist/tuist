@@ -7,6 +7,7 @@ final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterf
         ResourceSynthesizer.Parser,
         [String: ResourceSynthesizer.Parser.Option],
         String,
+        [String: ResourceSynthesizer.Template.Parameter],
         String,
         String?,
         [AbsolutePath]
@@ -15,10 +16,11 @@ final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterf
         parser: ResourceSynthesizer.Parser,
         parserOptions: [String: ResourceSynthesizer.Parser.Option],
         templateString: String,
+        templateParameters: [String: ResourceSynthesizer.Template.Parameter],
         name: String,
         bundleName: String?,
         paths: [AbsolutePath]
     ) throws -> String {
-        try renderStub?(parser, parserOptions, templateString, name, bundleName, paths) ?? ""
+        try renderStub?(parser, parserOptions, templateString, templateParameters, name, bundleName, paths) ?? ""
     }
 }
