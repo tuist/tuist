@@ -42,7 +42,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         #if DEBUG
             let maybeBundlePath: AbsolutePath?
             if let sourceRoot = Environment.current.variables["TUIST_CONFIG_SRCROOT"] {
-                maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(component: "Templates")
+                maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(components: ["cli", "Templates"])
             } else {
                 // Used only for debug purposes to find templates in your tuist working directory
                 // `bundlePath` points to tuist/Templates

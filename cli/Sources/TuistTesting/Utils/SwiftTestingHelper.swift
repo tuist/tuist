@@ -9,7 +9,7 @@ enum SwiftTestingHelper {
             validating: Environment.current
                 .variables["TUIST_CONFIG_SRCROOT"]!
         )
-        .appending(components: "Tests", "Fixtures")
+        .appending(components: "cli", "Tests", "Fixtures")
         .appending(path)
     }
 }

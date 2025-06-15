@@ -2,7 +2,7 @@
 # mise description="Cleans SPM's .build directory and Tuist-** derived data directories"
 set -euo pipefail
 
-DERIVED_DATA_PATH=$($MISE_PROJECT_ROOT/.mise/utilities/derived_data_path.sh)
+DERIVED_DATA_PATH=$($MISE_PROJECT_ROOT/mise/utilities/derived_data_path.sh)
 
 rm -rf $MISE_PROJECT_ROOT/.build
 for dir in "$DERIVED_DATA_PATH"tuist-*; do

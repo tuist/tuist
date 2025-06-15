@@ -236,7 +236,7 @@ struct DependenciesAcceptanceTests {
                 temporaryDirectory.pathString,
                 "-onlyUsePackageVersionsFromResolvedFile",
             ]
-        ).awaitCompletion()
+        ).pipedStream().awaitCompletion()
     }
 }
 

@@ -13,44 +13,54 @@
   <a title="Crowdin" target="_blank" href="https://crowdin.com/project/tuist-documentation"><img src="https://badges.crowdin.net/tuist-documentation/localized.svg"></a>
 </div>
 
-## 🕺 What's Tuist
+# Tuist
 
-Tuist is a command line tool that leverages **_project generation_** to abstract intricacies of Xcode projects, and uses it as a foundation to help teams **_maintain_** and **_optimize_** their large modular projects.
+Tuist is a virtual platform team for Swift app devs who ship. Through an integrated platform that integrates with your toolchain and projects, we help you stay focused and productive while building apps.
 
-It's open source and written in Swift.
+The following solutions are part of Tuist:
 
-## ⬇️ Install
+- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/develop/projects): A solution for more accessible and easier-to-manage Xcode projects.
+- [🚝 **Cache**](https://docs.tuist.dev/en/guides/develop/cache): Speed up builds across environments with a content-addressable store.
+- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/develop/selective-testing): Run tests faster by selecting them based on the file changes.
+- [📦 **Registry**](https://docs.tuist.dev/en/guides/develop/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
+- [📈 **Insights**](https://docs.tuist.dev/en/guides/develop/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
+- [📱 **Bundle analysis**](https://docs.tuist.dev/en/guides/develop/bundle-size): Analyze your built apps and get suggestions to improve them.
 
-The recommended installation method is to [install mise](https://mise.jdx.dev/getting-started.html#quickstart) and then run `mise install tuist` to install Tuist.
+Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
-You can check out [the documentation](https://docs.tuist.io/guides/quick-start/install-tuist) to learn more about the rationale behind our installation approach and alternative approaches.
+- [📑 **Documentation**](https://docs.tuist.dev)
+- [📚 **Handbook**](https://handbook.tuist.dev)
+- [💬 **Community forum**](https://community.tuist.dev)
 
-## 🌀 Bootstrap your first project
+
+> [!NOTE]
+> Even though our current focus is on the development phase of Apple native apps, we'll gradually expand our focus to include other ecosystems (e.g., Android, RN, and Flutter), and expand beyond just development.
+
+## Get started
+
+You can run the following command to get started with [Mise] (check out [this page](https://docs.tuist.dev/en/guides/quick-start/get-started) for other methods):
 
 ```bash
-tuist init --platform ios
-tuist edit # Customize your project manifest
-tuist generate # Generates Xcode project & workspace
-tuist build # Builds your project
+mise x tuist@latest -- tuist init
 ```
 
-Check out [the project "Create a new project" guide](https://docs.tuist.io/guides/start/new-project) to learn more about Tuist and all its features.
+> [!IMPORTANT]
+> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://docs.tuist.dev/en/guides/develop/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://docs.tuist.dev/en/guides/develop/projects/adoption/migrate/xcode-project).
 
-## 📝 Documentation
+
+## Documentation
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
 
-You can check out [the project documentation](https://docs.tuist.io).
+You can check out [the project documentation](https://docs.tuist.dev).
 
-### 🔬 Sample projects
+### Sample projects
 
-You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+You can find some sample projects in the [fixtures folder](cli/Fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
-## 💰 Sponsors
+## Sponsors
 
-The financial sustainability of the project is possible thanks to the ongoing contributions from our [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). From them, we'd like to give a special mention to the following sponsors:
-
-### 🥇 Gold Sponsors
+Some companies support our community and open source efforts with contributions through [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). We'd like to give a special mention to the following sponsors:
 
 <table>
   <tbody>
@@ -73,67 +83,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </tbody>
 </table>
 
-### 🥈 Silver sponsors
-
-<table>
-  <tbody>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
-          <picture>
-            <source
-            srcset="assets/companies/stream-darkmode.png"
-            media="(prefers-color-scheme: dark)">
-            <img src="assets/companies/stream.png" alt="stream_logo"/>
-          </picture>
-        </a>
-      </td>
-      <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
-    </tr>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
-        </a>
-      </td>
-      <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
-    </tr>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <source
-              srcset="assets/companies/emergetools-darkmode.svg"
-              media="(prefers-color-scheme: dark)">
-            <img width="140" src="assets/companies/emergetools.svg" alt="emerge_logo"/>
-          </picture>
-        </a>
-      </td>
-      <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
-    </tr>
-  </tbody>
-</table>
-
-### 🥉 Bronze sponsors
-
-<table>
-  <tbody>
-    <tr>
-      <td width="50%" align="center">
-        <a href="https://macpaw.com" target="_blank">
-          <img src="assets/companies/macpaw.png" alt="macpaw_logo"/>
-        </a>
-      </td>
-      <td width="50%" align="center">
-        <a href="https://asana.com" target="_blank">
-          <img src="assets/companies/asana.png" alt="asana_logo"/>
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## 💪 Companies using Tuist
+## Companies using Tuist
 
 <table>
   <tbody>
@@ -275,29 +225,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </tbody>
 </table>
 
-## 🙇‍ ️Supported by great companies
+## Want to contribute?
 
-Great companies support the project by giving us access to their service through an open-source program.
-
-<table>
-  <tbody>
-    <tr>
-      <td width="25%" align="center">
-        <img src="assets/1Password.png" alt="1password_logo" height="75"/>
-      </td>
-      <td width="25%" align="center">
-        <img src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" alt="bugsnag_logo"/>
-      </td>
-      <td width="25%" align="center">
-        <img src="assets/cal-com.svg" alt="calcom_logo"/>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## 🧑‍💻 Want to contribute?
-
-You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-started) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## ✨ Core Team
 

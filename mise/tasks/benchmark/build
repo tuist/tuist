@@ -2,4 +2,4 @@
 # mise description="Build the 'tuistbenchmark' tool"
 set -euo pipefail
 
-swift build --package-path $MISE_PROJECT_ROOT --target tuistbenchmark $@
+swift build --target tuistbenchmark $@
