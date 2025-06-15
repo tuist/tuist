@@ -4,8 +4,7 @@ public typealias Destinations = Set<Destination>
 /// Convenience collections of destinations mapped to platforms terminology.
 extension Destinations {
     public static let watchOS: Destinations = [.appleWatch]
-    /// Currently we omit `.visionOSwithiPadDesign` from our default because `visionOS` is unreleased.
-    public static let iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign]
+    public static let iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     public static let macOS: Destinations = [.mac]
     public static let tvOS: Destinations = [.appleTv]
     public static let visionOS: Destinations = [.appleVision]
