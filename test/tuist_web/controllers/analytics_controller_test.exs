@@ -378,12 +378,16 @@ defmodule TuistWeb.AnalyticsControllerTest do
             client_id: "client-id",
             xcode_graph: %{
               name: "Graph",
+              binary_build_duration: 1000,
               projects: [
                 %{
                   name: "ProjectA",
                   path: ".",
                   targets: [
-                    %{name: "TargetA", binary_cache_metadata: %{hash: "hash-a", hit: "local"}},
+                    %{
+                      name: "TargetA",
+                      binary_cache_metadata: %{hash: "hash-a", hit: "local", build_duration: 1000}
+                    },
                     %{
                       name: "TargetATests",
                       selective_testing_metadata: %{hash: "hash-a-tests", hit: "remote"}
@@ -415,12 +419,14 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.local_test_target_hits == []
       assert command_event.remote_test_target_hits == ["TargetATests"]
       assert command_event.xcode_graph.name == "Graph"
+      assert command_event.xcode_graph.binary_build_duration == 1000
       assert Enum.map(command_event.xcode_graph.xcode_projects, & &1.name) == ["ProjectA"]
       xcode_project = hd(command_event.xcode_graph.xcode_projects)
       xcode_targets = Enum.sort_by(xcode_project.xcode_targets, & &1.name)
       assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
       assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
       assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, nil]
+      assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, :remote]
     end
@@ -457,7 +463,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = response["id"] |> CommandEvents.get_command_event_by_id() |> Repo.preload(:build_run)
+      command_event =
+        response["id"] |> CommandEvents.get_command_event_by_id() |> Repo.preload(:build_run)
 
       assert response == %{
                "name" => "build",
@@ -471,7 +478,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event_with_build_run.build_run.id == build_run.id
     end
 
-    test "returns command event URL with runs route when build_run_id is not provided", %{conn: conn, user: user} do
+    test "returns command event URL with runs route when build_run_id is not provided", %{
+      conn: conn,
+      user: user
+    } do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
@@ -924,7 +934,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :no_content)
       assert response == %{}
 
-      test_case_runs = Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id))
+      test_case_runs =
+        Repo.all(from(t in TestCaseRun, where: t.command_event_id == ^command_event.id))
 
       assert Enum.empty?(test_case_runs) == true
     end

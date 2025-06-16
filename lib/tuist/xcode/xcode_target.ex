@@ -10,6 +10,7 @@ defmodule Tuist.Xcode.XcodeTarget do
   schema "xcode_targets" do
     field :name, :string
     field :binary_cache_hash, :string
+    field :binary_build_duration, :integer
     field :binary_cache_hit, Ecto.Enum, values: [miss: 0, local: 1, remote: 2]
     field :selective_testing_hash, :string
     field :selective_testing_hit, Ecto.Enum, values: [miss: 0, local: 1, remote: 2]
@@ -25,6 +26,7 @@ defmodule Tuist.Xcode.XcodeTarget do
       :name,
       :binary_cache_hash,
       :binary_cache_hit,
+      :binary_build_duration,
       :selective_testing_hash,
       :selective_testing_hit,
       :xcode_project_id

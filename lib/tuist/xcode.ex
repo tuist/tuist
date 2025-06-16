@@ -12,7 +12,7 @@ defmodule Tuist.Xcode do
 
   def create_xcode_graph(%{
         command_event: %Tuist.CommandEvents.Event{id: command_event_id},
-        xcode_graph: %{name: name, projects: projects}
+        xcode_graph: %{name: name, projects: projects} = xcode_graph
       }) do
     {:ok, %{xcode_graph: xcode_graph}} =
       Ecto.Multi.new()
@@ -20,7 +20,8 @@ defmodule Tuist.Xcode do
         :xcode_graph,
         XcodeGraph.create_changeset(%XcodeGraph{}, %{
           name: name,
-          command_event_id: command_event_id
+          command_event_id: command_event_id,
+          binary_build_duration: Map.get(xcode_graph, :binary_build_duration)
         })
       )
       |> Ecto.Multi.insert_all(
@@ -72,7 +73,7 @@ defmodule Tuist.Xcode do
   end
 
   defp xcode_target_changeset(xcode_project_id, xcode_target) do
-    changeset = %{
+    base_changeset = %{
       id: UUIDv7.generate(),
       name: xcode_target["name"],
       xcode_project_id: xcode_project_id,
@@ -80,30 +81,29 @@ defmodule Tuist.Xcode do
       updated_at: DateTime.utc_now(:second)
     }
 
-    changeset =
-      if is_nil(xcode_target["binary_cache_metadata"]) do
-        changeset
-      else
-        changeset
-        |> Map.put(:binary_cache_hash, xcode_target["binary_cache_metadata"]["hash"])
-        |> Map.put(
-          :binary_cache_hit,
-          to_hit_value(xcode_target["binary_cache_metadata"]["hit"])
-        )
-      end
+    base_changeset
+    |> then(fn changeset ->
+      case xcode_target["binary_cache_metadata"] do
+        nil ->
+          changeset
 
-    changeset =
-      if is_nil(xcode_target["selective_testing_metadata"]) do
-        changeset
-      else
-        changeset
-        |> Map.put(:selective_testing_hash, xcode_target["selective_testing_metadata"]["hash"])
-        |> Map.put(
-          :selective_testing_hit,
-          String.to_atom(xcode_target["selective_testing_metadata"]["hit"])
-        )
+        metadata ->
+          changeset
+          |> Map.put(:binary_cache_hash, metadata["hash"])
+          |> Map.put(:binary_cache_hit, to_hit_value(metadata["hit"]))
+          |> Map.put(:binary_build_duration, metadata["build_duration"])
       end
+    end)
+    |> then(fn changeset ->
+      case xcode_target["selective_testing_metadata"] do
+        nil ->
+          changeset
 
-    changeset
+        metadata ->
+          changeset
+          |> Map.put(:selective_testing_hash, metadata["hash"])
+          |> Map.put(:selective_testing_hit, String.to_atom(metadata["hit"]))
+      end
+    end)
   end
 end

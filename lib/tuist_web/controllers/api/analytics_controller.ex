@@ -179,6 +179,11 @@ defmodule TuistWeb.API.AnalyticsController do
                  type: :string,
                  description: "Name of the Xcode graph"
                },
+               binary_build_duration: %Schema{
+                 type: :integer,
+                 description:
+                   "The estimated time in milliseconds that would take to build the part of the graph that has been replaced as binaries."
+               },
                projects: %Schema{
                  type: :array,
                  description: "Projects present in an Xcode graph",
@@ -217,6 +222,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :string,
                                  description: "The binary cache hit status",
                                  enum: Ecto.Enum.values(Xcode.XcodeTarget, :binary_cache_hit)
+                               },
+                               build_duration: %Schema{
+                                 type: :integer,
+                                 description: "The compilation time of a binary in milliseconds."
                                }
                              }
                            },
