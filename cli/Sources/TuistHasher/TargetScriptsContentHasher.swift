@@ -49,8 +49,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                     pathsToHash.append(path)
                 }
             }
-            stringsToHash
-                .append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
+            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
             stringsToHash.append(
                 contentsOf: (script.outputPaths + script.outputFileListPaths)
                     .compactMap { try? AbsolutePath(validating: $0) }
