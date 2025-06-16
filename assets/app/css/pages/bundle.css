@@ -243,6 +243,7 @@
             align-items: center;
             gap: var(--noora-spacing-5);
             padding-left: var(--noora-spacing-5);
+
             & > [data-part="dot"] {
               border-radius: 1.33px;
               width: 6px;
@@ -268,16 +269,16 @@
                 background-color: var(--noora-sunburst-assets);
               }
 
-              &[data-type="duplicate"] {
-                background-color: var(--noora-sunburst-duplicates);
-              }
-
               &[data-type="unknown"] {
                 background-color: var(--noora-sunburst-unknown);
               }
 
               &[data-type="file"] {
                 background-color: var(--noora-sunburst-files);
+              }
+
+              &[data-duplicate] {
+                background-color: var(--noora-sunburst-duplicates);
               }
             }
             & > [data-part="label"] {

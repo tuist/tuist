@@ -249,10 +249,35 @@
           <.table
             id="bundle-size-analysis-sunburst-chart-table"
             rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
+            row_click={
+              fn artifact ->
+                %{
+                  "phx-click" =>
+                    JS.dispatch(
+                      "bundle-size-analysis-table-row-clicked",
+                      to: "#bundle-size-analysis-current-contents",
+                      detail: %{
+                        artifact: %{
+                          name: artifact.name,
+                          artifact_type: artifact.artifact_type,
+                          artifact_id: Map.get(artifact, :artifact_id),
+                          current_path:
+                            @bundle_size_analysis_sunburst_chart_selected_artifact.path
+                        }
+                      }
+                    )
+                }
+              end
+            }
           >
             <:col :let={artifact} label={@bundle_size_analysis_sunburst_chart_table_artifact.name}>
               <div data-part="artifact-cell-name">
-                <div data-part="dot" data-type={artifact.artifact_type}></div>
+                <div
+                  data-part="dot"
+                  data-type={artifact.artifact_type}
+                  data-duplicate={artifact.duplicate?}
+                >
+                </div>
                 <span data-part="label">{artifact.name}</span>
               </div>
             </:col>

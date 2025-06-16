@@ -65,6 +65,54 @@ export default {
     };
     window.addEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
 
+    this.handleTableRowClicked = (event) => {
+      if (event.target.id == this.el.id && echart) {
+        const artifact = event.detail.artifact;
+        const currentPath = artifact.current_path;
+
+        if (artifact.artifact_type === "directory" || artifact.artifact_type === "asset") {
+          let node;
+          if (artifact.artifact_id) {
+            node = findNode(echart.getOption().series[0].data, (node) => node.artifact_id === artifact.artifact_id);
+          } else {
+            const targetPath = currentPath + "/" + artifact.name;
+            node = findNode(echart.getOption().series[0].data, (node) => node.path === targetPath);
+          }
+          if (node) {
+            echart.dispatchAction({
+              type: "sunburstRootToNode",
+              seriesIndex: 0,
+              targetNodeId: node.id,
+            });
+            this.pushEvent("update-bundle-size-analysis-sunburst-chart-table-selected-artifact", {
+              artifact: {
+                value: node.value,
+                name: node.name,
+                artifact_type: node.artifact_type,
+                artifact_id: node.artifact_id,
+                children: node.children,
+                path: node.path,
+              },
+            });
+          }
+        } else {
+          const seriesData = echart.getOption().series[0].data;
+          const fileNode = findNode(seriesData, (node) => {
+            return node.name === artifact.name && node.artifact_type !== "directory";
+          });
+
+          if (fileNode) {
+            echart.dispatchAction({
+              type: "highlight",
+              seriesIndex: 0,
+              name: artifact.name,
+            });
+          }
+        }
+      }
+    };
+    window.addEventListener("bundle-size-analysis-table-row-clicked", this.handleTableRowClicked);
+
     let highlightedNewElement = false;
     this.handleOnHighlighted = (el) => {
       highlightedNewElement = true;
@@ -114,6 +162,9 @@ export default {
   destroyed() {
     if (this.handleBreadcrumbClicked) {
       window.removeEventListener("bundle-size-analysis-breadcrumb-clicked", this.handleBreadcrumbClicked);
+    }
+    if (this.handleTableRowClicked) {
+      window.removeEventListener("bundle-size-analysis-table-row-clicked", this.handleTableRowClicked);
     }
   },
 };

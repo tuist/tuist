@@ -84,6 +84,8 @@ defmodule TuistWeb.BundleLive do
 
     series = to_chart_series(bundle, filter, duplicates)
 
+    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
+
     table_artifact = %{
       path: base_path,
       name: bundle.name,
@@ -95,7 +97,10 @@ defmodule TuistWeb.BundleLive do
           &%{
             value: &1.size,
             name: &1.path |> String.split("/") |> List.last(),
-            artifact_type: &1.artifact_type
+            artifact_type: &1.artifact_type,
+            artifact_id: &1.artifact_id,
+            path: &1.path,
+            duplicate?: &1.shasum && MapSet.member?(duplicate_shasums, &1.shasum)
           }
         )
         |> Enum.sort_by(& &1.value, :desc)
@@ -250,7 +255,14 @@ defmodule TuistWeb.BundleLive do
     children =
       Enum.map(
         artifact["children"] || [],
-        &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]}
+        &%{
+          name: &1["name"],
+          value: &1["value"],
+          artifact_type: &1["artifact_type"],
+          artifact_id: &1["artifact_id"],
+          path: &1["path"],
+          duplicate?: &1["duplicate?"]
+        }
       )
 
     artifact = %{
@@ -273,8 +285,10 @@ defmodule TuistWeb.BundleLive do
   def handle_event(
         "update-bundle-size-analysis-sunburst-chart-table-selected-root",
         params,
-        %{assigns: %{bundle: bundle, base_path: base_path}} = socket
+        %{assigns: %{bundle: bundle, base_path: base_path, duplicates: duplicates}} = socket
       ) do
+    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
+
     table_artifact = %{
       path: base_path,
       name: bundle.name,
@@ -287,7 +301,10 @@ defmodule TuistWeb.BundleLive do
           &%{
             value: &1.size,
             name: &1.path |> String.split("/") |> List.last(),
-            artifact_type: &1.artifact_type
+            artifact_type: &1.artifact_type,
+            artifact_id: &1.artifact_id,
+            path: &1.path,
+            duplicate?: &1.shasum && MapSet.member?(duplicate_shasums, &1.shasum)
           }
         )
         |> Enum.sort_by(& &1.value, :desc)
@@ -419,7 +436,14 @@ defmodule TuistWeb.BundleLive do
     children =
       Enum.map(
         artifact["children"] || [],
-        &%{name: &1["name"], value: &1["value"], artifact_type: &1["artifact_type"]}
+        &%{
+          name: &1["name"],
+          value: &1["value"],
+          artifact_type: &1["artifact_type"],
+          artifact_id: &1["artifact_id"],
+          path: &1["path"],
+          duplicate?: &1["duplicate?"]
+        }
       )
 
     artifact = %{name: name, value: value, artifact_id: artifact_id, children: children}
@@ -648,10 +672,8 @@ defmodule TuistWeb.BundleLive do
     duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
 
     # Check if this artifact is a duplicate
-    is_duplicate = artifact.shasum && MapSet.member?(duplicate_shasums, artifact.shasum)
-
-    # Use the actual artifact type or :duplicate if it"s a duplicate
-    effective_type = if is_duplicate, do: :duplicate, else: to_atom(artifact.artifact_type)
+    duplicate? = artifact.shasum && MapSet.member?(duplicate_shasums, artifact.shasum)
+    effective_type = if duplicate?, do: :duplicate, else: to_atom(artifact.artifact_type)
 
     base = %{
       id: artifact.id,
@@ -659,7 +681,8 @@ defmodule TuistWeb.BundleLive do
       value: artifact.size,
       name: Path.basename(artifact.path),
       path: artifact.path,
-      artifact_type: effective_type,
+      artifact_type: artifact.artifact_type,
+      duplicate?: duplicate?,
       itemStyle: %{
         color: Map.get(colors, effective_type) || colors[:umapped]
       }
@@ -703,6 +726,7 @@ defmodule TuistWeb.BundleLive do
         artifact_id: child_node.artifact_id,
         value: child_node.value,
         artifact_type: child_node.artifact_type,
+        duplicate?: child_node[:duplicate?] || false,
         name: "#{base.name}/#{child_node.name}",
         path: "#{base.path}/#{child_node.path}",
         children: child_node[:children] || [],
