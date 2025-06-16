@@ -977,6 +977,65 @@ defmodule Tuist.AccountsTest do
       assert first_account_handle == "find-or-create-user-from-oauth2"
       assert second_account_handle == "find-or-create-user-from-oauth1"
     end
+
+    test "assigns user role to SSO users for Google SSO" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      oauth_identity = %{
+        provider: :google,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "google-sso@tuist.io"},
+        extra: %{
+          raw_info: %{
+            user: %{"hd" => "tuist.io"}
+          }
+        }
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+      assert Accounts.get_user_role_in_organization(user, organization).name == "user"
+    end
+
+    test "assigns user role to SSO users for Okta SSO" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        )
+
+      oauth_identity = %{
+        provider: :okta,
+        uid: 890,
+        info: %{email: "okta-sso@tuist.io"},
+        extra: %{
+          raw_info: %{
+            user: %{},
+            token: %{
+              other_params: %{
+                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
+              }
+            }
+          }
+        }
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+      assert Accounts.get_user_role_in_organization(user, organization).name == "user"
+    end
   end
 
   describe "find_oauth2_identity/2" do
@@ -1552,6 +1611,180 @@ defmodule Tuist.AccountsTest do
       assert organization.sso_organization_id == "tuist.okta.com"
       assert organization.sso_provider == :okta
     end
+
+    test "assigns existing SSO users when enabling Google SSO" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      organization = AccountsFixtures.organization_fixture()
+
+      # Create an existing user with Google OAuth2 identity
+      existing_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Verify user is not yet assigned to organization
+      refute Accounts.belongs_to_organization?(existing_user, organization)
+
+      # When - Enable Google SSO for the organization
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        })
+
+      # Then
+      assert updated_organization.sso_provider == :google
+      assert updated_organization.sso_organization_id == "tuist.io"
+
+      # Existing SSO user should now be assigned to the organization with explicit role
+      assert Accounts.belongs_to_organization?(existing_user, updated_organization)
+      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name == "user"
+    end
+
+    test "assigns existing SSO users when enabling Okta SSO" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      organization = AccountsFixtures.organization_fixture()
+
+      # Create an existing user with Okta OAuth2 identity
+      existing_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :okta,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{},
+              token: %{
+                other_params: %{
+                  "id_token" => "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.signature"
+                }
+              }
+            }
+          }
+        })
+
+      # Verify user is not yet assigned to organization
+      refute Accounts.belongs_to_organization?(existing_user, organization)
+
+      # When - Enable Okta SSO for the organization
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        })
+
+      # Then
+      assert updated_organization.sso_provider == :okta
+      assert updated_organization.sso_organization_id == "tuist.okta.com"
+
+      # Existing SSO user should now be assigned to the organization with explicit role
+      assert Accounts.belongs_to_organization?(existing_user, updated_organization)
+      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name == "user"
+    end
+
+    test "does not assign users when SSO is updated but not newly enabled" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      # Create organization with SSO already enabled
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "existing.io"
+        )
+
+      # Create a user with a domain that doesn't match any SSO organization yet
+      other_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Verify user is not assigned to organization (different domain)
+      refute Accounts.belongs_to_organization?(other_user, organization)
+
+      # When - Update SSO organization ID (not newly enabling)
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_organization_id: "tuist.io"
+        })
+
+      # Then
+      assert updated_organization.sso_organization_id == "tuist.io"
+
+      # User should have SSO-based access (automatic through belongs_to_sso_organization)
+      assert Accounts.belongs_to_sso_organization?(other_user, updated_organization)
+
+      # But should NOT have an explicit role assignment (because SSO wasn't newly enabled)
+      assert is_nil(Accounts.get_user_role_in_organization(other_user, updated_organization))
+    end
+
+    test "assigns multiple existing SSO users when enabling SSO" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      organization = AccountsFixtures.organization_fixture()
+
+      # Create multiple existing users with Google OAuth2 identities
+      user1 =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user1@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      user2 =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user2@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Verify users are not yet assigned to organization
+      refute Accounts.belongs_to_organization?(user1, organization)
+      refute Accounts.belongs_to_organization?(user2, organization)
+
+      # When - Enable Google SSO for the organization
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        })
+
+      # Then
+      # Both existing SSO users should now be assigned to the organization with explicit roles
+      assert Accounts.belongs_to_organization?(user1, updated_organization)
+      assert Accounts.belongs_to_organization?(user2, updated_organization)
+      assert Accounts.get_user_role_in_organization(user1, updated_organization).name == "user"
+      assert Accounts.get_user_role_in_organization(user2, updated_organization).name == "user"
+    end
   end
 
   describe "find_or_create_user_from_oauth2/1" do
@@ -2123,6 +2356,135 @@ defmodule Tuist.AccountsTest do
       # Then
       %{id: token_id} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+    end
+  end
+
+  describe "find_unassigned_sso_users/3" do
+    test "finds users with matching SSO credentials not assigned to organization" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      # Create organization without SSO initially
+      organization = AccountsFixtures.organization_fixture()
+
+      # Create a user with matching Google OAuth2 identity
+      unassigned_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "unassigned@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Create a user already assigned to the organization
+      assigned_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "assigned@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      Accounts.add_user_to_organization(assigned_user, organization, role: :user)
+
+      # Create a user with different SSO provider
+      different_provider_user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "github@tuist.io"}
+        })
+
+      # When
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+
+      # Then
+      user_ids = Enum.map(unassigned_users, & &1.id)
+      assert unassigned_user.id in user_ids
+      refute assigned_user.id in user_ids
+      refute different_provider_user.id in user_ids
+    end
+
+    test "returns empty list when no matching users exist" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+
+      # Then
+      assert unassigned_users == []
+    end
+  end
+
+  describe "assign_existing_sso_users_to_organization/3" do
+    test "assigns matching SSO users to organization and returns count" do
+      # Given
+      stub(Environment, :on_premise?, fn -> false end)
+
+      organization = AccountsFixtures.organization_fixture()
+
+      # Create multiple users with matching Google OAuth2 identities
+      user1 =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user1@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      user2 =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{email: "user2@tuist.io"},
+          extra: %{
+            raw_info: %{
+              user: %{"hd" => "tuist.io"}
+            }
+          }
+        })
+
+      # Verify users are not assigned to organization
+      refute Accounts.belongs_to_organization?(user1, organization)
+      refute Accounts.belongs_to_organization?(user2, organization)
+
+      # When
+      count = Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+
+      # Then
+      assert count == 2
+      assert Accounts.belongs_to_organization?(user1, organization)
+      assert Accounts.belongs_to_organization?(user2, organization)
+      assert Accounts.get_user_role_in_organization(user1, organization).name == "user"
+      assert Accounts.get_user_role_in_organization(user2, organization).name == "user"
+    end
+
+    test "returns 0 when no matching users exist" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      count = Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+
+      # Then
+      assert count == 0
     end
   end
 end

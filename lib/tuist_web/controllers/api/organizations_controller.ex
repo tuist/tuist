@@ -510,27 +510,18 @@ defmodule TuistWeb.API.OrganizationsController do
       true ->
         member = Accounts.get_user_by_id(member_account.user_id)
 
-        cond do
-          Accounts.belongs_to_sso_organization?(member, organization) ->
-            Accounts.delete_user(member)
+        if Accounts.belongs_to_organization?(member, organization) do
+          Accounts.remove_user_from_organization(member, organization)
 
-            conn
-            |> put_status(:no_content)
-            |> json(%{})
-
-          Accounts.belongs_to_organization?(member, organization) ->
-            Accounts.remove_user_from_organization(member, organization)
-
-            conn
-            |> put_status(:no_content)
-            |> json(%{})
-
-          true ->
-            conn
-            |> put_status(:bad_request)
-            |> json(%{
-              message: "User #{user_name} is not a member of the organization #{organization_name}"
-            })
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
+        else
+          conn
+          |> put_status(:bad_request)
+          |> json(%{
+            message: "User #{user_name} is not a member of the organization #{organization_name}"
+          })
         end
     end
   end

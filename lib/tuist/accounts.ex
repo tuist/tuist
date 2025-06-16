@@ -5,6 +5,7 @@ defmodule Tuist.Accounts do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Changeset
+  alias Ecto.Multi
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.DeviceCode
@@ -89,6 +90,16 @@ defmodule Tuist.Accounts do
     Repo.one(query)
   end
 
+  def organization_by_sso_credentials(provider, provider_organization_id) do
+    query =
+      from(o in Organization,
+        where: o.sso_provider == ^provider and o.sso_organization_id == ^provider_organization_id,
+        preload: [:account]
+      )
+
+    Repo.one(query)
+  end
+
   def get_organization_members(%Organization{id: organization_id}) do
     Repo.all(
       from(u in User,
@@ -102,43 +113,18 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_organization_members_with_role(%Organization{id: organization_id} = organization) do
-    # Members with explicit roles
-    members_with_roles =
-      Repo.all(
-        from(u in User,
-          preload: [:account],
-          join: ur in UserRole,
-          on: ur.user_id == u.id,
-          join: r in Role,
-          on: ur.role_id == r.id,
-          where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
-          select: [u, r.name]
-        )
+  def get_organization_members_with_role(%Organization{id: organization_id}) do
+    Repo.all(
+      from(u in User,
+        preload: [:account],
+        join: ur in UserRole,
+        on: ur.user_id == u.id,
+        join: r in Role,
+        on: ur.role_id == r.id,
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        select: [u, r.name]
       )
-
-    member_ids_with_roles = Enum.map(members_with_roles, fn [user, _role] -> user.id end)
-
-    # SSO Users, defaulting to `:user` role
-    sso_users =
-      if organization.sso_provider && organization.sso_organization_id do
-        Repo.all(
-          from(u in User,
-            preload: [:account],
-            join: oauth in Oauth2Identity,
-            on: oauth.user_id == u.id,
-            where:
-              oauth.provider == ^organization.sso_provider and
-                oauth.provider_organization_id == ^organization.sso_organization_id and
-                u.id not in ^member_ids_with_roles,
-            select: [u, "user"]
-          )
-        )
-      else
-        []
-      end
-
-    members_with_roles ++ sso_users
+    )
   end
 
   def get_organization_members(%Organization{id: organization_id}, role) do
@@ -232,9 +218,33 @@ defmodule Tuist.Accounts do
   end
 
   def update_organization(%Organization{} = organization, attrs) do
-    organization
-    |> Organization.update_changeset(attrs)
-    |> Repo.update()
+    Multi.new()
+    |> Multi.update(:organization, Organization.update_changeset(organization, attrs))
+    |> Multi.run(:assign_sso_users, fn _repo, %{organization: updated_organization} ->
+      if sso_newly_enabled?(
+           organization.sso_provider,
+           updated_organization.sso_provider,
+           organization.sso_organization_id,
+           updated_organization.sso_organization_id
+         ) do
+        count =
+          assign_existing_sso_users_to_organization(
+            updated_organization,
+            updated_organization.sso_provider,
+            updated_organization.sso_organization_id
+          )
+
+        {:ok, count}
+      else
+        {:ok, 0}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{organization: updated_organization}} -> {:ok, updated_organization}
+      {:error, :organization, changeset, _changes} -> {:error, changeset}
+      {:error, :assign_sso_users, reason, _changes} -> {:error, reason}
+    end
   end
 
   @doc """
@@ -379,9 +389,15 @@ defmodule Tuist.Accounts do
           provider_organization_id: provider_organization_id
         })
 
-      oauth2_identity.user_id
-      |> get_user_by_id()
-      |> Repo.preload(Keyword.get(opts, :preload, [:account]))
+      user =
+        oauth2_identity.user_id
+        |> get_user_by_id()
+        |> Repo.preload(Keyword.get(opts, :preload, [:account]))
+
+      # Add SSO user to their organization with default :user role
+      assign_sso_user_to_organization(user, provider, provider_organization_id)
+
+      user
     end
   end
 
@@ -615,6 +631,58 @@ defmodule Tuist.Accounts do
     end
   end
 
+  defp assign_sso_user_to_organization(user, provider, provider_organization_id)
+       when not is_nil(provider_organization_id) do
+    organization = organization_by_sso_credentials(provider, provider_organization_id)
+
+    if organization do
+      add_user_to_organization(user, organization, role: :user)
+    end
+  end
+
+  defp assign_sso_user_to_organization(_user, _provider, nil), do: :ok
+
+  defp sso_newly_enabled?(old_provider, new_provider, old_org_id, new_org_id) do
+    is_nil(old_provider) and not is_nil(new_provider) and
+      is_nil(old_org_id) and not is_nil(new_org_id)
+  end
+
+  @doc """
+  Finds existing users who have oauth2_identities matching the given provider and provider_organization_id
+  but are not yet assigned to the given organization.
+  """
+  def find_unassigned_sso_users(organization, provider, provider_organization_id) do
+    Repo.all(
+      from(u in User,
+        join: oi in assoc(u, :oauth2_identities),
+        left_join: ur in assoc(u, :user_roles),
+        left_join: r in Role,
+        on: ur.role_id == r.id,
+        where: oi.provider == ^provider and oi.provider_organization_id == ^provider_organization_id,
+        where: is_nil(r.id) or r.resource_type != "Organization" or r.resource_id != ^organization.id,
+        distinct: u.id,
+        preload: [:oauth2_identities]
+      )
+    )
+  end
+
+  @doc """
+  Assigns existing SSO users to an organization when SSO is enabled.
+  This handles the case where users logged in before the organization configured SSO.
+  """
+  def assign_existing_sso_users_to_organization(organization, provider, provider_organization_id)
+      when not is_nil(provider) and not is_nil(provider_organization_id) do
+    users = find_unassigned_sso_users(organization, provider, provider_organization_id)
+
+    Enum.each(users, fn user ->
+      add_user_to_organization(user, organization, role: :user)
+    end)
+
+    length(users)
+  end
+
+  def assign_existing_sso_users_to_organization(_organization, _provider, _provider_organization_id), do: 0
+
   def organization_from_account(%Account{} = account) do
     if is_nil(account.organization_id) do
       nil
@@ -729,23 +797,20 @@ defmodule Tuist.Accounts do
 
     result = Repo.one(query)
 
-    cond do
-      belongs_to_sso_organization?(user, organization) ->
-        delete_user(user)
-        :ok
-
-      is_nil(result) ->
-        :ok
-
-      !is_nil(result) ->
-        {:ok, _} =
-          Ecto.Multi.new()
-          |> Ecto.Multi.delete(:user_role, result.user_role)
-          |> Ecto.Multi.delete(:role, result.role)
-          |> Repo.transaction()
-
-        :ok
+    if result do
+      {:ok, _} =
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete(:user_role, result.user_role)
+        |> Ecto.Multi.delete(:role, result.role)
+        |> Repo.transaction()
     end
+
+    # If user belongs to SSO organization, delete the user entirely after removing their role
+    if belongs_to_sso_organization?(user, organization) do
+      delete_user(user)
+    end
+
+    :ok
   end
 
   def get_user_role_in_organization(%User{id: user_id}, %Organization{id: organization_id}) do
@@ -797,21 +862,7 @@ defmodule Tuist.Accounts do
         }
       )
 
-    oauth_query =
-      from(oauth in Oauth2Identity,
-        join: u in User,
-        on: oauth.user_id == u.id,
-        join: org in Organization,
-        on:
-          oauth.provider_organization_id == org.sso_organization_id and
-            org.sso_provider == oauth.provider,
-        join: a in Account,
-        on: a.organization_id == org.id,
-        where: oauth.user_id == ^user_id,
-        select: %{organization: org, account: a}
-      )
-
-    Repo.all(query) ++ Repo.all(oauth_query)
+    Repo.all(query)
   end
 
   def list_invitations(organization) do

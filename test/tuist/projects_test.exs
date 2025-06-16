@@ -66,7 +66,12 @@ defmodule Tuist.ProjectsTest do
 
   test "returns all projects associated with a user's based on a google hosted domain" do
     # Given
-    organization = AccountsFixtures.organization_fixture()
+    organization =
+      AccountsFixtures.organization_fixture(
+        sso_provider: :google,
+        sso_organization_id: "tuist.io"
+      )
+
     account = Accounts.get_account_from_organization(organization)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
@@ -85,11 +90,6 @@ defmodule Tuist.ProjectsTest do
           }
         }
       })
-
-    Accounts.update_organization(organization, %{
-      sso_provider: :google,
-      sso_organization_id: "tuist.io"
-    })
 
     # When
     got = Projects.get_all_project_accounts(user)
