@@ -122,6 +122,7 @@ defmodule Tuist.Accounts do
         join: r in Role,
         on: ur.role_id == r.id,
         where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        distinct: u.id,
         select: [u, r.name]
       )
     )
