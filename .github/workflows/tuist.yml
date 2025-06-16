@@ -6,15 +6,15 @@ on:
       - main
   pull_request:
     paths:
-      - "Sources/**"
-      - "Tests/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
       - "*.swift"
       - "Package.resolved"
       - ".github/workflows/tuist.yml"
       - "mise/tasks/lint"
       - "mise/tasks/lint-fix"
       - "mise.toml"
-      - "fixtures/**"
+      - "cli/Fixtures/**"
       - "Tuist/**"
 
 permissions:
