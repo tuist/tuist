@@ -112,7 +112,7 @@ defmodule TuistWeb.UserLoginLive do
               field={@form[:password]}
               label={gettext("Password")}
               id="password"
-              type="password"
+              input_type="password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
               show_error_message={false}

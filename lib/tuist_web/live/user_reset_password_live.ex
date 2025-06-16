@@ -31,7 +31,7 @@ defmodule TuistWeb.UserResetPasswordLive do
             <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
               <.text_input
                 field={@form[:password]}
-                type="password"
+                input_type="password"
                 label={gettext("New password")}
                 show_prefix={false}
                 show_suffix={false}
@@ -39,7 +39,7 @@ defmodule TuistWeb.UserResetPasswordLive do
               />
               <.text_input
                 field={@form[:password_confirmation]}
-                type="password"
+                input_type="password"
                 label={gettext("Confirm password")}
                 show_prefix={false}
                 show_suffix={false}

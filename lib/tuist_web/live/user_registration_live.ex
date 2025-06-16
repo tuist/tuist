@@ -134,7 +134,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 field={@form[:password]}
                 label={gettext("Password")}
                 id="password"
-                type="password"
+                input_type="password"
                 error={password_errors}
                 show_prefix={false}
                 required
