@@ -121,9 +121,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            dependencyFileHash,
             inputFileListPaths1,
             inputPaths1Hash,
+            dependencyFileHash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -159,9 +159,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            dependencyFileHash,
             inputFileListPaths1,
             inputPaths1Hash,
+            dependencyFileHash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -206,9 +206,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            dependencyFileHash,
             inputFileListPaths2,
             inputPaths2Hash,
+            dependencyFileHash,
             "outputPaths2",
             "outputFileListPaths2",
             "2",
@@ -220,5 +220,62 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(.value(expected))
             .called(1)
+    }
+
+    func test_hash_isIndependentFromInputFilesOrder() async throws {
+        // Given
+        let inputPaths1Hash = "inputPaths1-hash"
+        let inputPaths2Hash = "inputPaths2-hash"
+        let dependencyFileHash = "/dependencyFilePath4-hash"
+        given(contentHasher)
+            .hash(path: .value(try AbsolutePath(validating: "/inputPaths1")))
+            .willReturn(inputPaths1Hash)
+        given(contentHasher)
+            .hash(path: .value(try AbsolutePath(validating: "/inputPaths2")))
+            .willReturn(inputPaths2Hash)
+        given(contentHasher)
+            .hash(path: .value(try AbsolutePath(validating: "/dependencyFilePath4")))
+            .willReturn(dependencyFileHash)
+
+        let targetScriptOrder1 = makeTargetScript(
+            name: "2",
+            order: .post,
+            tool: "tool2",
+            inputPaths: [try AbsolutePath(validating: "/inputPaths1"), try AbsolutePath(validating: "/inputPaths2")],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: try AbsolutePath(validating: "/dependencyFilePath4")
+        )
+
+        let targetScriptOrder2 = makeTargetScript(
+            name: "2",
+            order: .post,
+            tool: "tool2",
+            inputPaths: [try AbsolutePath(validating: "/inputPaths2"), try AbsolutePath(validating: "/inputPaths1")],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: try AbsolutePath(validating: "/dependencyFilePath4")
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScriptOrder1], sourceRootPath: "/")
+        _ = try await subject.hash(targetScripts: [targetScriptOrder2], sourceRootPath: "/")
+
+        // Then
+        let expected = [
+            inputPaths1Hash,
+            inputPaths2Hash,
+            dependencyFileHash,
+            "2",
+            "tool2",
+            "post",
+            "arg1",
+            "arg2",
+        ]
+        verify(contentHasher)
+            .hash(.value(expected))
+            .called(2)
     }
 }
