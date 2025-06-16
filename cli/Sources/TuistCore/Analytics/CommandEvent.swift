@@ -125,7 +125,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
             gitBranch: String? = "main",
-            graph: RunGraph = RunGraph(name: "Graph", projects: []),
+            graph: RunGraph = RunGraph(name: "Graph", projects: [], binaryBuildDuration: nil),
             previewId: String? = nil,
             resultBundlePath: AbsolutePath? = nil,
             ranAt: Date = Date(),
