@@ -175,7 +175,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hash_targetAction_valuesAreNotHarcoded() async throws {
+    func test_hash_targetAction_valuesAreNotHardcoded() async throws {
         // Given
         let inputPaths2Hash = "inputPaths2-hash"
         let inputFileListPaths2 = "inputFileListPaths2-hash"
