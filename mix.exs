@@ -128,8 +128,10 @@ defmodule Tuist.MixProject do
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
       {:tidewave, "~> 0.1", only: :dev},
-      {:noora, "== 0.4.0"},
-      {:ecto_ch, "~> 0.6.0"}
+      {:ecto_ch, "~> 0.6.0"},
+      (System.get_env("NOORA_LOCAL") &&
+         {:noora, path: "../Noora/web"}) ||
+        {:noora, "== 0.4.0"}
     ]
   end
 
