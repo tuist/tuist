@@ -112,7 +112,7 @@ defmodule Tuist.MixProject do
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
-      {:solid, "~> 0.18.0"},
+      {:solid, "~> 1.0.0"},
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.13.0"},
