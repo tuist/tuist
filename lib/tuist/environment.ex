@@ -266,7 +266,19 @@ defmodule Tuist.Environment do
   end
 
   def stripe_prices(secrets \\ secrets()) do
-    get_in(secrets, [:stripe, :prices])
+    prices = get([:stripe, :prices], secrets)
+    prices_base64_json = get([:stripe, :prices, :base64, :json], secrets)
+
+    cond do
+      is_map(prices) ->
+        prices
+
+      is_binary(prices_base64_json) ->
+        prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+
+      true ->
+        nil
+    end
   end
 
   def github_token_update_packages(secrets \\ secrets()) do

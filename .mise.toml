@@ -13,3 +13,7 @@ postinstall = "mise run install"
 [env]
 TUIST_HOSTED = 1
 ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
+_.file = ".env.dev.json"
+
+[settings]
+sops.age_key_file = "~/.config/mise/tuist-server-dev-age.txt"

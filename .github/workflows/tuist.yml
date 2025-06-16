@@ -13,10 +13,10 @@ concurrency:
 
 env:
   MIX_ENV: test
-  MASTER_KEY: ${{ secrets.MASTER_KEY }}
   MISE_EXPERIMENTAL: "1"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
 
 jobs:
   check_locales_extraction:

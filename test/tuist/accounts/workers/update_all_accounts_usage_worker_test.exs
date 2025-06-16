@@ -33,7 +33,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       # Then
       account = Repo.reload!(account)
       assert account.current_month_remote_cache_hits_count == 0
-      
+
       # Allow for slight timing differences (within 5 seconds)
       time_diff = NaiveDateTime.diff(account.current_month_remote_cache_hits_count_updated_at, now, :second)
       assert abs(time_diff) <= 5
