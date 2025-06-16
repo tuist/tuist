@@ -34,6 +34,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
 
             var dynamicPaths = (script.inputPaths + script.inputFileListPaths)
                 .compactMap { try? AbsolutePath(validating: $0) }
+                .sorted()
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
             }
