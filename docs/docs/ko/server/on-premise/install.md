@@ -88,7 +88,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 | 환경 변수                           | 설명                                                                                                                                                                                   | 필수 여부 | 기본값    | 예시                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ------ | ---------------------------------------------------------------------- |
 | `DATABASE_URL`                  | Postgres 데이터베이스 접근을 위한 URL 입니다. URL에는 인증 정보가 포함되어야 합니다.                                                                                              | Yes   |        | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_CLICKHOUSE_URL`          | ClickHouse 데이터베이스 접근을 위한 URL URL에는 인증 정보가 포함되어야 합니다.                                                                                                                 | No    |        | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
+| `TUIST_CLICKHOUSE_URL`          | ClickHouse 데이터베이스 접근을 위한 URL URL에는 인증 정보가 포함되어야 합니다. URL에는 인증 정보가 포함되어야 합니다.                                                                         | No    |        | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
 | `TUIST_USE_SSL_FOR_DATABASE`    | true 이면 데이터베이스에 접속하기 위해 [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security)을 사용                                                                                            | No    | `1`    | `1`                                                                    |
 | `TUIST_DATABASE_POOL_SIZE`      | 연결 풀에서 유지할 연결 수                                                                                                                                                                      | No    | `10`   | `10`                                                                   |
 | `TUIST_DATABASE_QUEUE_TARGET`   | 풀에서 체크아웃된 모든 연결이 큐 대기 시간보다 더 오래 걸렸는지 확인하는 범위 (밀리초 단위) [(자세한 정보)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No    | `300`  | `300`                                                                  |
@@ -106,7 +106,13 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
   - `Client ID`를 복사하고 `TUIST_GITHUB_APP_CLIENT_ID`로 설정합니다.
   - 새로운 `client secret`을 생성하고 복사한 다음에 `TUIST_GITHUB_APP_CLIENT_SECRET`로 설정합니다.
   - `Callback URL`을 `http://YOUR_APP_URL/users/auth/github/callback`으로 설정합니다. `YOUR_APP_URL`은 서버의 IP 주소도 사용할 수 있습니다.
-- `Permissions and events`의 `Account permissions` 섹션에서 `Email addresses` 권한을 `Read-only`로 설정합니다.
+- 다음의 권한을 요구합니다:
+  - Repositories:
+    - Pull requests: Read and write
+  - Accounts:
+    - Email addresses: Read-only
+
+`Permissions and events`의 `Account permissions` 섹션에서 `Email addresses` 권한을 `Read-only`로 설정합니다.
 
 그런 다음, Tuist 서버가 실행되는 환경에서 다음 환경 변수를 노출시킵니다:
 
