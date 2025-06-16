@@ -121,9 +121,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            inputPaths1Hash,
-            inputFileListPaths1,
             dependencyFileHash,
+            inputFileListPaths1,
+            inputPaths1Hash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -159,9 +159,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            inputPaths1Hash,
-            inputFileListPaths1,
             dependencyFileHash,
+            inputFileListPaths1,
+            inputPaths1Hash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -206,9 +206,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
-            inputPaths2Hash,
-            inputFileListPaths2,
             dependencyFileHash,
+            inputFileListPaths2,
+            inputPaths2Hash,
             "outputPaths2",
             "outputFileListPaths2",
             "2",
