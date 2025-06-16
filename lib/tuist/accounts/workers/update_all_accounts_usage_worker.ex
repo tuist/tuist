@@ -18,33 +18,31 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
       page_size: page_size
     }
     |> Accounts.list_accounts_with_usage_not_updated_today()
-    |> process_results()
+    |> map_accounts_to_workers()
+    |> Oban.insert_all()
   end
 
-  def process_results({[], _meta}) do
-    :ok
+  def map_accounts_to_workers({[], _meta}) do
+    []
   end
 
-  def process_results({accounts, meta}) do
-    Enum.each(accounts, fn %{id: account_id} ->
-      %{
-        account_id: account_id,
-        updated_at: DateTime.utc_now()
-      }
-      |> UpdateAccountUsageWorker.new()
-      |> Oban.insert()
-    end)
+  def map_accounts_to_workers({accounts, meta}) do
+    workers =
+      Enum.map(accounts, fn %{id: account_id} ->
+        UpdateAccountUsageWorker.new(%{account_id: account_id, updated_at: DateTime.utc_now()})
+      end)
 
     current_page = meta.current_page
 
     case Flop.to_next_page(meta.flop, meta.total_pages) do
       %{page: ^current_page} ->
-        :ok
+        workers
 
       next_page ->
-        next_page
-        |> Accounts.list_accounts_with_usage_not_updated_today()
-        |> process_results()
+        workers ++
+          (next_page
+           |> Accounts.list_accounts_with_usage_not_updated_today()
+           |> map_accounts_to_workers())
     end
   end
 end
