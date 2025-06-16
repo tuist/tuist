@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.53.4 - 2025-06-16
+
+### CLI
+
+#### Changed
+
+- Monorepo (step 1) [#7682](https://github.com/tuist/tuist/pull/7682) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Report graph and targets' binary build duration [#7681](https://github.com/tuist/tuist/pull/7681) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix TargetScripts hash not being stable across runs [#7686](https://github.com/tuist/tuist/pull/7686) by [@danieleformichelli](https://github.com/danieleformichelli)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.53.3 - 2025-06-13
 
 ### CLI
