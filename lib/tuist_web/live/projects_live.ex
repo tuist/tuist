@@ -9,6 +9,9 @@ defmodule TuistWeb.ProjectsLive do
   alias Tuist.Previews
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Utilities.Query
+
+  @pagination_threshold 6
 
   @impl true
   def mount(_params, _uri, socket) do
@@ -20,21 +23,96 @@ defmodule TuistWeb.ProjectsLive do
             gettext("The page you are looking for doesn't exist or has been moved.")
     end
 
-    projects =
-      selected_account
-      |> Projects.get_all_project_accounts()
-      |> Enum.map(&Map.get(&1, :project))
-      |> Tuist.Repo.preload(:previews)
-      |> Projects.list_sorted_with_interaction_data()
-
     form = to_form(Project.create_changeset(%{}))
 
     {:ok,
      socket
-     |> assign(:projects, projects)
      |> assign(:form, form)
      |> assign(:selected_tab, "projects")
-     |> assign(:head_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")}
+     |> assign(:head_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")
+     |> assign(:pagination_threshold, @pagination_threshold)}
+  end
+
+  @impl true
+  def handle_params(params, uri, socket) do
+    selected_account = socket.assigns[:selected_account]
+    total_project_count = Projects.get_project_count_for_account(selected_account)
+
+    {:noreply,
+     socket
+     |> assign(:total_project_count, total_project_count)
+     |> assign_projects(params, total_project_count)
+     |> assign(:search_term, Map.get(params, "search", ""))
+     |> assign(:uri, URI.parse(uri))}
+  end
+
+  defp assign_projects(socket, _params, total_project_count) when total_project_count <= @pagination_threshold do
+    selected_account = socket.assigns[:selected_account]
+    all_project_accounts = Projects.get_all_project_accounts(selected_account)
+
+    all_projects_with_interaction =
+      all_project_accounts
+      |> Enum.map(&Map.get(&1, :project))
+      |> Projects.list_sorted_with_interaction_data(preload: [:previews])
+
+    socket
+    |> assign(:all_projects, all_projects_with_interaction)
+    |> assign(:recent_projects, [])
+    |> assign(:projects_meta, %{has_previous_page?: false, has_next_page?: false})
+  end
+
+  defp assign_projects(socket, params, _total_project_count) do
+    selected_account = socket.assigns[:selected_account]
+    recent_projects = Projects.get_recent_projects_for_account(selected_account)
+
+    # Build Flop options for pagination and search
+    flop_filters = [
+      %{field: :account_id, op: :==, value: selected_account.id}
+    ]
+
+    # Add search filter if present
+    flop_filters =
+      case Map.get(params, "search") do
+        nil ->
+          flop_filters
+
+        "" ->
+          flop_filters
+
+        search_term ->
+          [%{field: :name, op: :=~, value: search_term} | flop_filters]
+      end
+
+    flop_options = %{
+      filters: flop_filters,
+      order_by: [:name],
+      order_directions: [:asc]
+    }
+
+    # Apply pagination
+    flop_options =
+      cond do
+        not is_nil(Map.get(params, "before")) ->
+          flop_options
+          |> Map.put(:last, @pagination_threshold)
+          |> Map.put(:before, Map.get(params, "before"))
+
+        not is_nil(Map.get(params, "after")) ->
+          flop_options
+          |> Map.put(:first, @pagination_threshold)
+          |> Map.put(:after, Map.get(params, "after"))
+
+        true ->
+          Map.put(flop_options, :first, @pagination_threshold)
+      end
+
+    {all_projects, projects_meta} =
+      Projects.list_projects(flop_options, preload: [:previews], include_interaction_data: true)
+
+    socket
+    |> assign(:recent_projects, recent_projects)
+    |> assign(:all_projects, all_projects)
+    |> assign(:projects_meta, projects_meta)
   end
 
   @impl true
@@ -45,45 +123,155 @@ defmodule TuistWeb.ProjectsLive do
         <h2 data-part="title">{gettext("Projects")}</h2>
         <.create_project_form id="create-project-form" form={@form} source="header" />
       </div>
-      <div data-part="grid">
-        <div :if={Enum.empty?(@projects)} data-part="empty-state">
-          <.create_project_form
-            id="create-project-form-empty-state"
-            form={@form}
-            source="empty-state"
-          />
-          <.project_background />
-        </div>
-        <div
-          :for={project <- @projects}
-          data-part="project"
-          phx-click="navigate"
-          phx-value-project={project.name}
-        >
-          <.project_background />
-          <div data-part="title">
-            {project.name}
+
+      <%= if @total_project_count <= @pagination_threshold do %>
+        <!-- Simple layout for <%= @pagination_threshold %> or fewer projects -->
+        <div data-part="grid">
+          <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
+            <.create_project_form
+              id="create-project-form-empty-state"
+              form={@form}
+              source="empty-state"
+            />
+            <.project_background />
           </div>
-          <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
-            <h3>Supported platforms</h3>
-            <div data-part="tags">
-              <.tag
-                :for={platform <- Projects.platforms(project)}
-                label={Previews.platform_string(platform)}
-                icon={platform_icon_name(platform)}
-              />
+          <div
+            :for={project <- @all_projects}
+            data-part="project"
+            phx-click="navigate"
+            phx-value-project={project.name}
+          >
+            <.project_background />
+            <div data-part="title">
+              {project.name}
+            </div>
+            <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+              <h3>Supported platforms</h3>
+              <div data-part="tags">
+                <.tag
+                  :for={platform <- Projects.platforms(project)}
+                  label={Previews.platform_string(platform)}
+                  icon={platform_icon_name(platform)}
+                />
+              </div>
+            </div>
+            <span :if={project.last_interacted_at} data-part="time">
+              {gettext("Last interacted with %{time}", %{
+                time: Timex.from_now(project.last_interacted_at)
+              })}
+            </span>
+            <span :if={!project.last_interacted_at} data-part="time">
+              {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+            </span>
+          </div>
+        </div>
+      <% else %>
+        <!-- Complex layout for 7+ projects -->
+        <!-- Recent projects section -->
+        <div :if={Enum.any?(@recent_projects)} data-part="recent-section">
+          <h3 data-part="section-title">{gettext("Recent projects")}</h3>
+          <div data-part="grid">
+            <div
+              :for={project <- @recent_projects}
+              data-part="project"
+              phx-click="navigate"
+              phx-value-project={project.name}
+            >
+              <.project_background />
+              <div data-part="title">
+                {project.name}
+              </div>
+              <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+                <h3>Supported platforms</h3>
+                <div data-part="tags">
+                  <.tag
+                    :for={platform <- Projects.platforms(project)}
+                    label={Previews.platform_string(platform)}
+                    icon={platform_icon_name(platform)}
+                  />
+                </div>
+              </div>
+              <span :if={project.last_interacted_at} data-part="time">
+                {gettext("Last interacted with %{time}", %{
+                  time: Timex.from_now(project.last_interacted_at)
+                })}
+              </span>
+              <span :if={!project.last_interacted_at} data-part="time">
+                {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+              </span>
             </div>
           </div>
-          <span :if={project.last_interacted_at} data-part="time">
-            {gettext("Last interacted with %{time}", %{
-              time: Timex.from_now(project.last_interacted_at)
-            })}
-          </span>
-          <span :if={!project.last_interacted_at} data-part="time">
-            {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
-          </span>
         </div>
-      </div>
+        
+    <!-- All projects section -->
+        <div data-part="all-section">
+          <h3 data-part="section-title">{gettext("All projects")}</h3>
+          <.form
+            for={%{}}
+            phx-change="search"
+            phx-submit="search"
+            data-part="search-form"
+            id="projects-search-form"
+          >
+            <.text_input
+              id="projects-search-input"
+              name="search"
+              value={@search_term}
+              placeholder={gettext("Search projects...")}
+              phx-debounce="100"
+            />
+          </.form>
+
+          <div data-part="grid">
+            <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
+              <.create_project_form
+                id="create-project-form-empty-state"
+                form={@form}
+                source="empty-state"
+              />
+              <.project_background />
+            </div>
+            <div
+              :for={project <- @all_projects}
+              data-part="project"
+              phx-click="navigate"
+              phx-value-project={project.name}
+            >
+              <.project_background />
+              <div data-part="title">
+                {project.name}
+              </div>
+              <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+                <h3>Supported platforms</h3>
+                <div data-part="tags">
+                  <.tag
+                    :for={platform <- Projects.platforms(project)}
+                    label={Previews.platform_string(platform)}
+                    icon={platform_icon_name(platform)}
+                  />
+                </div>
+              </div>
+              <span :if={project.last_interacted_at} data-part="time">
+                {gettext("Last interacted with %{time}", %{
+                  time: Timex.from_now(project.last_interacted_at)
+                })}
+              </span>
+              <span :if={!project.last_interacted_at} data-part="time">
+                {gettext("Created %{time}", %{time: Timex.from_now(project.created_at)})}
+              </span>
+            </div>
+          </div>
+
+          <.pagination
+            :if={@projects_meta.has_previous_page? or @projects_meta.has_next_page?}
+            uri={@uri}
+            has_previous_page={@projects_meta.has_previous_page?}
+            has_next_page={@projects_meta.has_next_page?}
+            start_cursor={@projects_meta.start_cursor}
+            end_cursor={@projects_meta.end_cursor}
+          />
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -133,16 +321,30 @@ defmodule TuistWeb.ProjectsLive do
     {:noreply, socket}
   end
 
+  def handle_event("search", %{"search" => search_term}, socket) do
+    query_string =
+      socket.assigns.uri.query
+      |> Query.put("search", search_term)
+      |> Query.drop("after")
+      |> Query.drop("before")
+
+    path =
+      "/#{socket.assigns.selected_account.name}/projects" <>
+        if query_string == "", do: "", else: "?#{query_string}"
+
+    {:noreply, push_patch(socket, to: path)}
+  end
+
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do
     account = socket.assigns.selected_account
 
     with true <- Authorization.can(socket.assigns.current_user, :create, account, :project),
-         {:ok, project} <- Projects.create_project(%{name: name, account: account}) do
+         {:ok, _project} <- Projects.create_project(%{name: name, account: account}) do
       socket =
         socket
-        |> assign(projects: [project | socket.assigns.projects])
         |> push_event("close-modal", %{id: "create-project-form-modal"})
         |> push_event("close-modal", %{id: "create-project-form-empty-state-modal"})
+        |> push_patch(to: ~p"/#{account.name}/projects")
 
       {:noreply, socket}
     else

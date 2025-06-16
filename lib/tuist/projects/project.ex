@@ -10,6 +10,11 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.User
   alias Tuist.Previews.Preview
 
+  @derive {
+    Flop.Schema,
+    filterable: [:account_id, :name], sortable: [:name, :created_at], default_limit: 20
+  }
+
   schema "projects" do
     field :token, :string
     field :name, :string

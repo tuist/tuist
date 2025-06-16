@@ -33,13 +33,30 @@
 }
 
 #projects {
-  & > [data-part="grid"] {
+  & > [data-part="recent-section"],
+  & > [data-part="all-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-9);
+  }
+
+  & > [data-part="recent-section"] > [data-part="section-title"],
+  & > [data-part="all-section"] > [data-part="section-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & > [data-part="all-section"] > [data-part="search-form"] {
+    max-width: 320px;
+  }
+
+  & [data-part="grid"] {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--noora-spacing-6);
 
-    & > [data-part="project"],
-    & > [data-part="empty-state"] {
+    & [data-part="project"],
+    & [data-part="empty-state"] {
       display: flex;
       position: relative;
       flex: 1 0 0;
@@ -64,7 +81,7 @@
         }
       }
     }
-    & > [data-part="project"] {
+    & [data-part="project"] {
       justify-content: space-between;
       cursor: pointer;
       box-shadow: var(--noora-border-light-default);
@@ -109,7 +126,7 @@
       }
     }
 
-    & > [data-part="empty-state"] {
+    & [data-part="empty-state"] {
       justify-content: center;
       align-items: center;
       border: 1px dashed var(--noora-surface-border-primary);
@@ -121,6 +138,10 @@
         z-index: var(--noora-z-index-1);
       }
     }
+  }
+
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
   }
 }
 

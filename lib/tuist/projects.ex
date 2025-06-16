@@ -19,6 +19,11 @@ defmodule Tuist.Projects do
     Repo.aggregate(Project, :count, :id)
   end
 
+  def get_project_count_for_account(%Account{id: account_id}) do
+    query = from p in Project, where: p.account_id == ^account_id
+    Repo.aggregate(query, :count, :id)
+  end
+
   def legacy_token?(token) do
     not String.starts_with?(token, "tuist_")
   end
@@ -302,8 +307,9 @@ defmodule Tuist.Projects do
     Enum.map(integers, &Map.get(int_to_atom_map, &1))
   end
 
-  def list_sorted_with_interaction_data(projects) do
+  def list_sorted_with_interaction_data(projects, opts \\ []) do
     project_ids = Enum.map(projects, & &1.id)
+    preload = Keyword.get(opts, :preload, [])
 
     from(p in Project,
       left_join:
@@ -318,6 +324,7 @@ defmodule Tuist.Projects do
       where: p.id in ^project_ids,
       select: %{p | last_interacted_at: ce_max.last_interacted_at}
     )
+    |> preload(^preload)
     |> Repo.all()
     |> Enum.sort_by(
       fn project ->
@@ -332,6 +339,58 @@ defmodule Tuist.Projects do
           {a, b} -> a < b
         end
       end
+    )
+  end
+
+  def list_projects(attrs, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+    include_interaction_data = Keyword.get(opts, :include_interaction_data, false)
+
+    if include_interaction_data do
+      list_projects_with_interaction_data(attrs, preload)
+    else
+      Project
+      |> preload(^preload)
+      |> Flop.validate_and_run!(attrs, for: Project)
+    end
+  end
+
+  defp list_projects_with_interaction_data(attrs, preload) do
+    subquery =
+      from(ce in Event,
+        group_by: ce.project_id,
+        select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
+      )
+
+    Flop.validate_and_run!(
+      from(p in Project,
+        left_join: ce_max in subquery(subquery),
+        on: p.id == ce_max.project_id,
+        select: %{p | last_interacted_at: ce_max.last_interacted_at},
+        preload: ^preload
+      ),
+      attrs,
+      for: Project
+    )
+  end
+
+  def get_recent_projects_for_account(account, limit \\ 3) do
+    event_subquery =
+      from(ce in Event,
+        group_by: ce.project_id,
+        select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
+      )
+
+    Repo.all(
+      from(p in Project,
+        join: ce_max in subquery(event_subquery),
+        on: p.id == ce_max.project_id,
+        where: p.account_id == ^account.id and not is_nil(ce_max.last_interacted_at),
+        select: %{p | last_interacted_at: ce_max.last_interacted_at},
+        order_by: [desc: ce_max.last_interacted_at],
+        limit: ^limit,
+        preload: [:previews]
+      )
     )
   end
 end

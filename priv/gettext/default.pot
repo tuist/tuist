@@ -1469,7 +1469,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
-#: lib/tuist_web/live/projects_live.ex:106
+#: lib/tuist_web/live/projects_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1824,8 +1824,8 @@ msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
-#: lib/tuist_web/live/projects_live.ex:37
-#: lib/tuist_web/live/projects_live.ex:45
+#: lib/tuist_web/live/projects_live.ex:32
+#: lib/tuist_web/live/projects_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -2422,7 +2422,7 @@ msgstr ""
 
 #: lib/tuist_web/authorization.ex:73
 #: lib/tuist_web/authorization.ex:89
-#: lib/tuist_web/live/projects_live.ex:20
+#: lib/tuist_web/live/projects_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -3140,22 +3140,26 @@ msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:169
-#: lib/tuist_web/live/projects_live.ex:94
+#: lib/tuist_web/live/projects_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:83
+#: lib/tuist_web/live/projects_live.ex:164
+#: lib/tuist_web/live/projects_live.ex:200
+#: lib/tuist_web/live/projects_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:78
+#: lib/tuist_web/live/projects_live.ex:159
+#: lib/tuist_web/live/projects_live.ex:195
+#: lib/tuist_web/live/projects_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:96
+#: lib/tuist_web/live/projects_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
@@ -3254,7 +3258,7 @@ msgstr ""
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:101
+#: lib/tuist_web/live/projects_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -4114,9 +4118,24 @@ msgstr ""
 msgid "Try updating your search"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.html.heex:70
+#: lib/tuist_web/live/projects_live.ex:208
 #, elixir-autogen, elixir-format
-msgid "Mac device"
+msgid "All projects"
+msgstr ""
+
+#: lib/tuist_web/live/projects_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Recent projects"
+msgstr ""
+
+#: lib/tuist_web/live/projects_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Search projects..."
+msgstr ""
+
+#: lib/tuist_web/live/builds_live.html.heex:125
+#, elixir-autogen, elixir-format
+msgid "%{percentage}%"
 msgstr ""
 
 #: lib/tuist_web/live/build_runs_live.ex:243
@@ -4129,20 +4148,20 @@ msgstr ""
 msgid "Build"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.ex:242
-#, elixir-autogen, elixir-format
-msgid "Test"
-msgstr ""
-
-#: lib/tuist_web/live/builds_live.html.heex:125
-#, elixir-autogen, elixir-format
-msgid "%{percentage}%"
-msgstr ""
-
 #: lib/tuist_web/live/builds_live.html.heex:121
 #: lib/tuist_web/live/builds_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
+msgstr ""
+
+#: lib/tuist_web/live/build_run_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Mac device"
+msgstr ""
+
+#: lib/tuist_web/live/build_runs_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Test"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:123

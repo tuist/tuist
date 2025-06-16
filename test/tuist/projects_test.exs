@@ -27,6 +27,38 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
+  describe "get_project_count_for_account/1" do
+    test "returns the right count for a specific account" do
+      # Given
+      user_one = AccountsFixtures.user_fixture()
+      user_two = AccountsFixtures.user_fixture()
+      account_one = Accounts.get_account_from_user(user_one)
+      account_two = Accounts.get_account_from_user(user_two)
+
+      ProjectsFixtures.project_fixture(account_id: account_one.id)
+      ProjectsFixtures.project_fixture(account_id: account_one.id)
+      ProjectsFixtures.project_fixture(account_id: account_two.id)
+
+      # When
+      got = Projects.get_project_count_for_account(account_one)
+
+      # Then
+      assert got == 2
+    end
+
+    test "returns 0 when account has no projects" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      got = Projects.get_project_count_for_account(account)
+
+      # Then
+      assert got == 0
+    end
+  end
+
   test "returns command average duration" do
     # Given
     organization = AccountsFixtures.organization_fixture(name: "tuist")
@@ -603,6 +635,129 @@ defmodule Tuist.ProjectsTest do
       # Project A should come first (most recent interaction at 15:00)
       # Project B should come second (interaction at 12:00)
       assert project_names == ["project-a", "project-b"]
+    end
+  end
+
+  describe "get_recent_projects_for_account/2" do
+    test "returns the most recently interacted projects for an account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # Create projects
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-1")
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-2")
+      project3 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-3")
+      _project4 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-4")
+
+      # Add interactions with different timestamps
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project1.id,
+        ran_at: ~N[2025-06-05 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project2.id,
+        ran_at: ~N[2025-06-05 14:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project3.id,
+        ran_at: ~N[2025-06-05 12:00:00]
+      )
+
+      # project4 has no interactions
+
+      # When
+      recent_projects = Projects.get_recent_projects_for_account(account, 3)
+
+      # Then
+      assert length(recent_projects) == 3
+      project_names = Enum.map(recent_projects, & &1.name)
+      # Should be ordered by most recent interaction
+      assert project_names == ["project-2", "project-3", "project-1"]
+    end
+
+    test "respects the limit parameter" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # Create 5 projects with interactions
+      for i <- 1..5 do
+        project = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-#{i}")
+
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: NaiveDateTime.add(~N[2025-06-05 10:00:00], i * 3600)
+        )
+      end
+
+      # When
+      recent_projects = Projects.get_recent_projects_for_account(account, 2)
+
+      # Then
+      assert length(recent_projects) == 2
+    end
+
+    test "only returns projects with interactions" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # Create projects
+      project_with_interaction = ProjectsFixtures.project_fixture(account_id: account.id, name: "with-interaction")
+      _project_without_interaction = ProjectsFixtures.project_fixture(account_id: account.id, name: "without-interaction")
+
+      # Add interaction only to one project
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_with_interaction.id,
+        ran_at: ~N[2025-06-05 10:00:00]
+      )
+
+      # When
+      recent_projects = Projects.get_recent_projects_for_account(account)
+
+      # Then
+      assert length(recent_projects) == 1
+      assert hd(recent_projects).name == "with-interaction"
+    end
+
+    test "includes previews in preload" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      PreviewsFixtures.preview_fixture(project: project)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        ran_at: ~N[2025-06-05 10:00:00]
+      )
+
+      # When
+      recent_projects = Projects.get_recent_projects_for_account(account, 1)
+
+      # Then
+      project_with_previews = hd(recent_projects)
+      assert Ecto.assoc_loaded?(project_with_previews.previews)
+      assert length(project_with_previews.previews) == 1
+    end
+
+    test "returns empty list when account has no projects with interactions" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # Create project without interaction
+      ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      recent_projects = Projects.get_recent_projects_for_account(account)
+
+      # Then
+      assert recent_projects == []
     end
   end
 end

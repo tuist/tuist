@@ -29,7 +29,7 @@ defmodule TuistWeb.Previews.PlatformIcon do
   def platform_icon_name(:tvos), do: "device_desktop"
   def platform_icon_name(:tvos_simulator), do: "device_desktop_share"
   def platform_icon_name(:watchos), do: "device_watch"
-  def platform_icon_name(:watch_os_simulator), do: "device_watch_share"
+  def platform_icon_name(:watchos_simulator), do: "device_watch_share"
   def platform_icon_name(:visionos), do: "device_vision_pro"
   def platform_icon_name(:visionos_simulator), do: "device_vision_pro_share"
 end
