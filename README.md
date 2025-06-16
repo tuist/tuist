@@ -32,7 +32,6 @@ Openness and community are cornerstones in shaping Tuist, as we believe they are
 - [📚 **Handbook**](https://handbook.tuist.dev)
 - [💬 **Community forum**](https://community.tuist.dev)
 
-
 > [!NOTE]
 > Even though our current focus is on the development phase of Apple native apps, we'll gradually expand our focus to include other ecosystems (e.g., Android, RN, and Flutter), and expand beyond just development.
 
@@ -47,7 +46,6 @@ mise x tuist@latest -- tuist init
 > [!IMPORTANT]
 > The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://docs.tuist.dev/en/guides/develop/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://docs.tuist.dev/en/guides/develop/projects/adoption/migrate/xcode-project).
 
-
 ## Documentation
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
@@ -57,6 +55,16 @@ You can check out [the project documentation](https://docs.tuist.dev).
 ### Sample projects
 
 You can find some sample projects in the [fixtures folder](cli/Fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+
+## Development
+
+This repository represents a monorepo with the following projects:
+
+| Project | Description |
+| ------ | -------  |
+| [cli](/cli) | The command line interface for Tuist |
+| [app](/app) | The Swift-powered iOS and macOS app |
+| [docs](/docs) | The documentation for Tuist |
 
 ## Sponsors
 
@@ -229,7 +237,7 @@ Some companies support our community and open source efforts with contributions 
 
 You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-started) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
-## ✨ Core Team
+## Core Team
 
 <table>
   <tr>
@@ -241,7 +249,7 @@ You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-s
   </tr>
 </table>
 
-## 🚀 Core Alumni
+## Core Alumni
 
 The following people were once core contributors helping steer the project in the right direction and ensuring we have a reliable foundation we can build new features upon:
 
@@ -257,7 +265,7 @@ The following people were once core contributors helping steer the project in th
   </tr>
 </table>
 
-## ✨ Contributors
+## Contributors
 
 Thanks goes to these wonderful people:
 
