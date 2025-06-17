@@ -85,7 +85,8 @@ let project = Project(
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
                     "PRODUCT_NAME": "Tuist",
-                    "PROVISIONING_PROFILE_SPECIFIER": "Tuist Ad hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist Ad hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )
         ),
