@@ -5,12 +5,14 @@ on:
       - main
   pull_request:
     paths:
-      - "docs/**"
-      - ".github/workflows/docs.yml"
-      - "cli/Sources/**"
-      - "Package.swift"
-      - "Package.resolved"
-      - "mise/tasks/docs"
+      - docs/**
+      - .github/workflows/docs.yml
+      - cli/Sources/**
+      - Package.swift
+      - Package.resolved
+      - mise/tasks/docs
+      - pnpm-lock.yaml
+      - handbook/package.json
 
 permissions:
   contents: read
