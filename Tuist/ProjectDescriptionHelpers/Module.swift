@@ -411,7 +411,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName, condition: .when([.macos])),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
-                    .target(name: Module.automation.targetName),
+                    .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
