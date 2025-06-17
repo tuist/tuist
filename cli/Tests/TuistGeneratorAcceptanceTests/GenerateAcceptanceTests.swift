@@ -523,6 +523,10 @@ final class GenerateAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTestC
             (buildPhases.first as? PBXShellScriptBuildPhase)?.outputPaths,
             ["$(DERIVED_FILE_DIR)/output.txt"]
         )
+        XCTAssertEqual(
+            (buildPhases.first as? PBXShellScriptBuildPhase)?.outputFileListPaths,
+            ["$(DERIVED_FILE_DIR)/output.xcfilelist"]
+        )
         try await run(BuildCommand.self)
     }
 }

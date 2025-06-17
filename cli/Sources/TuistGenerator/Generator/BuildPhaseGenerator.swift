@@ -205,8 +205,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     .map {
                         (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
                     },
-                inputFileListPaths: script.inputFileListPaths,
-                outputFileListPaths: script.outputFileListPaths,
+                inputFileListPaths: script.inputFileListPaths
+                    .map {
+                        (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
+                    },
+                outputFileListPaths: script.outputFileListPaths
+                    .map {
+                        (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
+                    },
                 shellPath: script.shellPath,
                 shellScript: script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,

@@ -15,7 +15,8 @@ let project = Project(
                     tool: "/bin/echo",
                     arguments: ["\"tuist\""],
                     name: "Tuist",
-                    outputPaths: ["$(DERIVED_FILE_DIR)/output.txt"]
+                    outputPaths: ["$(DERIVED_FILE_DIR)/output.txt"],
+                    outputFileListPaths: ["$(DERIVED_FILE_DIR)/output.xcfilelist"],
                 ),
             ]
         ),
