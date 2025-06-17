@@ -94,11 +94,7 @@
           patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "download-size")}"}
           selected={@bundle_size_selected_widget == "download-size"}
           trend_value={
-            (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
-               (1 -
-                  @bundle_size_previous_bundle.download_size /
-                    @bundle_size_last_bundle.download_size) *
-                 100) || 0.0
+            bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
           }
           trend_inverse={true}
           trend_label={bundle_size_trend_label(@bundle_size_date_range)}

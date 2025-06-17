@@ -170,6 +170,14 @@ defmodule TuistWeb.BundlesLive do
   defp bundle_size_trend_label("last-12-months"), do: gettext("since last year")
   defp bundle_size_trend_label(_), do: gettext("since last month")
 
+  defp bundle_size_trend_value(last_bundle, previous_bundle) do
+    if last_bundle && previous_bundle && last_bundle.download_size > 0 do
+      (1 - previous_bundle.download_size / last_bundle.download_size) * 100
+    else
+      0.0
+    end
+  end
+
   def column_patch_sort(
         %{uri: uri, bundles_sort_by: bundles_sort_by, bundles_sort_order: bundles_sort_order} = _assigns,
         column_value
