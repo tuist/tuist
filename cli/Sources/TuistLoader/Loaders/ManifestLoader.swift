@@ -178,7 +178,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config {
-        try await loadManifest(.config, at: path, disableSandbox: false)
+        try await loadManifest(.config, at: path, disableSandbox: true)
     }
 
     public func loadProject(at path: AbsolutePath, disableSandbox: Bool) async throws -> ProjectDescription.Project {
