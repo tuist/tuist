@@ -1,5 +1,5 @@
 {
-  "originHash" : "34ada93d2bc8f8fca60529b56d5df2e08e98a57bbed0516fe40a5be5a8373d54",
+  "originHash" : "9c6494859cd2ed846846b03e7322118538f262a0e95c3c50fe663acd6122211c",
   "pins" : [
     {
       "identity" : "aexml",
@@ -53,6 +53,15 @@
       "state" : {
         "revision" : "f627d00718033c3d7888acd5f4e3524a843db1cf",
         "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "eventsource",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/loopwork-ai/eventsource.git",
+      "state" : {
+        "revision" : "07957602bb99a5355c810187e66e6ce378a1057d",
+        "version" : "1.1.1"
       }
     },
     {
@@ -116,15 +125,6 @@
       "state" : {
         "revision" : "753461938fafdcdbcd19b68b34b137dc37367d22",
         "version" : "0.34.0"
-      }
-    },
-    {
-      "identity" : "mcp-swift-sdk",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/loopwork-ai/mcp-swift-sdk.git",
-      "state" : {
-        "revision" : "ef647106b92098f0f15fdd38cc206b9f30c6d24a",
-        "version" : "0.5.1"
       }
     },
     {
@@ -377,6 +377,15 @@
       "state" : {
         "revision" : "9bf4c712ad7989d6a91dbe68748b8829a50837e4",
         "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/modelcontextprotocol/swift-sdk.git",
+      "state" : {
+        "revision" : "9742933d2ff250212a04aed39b123bcc63a21e9c",
+        "version" : "0.9.0"
       }
     },
     {

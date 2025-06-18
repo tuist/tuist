@@ -88,7 +88,7 @@ let targets: [Target] = [
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
             .product(name: "XCResultKit", package: "XCResultKit"),
-            .product(name: "MCP", package: "mcp-swift-sdk"),
+            .product(name: "MCP", package: "swift-sdk"),
             .product(name: "SwiftyJSON", package: "SwiftyJSON"),
             .product(name: "Rosalind", package: "Rosalind"),
         ],
@@ -603,7 +603,7 @@ let package = Package(
             .upToNextMajor(from: "1.18.1")
         ),
         .package(
-            url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git", .upToNextMajor(from: "0.9.0")
         ),
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(
