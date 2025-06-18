@@ -857,6 +857,7 @@ defmodule Tuist.Accounts do
         join: a in Account,
         on: a.organization_id == o.id,
         where: u.user_id == ^user_id and r.resource_type == "Organization",
+        distinct: o.id,
         select: %{
           organization: o,
           account: a
