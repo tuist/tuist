@@ -546,7 +546,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func testMap_whenResourceContainsBinaryPlist() async throws {
+    func testMap_whenResourceContainsBinaryPlist() throws {
         // Given
         var plistNames: [String] = []
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
