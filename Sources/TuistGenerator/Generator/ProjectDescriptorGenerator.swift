@@ -270,28 +270,47 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         for package in project.packages {
             switch package {
-            case let .local(path):
-
+            case let .local(path, groupPath):
+                let relPath = path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
                     sourceTree: .group,
                     name: path.components.last,
                     lastKnownFileType: "folder",
-                    path: path.relative(to: project.sourceRootPath).pathString
+                    path: relPath
                 )
-
-                let packageReference = XCLocalSwiftPackageReference(
-                    relativePath: path.pathString
-                )
-                pbxproj.add(object: packageReference)
-                localPackageReferences[path.pathString] = packageReference
-
                 pbxproj.add(object: reference)
 
-                if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
-                    existingPackageGroup.children.append(reference)
+                if let groupPath = groupPath {
+                    let packageReference = XCLocalSwiftPackageReference(relativePath: path.pathString)
+                    pbxproj.add(object: packageReference)
+                    localPackageReferences[path.pathString] = packageReference
+
+                    guard let root = try pbxproj.rootGroup() else { continue }
+                    let packagesGroup: PBXGroup?
+                    if let existing = root.group(named: "Packages") {
+                        packagesGroup = existing
+                    } else {
+                        packagesGroup = try root.addGroup(named: "Packages", options: .withoutFolder).first
+                    }
+
+                    let components = groupPath.split(separator: "/").map(String.init)
+                    var currentGroup = packagesGroup
+                    for folder in components.dropLast() {
+                        if let sub = currentGroup?.group(named: folder) {
+                            currentGroup = sub
+                        } else {
+                            currentGroup = try currentGroup?.addGroup(named: folder, options: .withoutFolder).first
+                        }
+                    }
+
+                    currentGroup?.children.append(reference)
                 } else {
-                    let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
-                    packageGroup?.first?.children.append(reference)
+                    if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
+                        existingPackageGroup.children.append(reference)
+                    } else {
+                        let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
+                        packageGroup?.first?.children.append(reference)
+                    }
                 }
 
             case let .remote(url: url, requirement: requirement):
