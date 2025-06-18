@@ -406,7 +406,7 @@ struct CommandEnvironmentVariableTests {
             "--os", "15.0",
             "--rosetta",
             "AnotherScheme",
-            "arg4", "arg5",
+            "--", "arg4", "arg5",
         ])
         #expect(runCommandWithArgs.generate == false)
         #expect(runCommandWithArgs.clean == false)
