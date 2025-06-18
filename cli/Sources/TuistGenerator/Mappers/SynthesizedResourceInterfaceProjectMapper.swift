@@ -182,7 +182,28 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     }
                 }
             }()
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files, .stringsCatalog:
+        case .plists:
+            // Exclude binary plists from synthesized interface generation
+            paths = paths.filter { path in
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path.pathString)) else { return false
+                }
+                if data.isEmpty { return true }
+
+                // specify xml as placeholder, overwritten by deserialization
+                var format = PropertyListSerialization.PropertyListFormat.xml
+                do {
+                    _ = try PropertyListSerialization.propertyList(
+                        from: data,
+                        options: [],
+                        format: &format
+                    )
+                    return format != .binary
+                } catch {
+                    // exclude on parse failure
+                    return false
+                }
+            }
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .yaml, .files, .stringsCatalog:
             break
         }
 

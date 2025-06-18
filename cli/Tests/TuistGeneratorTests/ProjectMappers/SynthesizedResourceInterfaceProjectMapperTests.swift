@@ -546,6 +546,58 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
+    func testMap_whenResourceContainsBinaryPlist() async throws {
+        // Given
+        var plistNames: [String] = []
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
+            plistNames.append(contentsOf: paths.map(\.basename))
+            return ""
+        }
+        let projectPath = try temporaryPath()
+        let targetPath = projectPath.appending(component: "TargetA")
+        let binaryPlist = targetPath.appending(component: "Binary.plist")
+        let xmlPlist = targetPath.appending(component: "XML.plist")
+        try fileHandler.createFolder(targetPath)
+        // Create binary plist
+        let binaryData = try PropertyListSerialization.data(
+            fromPropertyList: ["key": "value"],
+            format: .binary,
+            options: 0
+        )
+        try binaryData.write(to: URL(fileURLWithPath: binaryPlist.pathString))
+        // Create xml plist
+        let xmlData = try PropertyListSerialization.data(
+            fromPropertyList: ["key": "value"],
+            format: .xml,
+            options: 0
+        )
+        try xmlData.write(to: URL(fileURLWithPath: xmlPlist.pathString))
+        let target = Target.test(
+            name: "TargetA",
+            resources: .init([.file(path: binaryPlist), .file(path: xmlPlist)])
+        )
+        let resourceSynthesizers: [ResourceSynthesizer] = [
+            .init(
+                parser: .plists,
+                parserOptions: [:],
+                extensions: ["plist"],
+                template: .defaultTemplate("Plists")
+            ),
+        ]
+        let project = Project.test(
+            path: projectPath,
+            targets: [target],
+            resourceSynthesizers: resourceSynthesizers
+        )
+
+        // When
+        _ = try subject.map(project: project)
+
+        // Then
+        XCTAssertFalse(plistNames.contains("Binary.plist"))
+        XCTAssertTrue(plistNames.contains("XML.plist"))
+    }
+
     // MARK: - Helpers
 
     private func stub(file: AbsolutePath) throws {
