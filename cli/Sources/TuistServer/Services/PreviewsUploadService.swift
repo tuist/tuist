@@ -172,7 +172,7 @@
                     artifactPath: buildPath,
                     generateUploadURL: { part in
                         try await multipartUploadGenerateURLPreviewsService.uploadPreview(
-                            previewUpload.previewId,
+                            previewUpload.appBuildId,
                             partNumber: part.number,
                             uploadId: previewUpload.uploadId,
                             fullHandle: fullHandle,
@@ -186,7 +186,7 @@
                 )
 
                 return try await multipartUploadCompletePreviewsService.completePreviewUpload(
-                    previewUpload.previewId,
+                    previewUpload.appBuildId,
                     uploadId: previewUpload.uploadId,
                     parts: parts,
                     fullHandle: fullHandle,

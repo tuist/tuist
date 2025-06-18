@@ -1485,10 +1485,15 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data`.
             internal struct dataPayload: Codable, Hashable, Sendable {
+                /// The id of the app build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data/app_build_id`.
+                internal var app_build_id: Swift.String
                 /// The id of the preview.
                 ///
                 /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data/preview_id`.
-                internal var preview_id: Swift.String
+                @available(*, deprecated)
+                internal var preview_id: Swift.String?
                 /// The upload ID
                 ///
                 /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload/data/upload_id`.
@@ -1496,16 +1501,20 @@ internal enum Components {
                 /// Creates a new `dataPayload`.
                 ///
                 /// - Parameters:
+                ///   - app_build_id: The id of the app build.
                 ///   - preview_id: The id of the preview.
                 ///   - upload_id: The upload ID
                 internal init(
-                    preview_id: Swift.String,
+                    app_build_id: Swift.String,
+                    preview_id: Swift.String? = nil,
                     upload_id: Swift.String
                 ) {
+                    self.app_build_id = app_build_id
                     self.preview_id = preview_id
                     self.upload_id = upload_id
                 }
                 internal enum CodingKeys: String, CodingKey {
+                    case app_build_id
                     case preview_id
                     case upload_id
                 }
@@ -5055,10 +5064,15 @@ internal enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data`.
                         internal struct dataPayload: Codable, Hashable, Sendable {
+                            /// The id of the app build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/app_build_id`.
+                            internal var app_build_id: Swift.String
                             /// The id of the preview.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/preview_id`.
-                            internal var preview_id: Swift.String
+                            @available(*, deprecated)
+                            internal var preview_id: Swift.String?
                             /// The upload ID
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/upload_id`.
@@ -5066,16 +5080,20 @@ internal enum Operations {
                             /// Creates a new `dataPayload`.
                             ///
                             /// - Parameters:
+                            ///   - app_build_id: The id of the app build.
                             ///   - preview_id: The id of the preview.
                             ///   - upload_id: The upload ID
                             internal init(
-                                preview_id: Swift.String,
+                                app_build_id: Swift.String,
+                                preview_id: Swift.String? = nil,
                                 upload_id: Swift.String
                             ) {
+                                self.app_build_id = app_build_id
                                 self.preview_id = preview_id
                                 self.upload_id = upload_id
                             }
                             internal enum CodingKeys: String, CodingKey {
+                                case app_build_id
                                 case preview_id
                                 case upload_id
                             }
@@ -11021,25 +11039,34 @@ internal enum Operations {
             internal enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json`.
                 internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The id of the app build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/app_build_id`.
+                    internal var app_build_id: Swift.String?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/multipart_upload_part`.
                     internal var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
                     /// The id of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/preview_id`.
+                    @available(*, deprecated)
                     internal var preview_id: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - app_build_id: The id of the app build.
                     ///   - multipart_upload_part:
                     ///   - preview_id: The id of the preview.
                     internal init(
+                        app_build_id: Swift.String? = nil,
                         multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
                         preview_id: Swift.String
                     ) {
+                        self.app_build_id = app_build_id
                         self.multipart_upload_part = multipart_upload_part
                         self.preview_id = preview_id
                     }
                     internal enum CodingKeys: String, CodingKey {
+                        case app_build_id
                         case multipart_upload_part
                         case preview_id
                     }
@@ -18261,25 +18288,34 @@ internal enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/requestBody/json`.
                 internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The id of the app build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/requestBody/json/app_build_id`.
+                    internal var app_build_id: Swift.String?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/requestBody/json/multipart_upload_parts`.
                     internal var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
                     /// The id of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/requestBody/json/preview_id`.
+                    @available(*, deprecated)
                     internal var preview_id: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - app_build_id: The id of the app build.
                     ///   - multipart_upload_parts:
                     ///   - preview_id: The id of the preview.
                     internal init(
+                        app_build_id: Swift.String? = nil,
                         multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts,
                         preview_id: Swift.String
                     ) {
+                        self.app_build_id = app_build_id
                         self.multipart_upload_parts = multipart_upload_parts
                         self.preview_id = preview_id
                     }
                     internal enum CodingKeys: String, CodingKey {
+                        case app_build_id
                         case multipart_upload_parts
                         case preview_id
                     }

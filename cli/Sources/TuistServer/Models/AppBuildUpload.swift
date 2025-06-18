@@ -1,14 +1,14 @@
 import Foundation
 
-public struct PreviewUpload {
-    public let previewId: String
+public struct AppBuildUpload {
+    public let appBuildId: String
     public let uploadId: String
 
     public init(
-        previewId: String,
+        appBuildId: String,
         uploadId: String
     ) {
-        self.previewId = previewId
+        self.appBuildId = appBuildId
         self.uploadId = uploadId
     }
 }

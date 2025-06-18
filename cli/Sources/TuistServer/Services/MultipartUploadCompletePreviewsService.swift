@@ -5,7 +5,7 @@ import OpenAPIRuntime
 @Mockable
 public protocol MultipartUploadCompletePreviewsServicing {
     func completePreviewUpload(
-        _ previewId: String,
+        _ appBuildId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
@@ -48,7 +48,7 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
     }
 
     public func completePreviewUpload(
-        _ previewId: String,
+        _ appBuildId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
@@ -64,12 +64,13 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
                 ),
                 body: .json(
                     .init(
+                        app_build_id: appBuildId,
                         multipart_upload_parts: .init(
                             parts: parts
                                 .map { .init(etag: $0.etag, part_number: $0.partNumber) },
                             upload_id: uploadId
                         ),
-                        preview_id: previewId
+                        preview_id: appBuildId
                     )
                 )
             )

@@ -52,7 +52,7 @@ struct PreviewsUploadServiceTests {
 
         given(multipartUploadCompletePreviewsService)
             .completePreviewUpload(
-                .value("preview-id"),
+                .value("app-build-id"),
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.map(\.etag) == ["etag"] && parts.map(\.partNumber) == [1]
@@ -64,7 +64,7 @@ struct PreviewsUploadServiceTests {
 
         given(multipartUploadGenerateURLPreviewsService)
             .uploadPreview(
-                .value("preview-id"),
+                .value("app-build-id"),
                 partNumber: .value(1),
                 uploadId: .value("upload-id"),
                 fullHandle: .value("tuist/tuist"),
@@ -94,7 +94,7 @@ struct PreviewsUploadServiceTests {
                 serverURL: .any
             )
             .willReturn(
-                PreviewUpload(previewId: "preview-id", uploadId: "upload-id")
+                AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
             )
     }
 
@@ -204,7 +204,7 @@ struct PreviewsUploadServiceTests {
                     fullHandle: .any,
                     serverURL: .any
                 )
-                .willReturn(PreviewUpload(previewId: "preview-id", uploadId: "upload-id"))
+                .willReturn(AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id"))
 
             given(multipartUploadCompletePreviewsService)
                 .completePreviewUpload(
@@ -214,7 +214,7 @@ struct PreviewsUploadServiceTests {
                     fullHandle: .any,
                     serverURL: .any
                 )
-                .willReturn(.test(id: "preview-id", url: shareURL))
+                .willReturn(.test(id: "app-build-id", url: shareURL))
 
             // When
             _ = try await subject.uploadPreview(
