@@ -202,10 +202,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     refreshToken: try Self.parseJWT(refreshToken)
                 )
             } else {
-                Logger.current
-                    .warning(
-                        "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
-                    )
+                #if canImport(TuistSupport)
+                    Logger.current
+                        .warning(
+                            "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
+                        )
+                #endif
                 return .user(
                     legacyToken: $0.token,
                     accessToken: nil,
@@ -216,23 +218,27 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     private func ciAuthenticationToken() async throws -> AuthenticationToken? {
-        if let configToken = Environment.current.tuistVariables[
-            Constants.EnvironmentVariables.token
-        ] {
-            return .project(configToken)
-        } else if let deprecatedToken = Environment.current.tuistVariables[
-            "TUIST_CONFIG_CLOUD_TOKEN"
-        ] {
-            AlertController.current
-                .warning(
-                    .alert(
-                        "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+        #if canImport(TuistSupport)
+            if let configToken = Environment.current.tuistVariables[
+                Constants.EnvironmentVariables.token
+            ] {
+                return .project(configToken)
+            } else if let deprecatedToken = Environment.current.tuistVariables[
+                "TUIST_CONFIG_CLOUD_TOKEN"
+            ] {
+                AlertController.current
+                    .warning(
+                        .alert(
+                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                        )
                     )
-                )
-            return .project(deprecatedToken)
-        } else {
+                return .project(deprecatedToken)
+            } else {
+                return nil
+            }
+        #else
             return nil
-        }
+        #endif
     }
 
     func isTuistDevURL(_ serverURL: URL) -> Bool {
