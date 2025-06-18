@@ -3377,12 +3377,12 @@ msgstr ""
 msgid "%{savings} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:777
+#: lib/tuist_web/live/bundle_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:775
+#: lib/tuist_web/live/bundle_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
 msgstr ""
@@ -3427,7 +3427,7 @@ msgstr ""
 msgid "Bundle install size"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:752
+#: lib/tuist_web/live/bundle_live.ex:757
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
 msgstr ""

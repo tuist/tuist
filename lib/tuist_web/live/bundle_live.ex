@@ -329,10 +329,13 @@ defmodule TuistWeb.BundleLive do
             bundle: bundle,
             bundle_size_analysis_sunburst_chart_selected_artifact: bundle_size_analysis_sunburst_chart_selected_artifact,
             artifacts_by_id: artifacts_by_id,
-            base_path: base_path
+            base_path: base_path,
+            duplicates: duplicates
           }
         } = socket
       ) do
+    duplicate_shasums = MapSet.new(duplicates, & &1.shasum)
+
     artifact =
       Map.get(artifacts_by_id, bundle_size_analysis_sunburst_chart_selected_artifact.artifact_id)
 
@@ -351,7 +354,8 @@ defmodule TuistWeb.BundleLive do
               &%{
                 value: &1.size,
                 name: &1.path |> String.split("/") |> List.last(),
-                artifact_type: &1.artifact_type
+                artifact_type: &1.artifact_type,
+                duplicate?: &1.shasum && MapSet.member?(duplicate_shasums, &1.shasum)
               }
             )
             |> Enum.sort_by(& &1.value, :desc)
@@ -369,7 +373,8 @@ defmodule TuistWeb.BundleLive do
               &%{
                 value: &1.size,
                 name: &1.path |> String.split("/") |> List.last(),
-                artifact_type: &1.artifact_type
+                artifact_type: &1.artifact_type,
+                duplicate?: &1.shasum && MapSet.member?(duplicate_shasums, &1.shasum)
               }
             )
             |> Enum.sort_by(& &1.value, :desc)
