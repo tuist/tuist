@@ -280,7 +280,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 )
                 pbxproj.add(object: reference)
 
-                if let groupPath = groupPath {
+                if let groupPath {
                     let packageReference = XCLocalSwiftPackageReference(relativePath: path.pathString)
                     pbxproj.add(object: packageReference)
                     localPackageReferences[path.pathString] = packageReference
