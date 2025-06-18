@@ -30,4 +30,4 @@ SOFTWARE.
 
 ## Server Directory
 
-Content in the `server/` directory is licensed under a separate license. See `server/LICENSE` for details.
+Content in the `server/` directory is licensed under a separate license. See [`server/LICENSE`](server/LICENSE) for details.
