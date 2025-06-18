@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XCTest
@@ -14,13 +15,71 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = AppBundleLoader(fileSystem: FileSystem())
+        subject = AppBundleLoader(
+            fileSystem: FileSystem()
+        )
     }
 
     override func tearDown() {
         subject = nil
 
         super.tearDown()
+    }
+
+    func test_load_ipa_when_it_does_not_contain_any_app_bundle() async throws {
+        // Given
+        let ipaPath = try temporaryPath().appending(components: "App.ipa")
+        let payloadPath = try temporaryPath().appending(components: "Payload")
+        try await fileSystem.touch(ipaPath)
+        let fileArchiverFactory = MockFileArchivingFactorying()
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(payloadPath)
+        subject = AppBundleLoader(
+            fileSystem: fileSystem,
+            fileArchiverFactory: fileArchiverFactory
+        )
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.load(
+                ipa: ipaPath
+            ),
+            AppBundleLoaderError.appBundleInIPANotFound(ipaPath)
+        )
+    }
+
+    func test_load_ipa() async throws {
+        // Given
+        let ipaPath = fixturePath(path: try RelativePath(validating: "App.ipa"))
+
+        // When
+        let appBundle = try await subject.load(ipa: ipaPath)
+
+        // Then
+        XCTAssertBetterEqual(
+            appBundle,
+            AppBundle(
+                path: ipaPath,
+                infoPlist: AppBundle.InfoPlist(
+                    version: "0.9.0",
+                    name: "Tuist",
+                    bundleId: "io.tuist.app",
+                    minimumOSVersion: Version("18.4"),
+                    supportedPlatforms: [.device(.iOS)],
+                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                            name: "AppIcon",
+                            iconFiles: ["AppIcon60x60"]
+                        )
+                    )
+                )
+            )
+        )
     }
 
     func test_load_app_bundle() async throws {

@@ -929,22 +929,13 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 .willReturn(.test(fullHandle: "tuist/tuist"))
 
             let ipaPath = try temporaryPath().appending(components: "App.ipa")
-            let payloadPath = try temporaryPath().appending(components: "Payload")
-            let appBundlePath = payloadPath.appending(components: "App.app")
-            let iconPath = appBundlePath.appending(component: "AppIcon60x60@2x.png")
-            try await fileSystem.makeDirectory(at: ipaPath)
-            try await fileSystem.makeDirectory(at: payloadPath)
-            try await fileSystem.makeDirectory(at: appBundlePath)
-            try await fileSystem.touch(iconPath)
-            given(fileUnarchiver)
-                .unzip()
-                .willReturn(payloadPath)
+            try await fileSystem.touch(ipaPath)
 
             given(appBundleLoader)
-                .load(.value(appBundlePath))
+                .load(ipa: .value(ipaPath))
                 .willReturn(
                     .test(
-                        path: appBundlePath,
+                        path: ipaPath,
                         infoPlist: .test(
                             version: "1.0.0",
                             name: "App",
@@ -992,36 +983,6 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             assertSnapshot(of: ui(), as: .lines)
         }
-    }
-
-    func test_share_ipa_when_it_does_not_contain_any_app_bundle() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        let ipaPath = try temporaryPath().appending(components: "App.ipa")
-        let payloadPath = try temporaryPath().appending(components: "Payload")
-        try await fileSystem.makeDirectory(at: ipaPath)
-        try await fileSystem.makeDirectory(at: payloadPath)
-        given(fileUnarchiver)
-            .unzip()
-            .willReturn(payloadPath)
-
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(
-                path: nil,
-                apps: [
-                    ipaPath.pathString,
-                ],
-                configuration: nil,
-                platforms: [],
-                derivedDataPath: nil,
-                json: false
-            ),
-            ShareCommandServiceError.appBundleInIPANotFound(ipaPath)
-        )
     }
 
     func test_share_multiple_ipas() async throws {

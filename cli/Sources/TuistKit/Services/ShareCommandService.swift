@@ -17,39 +17,21 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
     case multipleAppsSpecified([String])
     case platformsNotSpecified
     case fullHandleNotFound
-    case appBundleInIPANotFound(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
         case let .projectOrWorkspaceNotFound(path):
             return "Workspace or project not found at \(path)"
         case let .noAppsFound(app: app, configuration: configuration):
-            return
-                "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
+            return "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
         case .appNotSpecified:
-            return
-                "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
         case .platformsNotSpecified:
-            return
-                "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
         case let .multipleAppsSpecified(apps):
-            return
-                "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
+            return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return
-                "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
-        case let .appBundleInIPANotFound(ipaPath):
-            return
-                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .projectOrWorkspaceNotFound, .noAppsFound, .appNotSpecified, .platformsNotSpecified,
-             .multipleAppsSpecified,
-             .fullHandleNotFound, .appBundleInIPANotFound:
-            return .abort
+            return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         }
     }
 }
@@ -274,14 +256,7 @@ struct ShareCommandService {
               let ipaPath = appPaths.first
         else { throw ShareCommandServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
 
-        guard let appBundlePath = try await fileSystem.glob(
-            directory: fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip(),
-            include: ["**/*.app"]
-        )
-        .collect()
-        .first
-        else { throw ShareCommandServiceError.appBundleInIPANotFound(ipaPath) }
-        let appBundle = try await appBundleLoader.load(appBundlePath)
+        let appBundle = try await appBundleLoader.load(ipa: ipaPath)
         let displayName = appBundle.infoPlist.name
 
         try await uploadPreview(
