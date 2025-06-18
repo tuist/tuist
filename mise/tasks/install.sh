@@ -3,5 +3,5 @@
 
 set -euo pipefail
 
-pnpm install -C docs/
+pnpm install
 tuist install

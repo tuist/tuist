@@ -65,6 +65,7 @@ This repository represents a monorepo with the following projects:
 | [cli](/cli) | The command line interface for Tuist |
 | [app](/app) | The Swift-powered iOS and macOS app |
 | [docs](/docs) | The documentation for Tuist |
+| [handbook](/handbook) | The company's handbook |
 
 ## Sponsors
 
