@@ -3,6 +3,8 @@ defmodule Tuist.VCS do
   A module that provides functions to interact with VCS repositories.
   """
 
+  use Gettext, backend: TuistWeb.Gettext
+
   import Ecto.Query
 
   alias Tuist.Bundles
@@ -348,7 +350,7 @@ defmodule Tuist.VCS do
       #{Enum.map(bundles, fn bundle ->
         {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
         """
-        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{Bundles.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{Bundles.format_bytes(bundle.download_size)}#{download_size_deviation}</div> |
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{Bundles.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
         """
       end)}
       """
@@ -384,6 +386,9 @@ defmodule Tuist.VCS do
       true -> ""
     end
   end
+
+  defp format_bundle_download_size(nil), do: gettext("Unknown")
+  defp format_bundle_download_size(size) when is_integer(size), do: Bundles.format_bytes(size)
 
   defp get_issue_id_from_git_ref(git_ref) do
     [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)

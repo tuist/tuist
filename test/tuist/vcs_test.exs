@@ -1022,5 +1022,68 @@ defmodule Tuist.VCSTest do
         build_url: fn _ -> "" end
       })
     end
+
+    test "shows Unknown when download_size is nil" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_repository_full_handle: "tuist/tuist",
+          vcs_provider: :github
+        )
+
+      bundle_ios_app =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: nil,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~U[2024-01-01 04:00:00Z]
+        )
+
+      stub(Req, :get, fn [
+                           finch: Tuist.Finch,
+                           headers: @default_headers,
+                           url: "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+                         ] ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle_ios_app.id}) | #{commit_link} | <div align=\"center\">1.0 KB</div> | <div align=\"center\">Unknown</div> |
+
+        """
+
+      expect(Req, :post, fn [
+                              finch: Tuist.Finch,
+                              headers: @default_headers,
+                              url: "https://api.github.com/repos/tuist/tuist/issues/1/comments",
+                              json: %{body: ^expected_body}
+                            ] ->
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
+        build_url: fn _ -> "" end
+      })
+    end
   end
 end
