@@ -7,7 +7,16 @@ import Mockable
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
+    @discardableResult func authenticationToken(serverURL: URL, forceRefresh: Bool) async throws
+        -> AuthenticationToken?
+}
+
+extension ServerAuthenticationControlling {
+    @discardableResult public func authenticationToken(serverURL: URL) async throws
+        -> AuthenticationToken?
+    {
+        return try await authenticationToken(serverURL: serverURL, forceRefresh: false)
+    }
 }
 
 public enum AuthenticationToken: CustomStringConvertible, Equatable {
@@ -56,69 +65,41 @@ enum ServerAuthenticationControllerError: LocalizedError {
     }
 }
 
-public final class ServerAuthenticationController: ServerAuthenticationControlling {
+public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let credentialsStore: ServerCredentialsStoring
+    private let cachedValueStore: CachedValueStoring
+    private let refreshAuthTokenService: RefreshAuthTokenServicing
 
-    #if canImport(TuistSupport)
-        public init(
-            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
-        ) {
-            self.credentialsStore = credentialsStore
-        }
-    #else
-        public init(
-            credentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
-        ) {
-            self.credentialsStore = credentialsStore
-        }
-    #endif
+    public init(
+        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
+        refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService()
+    ) {
+        self.init(
+            credentialsStore: ServerCredentialsStore(),
+            cachedValueStore: CachedValueStore.shared,
+            refreshAuthTokenService: RefreshAuthTokenService()
+        )
+    }
 
-    public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
+    init(
+        credentialsStore: ServerCredentialsStoring,
+        cachedValueStore: CachedValueStoring,
+        refreshAuthTokenService: RefreshAuthTokenServicing
+    ) {
+        self.credentialsStore = credentialsStore
+        self.cachedValueStore = cachedValueStore
+        self.refreshAuthTokenService = refreshAuthTokenService
+    }
+
+    @discardableResult public func authenticationToken(serverURL: URL, forceRefresh: Bool)
+        async throws -> AuthenticationToken?
+    {
         #if canImport(TuistSupport)
             if Environment.current.isCI {
-                if let configToken = Environment.current.tuistVariables[
-                    Constants.EnvironmentVariables.token
-                ] {
-                    return .project(configToken)
-                } else if let deprecatedToken = Environment.current.tuistVariables[
-                    Constants.EnvironmentVariables.deprecatedToken
-                ] {
-                    Logger.current
-                        .warning(
-                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
-                        )
-                    return .project(deprecatedToken)
-                } else {
-                    return nil
-                }
+                return try await ciAuthenticationToken()
             } else {
-                var credentials: ServerCredentials? = try await credentialsStore.read(
-                    serverURL: serverURL
-                )
-                if isTuistDevURL(serverURL), credentials == nil {
-                    credentials = try await credentialsStore.read(
-                        serverURL: URL(string: "https://tuist.dev")!
-                    )
-                }
-                return try credentials.map {
-                    if let refreshToken = $0.refreshToken {
-                        return .user(
-                            legacyToken: nil,
-                            accessToken: try $0.accessToken.map(Self.parseJWT),
-                            refreshToken: try Self.parseJWT(refreshToken)
-                        )
-                    } else {
-                        Logger.current
-                            .warning(
-                                "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
-                            )
-                        return .user(
-                            legacyToken: $0.token,
-                            accessToken: nil,
-                            refreshToken: nil
-                        )
-                    }
-                }
+                return try await cliManagedAuthenticationToken(
+                    serverURL: serverURL, forceRefresh: forceRefresh)
             }
         #else
             return .user(
@@ -132,6 +113,126 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 refreshToken: nil
             )
         #endif
+    }
+
+    private func cliManagedAuthenticationToken(serverURL: URL, forceRefresh: Bool) async throws
+        -> AuthenticationToken?
+    {
+        return
+            try await cachedValueStore
+            .getValue(key: "token_\(serverURL.absoluteString)") {
+                () -> (value: AuthenticationToken, expiresAt: Date?)? in
+                guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+                    return nil
+                }
+
+                let upToDateToken: AuthenticationToken
+                var expiresAt: Date?
+
+                switch token {
+                case .project:
+                    upToDateToken = token
+                case let .user(
+                    legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
+                ):
+                    if legacyToken != nil {
+                        upToDateToken = token
+                    } else if let accessToken {
+                        // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
+                        let now = Date.now()
+                        let expiresIn = accessToken.expiryDate
+                            .timeIntervalSince(now)
+                        let refresh = expiresIn < 30 || forceRefresh
+
+                        #if canImport(TuistSupport)
+                            Logger.current.debug(
+                                "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                            )
+                        #endif
+                        if refresh {
+                            guard let refreshToken else {
+                                throw ServerClientAuthenticationError.notAuthenticated
+                            }
+                            #if canImport(TuistSupport)
+                                Logger.current.debug("Refreshing access token for \(serverURL)")
+                            #endif
+                            let tokens = try await refreshTokens(
+                                serverURL: serverURL, refreshToken: refreshToken
+                            )
+                            #if canImport(TuistSupport)
+                                Logger.current.debug("Access token refreshed for \(serverURL)")
+                            #endif
+                            upToDateToken = .user(
+                                legacyToken: nil,
+                                accessToken: try Self.parseJWT(tokens.accessToken),
+                                refreshToken: try Self.parseJWT(tokens.refreshToken)
+                            )
+                            expiresAt = try ServerAuthenticationController.parseJWT(
+                                tokens.accessToken
+                            )
+                            .expiryDate
+                        } else {
+                            upToDateToken = .user(
+                                legacyToken: nil, accessToken: accessToken,
+                                refreshToken: refreshToken)
+                            expiresAt = accessToken.expiryDate
+                        }
+                    } else {
+                        throw ServerClientAuthenticationError.notAuthenticated
+                    }
+                }
+                return (value: upToDateToken, expiresAt: expiresAt)
+            }
+    }
+
+    private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
+        var credentials: ServerCredentials? = try await credentialsStore.read(
+            serverURL: serverURL
+        )
+        if isTuistDevURL(serverURL), credentials == nil {
+            credentials = try await credentialsStore.read(
+                serverURL: URL(string: "https://cloud.tuist.io")!
+            )
+        }
+        return try credentials.map {
+            if let refreshToken = $0.refreshToken {
+                return .user(
+                    legacyToken: nil,
+                    accessToken: try $0.accessToken.map(Self.parseJWT),
+                    refreshToken: try Self.parseJWT(refreshToken)
+                )
+            } else {
+                Logger.current
+                    .warning(
+                        "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
+                    )
+                return .user(
+                    legacyToken: $0.token,
+                    accessToken: nil,
+                    refreshToken: nil
+                )
+            }
+        }
+    }
+
+    private func ciAuthenticationToken() async throws -> AuthenticationToken? {
+        if let configToken = Environment.current.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] {
+            return .project(configToken)
+        } else if let deprecatedToken = Environment.current.tuistVariables[
+            "TUIST_CONFIG_CLOUD_TOKEN"
+        ] {
+            AlertController.current
+                .warning(
+                    .alert(
+                        "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                    )
+                )
+            return .project(deprecatedToken)
+        } else {
+            return nil
+        }
     }
 
     func isTuistDevURL(_ serverURL: URL) -> Bool {
@@ -172,10 +273,79 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         )
     }
 
+    static func encodeJWT(_ jwt: JWT) throws -> String {
+        // Create header (typically static for most JWTs)
+        let header = [
+            "alg": "HS256",  // or whatever algorithm you're using
+            "typ": "JWT",
+        ]
+
+        // Create payload
+        let payload = JWTPayload(
+            exp: Int(jwt.expiryDate.timeIntervalSince1970),
+            email: jwt.email,
+            preferred_username: jwt.preferredUsername
+                // Add any other fields your JWTPayload has
+        )
+
+        // Encode header
+        let jsonEncoder = JSONEncoder()
+        let headerData = try jsonEncoder.encode(header)
+        let headerBase64 = headerData.base64EncodedString()
+            .replacingOccurrences(of: "=", with: "")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+
+        // Encode payload
+        let payloadData = try jsonEncoder.encode(payload)
+        let payloadBase64 = payloadData.base64EncodedString()
+            .replacingOccurrences(of: "=", with: "")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+
+        // For a complete JWT, you'd need to sign it with a secret key
+        // This is a simplified version that creates an unsigned token
+        let unsignedToken = "\(headerBase64).\(payloadBase64)"
+
+        // In a real implementation, you'd create a signature here
+        // let signature = createSignature(unsignedToken, secret: secretKey)
+        // return "\(unsignedToken).\(signature)"
+
+        // For now, returning unsigned token with empty signature
+        return "\(unsignedToken)."
+    }
+
     private struct JWTPayload: Codable {
         let exp: Int
         let email: String?
         // swiftlint:disable:next identifier_name
         let preferred_username: String?
+    }
+
+    private func refreshTokens(
+        serverURL: URL,
+        refreshToken: JWT
+    ) async throws -> ServerAuthenticationTokens {
+        do {
+            let newTokens = try await RetryProvider()
+                .runWithRetries {
+                    return try await refreshAuthTokenService.refreshTokens(
+                        serverURL: serverURL,
+                        refreshToken: refreshToken.token
+                    )
+                }
+            try await credentialsStore
+                .store(
+                    credentials: ServerCredentials(
+                        token: nil,
+                        accessToken: newTokens.accessToken,
+                        refreshToken: newTokens.refreshToken
+                    ),
+                    serverURL: serverURL
+                )
+            return newTokens
+        } catch {
+            throw ServerClientAuthenticationError.notAuthenticated
+        }
     }
 }

@@ -14,7 +14,7 @@ struct AccountUpdateServiceTests {
     private let fileSystem = FileSystem()
     private let serverURLService = MockServerURLServicing()
     private let updateAccountService = MockUpdateAccountServicing()
-    private let authTokenRefreshService = MockAuthTokenRefreshServicing()
+    private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let serverSessionController = MockServerSessionControlling()
 
     init() {
@@ -23,7 +23,7 @@ struct AccountUpdateServiceTests {
             fileSystem: fileSystem,
             serverURLService: serverURLService,
             updateAccountService: updateAccountService,
-            authTokenRefreshService: authTokenRefreshService,
+            serverAuthenticationController: serverAuthenticationController,
             serverSessionController: serverSessionController
         )
 
@@ -41,7 +41,11 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(authTokenRefreshService).refreshTokens(serverURL: .any).willReturn()
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).willReturn(.user(
+            legacyToken: nil,
+            accessToken: .test(token: "access-token"),
+            refreshToken: .test(token: "refresh-token")
+        ))
     }
 
     @Test func test_update_with_implicit_handle() async throws {
@@ -62,9 +66,7 @@ struct AccountUpdateServiceTests {
             handle: .value("newhandle")
         ).called(1)
 
-        verify(authTokenRefreshService).refreshTokens(
-            serverURL: .any
-        ).called(1)
+        verify(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).called(1)
     }
 
     @Test func test_update_with_explicit_handle() async throws {
@@ -84,8 +86,6 @@ struct AccountUpdateServiceTests {
         )
         .called(1)
 
-        verify(authTokenRefreshService).refreshTokens(
-            serverURL: .any
-        ).called(1)
+        verify(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).called(1)
     }
 }

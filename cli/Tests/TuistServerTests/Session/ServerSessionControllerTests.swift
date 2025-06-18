@@ -83,7 +83,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_whoami_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
+            .authenticationToken(serverURL: .value(serverURL), forceRefresh: .value(false))
             .willReturn(
                 .user(
                     legacyToken: nil,
@@ -108,7 +108,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_whoami_when_logged_out() async throws {
         // Given
         given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
+            .authenticationToken(serverURL: .value(serverURL), forceRefresh: .value(false))
             .willReturn(
                 .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
             )
@@ -123,7 +123,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_whoami_when_logged_in_with_legacy_token() async throws {
         // Given
         given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
+            .authenticationToken(serverURL: .value(serverURL), forceRefresh: .value(false))
             .willReturn(
                 .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
             )
@@ -138,7 +138,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_get_authenticated_handle_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
+            .authenticationToken(serverURL: .value(serverURL), forceRefresh: .value(false))
             .willReturn(
                 .user(
                     legacyToken: nil,
@@ -162,7 +162,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
     func test_get_authenticated_handle_when_logged_out() async throws {
         given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
+            .authenticationToken(serverURL: .value(serverURL), forceRefresh: .value(false))
             .willReturn(
                 .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
             )

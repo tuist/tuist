@@ -6,8 +6,8 @@ import Mockable
 protocol CachedValueStoring: Sendable {
     func getValue<Value>(
         key: String,
-        computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)
-    ) async throws -> Value
+        computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
+    ) async throws -> Value?
 }
 
 actor CachedValueStore: CachedValueStoring {
@@ -25,13 +25,13 @@ actor CachedValueStore: CachedValueStoring {
         }
     }
 
-    private var tasks: [String: Task<Any, any Error>] = [:]
+    private var tasks: [String: Task<Any?, any Error>] = [:]
     private var cache: [String: Any] = [:]
 
     func getValue<Value>(
         key: String,
-        computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)
-    ) async throws -> Value {
+        computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
+    ) async throws -> Value? {
         // Check if we have a cached value that isn't expired
         if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
             return cacheEntry.value
@@ -42,20 +42,23 @@ actor CachedValueStore: CachedValueStoring {
             tasks[key] = Task {
                 defer { tasks[key] = nil }
 
-                let result = try await computeIfNeeded()
-                let value = result.value
-                let expirationDate = result.expiresAt
+                if let result = try await computeIfNeeded() {
+                    let value = result.value
+                    let expirationDate = result.expiresAt
 
-                // Store in cache
-                let entry = CacheEntry(value: value, expirationDate: expirationDate)
-                cache[key] = entry
+                    // Store in cache
+                    let entry = CacheEntry(value: value, expirationDate: expirationDate)
+                    cache[key] = entry
 
-                return value
+                    return value
+                } else {
+                    return nil
+                }
             }
         }
 
         // Wait for the task to complete and return its value
         // swiftlint:disable:next force_unwrapping, force_cast
-        return try await tasks[key]!.value as! Value
+        return try await tasks[key]?.value as? Value
     }
 }
