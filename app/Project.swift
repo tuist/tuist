@@ -20,7 +20,9 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-    $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
+    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+
+    tuist inspect build
     """
 )
 
