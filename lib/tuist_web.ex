@@ -18,6 +18,9 @@ defmodule TuistWeb do
   """
   use Boundary, deps: [Tuist], exports: [Endpoint, Router]
 
+  alias Plug.Conn
+  alias TuistWeb.Controller
+
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs)
 
   def router do
@@ -47,7 +50,18 @@ defmodule TuistWeb do
 
       use Gettext, backend: TuistWeb.Gettext
 
-      import Plug.Conn
+      def action(conn, _) do
+        case apply(__MODULE__, action_name(conn), [conn, conn.params]) do
+          %Conn{} = conn ->
+            conn
+
+          {:ok, conn} ->
+            conn
+
+          {:error, reason} ->
+            Controller.handle_error(conn, reason)
+        end
+      end
 
       unquote(verified_routes())
     end

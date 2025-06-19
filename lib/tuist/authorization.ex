@@ -2,7 +2,7 @@ defmodule Tuist.Authorization do
   @moduledoc ~S"""
   A module to deal with authorization in the system.
   """
-  use LetMe.Policy
+  use LetMe.Policy, error_reason: :forbidden
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
@@ -125,6 +125,13 @@ defmodule Tuist.Authorization do
       allow [:authenticated_as_user, user_role: :user]
 
       desc "Allows the admin of an account to create an account token."
+      allow [:authenticated_as_user, user_role: :admin]
+    end
+  end
+
+  object :account_organization do
+    action :update do
+      desc "Allows the admin of an account to update its organization."
       allow [:authenticated_as_user, user_role: :admin]
     end
   end

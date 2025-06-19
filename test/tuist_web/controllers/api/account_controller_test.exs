@@ -91,7 +91,8 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> json_response(:bad_request)
 
       assert response == %{
-               "message" => "Error updating account."
+               "fields" => %{"name" => ["must contain only alphanumeric characters"]},
+               "message" => "There was an error handling your request."
              }
     end
   end

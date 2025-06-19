@@ -2,11 +2,10 @@ defmodule TuistWeb.API.AccountController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
-  import Tuist.Authorization
-
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Authorization
   alias TuistWeb.API.Schemas.Account, as: AccountSchema
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -64,8 +63,13 @@ defmodule TuistWeb.API.AccountController do
   )
 
   def update_account(%{path_params: %{"account_handle" => handle}, body_params: params} = conn, _params) do
-    with %Account{} = account <- Accounts.get_account_by_handle(handle),
-         true <- can(conn.assigns.current_user, :update, account, :organization),
+    with {:ok, account} <- get_account(handle),
+         :ok <-
+           Authorization.authorize(
+             :account_organization_update,
+             conn.assigns.current_user,
+             account
+           ),
          # The field is called `handle` in the public API, but `name` in our domain.
          {handle, params} = Map.pop(params, :handle),
          params = Map.put(params, :name, handle),
@@ -73,19 +77,13 @@ defmodule TuistWeb.API.AccountController do
       conn
       |> put_status(:ok)
       |> json(%{id: account.id, handle: account.name})
-    else
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "Error updating account."})
+    end
+  end
 
-      false ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: "You don't have permission to update the #{handle} account."})
-
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "An account with this handle was not found."})
+  defp get_account(handle) do
+    case Accounts.get_account_by_handle(handle) do
+      %Account{} = account -> {:ok, account}
+      nil -> {:error, :not_found, "account"}
     end
   end
 end
