@@ -278,4 +278,53 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
 
         try await subject.run(path: path.pathString)
     }
+
+    func test_run_doesntThrowAnyErrorsWithAppWatchExtensionsSetWithStickerPackExtension_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let appExtension = Target.test(
+            name: "AppExtension",
+            product: .appExtension
+        )
+
+        let stickerPackExtension = Target.test(
+            name: "StickerPackExtension",
+            product: .stickerPackExtension
+        )
+
+        let appIntentExtension = Target.test(
+            name: "AppIntentExtension",
+            product: .extensionKitExtension
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .watch2App,
+            dependencies: [
+                TargetDependency.target(name: "AppExtension"),
+                TargetDependency.target(name: "StickerPackExtension"),
+                TargetDependency.target(name: "AppIntentExtension"),
+            ]
+        )
+        let project = Project.test(path: path, targets: [appExtension, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: appExtension.name, path: project.path),
+                .target(name: stickerPackExtension.name, path: project.path),
+                .target(name: appIntentExtension.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appIntentExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
 }

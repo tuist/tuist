@@ -96,25 +96,28 @@ final class GraphImportsLinter: GraphImportsLinting {
         }
 
         let explicitTargetDependencies = targetDependencies
-            .filter {
-                !$0.target.bundleId.hasSuffix(".generated.resources")
+            .filter { dependency in
+                !dependency.target.bundleId.hasSuffix(".generated.resources")
             }
-            .filter {
-                !(target.target.product == .uiTests && $0.target.product == .app)
+            .filter { dependency in
+                !(target.target.product == .uiTests && dependency.target.product == .app)
             }
-            .filter {
-                // Extensions depending on the app target are not redundant imports
-                guard target.target.product == .app else { return true }
-                switch $0.target.product {
-                case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension: return false
-                default: return true
+            .filter { dependency in
+                // App targets depending on extensions are not redundant imports
+                guard target.target.product == .app || target.target.product == .watch2App else { return true }
+                switch dependency.target.product {
+                case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
+                    return false
+                case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                     .commandLineTool, .watch2Extension, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro:
+                    return true
                 }
             }
-            .map { targetDependency in
-                if case .external = targetDependency.graphTarget.project.type { return graphTraverser
+            .map { dependency in
+                if case .external = dependency.graphTarget.project.type { return graphTraverser
                     .allTargetDependencies(path: target.project.path, name: target.target.name)
                 } else {
-                    return Set(arrayLiteral: targetDependency.graphTarget)
+                    return Set(arrayLiteral: dependency.graphTarget)
                 }
             }
             .flatMap { $0 }

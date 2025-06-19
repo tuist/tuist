@@ -1,0 +1,23 @@
+name: Handbook Deploy
+on:
+  push:
+    branches:
+      - "main"
+
+concurrency:
+  group: handbook-deploy-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  cloudflare:
+    name: Cloudflare
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - run: mise run handbook:deploy
