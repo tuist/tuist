@@ -1,5 +1,5 @@
-#!/bin/bash
-# mise description="Generates the markdown documentation for the cli files"
+#!/usr/bin/env bash
+# mise description="Generate markdown documentation for CLI commands and their usage"
 
 set -euo pipefail
 

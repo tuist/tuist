@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mise description="Lint the workspace and automatically fix formatting and linting issues"
+
+set -euo pipefail
+
+swiftformat cli/ app/
+swiftlint lint --fix --quiet --config .swiftlint.yml cli/Sources

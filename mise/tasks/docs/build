@@ -1,5 +1,5 @@
-#!/bin/bash
-# mise description="Builds the documentation website."
+#!/usr/bin/env bash
+# mise description="Build the documentation website using VitePress and pnpm"
 
 set -euo pipefail
 

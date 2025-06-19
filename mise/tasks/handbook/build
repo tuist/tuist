@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Build the company handbook using VitePress and verify all links are valid"
+
+set -euo pipefail
+
+pnpm run -C handbook/ build

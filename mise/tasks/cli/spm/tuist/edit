@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mise description="Edit the Tuist project using SPM build and Tuist edit command"
+
+set -eo pipefail
+
+swift build --package-path $MISE_PROJECT_ROOT
+$MISE_PROJECT_ROOT/.build/debug/tuist edit --path $MISE_PROJECT_ROOT --only-current-directory

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Deploy the company handbook to Cloudflare Pages production hosting"
+
+set -euo pipefail
+
+pnpm run -C handbook deploy

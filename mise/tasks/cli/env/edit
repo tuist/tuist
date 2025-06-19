@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Edit the encrypted .env.json file using SOPS with AGE encryption"
+
+set -euo pipefail
+
+SOPS_AGE_KEY_FILE=~/.config/mise/tuist-age.txt sops edit .env.json

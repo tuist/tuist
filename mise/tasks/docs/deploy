@@ -1,5 +1,5 @@
-#!/bin/bash
-# mise description="Deploys the documentation website."
+#!/usr/bin/env bash
+# mise description="Deploy the documentation website to production hosting"
 
 set -euo pipefail
 

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# mise description="Test the Tuist project using SPM build, install dependencies, and run tests with Tuist"
+
+set -eo pipefail
+
+swift build --package-path $MISE_PROJECT_ROOT
+$MISE_PROJECT_ROOT/.build/debug/tuist install --path $MISE_PROJECT_ROOT
+$MISE_PROJECT_ROOT/.build/debug/tuist test --path $MISE_PROJECT_ROOT $@

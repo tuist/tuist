@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mise description="Install all project dependencies including pnpm packages and Tuist dependencies"
+
+set -euo pipefail
+
+pnpm install
+tuist install

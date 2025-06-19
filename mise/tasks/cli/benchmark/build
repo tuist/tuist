@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Build the 'tuistbenchmark' tool for performance testing and analysis"
+
+set -euo pipefail
+
+swift build --target tuistbenchmark $@

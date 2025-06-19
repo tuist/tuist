@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Run the company handbook in development mode with hot reload and link checking"
+
+set -euo pipefail
+
+pnpm run -C handbook/ dev

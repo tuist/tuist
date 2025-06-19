@@ -1,5 +1,5 @@
-#!/bin/bash
-# mise description="Dev the documentation website."
+#!/usr/bin/env bash
+# mise description="Run the documentation website in development mode with hot reload"
 
 set -euo pipefail
 

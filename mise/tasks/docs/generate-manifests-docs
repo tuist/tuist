@@ -1,5 +1,5 @@
-#!/bin/bash
-# mise description="Generates the markdown documentation for the manifest files"
+#!/usr/bin/env bash
+# mise description="Generate markdown documentation for Tuist manifest files and project configuration"
 
 set -euo pipefail
 

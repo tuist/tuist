@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# mise description="Generate the Tuist project using SPM build, install dependencies, and generate with Tuist"
+
+set -eo pipefail
+
+swift build --package-path $MISE_PROJECT_ROOT
+$MISE_PROJECT_ROOT/.build/debug/tuist install --path $MISE_PROJECT_ROOT
+$MISE_PROJECT_ROOT/.build/debug/tuist generate --path $MISE_PROJECT_ROOT $@

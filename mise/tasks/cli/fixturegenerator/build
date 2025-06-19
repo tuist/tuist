@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Build the 'tuistfixturegenerator' tool for generating test fixtures"
+
+set -euo pipefail
+
+swift build --package-path $MISE_PROJECT_ROOT --target tuistfixturegenerator $@
