@@ -1,0 +1,374 @@
+name: tuist
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/tuist.yml"
+      - "mise/tasks/lint"
+      - "mise/tasks/lint-fix"
+      - "mise.toml"
+      - "cli/Fixtures/**"
+      - "Tuist/**"
+
+permissions:
+  contents: read
+
+env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: tuist-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Lint
+        run: mise run lint
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  spm_build:
+    name: SwiftPM Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Build
+        run: swift build --configuration debug
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  cache:
+    runs-on: macos-15
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Cache
+        run: mise x -- tuist cache
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  unit_tests:
+    name: Unit tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Run tests
+        run: mise x -- tuist test TuistUnitTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  automation_acceptance_tests:
+    name: Automation Acceptance Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Run TuistAutomationAcceptanceTests
+        run: mise x -- tuist test TuistAutomationAcceptanceTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  dependencies_acceptance_tests:
+    name: Dependencies Acceptance Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Set up new keychain
+        run: |
+          TMP_DIRECTORY=$(mktemp -d)
+          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Run TuistDependenciesAcceptanceTests
+        run: mise x -- tuist test TuistDependenciesAcceptanceTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  generator_acceptance_tests:
+    name: Generator Acceptance Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Run TuistGeneratorAcceptanceTests
+        run: mise x -- tuist test TuistGeneratorAcceptanceTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  kit_acceptance_tests:
+    name: Kit Acceptance Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-tuist-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Run TuistKitAcceptanceTests
+        run: mise x -- tuist test TuistKitAcceptanceTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  app-build:
+    name: App Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Build TuistApp
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: mise x -- tuist share TuistApp
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  app-test:
+    name: App Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Test TuistApp
+        run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  app-device-build:
+    name: App Device Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - name: Activate .env.json
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: cp .optional.env.json .env.json
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Bundle iOS app
+        run: mise run bundle:ios-app
+      - name: Inspect TuistApp
+        run: mise x -- tuist inspect bundle build/Tuist.ipa
+      - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: mise x -- tuist share build/Tuist.ipa
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

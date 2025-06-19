@@ -1,0 +1,330 @@
+import FileSystem
+import Foundation
+import Mockable
+import Path
+import TuistCore
+import TuistLoader
+import TuistSupport
+import TuistTesting
+import XcodeGraph
+import XCTest
+
+@testable import TuistKit
+
+final class LintRedundantImportsServiceTests: TuistUnitTestCase {
+    private var configLoader: MockConfigLoading!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var targetScanner: MockTargetImportsScanning!
+    private var subject: InspectRedundantImportsService!
+    private var generator: MockGenerating!
+
+    override func setUp() {
+        super.setUp()
+        configLoader = MockConfigLoading()
+        generatorFactory = MockGeneratorFactorying()
+        targetScanner = MockTargetImportsScanning()
+        generator = MockGenerating()
+        subject = InspectRedundantImportsService(
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
+        )
+    }
+
+    override func tearDown() {
+        configLoader = nil
+        generatorFactory = nil
+        targetScanner = nil
+        generator = nil
+        subject = nil
+        super.tearDown()
+    }
+
+    func test_run_throwsAnError_when_thereAreIssues() async throws {
+        try await withMockedDependencies {
+            // Given
+            let path = try AbsolutePath(validating: "/project")
+            let config = Tuist.test()
+            let framework = Target.test(name: "Framework", product: .framework)
+            let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
+            let project = Project.test(path: path, targets: [app, framework])
+            let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: framework.name, path: project.path),
+                ],
+            ])
+
+            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+            given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+            given(generator).load(path: .value(path), options: .any).willReturn(graph)
+            given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+            given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+
+            // When
+            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
+            XCTAssertStandardError(pattern: "App redundantly depends on: Framework")
+        }
+    }
+
+    func test_run_when_external_package_target_is_recursively_imported() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let testTarget = Target.test(name: "PackageTarget", product: .app)
+        let externalTargetDependency = Target.test(name: "PackageTargetDependency", product: .app)
+        let externalProject = Project.test(
+            path: path,
+            targets: [testTarget, externalTargetDependency],
+            type: .external(hash: "hash")
+        )
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project, "/a": externalProject],
+            dependencies: [
+                GraphDependency.target(name: "App", path: path): Set([
+                    GraphDependency.target(name: "PackageTarget", path: "/a")]),
+                GraphDependency
+                    .target(
+                        name: "PackageTarget",
+                        path: "/a"
+                    ): Set([GraphDependency.target(name: "PackageTargetDependency", path: "/a")]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn([])
+
+        // When / Then
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let framework = Target.test(name: "Framework", product: .framework)
+        let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
+        let project = Project.test(path: path, targets: [app, framework])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: framework.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+
+        // When
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrorsWithBundle_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let bundleFramework = Target.test(
+            name: "Core_Framework",
+            product: .bundle,
+            bundleId: "framework.generated.resources"
+        )
+
+        let framework = Target.test(
+            name: "Framework",
+            product: .framework,
+            dependencies: [TargetDependency.target(name: "Core_Framework")]
+        )
+        let project = Project.test(path: path, targets: [bundleFramework, framework])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: framework.name, path: project.path): [
+                .target(name: bundleFramework.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(bundleFramework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrorsWithUITest_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let uiTests = Target.test(
+            name: "UITests",
+            product: .uiTests,
+            dependencies: [TargetDependency.target(name: "App")]
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .app
+        )
+        let project = Project.test(path: path, targets: [uiTests, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: uiTests.name, path: project.path): [
+                .target(name: app.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(uiTests)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrorsWithAppExtensionsSetWithStickerPackExtension_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let appExtension = Target.test(
+            name: "AppExtension",
+            product: .appExtension
+        )
+
+        let stickerPackExtension = Target.test(
+            name: "StickerPackExtension",
+            product: .stickerPackExtension
+        )
+
+        let appIntentExtension = Target.test(
+            name: "AppIntentExtension",
+            product: .extensionKitExtension
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [
+                TargetDependency.target(name: "AppExtension"),
+                TargetDependency.target(name: "StickerPackExtension"),
+                TargetDependency.target(name: "AppIntentExtension"),
+            ]
+        )
+        let project = Project.test(path: path, targets: [appExtension, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: appExtension.name, path: project.path),
+                .target(name: stickerPackExtension.name, path: project.path),
+                .target(name: appIntentExtension.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appIntentExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+
+    /// We need a separate app to test out Message Extensions
+    /// as having both stickers pack and message extensions in one app
+    /// doesn't seem to be supported.
+    func test_run_doesntThrowAnyErrorsWithAppExtensionsSetWithMessageExtension_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let appExtension = Target.test(
+            name: "AppExtension",
+            product: .appExtension
+        )
+
+        let messageExtension = Target.test(
+            name: "MessageExtension",
+            product: .messagesExtension
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [
+                TargetDependency.target(name: "AppExtension"),
+                TargetDependency.target(name: "MessageExtension"),
+            ]
+        )
+        let project = Project.test(path: path, targets: [appExtension, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: appExtension.name, path: project.path),
+                .target(name: messageExtension.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(messageExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrorsWithAppWatchExtensionsSetWithStickerPackExtension_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let appExtension = Target.test(
+            name: "AppExtension",
+            product: .appExtension
+        )
+
+        let stickerPackExtension = Target.test(
+            name: "StickerPackExtension",
+            product: .stickerPackExtension
+        )
+
+        let appIntentExtension = Target.test(
+            name: "AppIntentExtension",
+            product: .extensionKitExtension
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .watch2App,
+            dependencies: [
+                TargetDependency.target(name: "AppExtension"),
+                TargetDependency.target(name: "StickerPackExtension"),
+                TargetDependency.target(name: "AppIntentExtension"),
+            ]
+        )
+        let project = Project.test(path: path, targets: [appExtension, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: appExtension.name, path: project.path),
+                .target(name: stickerPackExtension.name, path: project.path),
+                .target(name: appIntentExtension.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appIntentExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+}

@@ -20,7 +20,8 @@ enum AppPreviewsModelError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .previewNotFound(displayName):
-            return "The latest preview for \(displayName) was not found. Has any preview been published?"
+            return
+                "The latest preview for \(displayName) was not found. Has any preview been published?"
         }
     }
 }
@@ -116,7 +117,9 @@ final class AppPreviewsViewModel: Sendable {
             serverURL: serverURL
         )
 
-        guard let preview = previews.first else { throw AppPreviewsModelError.previewNotFound(appPreview.displayName) }
+        guard let preview = previews.first else {
+            throw AppPreviewsModelError.previewNotFound(appPreview.displayName)
+        }
 
         try await deviceService.launchPreview(
             with: preview.id,

@@ -13,7 +13,7 @@ You might wonder what's the value of using <LocalizedLink href="/cli/test">`tuis
 - **Single command:** <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> ensures the project is generated if needed before compiling the project.
 - **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
 - <LocalizedLink href="/guides/develop/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
-- <LocalizedLink href="/guides/develop/test/selective-testing"><bold>Smart runner:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
+- <LocalizedLink href="/guides/develop/test/selective-testing"><bold>Selective testing:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
 - <LocalizedLink href="/guides/develop/test/flakiness"><bold>Flakiness:</bold></LocalizedLink> Prevent, detect, and fix flaky tests.
 
 ## Usage {#usage}

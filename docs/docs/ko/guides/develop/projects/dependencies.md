@@ -61,7 +61,7 @@ Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반
 
 Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
 이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 target을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
-덕분에 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">캐싱</LocalizedLink>과 <LocalizedLink href="/guides/develop/test/selective-testing">스마트 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
+덕분에, 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">캐싱</LocalizedLink> 및 <LocalizedLink href="/guides/develop/test/selective-testing">선택적 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj target 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 
@@ -113,7 +113,7 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이는 프로젝트가 커질수록 Apple이 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
+눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이것은 프로젝트가 커질수록 Apple에서 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
 
 프로젝트의 타겟에서 `TargetDependency.external` 의존성 타입을 사용하여 이러한 의존성을 참조할 수 있습니다:
 
@@ -332,7 +332,7 @@ import ProjectDescriptionHelpers
 
 let packageSettings = PackageSettings(
     productTypes: [
-        "FPLPromises": .framework,
+        "FBLPromises": .framework,
     ]
 )
 #endif
@@ -343,7 +343,14 @@ let package = Package(
 
 ### `.swiftmodule`에서 발생하는 전이적 정적 의존성 문제 {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-동적 프레임워브나 라이브러리가 `import StaticSwiftModule`을 통해 정적 라이브러리에 의존하는 경우, 해당 심볼이 동적 프레임워크나 라이브러리의 `.swiftmodule`에 포함되어 [컴파일 실패를 유발할 가능성](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1)이 있습니다. 이를 방지하기 위해서는 [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly)를 사용하여 정적 의존성을 import해야 합니다:
+동적 프레임워크나 라이브러리가 `import StaticSwiftModule`을 통해 정적 모듈에 의존하는 경우, 해당 심볼이 동적 프레임워크나 라이브러리의 `.swiftmodule`에 포함되어 <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">컴파일 오류가 발생할 수 있습니다</LocalizedLink>. 이것을 방지하기 위해 정적 의존성을 <0>`internal import`</0>를 사용하여 임포트해야 합니다:
+
+```swift
+internal import StaticModule
+```
+
+> [!NOTE]\
+> Swift 6에서 임포트에 대한 접근 수준이 추가되었습니다. Swift 6 이전 버전을 사용 중이라면, <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>을 사용합니다:
 
 ```swift
 @_implementationOnly import StaticModule

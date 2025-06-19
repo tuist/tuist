@@ -1,4 +1,5 @@
 import TuistCore
+import TuistSimulator
 
 extension Device {
     var destinationType: DestinationType? {

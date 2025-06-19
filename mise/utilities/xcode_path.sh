@@ -7,7 +7,7 @@
 
 set -e
 
-source $MISE_PROJECT_ROOT/.mise/utilities/setup.sh
+source $MISE_PROJECT_ROOT/mise/utilities/setup.sh
 
 # Check for jq
 if ! command -v jq >/dev/null 2>&1; then
@@ -29,14 +29,14 @@ if [[ "$version" == *.app ]]; then
 else
     # Version does not contain ".app", assume it's a version number
     xcode_infos_json=$(system_profiler -json SPDeveloperToolsDataType)
-        
+
     xcodes_path=$(echo "$xcode_infos_json" | jq -r \
         --arg version "$version" \
         '.SPDeveloperToolsDataType[]
         | select(.spdevtools_version | startswith($version))
         | .spdevtools_path'
     )
-        
+
     # Check if we found a path
     if [ -z "$xcodes_path" ]; then
         echo "$(format_error "The requested Xcode version '$version' is not available")" >&2

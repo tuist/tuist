@@ -79,7 +79,9 @@ public final class AppCredentialsService: AppCredentialsServicing {
 
     @MainActor
     func updateAuthenticationState() async throws {
-        if let accountHandle = try await serverSessionController.whoami(serverURL: serverURLService.serverURL()) {
+        if let accountHandle = try await serverSessionController.whoami(
+            serverURL: serverURLService.serverURL()
+        ) {
             authenticationState = .loggedIn(accountHandle: accountHandle)
         } else {
             authenticationState = .loggedOut

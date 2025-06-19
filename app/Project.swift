@@ -50,12 +50,17 @@ let project = Project(
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
                     "CFBundleShortVersionString": "0.9.0",
                     "CFBundleVersion": "0.9.0",
+                    "UILaunchScreen": [
+                        "UIColorName": "",
+                        "UIImageName": "",
+                    ],
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
             dependencies: [
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
+                .target(name: "TuistPreviews", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -71,13 +76,25 @@ let project = Project(
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
                     "PRODUCT_NAME": "Tuist",
+                    "PROVISIONING_PROFILE_SPECIFIER": "Tuist Ad hoc",
                 ]
             )
         ),
         .target(
+            name: "TuistPreviews",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.previews",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistPreviews/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+            ]
+        ),
+        .target(
             name: "TuistMenuBar",
             destinations: .macOS,
-            product: .framework,
+            product: .staticFramework,
             bundleId: "io.tuist.menu-bar",
             deploymentTargets: .macOS("14.0.0"),
             sources: ["Sources/TuistMenuBar/**"],
@@ -95,7 +112,7 @@ let project = Project(
             resources: [],
             dependencies: tuistMenuBarDependencies() + [
                 .target(name: "TuistApp"),
-                .project(target: "TuistSupportTesting", path: "../"),
+                .project(target: "TuistTesting", path: "../"),
             ]
         ),
     ]

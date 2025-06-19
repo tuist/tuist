@@ -1,0 +1,24 @@
+{
+  "name": "@tuist/handbook",
+  "version": "0.1.0",
+  "description": "A handbook for Tuist",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vitepress": "^1.5.0",
+    "wrangler": "^4.0.0"
+  },
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-handbook --branch main"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  }
+}

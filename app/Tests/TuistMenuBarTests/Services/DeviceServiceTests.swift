@@ -4,7 +4,7 @@ import TuistAutomation
 import TuistCore
 import TuistServer
 import TuistSupport
-import TuistSupportTesting
+import TuistTesting
 import XCTest
 
 @testable import TuistApp
@@ -23,7 +23,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     private let previewURL =
         URL(
-            string: "tuist:open-preview?server_url=https://tuist.dev&preview_id=01912892-3778-7297-8ca9-d66ac7ee2a53&full_handle=tuist/ios_app_with_frameworks"
+            string:
+            "tuist:open-preview?server_url=https://tuist.dev&preview_id=01912892-3778-7297-8ca9-d66ac7ee2a53&full_handle=tuist/ios_app_with_frameworks"
         )!
 
     private let iPhone15: SimulatorDeviceAndRuntime = .test(
