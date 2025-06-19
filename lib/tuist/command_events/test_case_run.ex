@@ -8,7 +8,6 @@ defmodule Tuist.CommandEvents.TestCaseRun do
 
   alias Tuist.CommandEvents.Event
   alias Tuist.CommandEvents.TestCase
-  alias Tuist.Xcode.XcodeTarget
 
   @derive {
     Flop.Schema,
@@ -18,10 +17,10 @@ defmodule Tuist.CommandEvents.TestCaseRun do
   schema "test_case_runs" do
     field :status, Ecto.Enum, values: [success: 0, failure: 1]
     field :flaky, :boolean, default: false
+    field :xcode_target_id, :string
 
     belongs_to :command_event, Event
     belongs_to :test_case, TestCase
-    belongs_to :xcode_target, XcodeTarget, type: UUIDv7
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)

@@ -2,7 +2,9 @@ import Ecto.Query, only: [from: 2]
 
 alias Tuist.Accounts
 alias Tuist.Billing.Subscription
+alias Tuist.ClickHouseRepo
 alias Tuist.CommandEvents
+alias Tuist.Environment
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
@@ -13,11 +15,8 @@ alias Tuist.Xcode
 email = "tuistrocks@tuist.io"
 password = "tuistrocks"
 
-account =
-  Accounts.get_user_by_email(email)
-
-account =
-  if is_nil(account) do
+_account =
+  if is_nil(Accounts.get_user_by_email(email)) do
     {:ok, account} =
       Accounts.create_user(email,
         password: password,
@@ -38,7 +37,7 @@ account =
 
     account
   else
-    account
+    Accounts.get_user_by_email(email)
   end
 
 user = Accounts.get_user_by_email(email)
@@ -87,7 +86,10 @@ builds =
     scheme = Enum.random(["App", "AppTests"])
     xcode_version = Enum.random(["12.4", "13.0", "13.2"])
     macos_version = Enum.random(["11.2.3", "12.3.4", "13.4.5"])
-    model_identifier = Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
+
+    model_identifier =
+      Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
+
     account_id = if is_ci, do: organization.id, else: user.account.id
 
     inserted_at =
@@ -233,80 +235,70 @@ end
 
 test_command_events = Tuist.Repo.all(from(c in CommandEvents.Event, where: c.name == "test"))
 
-test_cases =
-  Enum.map(1..100, fn index ->
-    name = "test#{index}"
+Enum.map(1..100, fn index ->
+  name = "test#{index}"
 
-    module_name =
-      Enum.random(["ModuleOne", "ModuleTwo", "ModuleThree", "ModuleFour", "ModuleFive"])
+  module_name =
+    Enum.random(["ModuleOne", "ModuleTwo", "ModuleThree", "ModuleFour", "ModuleFive"])
 
-    identifier = "#{module_name}/#{name}"
-    test_case = CommandEvents.get_test_case_by_identifier(identifier)
+  identifier = "#{module_name}/#{name}"
+  test_case = CommandEvents.get_test_case_by_identifier(identifier)
 
-    command_event = test_command_events |> Enum.random() |> Repo.preload(:xcode_graph)
+  command_event = Enum.random(test_command_events)
 
-    test_case =
-      if is_nil(test_case) do
-        CommandEvents.create_test_case(
-          %{
-            name: name,
-            module_name: module_name,
-            identifier: identifier,
-            project_identifier: "AppTests/AppTests.xcodeproj",
-            project_id: ios_app_with_frameworks_project.id
-          },
-          flaky: Enum.random([true, false, false, false, false])
-        )
-      else
-        test_case
-      end
-
-    graph =
-      if is_nil(command_event.xcode_graph) do
-        {:ok, graph} =
-          Xcode.create_xcode_graph(%{
-            command_event: command_event,
-            xcode_graph: %{
-              name: "Graph",
-              projects: [
-                %{
-                  "name" => name,
-                  "path" => module_name,
-                  "targets" => [
-                    %{
-                      "name" => "target-#{System.unique_integer([:positive])}",
-                      "binary_cache_metadata" => %{
-                        "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
-                        "hit" => "miss"
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          })
-
-        graph
-      else
-        command_event.xcode_graph
-      end
-
-    graph = Repo.preload(graph, xcode_projects: [:xcode_targets])
-
-    for _ <- 1..100 do
-      CommandEvents.create_test_case_run(
+  test_case =
+    if is_nil(test_case) do
+      CommandEvents.create_test_case(
         %{
-          status: Enum.random([:success, :failure]),
-          test_case_id: test_case.id,
-          command_event_id: command_event.id,
-          xcode_target_id:
-            graph.xcode_projects
-            |> List.first()
-            |> Map.get(:xcode_targets)
-            |> Enum.random()
-            |> Map.get(:id)
+          name: name,
+          module_name: module_name,
+          identifier: identifier,
+          project_identifier: "AppTests/AppTests.xcodeproj",
+          project_id: ios_app_with_frameworks_project.id
         },
-        flaky: Enum.random([test_case.flaky, false, false, false])
+        flaky: Enum.random([true, false, false, false, false])
       )
+    else
+      test_case
     end
-  end)
+
+  {:ok, graph} =
+    Xcode.create_xcode_graph(%{
+      command_event: command_event,
+      xcode_graph: %{
+        name: "Graph",
+        projects: [
+          %{
+            "name" => name,
+            "path" => module_name,
+            "targets" => [
+              %{
+                "name" => "target-#{System.unique_integer([:positive])}",
+                "binary_cache_metadata" => %{
+                  "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
+                  "hit" => "miss"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+  xcode_targets =
+    command_event.id
+    |> Tuist.Xcode.xcode_targets_for_command_event()
+    |> Enum.map(& &1.id)
+
+  for _ <- 1..100 do
+    CommandEvents.create_test_case_run(
+      %{
+        status: Enum.random([:success, :failure]),
+        test_case_id: test_case.id,
+        command_event_id: command_event.id,
+        xcode_target_id: Enum.random(xcode_targets)
+      },
+      flaky: Enum.random([test_case.flaky, false, false, false])
+    )
+  end
+end)

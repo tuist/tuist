@@ -1,14 +1,14 @@
-defmodule Tuist.Xcode.XcodeProjectTest do
+defmodule Tuist.Xcode.Postgres.XcodeProjectTest do
   use TuistTestSupport.Cases.DataCase
 
   alias Tuist.Repo
-  alias Tuist.Xcode.XcodeProject
+  alias Tuist.Xcode.Postgres.XcodeProject
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "create_changeset/1" do
     test "is valid when contains all necessary attributes" do
       # Given
-      xcode_graph = XcodeFixtures.xcode_graph_fixture()
+      xcode_graph = XcodeFixtures.postgres_xcode_graph_fixture([])
 
       # When
       got =
@@ -40,7 +40,7 @@ defmodule Tuist.Xcode.XcodeProjectTest do
 
     test "ensures that the name and graph_id are unique" do
       # Given
-      xcode_graph = XcodeFixtures.xcode_graph_fixture()
+      xcode_graph = XcodeFixtures.postgres_xcode_graph_fixture([])
 
       changeset =
         XcodeProject.create_changeset(%XcodeProject{}, %{

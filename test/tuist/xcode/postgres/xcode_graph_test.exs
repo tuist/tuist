@@ -1,8 +1,8 @@
-defmodule Tuist.Xcode.XcodeGraphTest do
+defmodule Tuist.Xcode.Postgres.XcodeGraphTest do
   use TuistTestSupport.Cases.DataCase
 
   alias Tuist.Repo
-  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Xcode.Postgres.XcodeGraph
 
   describe "create_changeset/1" do
     test "is valid when contains all necessary attributes" do

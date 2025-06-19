@@ -33,6 +33,18 @@ defmodule TuistWeb.RunDetailLiveTest do
         user_id: user.id
       )
 
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
+
+    xcode_project =
+      XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    _xcode_target =
+      XcodeFixtures.xcode_target_fixture(
+        name: "AppTests",
+        xcode_project_id: xcode_project.id,
+        selective_testing_hash: "AppTests-hash"
+      )
+
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 

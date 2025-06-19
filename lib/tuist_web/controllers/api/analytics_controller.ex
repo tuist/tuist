@@ -221,7 +221,7 @@ defmodule TuistWeb.API.AnalyticsController do
                                hit: %Schema{
                                  type: :string,
                                  description: "The binary cache hit status",
-                                 enum: Ecto.Enum.values(Xcode.XcodeTarget, :binary_cache_hit)
+                                 enum: ["miss", "local", "remote"]
                                },
                                build_duration: %Schema{
                                  type: :integer,
@@ -241,7 +241,7 @@ defmodule TuistWeb.API.AnalyticsController do
                                hit: %Schema{
                                  type: :string,
                                  description: "The selective testing hit status",
-                                 enum: Ecto.Enum.values(Xcode.XcodeTarget, :selective_testing_hit)
+                                 enum: ["miss", "local", "remote"]
                                }
                              }
                            }

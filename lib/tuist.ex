@@ -57,9 +57,14 @@ defmodule Tuist do
       Projects.Workers.CleanProjectWorker,
       Apple,
       Xcode,
-      Xcode.XcodeGraph,
-      Xcode.XcodeProject,
-      Xcode.XcodeTarget,
+      Xcode.Postgres,
+      Xcode.Postgres.XcodeGraph,
+      Xcode.Postgres.XcodeProject,
+      Xcode.Postgres.XcodeTarget,
+      Xcode.Clickhouse,
+      Xcode.Clickhouse.XcodeGraph,
+      Xcode.Clickhouse.XcodeProject,
+      Xcode.Clickhouse.XcodeTarget,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

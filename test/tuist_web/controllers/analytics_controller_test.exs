@@ -2,15 +2,21 @@ defmodule TuistWeb.AnalyticsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.VCS
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
+  alias Tuist.Xcode.Clickhouse.XcodeProject
+  alias Tuist.Xcode.Postgres.XcodeGraph, as: PGXcodeGraph
+  alias Tuist.Xcode.Postgres.XcodeProject, as: PGXcodeProject
+  alias Tuist.Xcode.Postgres.XcodeTarget, as: PGXcodeTarget
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -349,10 +355,13 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.is_ci == true
     end
 
-    test "returns newly created command event with xcode_graph", %{
+    test "returns newly created command event with xcode_graph - PostgreSQL backend", %{
       conn: conn,
       user: user
     } do
+      # Mock Environment to use PostgreSQL backend
+      stub(Environment, :clickhouse_configured?, fn -> false end)
+
       # Given
       conn = Authentication.put_current_user(conn, user)
 
@@ -411,24 +420,133 @@ defmodule TuistWeb.AnalyticsControllerTest do
                "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
 
-      command_event = Repo.preload(command_event, xcode_graph: [xcode_projects: :xcode_targets])
       assert command_event.cacheable_targets == ["TargetA"]
       assert command_event.local_cache_target_hits == ["TargetA"]
       assert command_event.remote_cache_target_hits == []
       assert command_event.test_targets == ["TargetATests"]
       assert command_event.local_test_target_hits == []
       assert command_event.remote_test_target_hits == ["TargetATests"]
-      assert command_event.xcode_graph.name == "Graph"
-      assert command_event.xcode_graph.binary_build_duration == 1000
-      assert Enum.map(command_event.xcode_graph.xcode_projects, & &1.name) == ["ProjectA"]
-      xcode_project = hd(command_event.xcode_graph.xcode_projects)
-      xcode_targets = Enum.sort_by(xcode_project.xcode_targets, & &1.name)
+
+      xcode_graph =
+        Repo.one(from(xg in PGXcodeGraph, where: xg.command_event_id == ^command_event.id))
+
+      assert xcode_graph.name == "Graph"
+      assert xcode_graph.binary_build_duration == 1000
+
+      xcode_projects =
+        Repo.all(from(xp in PGXcodeProject, where: xp.xcode_graph_id == ^xcode_graph.id))
+
+      assert Enum.map(xcode_projects, & &1.name) == ["ProjectA"]
+
+      xcode_project = hd(xcode_projects)
+
+      xcode_targets =
+        Repo.all(
+          from(xt in PGXcodeTarget,
+            where: xt.xcode_project_id == ^xcode_project.id,
+            order_by: xt.name
+          )
+        )
+
       assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
       assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
       assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, nil]
       assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
       assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
       assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [nil, :remote]
+    end
+
+    test "returns newly created command event with xcode_graph - ClickHouse backend", %{
+      conn: conn,
+      user: user
+    } do
+      # Mock Environment to use ClickHouse backend
+      stub(Environment, :clickhouse_configured?, fn -> true end)
+
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            xcode_graph: %{
+              name: "Graph",
+              binary_build_duration: 1000,
+              projects: [
+                %{
+                  name: "ProjectA",
+                  path: ".",
+                  targets: [
+                    %{
+                      name: "TargetA",
+                      binary_cache_metadata: %{hash: "hash-a", hit: "local", build_duration: 1000}
+                    },
+                    %{
+                      name: "TargetATests",
+                      selective_testing_metadata: %{hash: "hash-a-tests", hit: "remote"}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert response == %{
+               "name" => "generate",
+               "id" => response["id"],
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+             }
+
+      assert command_event.cacheable_targets == ["TargetA"]
+      assert command_event.local_cache_target_hits == ["TargetA"]
+      assert command_event.remote_cache_target_hits == []
+      assert command_event.test_targets == ["TargetATests"]
+      assert command_event.local_test_target_hits == []
+      assert command_event.remote_test_target_hits == ["TargetATests"]
+
+      xcode_graph =
+        ClickHouseRepo.one(from(xg in XcodeGraph, where: xg.command_event_id == ^command_event.id))
+
+      assert xcode_graph.name == "Graph"
+      assert xcode_graph.binary_build_duration == 1000
+
+      xcode_projects =
+        ClickHouseRepo.all(from(xp in XcodeProject, where: xp.xcode_graph_id == ^xcode_graph.id))
+
+      assert Enum.map(xcode_projects, & &1.name) == ["ProjectA"]
+
+      xcode_targets = Tuist.Xcode.xcode_targets_for_command_event(command_event.id)
+
+      assert Enum.map(xcode_targets, & &1.name) == ["TargetA", "TargetATests"]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hash) == ["hash-a", nil]
+      assert Enum.map(xcode_targets, & &1.binary_cache_hit) == [:local, :miss]
+      assert Enum.map(xcode_targets, & &1.binary_build_duration) == [1000, nil]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hash) == [nil, "hash-a-tests"]
+      assert Enum.map(xcode_targets, & &1.selective_testing_hit) == [:miss, :remote]
     end
 
     test "returns newly created command event with build_run_id", %{conn: conn, user: user} do

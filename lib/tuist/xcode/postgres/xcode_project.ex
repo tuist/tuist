@@ -1,4 +1,4 @@
-defmodule Tuist.Xcode.XcodeProject do
+defmodule Tuist.Xcode.Postgres.XcodeProject do
   @moduledoc """
   Xcode graph project
   """
@@ -11,9 +11,9 @@ defmodule Tuist.Xcode.XcodeProject do
     field :name, :string
     field :path, :string
 
-    belongs_to :xcode_graph, Tuist.Xcode.XcodeGraph, type: UUIDv7
+    belongs_to :xcode_graph, Tuist.Xcode.Postgres.XcodeGraph, type: UUIDv7
 
-    has_many :xcode_targets, Tuist.Xcode.XcodeTarget
+    has_many :xcode_targets, Tuist.Xcode.Postgres.XcodeTarget
 
     timestamps(type: :utc_datetime)
   end

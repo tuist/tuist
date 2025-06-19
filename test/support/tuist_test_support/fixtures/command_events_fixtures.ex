@@ -2,7 +2,6 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   @moduledoc """
   Fixtures for command events.
   """
-  import TuistTestSupport.Fixtures.XcodeFixtures
 
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
@@ -85,10 +84,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         test_case_fixture().id
       end)
 
-    xcode_target_id =
-      Keyword.get_lazy(attrs, :xcode_target_id, fn ->
-        xcode_target_fixture().id
-      end)
+    xcode_target_id = Keyword.get(attrs, :xcode_target_id, UUIDv7.generate())
 
     CommandEvents.create_test_case_run(
       %{
@@ -98,7 +94,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         xcode_target_id: xcode_target_id
       },
       flaky: Keyword.get(attrs, :flaky, false),
-      inserted_at: Keyword.get(attrs, :inserted_at, Time.utc_now())
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)),
+      duration: Keyword.get(attrs, :duration, 0)
     )
   end
 

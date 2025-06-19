@@ -7,6 +7,7 @@ defmodule TuistWeb.RunDetailLive do
 
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Xcode
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -16,18 +17,17 @@ defmodule TuistWeb.RunDetailLive do
       Tuist.Repo.preload(
         run,
         user: :account,
-        project: :account,
-        xcode_graph: [xcode_projects: :xcode_targets]
+        project: :account
       )
 
     slug = Projects.get_project_slug_from_id(project.id)
 
-    selective_testing_analytics = selective_testing_analytics(run)
+    selective_testing_analytics = Xcode.selective_testing_analytics(run)
 
     selective_testing_page_count =
       div(length(selective_testing_analytics.test_modules), @table_page_size) + 1
 
-    binary_cache_analytics = binary_cache_analytics(run)
+    binary_cache_analytics = Xcode.binary_cache_analytics(run)
 
     binary_cache_page_count =
       max(div(length(binary_cache_analytics.cacheable_targets), @table_page_size), 1)
@@ -243,118 +243,6 @@ defmodule TuistWeb.RunDetailLive do
     else
       tab
     end
-  end
-
-  defp selective_testing_analytics(run) when not is_nil(run.xcode_graph) do
-    test_modules =
-      run.xcode_graph.xcode_projects
-      |> Enum.flat_map(& &1.xcode_targets)
-      |> Enum.filter(&(not is_nil(&1.selective_testing_hash)))
-
-    %{
-      test_modules: test_modules,
-      selective_testing_local_hits_count: Enum.count(test_modules, &(&1.selective_testing_hit == :local)),
-      selective_testing_remote_hits_count: Enum.count(test_modules, &(&1.selective_testing_hit == :remote)),
-      selective_testing_misses_count: Enum.count(test_modules, &(&1.selective_testing_hit == :miss))
-    }
-  end
-
-  # Using deprecated columns
-  defp selective_testing_analytics(run) when run.test_targets != [] do
-    local_test_target_hits = run.local_test_target_hits || []
-    remote_test_target_hits = run.remote_test_target_hits || []
-
-    test_misses =
-      run.test_targets --
-        (local_test_target_hits ++ remote_test_target_hits)
-
-    test_modules =
-      Enum.sort_by(
-        Enum.map(
-          local_test_target_hits,
-          &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}
-        ) ++
-          Enum.map(
-            remote_test_target_hits,
-            &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}
-          ) ++
-          Enum.map(
-            test_misses,
-            &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}
-          ),
-        & &1.name
-      )
-
-    %{
-      test_modules: test_modules,
-      selective_testing_local_hits_count: Enum.count(local_test_target_hits),
-      selective_testing_remote_hits_count: Enum.count(remote_test_target_hits),
-      selective_testing_misses_count: Enum.count(test_misses)
-    }
-  end
-
-  defp selective_testing_analytics(_run) do
-    %{
-      test_modules: [],
-      selective_testing_local_hits_count: 0,
-      selective_testing_remote_hits_count: 0,
-      selective_testing_misses_count: 0
-    }
-  end
-
-  defp binary_cache_analytics(run) when not is_nil(run.xcode_graph) do
-    cacheable_targets =
-      run.xcode_graph.xcode_projects
-      |> Enum.flat_map(& &1.xcode_targets)
-      |> Enum.filter(&(not is_nil(&1.binary_cache_hash)))
-
-    %{
-      cacheable_targets: cacheable_targets,
-      binary_cache_local_hits_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :local)),
-      binary_cache_remote_hits_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :remote)),
-      binary_cache_misses_count: Enum.count(cacheable_targets, &(&1.binary_cache_hit == :miss))
-    }
-  end
-
-  # Deprecated way of obtaining binary cache analytics
-  # Will be removed in the future
-  defp binary_cache_analytics(run) when run.cacheable_targets != [] do
-    local_cache_target_hits = run.local_cache_target_hits || []
-    remote_cache_target_hits = run.remote_cache_target_hits || []
-
-    cache_misses =
-      run.cacheable_targets --
-        (local_cache_target_hits ++ remote_cache_target_hits)
-
-    cacheable_targets =
-      Enum.sort_by(
-        Enum.map(
-          local_cache_target_hits,
-          &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}
-        ) ++
-          Enum.map(
-            remote_cache_target_hits,
-            &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}
-          ) ++
-          Enum.map(cache_misses, &%{name: &1, binary_cache_hit: :miss, binary_cache_hash: nil}),
-        & &1.name
-      )
-
-    %{
-      cacheable_targets: cacheable_targets,
-      binary_cache_local_hits_count: Enum.count(local_cache_target_hits),
-      binary_cache_remote_hits_count: Enum.count(remote_cache_target_hits),
-      binary_cache_misses_count: Enum.count(cache_misses)
-    }
-  end
-
-  defp binary_cache_analytics(_run) do
-    %{
-      cacheable_targets: [],
-      binary_cache_local_hits_count: 0,
-      binary_cache_remote_hits_count: 0,
-      binary_cache_misses_count: 0
-    }
   end
 
   def sort_order_patch_value(category, current_category, current_order) do
