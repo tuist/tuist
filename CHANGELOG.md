@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.54.0 - 2025-06-19
+
+### CLI
+
+#### Changed
+
+- Don't sandbox config manifest [#7688](https://github.com/tuist/tuist/pull/7688) by [@hiltonc](https://github.com/hiltonc)
+- feat: optimize download of previews, support grouped previews [#7690](https://github.com/tuist/tuist/pull/7690) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Merge the handbook into this repository [#7694](https://github.com/tuist/tuist/pull/7694) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix `tuist inspect redundant-import` check when app depends on watch app [#7691](https://github.com/tuist/tuist/pull/7691) by [@danieleformichelli](https://github.com/danieleformichelli)
+- Fix unsupported MCP protocol version [#7692](https://github.com/tuist/tuist/pull/7692) by [@igor-budi](https://github.com/igor-budi)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.53.4 - 2025-06-16
 
 ### CLI
