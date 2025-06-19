@@ -538,6 +538,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://ma.tyas.cz"><img src="https://avatars.githubusercontent.com/u/6033733?v=4" width="100px;" alt=""/><br /><sub><b>Matty Cross</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/YIshihara11201"><img src="https://avatars.githubusercontent.com/u/98417271?v=4" width="100px;" alt=""/><br /><sub><b>YIshihara11201</b></sub></a></td>
     </tr>
   </tbody>
 </table>
