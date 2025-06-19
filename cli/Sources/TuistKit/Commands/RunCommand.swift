@@ -90,7 +90,7 @@ public struct RunCommand: AsyncParsableCommand {
     var rosetta: Bool = false
 
     @Argument(
-        parsing: .postTerminator,
+        parsing: .captureForPassthrough,
         help: "The arguments to pass to the runnable target during execution.",
         envKey: .runArguments
     )
