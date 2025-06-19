@@ -26,11 +26,12 @@ jobs:
     name: Release Tuist App
     runs-on: macos-15
     timeout-minutes: 50
-    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist App') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Activate .env.json
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
@@ -109,12 +110,15 @@ jobs:
           TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
         run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
       - name: Commit changes
-        id: auto-commit-action
-        uses: stefanzweifel/git-auto-commit-action@v5
         if: env.should-release == 'true'
-        with:
-          tagging_message: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          commit_message: "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add app/CHANGELOG.md app/Project.swift app/appcast.xml
+          git commit -m "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+          git push origin main
+          git push origin main --tags
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: env.should-release == 'true'
