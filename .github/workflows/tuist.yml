@@ -11,7 +11,7 @@ on:
       - "*.swift"
       - "Package.resolved"
       - ".github/workflows/tuist.yml"
-      - "mise/tasks/cli/lint"
+      - "mise/tasks/cli/lint.sh"
       - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
@@ -359,7 +359,7 @@ jobs:
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app
-        run: mise run app:bundle-ios-app
+        run: mise run app:bundle-ios
       - name: Inspect TuistApp
         run: mise x -- tuist inspect bundle build/Tuist.ipa
       - name: Share TuistApp

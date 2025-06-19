@@ -96,7 +96,7 @@ jobs:
         run: brew install create-dmg
       - name: Bundle Tuist App
         if: env.should-release == 'true'
-        run: mise run app:bundle-app
+        run: mise run app:bundle
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
