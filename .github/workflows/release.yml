@@ -18,6 +18,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   MISE_EXPERIMENTAL: "1"
 
 jobs:
