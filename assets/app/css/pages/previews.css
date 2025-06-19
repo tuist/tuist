@@ -4,6 +4,19 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
+  & [data-part="platforms"] {
+    display: flex;
+    gap: var(--noora-spacing-2);
+    & > [data-part="cell"] {
+      padding-right: var(--noora-spacing-0);
+      padding-left: var(--noora-spacing-0);
+
+      &:first-child {
+        padding-left: var(--noora-spacing-7);
+      }
+    }
+  }
+
   & [data-part="latest-app-previews"] {
     display: flex;
     flex-direction: column;

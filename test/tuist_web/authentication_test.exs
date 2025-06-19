@@ -7,7 +7,7 @@ defmodule TuistWeb.AuthenticationTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
@@ -396,7 +396,7 @@ defmodule TuistWeb.AuthenticationTest do
       # Given
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.app_build_fixture(project: project)
 
       conn = %{
         conn
@@ -425,7 +425,7 @@ defmodule TuistWeb.AuthenticationTest do
         |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
 
       conn = %{
         conn
@@ -453,7 +453,7 @@ defmodule TuistWeb.AuthenticationTest do
         |> Repo.preload(:account)
 
       preview =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.app_build_fixture(
           project: project,
           type: :app_bundle
         )
@@ -483,11 +483,7 @@ defmodule TuistWeb.AuthenticationTest do
         |> ProjectsFixtures.project_fixture()
         |> Repo.preload(:account)
 
-      preview =
-        PreviewsFixtures.preview_fixture(
-          project: project,
-          type: :ipa
-        )
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
 
       conn = %{
         conn

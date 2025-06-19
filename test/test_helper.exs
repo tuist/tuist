@@ -54,6 +54,7 @@ Mimic.copy(TuistWeb.RateLimit.InMemory)
 Mimic.copy(TuistWeb.RateLimit.PersistentTokenBucket)
 Mimic.copy(TuistWeb.RemoteIp)
 Mimic.copy(UAParser)
+Mimic.copy(Zstream)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)

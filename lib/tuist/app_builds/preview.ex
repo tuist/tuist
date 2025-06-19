@@ -1,4 +1,4 @@
-defmodule Tuist.Previews.Preview do
+defmodule Tuist.AppBuilds.Preview do
   @moduledoc """
   A module that represents a preview.
   """
@@ -22,15 +22,15 @@ defmodule Tuist.Previews.Preview do
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "previews" do
+    has_many :app_builds, Tuist.AppBuilds.AppBuild
     belongs_to :project, Project
-    belongs_to :ran_by_account, Tuist.Accounts.Account
-    has_one :command_event, Tuist.CommandEvents.Event
-    field :type, Ecto.Enum, values: [app_bundle: 0, ipa: 1]
+    belongs_to :created_by_account, Tuist.Accounts.Account
     field :display_name, :string
     field :bundle_identifier, :string
     field :version, :string
     field :git_branch, :string
     field :git_commit_sha, :string
+    field :git_ref, :string
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [
@@ -45,6 +45,12 @@ defmodule Tuist.Previews.Preview do
         macos: 8
       ]
 
+    field :visibility, Ecto.Enum,
+      values: [
+        public: 0,
+        private: 1
+      ]
+
     timestamps(type: :utc_datetime)
   end
 
@@ -52,17 +58,19 @@ defmodule Tuist.Previews.Preview do
     token
     |> cast(attrs, [
       :project_id,
-      :type,
       :display_name,
       :bundle_identifier,
       :version,
       :inserted_at,
-      :supported_platforms,
       :git_branch,
       :git_commit_sha,
-      :ran_by_account_id
+      :git_ref,
+      :created_by_account_id,
+      :supported_platforms,
+      :visibility
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
-    |> validate_required([:project_id, :type])
+    |> validate_required([:project_id])
+    |> unique_constraint([:project_id, :bundle_identifier, :version, :git_commit_sha, :created_by_account_id])
   end
 end

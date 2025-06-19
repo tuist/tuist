@@ -7,8 +7,9 @@ defmodule TuistWeb.PreviewLive do
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Previews.RanByBadge
 
+  alias Tuist.AppBuilds
+  alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authorization
-  alias Tuist.Previews
   alias TuistWeb.Errors.NotFoundError
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -78,8 +79,8 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp run_button_href(preview, user_agent) do
-    case {user_agent.os.family, preview.type} do
-      {"iOS", :ipa} ->
+    case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
+      {"iOS", %AppBuild{}} ->
         {String.to_atom("itms-services"),
          "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
 
@@ -96,13 +97,13 @@ defmodule TuistWeb.PreviewLive do
 
   def platform_tag(assigns) do
     ~H"""
-    <.tag label={Previews.platform_string(@platform)} icon={platform_icon_name(@platform)} />
+    <.tag label={AppBuilds.platform_string(@platform)} icon={platform_icon_name(@platform)} />
     """
   end
 
   defp get_current_preview(preview_id) do
-    case Previews.get_preview_by_id(preview_id,
-           preload: [:command_event, :ran_by_account, project: [:account]]
+    case Tuist.AppBuilds.preview_by_id(preview_id,
+           preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->
         raise NotFoundError, "Preview not found."

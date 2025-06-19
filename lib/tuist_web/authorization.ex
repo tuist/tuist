@@ -5,9 +5,9 @@ defmodule TuistWeb.Authorization do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Phoenix.LiveView.Socket
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Authorization
   alias Tuist.CommandEvents
-  alias Tuist.Previews.Preview
   alias Tuist.Projects
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError

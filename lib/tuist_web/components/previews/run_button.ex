@@ -11,8 +11,9 @@ defmodule TuistWeb.Previews.RunButton do
   def run_button(assigns) do
     ~H"""
     <% href =
-      case {@user_agent |> Map.get(:os), @preview.type} do
-        {"iOS", :ipa} ->
+      case {@user_agent |> Map.get(:os),
+            Enum.map(@preview.app_builds, & &1.type) |> Enum.member?(:ipa)} do
+        {"iOS", true} ->
           {"itms-services" |> String.to_atom(),
            "//?action=download-manifest&url=#{url(~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/manifest.plist")}"}
 

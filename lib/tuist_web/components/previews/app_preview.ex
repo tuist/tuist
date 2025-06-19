@@ -45,7 +45,9 @@ defmodule TuistWeb.Previews.AppPreview do
             </span>
           <% end %>
           <div data-part="extra-metadata">
-            <.platform_badge preview={@preview} />
+            <%= for platform <- @preview.supported_platforms do %>
+              <.platform_badge platform={platform} />
+            <% end %>
             <div data-part="time">
               <div data-part="icon">
                 <.history />

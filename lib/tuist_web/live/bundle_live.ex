@@ -9,7 +9,6 @@ defmodule TuistWeb.BundleLive do
   import TuistWeb.Previews.PlatformIcon
 
   alias Tuist.Bundles
-  alias Tuist.Previews
   alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -767,7 +766,7 @@ defmodule TuistWeb.BundleLive do
     ~H"""
     <div data-part="label">
       <.icon name={platform_icon_name(@platform)} />
-      <span>{Previews.platform_string(@platform)}</span>
+      <span>{Tuist.AppBuilds.platform_string(@platform)}</span>
     </div>
     """
   end

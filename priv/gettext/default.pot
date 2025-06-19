@@ -63,7 +63,7 @@ msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/preview_live.ex:42
+#: lib/tuist_web/live/preview_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
@@ -282,7 +282,7 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:11
 #: lib/tuist_web/live/builds_live.html.heex:35
 #: lib/tuist_web/live/builds_live.html.heex:65
-#: lib/tuist_web/live/overview_live.ex:284
+#: lib/tuist_web/live/overview_live.ex:283
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:468
 #: lib/tuist_web/live/test_runs_live.ex:263
@@ -438,7 +438,7 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.ex:266
 #: lib/tuist_web/live/generate_runs_live.html.heex:80
 #: lib/tuist_web/live/preview_live.html.heex:118
-#: lib/tuist_web/live/previews_live.html.heex:50
+#: lib/tuist_web/live/previews_live.html.heex:51
 #: lib/tuist_web/live/test_runs_live.ex:58
 #: lib/tuist_web/live/test_runs_live.html.heex:227
 #, elixir-autogen, elixir-format
@@ -454,7 +454,7 @@ msgid "Builds"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:98
-#: lib/tuist_web/live/previews_live.html.heex:69
+#: lib/tuist_web/live/previews_live.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
@@ -468,7 +468,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:41
 #: lib/tuist_web/live/builds_live.ex:261
 #: lib/tuist_web/live/builds_live.html.heex:81
-#: lib/tuist_web/live/overview_live.ex:292
+#: lib/tuist_web/live/overview_live.ex:291
 #: lib/tuist_web/live/overview_live.html.heex:35
 #: lib/tuist_web/live/overview_live.html.heex:484
 #: lib/tuist_web/live/test_runs_live.ex:271
@@ -579,7 +579,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:131
 #: lib/tuist_web/live/bundles_live.html.heex:246
 #: lib/tuist_web/live/preview_live.html.heex:125
-#: lib/tuist_web/live/previews_live.html.heex:59
+#: lib/tuist_web/live/previews_live.html.heex:54
 #: lib/tuist_web/live/test_runs_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
@@ -1364,7 +1364,7 @@ msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:260
 #: lib/tuist_web/live/builds_live.html.heex:73
-#: lib/tuist_web/live/overview_live.ex:288
+#: lib/tuist_web/live/overview_live.ex:287
 #: lib/tuist_web/live/overview_live.html.heex:27
 #: lib/tuist_web/live/overview_live.html.heex:476
 #: lib/tuist_web/live/run_detail_live.html.heex:246
@@ -1615,7 +1615,7 @@ msgstr ""
 msgid "Or set up a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:165
+#: lib/tuist_web/live/preview_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Or share using CLI"
 msgstr ""
@@ -1644,7 +1644,7 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:20
 #: lib/tuist_web/live/build_run_live.html.heex:41
 #: lib/tuist_web/live/bundle_live.html.heex:144
-#: lib/tuist_web/live/overview_live.ex:26
+#: lib/tuist_web/live/overview_live.ex:25
 #: lib/tuist_web/live/run_detail_live.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Overview"
@@ -1722,7 +1722,6 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:53
 #: lib/tuist_web/live/bundles_live.html.heex:252
-#: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -1835,7 +1834,7 @@ msgstr ""
 msgid "Pulling cache binaries..."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:148
+#: lib/tuist_web/live/preview_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
@@ -1864,7 +1863,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
 #: lib/tuist_web/live/generate_runs_live.ex:290
 #: lib/tuist_web/live/generate_runs_live.html.heex:83
-#: lib/tuist_web/live/previews_live.html.heex:66
+#: lib/tuist_web/live/previews_live.html.heex:60
 #: lib/tuist_web/live/run_detail_live.html.heex:116
 #: lib/tuist_web/live/test_runs_live.ex:74
 #: lib/tuist_web/live/test_runs_live.html.heex:236
@@ -2004,12 +2003,12 @@ msgstr ""
 msgid "SUCCESS:"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:138
+#: lib/tuist_web/live/preview_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:141
+#: lib/tuist_web/live/preview_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr ""
@@ -2284,6 +2283,7 @@ msgid "Support via community forum"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:90
+#: lib/tuist_web/live/projects_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -2448,12 +2448,12 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:159
+#: lib/tuist_web/live/preview_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:156
+#: lib/tuist_web/live/preview_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr ""
@@ -3098,7 +3098,7 @@ msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:255
 #: lib/tuist_web/live/bundles_live.ex:169
-#: lib/tuist_web/live/overview_live.ex:279
+#: lib/tuist_web/live/overview_live.ex:278
 #: lib/tuist_web/live/test_runs_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "since last week"
@@ -3106,7 +3106,7 @@ msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:257
 #: lib/tuist_web/live/bundles_live.ex:171
-#: lib/tuist_web/live/overview_live.ex:281
+#: lib/tuist_web/live/overview_live.ex:280
 #: lib/tuist_web/live/test_runs_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "since last month"
@@ -3114,7 +3114,7 @@ msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:256
 #: lib/tuist_web/live/bundles_live.ex:170
-#: lib/tuist_web/live/overview_live.ex:280
+#: lib/tuist_web/live/overview_live.ex:279
 #: lib/tuist_web/live/test_runs_live.ex:259
 #, elixir-autogen, elixir-format
 msgid "since last year"
@@ -3343,11 +3343,6 @@ msgstr ""
 msgid "Download result"
 msgstr ""
 
-#: lib/tuist_web/controllers/preview_controller.ex:117
-#, elixir-autogen, elixir-format
-msgid "The preview archive doesn't exist or has expired."
-msgstr ""
-
 #: lib/tuist_web/live/build_run_live.html.heex:267
 #: lib/tuist_web/live/build_run_live.html.heex:407
 #: lib/tuist_web/live/build_runs_live.html.heex:34
@@ -3378,12 +3373,12 @@ msgstr ""
 msgid "%{savings} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:782
+#: lib/tuist_web/live/bundle_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:780
+#: lib/tuist_web/live/bundle_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
 msgstr ""
@@ -3408,7 +3403,7 @@ msgstr ""
 msgid "Binary"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:52
+#: lib/tuist_web/live/bundle_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Bundle"
 msgstr ""
@@ -3428,7 +3423,7 @@ msgstr ""
 msgid "Bundle install size"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:757
+#: lib/tuist_web/live/bundle_live.ex:756
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
 msgstr ""
@@ -4168,4 +4163,14 @@ msgstr ""
 #: lib/tuist_web/live/builds_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
+msgstr ""
+
+#: lib/tuist_web/live/previews_live.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Platforms"
+msgstr ""
+
+#: lib/tuist_web/controllers/preview_controller.ex:119
+#, elixir-autogen, elixir-format
+msgid "The preview ipa doesn't exist or has expired."
 msgstr ""

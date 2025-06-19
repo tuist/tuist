@@ -11,9 +11,9 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS.Comment
   alias Tuist.VCS.Repositories.Permission
   alias Tuist.VCS.Repositories.Repository
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -285,41 +285,52 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview_one = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
-
-      _preview_command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview_one.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          inserted_at: ~N[2024-04-30 03:00:00]
         )
 
-      preview_two = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_one,
+          project: project,
+          display_name: "App"
+        )
 
-      _preview_command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview_two.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 02:00:00]
+          inserted_at: ~N[2024-04-30 02:00:00]
+        )
+
+      _app_build_two =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_two,
+          project: project,
+          display_name: "App"
         )
 
       preview_three =
-        PreviewsFixtures.preview_fixture(project: project, display_name: "WatchApp")
-
-      _preview_command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "WatchApp",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview_three.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 01:00:00]
+          inserted_at: ~N[2024-04-30 01:00:00]
+        )
+
+      _app_build_three =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_three,
+          project: project,
+          display_name: "WatchApp"
         )
 
       test_command_event_one =
@@ -416,29 +427,37 @@ defmodule Tuist.VCSTest do
         )
 
       preview_one =
-        PreviewsFixtures.preview_fixture(project: project, type: :ipa, display_name: "App")
-
-      _preview_command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview_one.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      # Create an IPA app build for the group
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_one,
+          project: project,
+          display_name: "App",
+          type: :ipa
         )
 
       preview_two =
-        PreviewsFixtures.preview_fixture(project: project, display_name: "WatchApp")
-
-      _preview_command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "WatchApp",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview_two.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 01:00:00]
+          inserted_at: ~N[2024-04-30 01:00:00]
+        )
+
+      _app_build_two =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview_two,
+          project: project,
+          display_name: "WatchApp"
         )
 
       stub(Req, :get, fn [
@@ -499,16 +518,20 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
-
-      _preview_command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
         )
 
       expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
@@ -547,16 +570,20 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
-
-      _preview_command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview.id,
           git_commit_sha: @git_commit_sha,
-          created_at: ~N[2024-04-30 03:00:00]
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
         )
 
       expect(GitHub.Client, :get_comments, fn _ -> {:ok, []} end)
@@ -595,15 +622,19 @@ defmodule Tuist.VCSTest do
           vcs_provider: :github
         )
 
-      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
-
-      _preview_command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
           git_ref: @git_ref,
-          project_id: project.id,
-          preview_id: preview.id,
           git_commit_sha: "1234567890"
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
         )
 
       expect(GitHub.Client, :get_comments, fn _ ->

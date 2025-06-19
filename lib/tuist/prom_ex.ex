@@ -70,7 +70,7 @@ defmodule Tuist.PromEx do
         Tuist.Accounts.PromExPlugin,
         Tuist.Projects.PromExPlugin,
         Tuist.Cache.PromExPlugin,
-        Tuist.Previews.PromExPlugin,
+        Tuist.AppBuilds.PromExPlugin,
         Tuist.Registry.Swift.PromExPlugin,
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,

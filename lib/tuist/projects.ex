@@ -8,9 +8,9 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Base64
   alias Tuist.CommandEvents.Event
-  alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Repo

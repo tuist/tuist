@@ -6,7 +6,7 @@ defmodule TuistWeb.PreviewsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
 
   test "renders empty view when no previews are available", %{
     conn: conn,
@@ -27,21 +27,21 @@ defmodule TuistWeb.PreviewsLiveTest do
   } do
     # Given
     _preview_one =
-      PreviewsFixtures.preview_fixture(
+      AppBuildsFixtures.preview_fixture(
         project: project,
         display_name: "AppOne",
         supported_platforms: [:ios]
       )
 
     _preview_two =
-      PreviewsFixtures.preview_fixture(
+      AppBuildsFixtures.preview_fixture(
         project: project,
         display_name: "AppTwo",
         supported_platforms: []
       )
 
     _preview_three =
-      PreviewsFixtures.preview_fixture(
+      AppBuildsFixtures.preview_fixture(
         project: project,
         display_name: "App",
         supported_platforms: [:ios]
@@ -62,7 +62,7 @@ defmodule TuistWeb.PreviewsLiveTest do
   } do
     # Given
     _preview_one =
-      PreviewsFixtures.preview_fixture(
+      AppBuildsFixtures.preview_fixture(
         project: project,
         display_name: "AppOne",
         supported_platforms: [:ios],

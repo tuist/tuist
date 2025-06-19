@@ -131,7 +131,8 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.6.0"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../Noora/web"}) ||
-        {:noora, "== 0.4.0"}
+        {:noora, "== 0.4.0"},
+      {:zstream, "~> 0.6"}
     ]
   end
 

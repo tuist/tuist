@@ -7,6 +7,8 @@ defmodule Tuist.VCS do
 
   import Ecto.Query
 
+  alias Tuist.AppBuilds
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.CommandEvents
@@ -258,16 +260,11 @@ defmodule Tuist.VCS do
          bundle_url: bundle_url,
          project: project
        }) do
-    preview_command_events =
-      get_latest_command_events(
-        %{
-          name: "share",
-          get_identifier: & &1.preview.display_name,
-          git_ref: git_ref,
-          project: project
-        },
-        filter: &(not is_nil(&1.preview))
-      )
+    previews =
+      latest_previews(%{
+        git_ref: git_ref,
+        project: project
+      })
 
     test_command_events =
       get_latest_command_events(%{
@@ -285,7 +282,7 @@ defmodule Tuist.VCS do
 
     previews_body =
       get_previews_body(%{
-        preview_command_events: preview_command_events,
+        previews: previews,
         git_remote_url_origin: git_remote_url_origin,
         preview_url: preview_url,
         preview_qr_code_url: preview_qr_code_url,
@@ -425,20 +422,27 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
+  defp latest_previews(%{git_ref: git_ref, project: project}) do
+    from(p in Preview)
+    |> where([p], p.project_id == ^project.id and p.git_ref == ^git_ref)
+    |> order_by([p], desc: p.inserted_at)
+    |> distinct([p], p.display_name)
+    |> Repo.all()
+    |> Repo.preload(:app_builds)
+  end
+
   defp get_previews_body(%{
-         preview_command_events: preview_command_events,
+         previews: previews,
          git_remote_url_origin: git_remote_url_origin,
          preview_url: preview_url,
          preview_qr_code_url: preview_qr_code_url,
          project: project
        }) do
-    if Enum.empty?(preview_command_events) do
+    if Enum.empty?(previews) do
       nil
     else
       contains_ipas =
-        Enum.any?(preview_command_events, fn preview_command_event ->
-          preview_command_event.preview.type == :ipa
-        end)
+        previews |> Enum.flat_map(& &1.app_builds) |> Enum.any?(&(&1.type == :ipa))
 
       """
 
@@ -446,13 +450,13 @@ defmodule Tuist.VCS do
 
       | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
       | - | - |#{if contains_ipas, do: " - |", else: ""}
-      #{Enum.map(preview_command_events, fn preview_command_event ->
-        git_commit_sha = preview_command_event.git_commit_sha
-        preview_url = preview_url.(%{project: project, preview: preview_command_event.preview})
-        qr_code_image = get_qr_code_image(%{project: project, preview: preview_command_event.preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
+      #{Enum.map(previews, fn preview ->
+        git_commit_sha = preview.git_commit_sha
+        preview_url = preview_url.(%{project: project, preview: preview})
+        qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview_command_event.preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
         """
       end)}
       """
@@ -465,12 +469,10 @@ defmodule Tuist.VCS do
          contains_ipas: contains_ipas,
          preview_qr_code_url: preview_qr_code_url
        }) do
-    case preview.type do
-      :app_bundle ->
-        if contains_ipas, do: " |", else: ""
-
-      :ipa ->
-        " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
+    case {AppBuilds.latest_ipa_app_build_for_preview(preview), contains_ipas} do
+      {nil, true} -> " |"
+      {nil, false} -> ""
+      {_, _} -> " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
     end
   end
 

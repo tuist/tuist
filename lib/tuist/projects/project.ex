@@ -8,7 +8,7 @@ defmodule Tuist.Projects.Project do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
-  alias Tuist.Previews.Preview
+  alias Tuist.AppBuilds.Preview
 
   @derive {
     Flop.Schema,

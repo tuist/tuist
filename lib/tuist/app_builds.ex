@@ -1,55 +1,83 @@
-defmodule Tuist.Previews do
+defmodule Tuist.AppBuilds do
   @moduledoc """
-  A module to deal with Tuist Previews.
+  A module to deal with Tuist app builds and associated previews.
   """
   import Ecto.Query
 
-  alias Tuist.Previews.Preview
+  alias Tuist.AppBuilds.AppBuild
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
-  def create_preview(
-        %{
-          project: %Project{} = project,
-          type: type,
-          display_name: display_name,
-          bundle_identifier: bundle_identifier,
-          version: version,
-          supported_platforms: supported_platforms,
-          git_branch: git_branch,
-          git_commit_sha: git_commit_sha,
-          ran_by_account_id: ran_by_account_id
-        },
-        opts \\ []
-      ) do
+  def create_preview(attrs) do
     %Preview{}
-    |> Preview.create_changeset(%{
-      project_id: project.id,
-      type: type,
-      display_name: display_name,
-      bundle_identifier: bundle_identifier,
-      version: version,
-      supported_platforms: supported_platforms,
-      inserted_at: Keyword.get(opts, :inserted_at),
-      git_branch: git_branch,
-      git_commit_sha: git_commit_sha,
-      ran_by_account_id: ran_by_account_id
-    })
-    |> Repo.insert!()
-    |> Repo.preload(Keyword.get(opts, :preload, []))
+    |> Preview.create_changeset(attrs)
+    |> Repo.insert()
   end
 
-  def preview_commit_sha(preview) do
-    cond do
-      not is_nil(preview.git_commit_sha) ->
-        String.slice(preview.git_commit_sha, 0, 7)
+  def find_or_create_preview(
+        %{
+          project_id: project_id,
+          bundle_identifier: bundle_identifier,
+          version: version,
+          git_commit_sha: git_commit_sha,
+          created_by_account_id: created_by_account_id,
+          display_name: display_name
+        } = attrs
+      ) do
+    preview =
+      from(p in Preview)
+      |> where([p], p.project_id == ^project_id)
+      |> then(&if(is_nil(display_name), do: &1, else: where(&1, [p], p.display_name == ^display_name)))
+      |> then(&if(is_nil(bundle_identifier), do: &1, else: where(&1, [p], p.bundle_identifier == ^bundle_identifier)))
+      |> then(
+        &if(is_nil(created_by_account_id),
+          do: &1,
+          else: where(&1, [p], p.created_by_account_id == ^created_by_account_id)
+        )
+      )
+      |> then(&if(is_nil(git_commit_sha), do: &1, else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)))
+      |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
+      |> Repo.one()
 
-      not is_nil(preview.command_event) and not is_nil(preview.command_event.git_commit_sha) ->
-        String.slice(preview.command_event.git_commit_sha, 0, 7)
-
-      true ->
-        nil
+    if is_nil(preview) do
+      create_preview(attrs)
+    else
+      {:ok, preview}
     end
+  end
+
+  def app_build_by_id(id, opts \\ []) do
+    if Tuist.UUIDv7.valid?(id) do
+      preload = Keyword.get(opts, :preload, [])
+      app_build = Repo.get(AppBuild, id)
+
+      case app_build do
+        nil -> {:error, :not_found}
+        %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
+      end
+    else
+      {:error, "The provided app build identifier #{id} doesn't have a valid format."}
+    end
+  end
+
+  def create_app_build(attrs) do
+    %AppBuild{}
+    |> AppBuild.create_changeset(attrs)
+    |> Repo.insert!()
+  end
+
+  def update_preview_with_app_build(preview_id, app_build) do
+    preview = Repo.get!(Preview, preview_id)
+
+    visibility = if app_build.type == :ipa, do: :public, else: preview.visibility
+
+    preview
+    |> Preview.create_changeset(%{
+      supported_platforms: Enum.uniq(preview.supported_platforms ++ app_build.supported_platforms),
+      visibility: visibility
+    })
+    |> Repo.update!()
   end
 
   def list_previews(attrs, opts \\ []) do
@@ -77,7 +105,7 @@ defmodule Tuist.Previews do
           order_directions: [:desc]
         },
         distinct: [:bundle_identifier],
-        preload: [:command_event, [project: :account]]
+        preload: [:app_builds, project: :account]
       )
 
     previews
@@ -131,24 +159,19 @@ defmodule Tuist.Previews do
     end
   end
 
-  def get_latest_preview(%Project{} = project) do
+  def latest_preview(%Project{} = project) do
     Preview
-    # This is here for legacy reasons before preview had columns for git_branch and git_commit_sha.
-    # We can remove this in the future once the majority of users are on a Tuist version 4.45.0 or later.
-    |> join(:left, [p], e in assoc(p, :command_event), as: :command_event)
-    |> preload(:command_event)
     |> where(
-      [p, e],
+      [p],
       p.project_id == ^project.id and
-        (p.git_branch == ^project.default_branch or e.git_branch == ^project.default_branch)
+        p.git_branch == ^project.default_branch
     )
     |> order_by(desc: :inserted_at)
     |> limit(1)
-    |> preload(:command_event)
     |> Repo.one()
   end
 
-  def get_preview_by_id(id, opts \\ []) do
+  def preview_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
       preview = Preview |> Repo.get_by(id: id) |> Repo.preload(preload)
@@ -162,15 +185,15 @@ defmodule Tuist.Previews do
     end
   end
 
-  def get_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}.zip"
+  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build_id: app_build_id}) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build_id}.zip"
   end
 
-  def get_icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
+  def icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{preview_id}/icon.png"
   end
 
-  def get_supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
+  def supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
     if is_nil(supported_platforms) do
       []
     else
@@ -191,5 +214,12 @@ defmodule Tuist.Previews do
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
     end
+  end
+
+  def latest_ipa_app_build_for_preview(%Preview{} = preview) do
+    preview.app_builds
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> Enum.filter(&(&1.type == :ipa))
+    |> List.first()
   end
 end

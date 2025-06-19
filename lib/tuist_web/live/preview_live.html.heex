@@ -72,7 +72,7 @@
       <:icon_left><.download /></:icon_left>
     </.button>
     <.button
-      :if={@preview.type == :ipa or @user_agent.os.family != "iOS"}
+      :if={not is_nil(@run_button_href)}
       id="preview-run-button"
       label={gettext("Run")}
       variant="primary"
@@ -124,7 +124,7 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Commit SHA")}</div>
             <span data-part="label">
-              {Tuist.Previews.preview_commit_sha(@preview) || gettext("None")}
+              {@preview.git_commit_sha || gettext("None")}
             </span>
           </div>
         </div>
@@ -133,7 +133,10 @@
   </.card>
   <.card data-part="install-app-card" icon="devices_down" title={gettext("Install App")}>
     <.card_section data-part="install-app-card-section">
-      <div :if={@preview.type == :ipa} data-part="scan-qr-code">
+      <div
+        :if={not is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        data-part="scan-qr-code"
+      >
         <h2 data-part="title">
           {gettext("Scan QR code")}
         </h2>
@@ -148,7 +151,10 @@
           alt={gettext("QR code")}
         />
       </div>
-      <div :if={@preview.type != :ipa} data-part="device-not-available">
+      <div
+        :if={is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        data-part="device-not-available"
+      >
         <img data-theme="light" src="/images/macbook_preview_light.png" />
         <img data-theme="dark" src="/images/macbook_preview_dark.png" />
         <div data-part="explanation">

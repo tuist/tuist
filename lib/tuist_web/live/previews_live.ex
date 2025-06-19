@@ -9,7 +9,7 @@ defmodule TuistWeb.PreviewsLive do
   import TuistWeb.Previews.RanByBadge
   import TuistWeb.Previews.RunButton
 
-  alias Tuist.Previews
+  alias Tuist.AppBuilds
   alias Tuist.Projects
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
@@ -35,7 +35,7 @@ defmodule TuistWeb.PreviewsLive do
      )
      |> assign(
        :latest_app_previews,
-       Previews.latest_previews_with_distinct_bundle_ids(project)
+       AppBuilds.latest_previews_with_distinct_bundle_ids(project)
      )
      |> assign(
        :user_agent,
@@ -75,7 +75,7 @@ defmodule TuistWeb.PreviewsLive do
       )
       |> assign(
         :latest_app_previews,
-        Previews.latest_previews_with_distinct_bundle_ids(project)
+        AppBuilds.latest_previews_with_distinct_bundle_ids(project)
       )
     }
   end
@@ -105,9 +105,7 @@ defmodule TuistWeb.PreviewsLive do
           Map.put(options, :first, 20)
       end
 
-    Previews.list_previews(options,
-      preload: [:ran_by_account, project: :account, command_event: [user: [:account]]]
-    )
+    AppBuilds.list_previews(options, preload: [:created_by_account, :app_builds, project: :account])
   end
 
   def empty_state_light_background(assigns) do

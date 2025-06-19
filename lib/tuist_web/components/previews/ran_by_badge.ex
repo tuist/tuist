@@ -9,11 +9,11 @@ defmodule TuistWeb.Previews.RanByBadge do
 
   def preview_ran_by_badge_cell(assigns) do
     ~H"""
-    <%= if (@preview.command_event && @preview.command_event.is_ci) || is_nil(@preview.ran_by_account) || is_nil(@preview.ran_by_account.user_id) do %>
+    <%= if is_nil(@preview.created_by_account) || is_nil(@preview.created_by_account.user_id) do %>
       <.badge_cell label="CI" icon="settings" color="information" style="light-fill" />
     <% else %>
       <.badge_cell
-        label={@preview.ran_by_account.name}
+        label={@preview.created_by_account.name}
         icon="user"
         color="primary"
         style="light-fill"

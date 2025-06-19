@@ -3,12 +3,13 @@ defmodule TuistWeb.PreviewsControllerTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Previews.Preview
+  alias Tuist.AppBuilds
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
@@ -32,138 +33,9 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
-
-      # Then
-      response = json_response(conn, :ok)
-      assert response["status"] == "success"
-      response_data = response["data"]
-      assert response_data["upload_id"] == upload_id
-      assert response_data["preview_id"] == Preview |> Repo.all() |> hd() |> Map.get(:id)
-    end
-
-    test "starts multipart upload with a preview name", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "upload-id"
-
-      expect(Storage, :multipart_start, fn _ ->
-        upload_id
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          display_name: "preview-name"
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      assert response["status"] == "success"
-      response_data = response["data"]
-      assert response_data["upload_id"] == upload_id
-      assert Preview |> Repo.all() |> hd() |> Map.get(:display_name) == "preview-name"
-    end
-
-    test "starts multipart upload with supported platforms", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "upload-id"
-
-      expect(Storage, :multipart_start, fn _ ->
-        upload_id
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          supported_platforms: ["ios", "watchos"]
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      assert response["status"] == "success"
-      response_data = response["data"]
-      assert response_data["upload_id"] == upload_id
-
-      assert Preview |> Repo.all() |> hd() |> Map.get(:supported_platforms) |> Enum.sort() == [
-               :ios,
-               :watchos
-             ]
-    end
-
-    test "starts multipart upload of a bundle preview", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "upload-id"
-
-      expect(Storage, :multipart_start, fn _ ->
-        upload_id
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          display_name: "preview-name",
-          type: "app_bundle"
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      assert response["status"] == "success"
-      response_data = response["data"]
-      assert response_data["upload_id"] == upload_id
-      preview = Preview |> Repo.all() |> hd()
-      assert Map.get(preview, :display_name) == "preview-name"
-      assert Map.get(preview, :type) == :app_bundle
-    end
-
-    test "starts multipart upload of an archive preview", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      upload_id = "upload-id"
-
-      expect(Storage, :multipart_start, fn _ ->
-        upload_id
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
-          display_name: "preview-name",
-          type: "ipa",
+          display_name: "name",
+          supported_platforms: ["ios", "watchos"],
           version: "1.0.0",
           bundle_identifier: "dev.tuist.app",
           git_branch: "main",
@@ -175,25 +47,132 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-      preview = Preview |> Repo.all() |> hd()
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
+      assert app_build.preview.display_name == "name"
+      assert Enum.sort(app_build.supported_platforms) == [:ios, :watchos]
+      assert response_data["preview_id"] == app_build.id
 
-      assert Map.take(preview, [
+      assert Map.take(app_build.preview, [
                :display_name,
-               :type,
                :version,
                :bundle_identifier,
                :git_branch,
                :git_commit_sha,
-               :ran_by_account_id
+               :created_by_account_id
              ]) == %{
-               display_name: "preview-name",
-               type: :ipa,
+               display_name: "name",
                version: "1.0.0",
                bundle_identifier: "dev.tuist.app",
                git_branch: "main",
                git_commit_sha: "commit-sha",
-               ran_by_account_id: account.id
+               created_by_account_id: account.id
              }
+    end
+
+    test "starts multipart upload of a bundle app build", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      expect(Storage, :multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          display_name: "name",
+          type: "app_bundle"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"])
+      assert app_build.type == :app_bundle
+    end
+
+    test "starts multipart upload of an ipa preview", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      expect(Storage, :multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "ipa"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"])
+      assert app_build.type == :ipa
+    end
+
+    test "does not create a new preview when account and commit_sha are the same", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+      git_commit_sha = "existing-commit-sha"
+
+      _existing_preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_commit_sha: git_commit_sha,
+          ran_by_account_id: account.id,
+          bundle_identifier: "dev.tuist.updated",
+          version: "2.0.0",
+          supported_platforms: [:ios]
+        )
+
+      expect(Storage, :multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "ipa",
+          version: "2.0.0",
+          bundle_identifier: "dev.tuist.updated",
+          git_branch: "main",
+          git_commit_sha: git_commit_sha,
+          supported_platforms: ["ios", "macos"]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"])
+      [preview] = Repo.all(Preview)
+      assert app_build.preview_id == preview.id
     end
 
     test "returns error when project doesn't exist", %{
@@ -283,6 +262,46 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response_data["url"] == "https://url.com"
     end
 
+    test "generates platform-specific multipart url", %{conn: conn, user: user, project: project, account: account} do
+      # Given
+      app_build_id = "app-build-id"
+      upload_id = "12344"
+      part_number = 3
+      platform = "ios"
+      upload_url = "https://url.com/ios"
+
+      object_key = "#{account.name}/#{project.name}/previews/#{app_build_id}.zip"
+
+      expect(Storage, :multipart_generate_url, fn ^object_key,
+                                                  ^upload_id,
+                                                  ^part_number,
+                                                  [expires_in: _, content_length: 100] ->
+        upload_url
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
+          preview_id: app_build_id,
+          platform: platform,
+          multipart_upload_part: %{
+            part_number: part_number,
+            upload_id: upload_id,
+            content_length: 100
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == "https://url.com/ios"
+    end
+
     test "returns error when project doesn't exist", %{
       conn: conn,
       user: user,
@@ -318,7 +337,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.app_build_fixture(project: project)
 
       # When
       conn =
@@ -346,18 +365,15 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       upload_id = "1234"
-      preview = PreviewsFixtures.preview_fixture(project: project)
 
-      _command_event =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          preview_id: preview.id,
-          git_commit_sha: "preview-commit-sha",
-          git_branch: "main"
-        )
+      preview =
+        AppBuildsFixtures.preview_fixture(project: project, git_commit_sha: "commit-sha", git_branch: "main")
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview)
 
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
+        "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -378,7 +394,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
-          preview_id: preview.id,
+          preview_id: app_build.id,
           multipart_upload_parts: %{
             parts: parts,
             upload_id: upload_id
@@ -395,8 +411,10 @@ defmodule TuistWeb.PreviewsControllerTest do
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
-               "git_commit_sha" => "preview-commit-sha",
-               "git_branch" => "main"
+               "git_commit_sha" => "commit-sha",
+               "git_branch" => "main",
+               "builds" => [],
+               "supported_platforms" => []
              }
     end
 
@@ -456,7 +474,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "Preview not found."
     end
 
-    test "returns forbidden when user is not authorized to create preview", %{
+    test "returns forbidden when user is not authorized to create app_build", %{
       conn: conn,
       user: user
     } do
@@ -472,7 +490,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
-          preview_id: "preview_id",
+          preview_id: "app_build_id",
           multipart_upload_parts: %{
             parts: [],
             upload_id: "upload-id"
@@ -495,18 +513,18 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      preview = PreviewsFixtures.preview_fixture(project: project)
-
-      _command_event =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          preview_id: preview.id,
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
           git_commit_sha: "preview-commit-sha",
           git_branch: "main"
         )
 
+      app_build =
+        AppBuildsFixtures.app_build_fixture(preview: preview)
+
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
+        "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
         "https://url.com"
@@ -523,35 +541,15 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["url"] == "https://url.com"
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "preview-commit-sha"
-    end
 
-    test "return preview when command_event is not found", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
-      # Given
-      preview = PreviewsFixtures.preview_fixture(project: project)
-
-      object_key =
-        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
-
-      expect(Storage, :generate_download_url, fn ^object_key, [expires_in: 3600] ->
-        "https://url.com"
-      end)
-
-      conn = Authentication.put_current_user(conn, user)
-
-      # When
-      conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert response["url"] == "https://url.com"
-      assert response["git_branch"] == nil
-      assert response["git_commit_sha"] == nil
+      assert Enum.map(response["builds"], &Map.take(&1, ["id", "url", "type", "supported_platforms"])) == [
+               %{
+                 "id" => app_build.id,
+                 "url" => "https://url.com",
+                 "type" => "app_bundle",
+                 "supported_platforms" => ["ios"]
+               }
+             ]
     end
 
     test "returns not_found when project doesn't exist", %{
@@ -562,7 +560,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
-      preview = PreviewsFixtures.preview_fixture()
+      preview = AppBuildsFixtures.app_build_fixture()
 
       # When
       {_, _, payload} =
@@ -605,7 +603,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.app_build_fixture(project: project)
 
       # When
       conn = get(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
@@ -627,14 +625,15 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       _preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
+          git_commit_sha: "commit-sha-one",
           inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       preview_two =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
           bundle_identifier: "dev.tuist.app",
@@ -644,18 +643,20 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       _preview_three =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
           git_branch: "feature-branch",
+          git_commit_sha: "commit-sha-three",
           inserted_at: ~U[2021-01-01 02:00:00Z]
         )
 
       _preview_four =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "AppTwo",
           git_branch: "main",
+          git_commit_sha: "commit-sha-four",
           inserted_at: ~U[2021-01-01 03:00:00Z]
         )
 
@@ -681,7 +682,9 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
-                 "git_branch" => "main"
+                 "git_branch" => "main",
+                 "builds" => [],
+                 "supported_platforms" => []
                }
              ]
     end
@@ -694,36 +697,18 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
           supported_platforms: [:ios, :macos]
         )
 
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 00:00:00],
-          git_branch: "main"
-        )
-
-      preview_two =
-        PreviewsFixtures.preview_fixture(
+      _preview_two =
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App",
           bundle_identifier: "dev.tuist.app",
           supported_platforms: [:watchos, :macos]
-        )
-
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 01:00:00],
-          git_branch: "main"
         )
 
       conn = Authentication.put_current_user(conn, user)
@@ -750,7 +735,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       _preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
           inserted_at: ~U[2021-01-01 00:00:00Z],
@@ -780,64 +765,28 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      preview_one =
-        PreviewsFixtures.preview_fixture(
+      _preview_one =
+        AppBuildsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.bundle.app.one"
         )
 
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 00:00:00],
-          git_branch: "main"
-        )
-
-      preview_two =
-        PreviewsFixtures.preview_fixture(
+      _preview_two =
+        AppBuildsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.bundle.app.one"
         )
 
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 01:00:00],
-          git_branch: "main"
-        )
-
-      preview_three =
-        PreviewsFixtures.preview_fixture(
+      _preview_three =
+        AppBuildsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.bundle.app.two"
         )
 
-      _command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_three.id,
-          created_at: ~N[2021-01-01 02:00:00],
-          git_branch: "main"
-        )
-
-      preview_four =
-        PreviewsFixtures.preview_fixture(
+      _preview_four =
+        AppBuildsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.bundle.app.two"
-        )
-
-      _command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_four.id,
-          created_at: ~N[2021-01-01 02:30:00],
-          git_branch: "feature-branch"
         )
 
       conn = Authentication.put_current_user(conn, user)
@@ -901,7 +850,7 @@ defmodule TuistWeb.PreviewsControllerTest do
          } do
       # Given
       preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.app_build_fixture(
           project: project,
           bundle_identifier: nil
         )
@@ -939,14 +888,14 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
           git_branch: "feature-branch"
         )
 
       _preview_two =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
           git_branch: "main"
@@ -978,7 +927,7 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
           git_commit_sha: "36fa9d5c3cb9f1dd45f194035a665444ea2d316f",
@@ -986,7 +935,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       _preview_two =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
           git_commit_sha: "a8169b2276adc2a4fb8c41030e5c640541b46ef9",
@@ -1019,23 +968,26 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       preview_one =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
+          git_commit_sha: "commit-sha-1",
           inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       preview_two =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one",
+          display_name: "preview-two",
+          git_commit_sha: "commit-sha-2",
           inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       preview_three =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one",
+          display_name: "preview-three",
+          git_commit_sha: "commit-sha-3",
           inserted_at: ~U[2021-01-01 02:00:00Z]
         )
 
@@ -1113,15 +1065,15 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
-  describe "PUST /api/projects/:account_handle/:project_handle/previews/:preview_id/icons" do
-    test "return preview upload URL", %{
+  describe "POST /api/projects/:account_handle/:project_handle/previews/:preview_id/icons" do
+    test "return preview icon upload URL", %{
       conn: conn,
       user: user,
       project: project,
       account: account
     } do
       # Given
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
 
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"
@@ -1150,7 +1102,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
-      preview = PreviewsFixtures.preview_fixture()
+      preview = AppBuildsFixtures.app_build_fixture()
 
       # When
       {_, _, payload} =
@@ -1177,7 +1129,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      preview = PreviewsFixtures.preview_fixture(project: project)
+      preview = AppBuildsFixtures.app_build_fixture(project: project)
 
       # When
       conn =

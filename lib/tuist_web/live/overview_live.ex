@@ -8,7 +8,6 @@ defmodule TuistWeb.OverviewLive do
 
   alias Tuist.Bundles
   alias Tuist.CommandEvents
-  alias Tuist.Previews
   alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
@@ -272,7 +271,7 @@ defmodule TuistWeb.OverviewLive do
     |> assign_test_runs_analytics()
     |> assign(
       :latest_app_previews,
-      Previews.latest_previews_with_distinct_bundle_ids(project)
+      Tuist.AppBuilds.latest_previews_with_distinct_bundle_ids(project)
     )
   end
 

@@ -8,7 +8,7 @@ defmodule TuistWeb.API.Schemas.Preview do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :url, :qr_code_url, :icon_url],
+    required: [:id, :url, :qr_code_url, :icon_url, :builds, :supported_platforms],
     properties: %{
       id: %Schema{
         type: :string,
@@ -38,6 +38,14 @@ defmodule TuistWeb.API.Schemas.Preview do
       git_branch: %Schema{
         type: :string,
         description: "The git branch associated with the preview"
+      },
+      builds: %Schema{
+        type: :array,
+        items: TuistWeb.API.Schemas.AppBuild
+      },
+      supported_platforms: %Schema{
+        type: :array,
+        items: TuistWeb.API.Schemas.PreviewSupportedPlatform
       }
     }
   })

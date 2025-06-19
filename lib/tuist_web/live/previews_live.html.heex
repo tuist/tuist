@@ -41,25 +41,19 @@
           <:col :let={preview} label={gettext("Name")}>
             <.text_and_description_cell label={preview.display_name} />
           </:col>
-          <:col :let={preview} label={gettext("Platform")}>
-            <.platform_cell
-              :if={not Enum.empty?(preview.supported_platforms)}
-              platform={preview.supported_platforms |> hd}
-            />
+          <:col :let={preview} label={gettext("Platforms")}>
+            <div data-part="platforms">
+              <%= for platform <- preview.supported_platforms do %>
+                <.platform_cell platform={platform} />
+              <% end %>
+            </div>
           </:col>
           <:col :let={preview} label={gettext("Branch")}>
-            <.text_cell
-              icon="git_branch"
-              label={
-                preview.git_branch || (preview.command_event && preview.command_event.git_branch) ||
-                  "None"
-              }
-            />
+            <.text_cell icon="git_branch" label={preview.git_branch || "None"} />
           </:col>
           <:col :let={preview} label={gettext("Commit SHA")}>
             <.text_cell label={
-              (preview.git_commit_sha ||
-                 (preview.command_event && preview.command_event.git_commit_sha) || "None")
+              (preview.git_commit_sha || "None")
               |> String.slice(0, 7)
             } />
           </:col>

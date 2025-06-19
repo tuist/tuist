@@ -14,7 +14,6 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Accounts.User
   alias Tuist.Analytics
   alias Tuist.Authorization
-  alias Tuist.Previews
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -336,7 +335,7 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do
-    case Previews.get_preview_by_id(preview_id) do
+    case Tuist.AppBuilds.preview_by_id(preview_id) do
       {:error, _} ->
         require_authenticated_user(conn, opts)
 

@@ -12,8 +12,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Storage
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
@@ -169,7 +169,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      preview = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
+      preview = AppBuildsFixtures.app_build_fixture(project: project, display_name: "App")
 
       expect(VCS, :post_vcs_pull_request_comment, fn _ ->
         :ok

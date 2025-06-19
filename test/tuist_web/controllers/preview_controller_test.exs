@@ -4,8 +4,7 @@ defmodule TuistWeb.PreviewControllerTest do
 
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -38,17 +37,9 @@ defmodule TuistWeb.PreviewControllerTest do
         ProjectsFixtures.project_fixture(preload: [:account])
 
       preview =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: project,
           display_name: "App"
-        )
-
-      _command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview.id,
-          git_branch: "main"
         )
 
       # When
@@ -82,7 +73,7 @@ defmodule TuistWeb.PreviewControllerTest do
     test "renders a QR code", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(type: :ipa)
+        AppBuildsFixtures.preview_fixture()
 
       expect(QRCode, :create, fn url, _ ->
         assert url == url(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
@@ -105,7 +96,7 @@ defmodule TuistWeb.PreviewControllerTest do
     test "renders a QR code", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(type: :ipa)
+        AppBuildsFixtures.preview_fixture(type: :ipa)
 
       stub(QRCode, :create, fn _ ->
         "qr-code"
@@ -127,15 +118,16 @@ defmodule TuistWeb.PreviewControllerTest do
     test "redirects to presigned preview download url", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture()
+        AppBuildsFixtures.preview_fixture()
 
-      stub(Storage, :generate_download_url, fn _, _ -> "https://download-url.com" end)
+      stub(Zstream, :zip, fn _ -> ["zip-stream"] end)
 
       # When
       conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/download")
 
       # Then
-      assert redirected_to(conn) == "https://download-url.com"
+      response = response(conn, :ok)
+      assert response == "zip-stream"
     end
   end
 
@@ -143,13 +135,18 @@ defmodule TuistWeb.PreviewControllerTest do
     test "returns manifest.plist", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "dev.tuist.app"
         )
+
+      AppBuildsFixtures.app_build_fixture(
+        preview: preview,
+        type: :ipa
+      )
 
       # When
       conn = get(conn, ~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/manifest.plist")
@@ -173,13 +170,17 @@ defmodule TuistWeb.PreviewControllerTest do
     test "returns archive object when it exists", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
-          type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "dev.tuist.app"
         )
+
+      AppBuildsFixtures.app_build_fixture(
+        preview: preview,
+        type: :ipa
+      )
 
       stub(Storage, :object_exists?, fn _ -> true end)
       stub(Storage, :get_object_as_string, fn _ -> "ipa-contents" end)
@@ -194,9 +195,8 @@ defmodule TuistWeb.PreviewControllerTest do
     test "throws an error when it doesn't exist", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(
+        AppBuildsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
-          type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "dev.tuist.app"
@@ -215,7 +215,7 @@ defmodule TuistWeb.PreviewControllerTest do
     test "streams the icon image", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(type: :ipa)
+        AppBuildsFixtures.preview_fixture()
 
       icon_content = "icon-content"
 
@@ -238,7 +238,7 @@ defmodule TuistWeb.PreviewControllerTest do
     test "returns 404 when the icon does not exist", %{conn: conn} do
       # Given
       preview =
-        PreviewsFixtures.preview_fixture(type: :ipa)
+        AppBuildsFixtures.preview_fixture(type: :ipa)
 
       stub(Storage, :object_exists?, fn _ ->
         false

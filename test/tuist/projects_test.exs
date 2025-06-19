@@ -10,8 +10,8 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "get_projects_count/0" do
@@ -489,9 +489,10 @@ defmodule Tuist.ProjectsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      PreviewsFixtures.preview_fixture(
+      AppBuildsFixtures.preview_fixture(
         project: project,
-        display_name: "App"
+        display_name: "App",
+        supported_platforms: [:ios]
       )
 
       # Then
@@ -729,7 +730,7 @@ defmodule Tuist.ProjectsTest do
       account = Accounts.get_account_from_user(user)
 
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-      PreviewsFixtures.preview_fixture(project: project)
+      AppBuildsFixtures.preview_fixture(project: project)
 
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,

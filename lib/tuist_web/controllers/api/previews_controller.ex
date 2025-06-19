@@ -5,8 +5,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Previews
-  alias Tuist.Previews.Preview
+  alias Tuist.AppBuilds
   alias Tuist.Projects.Project
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
@@ -100,9 +99,10 @@ defmodule TuistWeb.API.PreviewsController do
                  "Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts",
                properties: %{
                  upload_id: %Schema{type: :string, description: "The upload ID"},
-                 preview_id: %Schema{type: :string, description: "The id of the preview."}
+                 preview_id: %Schema{type: :string, description: "The id of the preview.", deprecated: true},
+                 app_build_id: %Schema{type: :string, description: "The id of the app build."}
                },
-               required: [:upload_id, :preview_id]
+               required: [:upload_id, :app_build_id]
              }
            },
            required: [:status, :data]
@@ -113,30 +113,66 @@ defmodule TuistWeb.API.PreviewsController do
     }
   )
 
-  def multipart_start(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
-    account_id =
+  def multipart_start(
+        %{
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
+          body_params: body_params,
+          assigns: %{selected_project: selected_project}
+        } = conn,
+        _params
+      ) do
+    account =
       case Authentication.authenticated_subject(conn) do
-        %Project{} = project -> project.account.id
-        %User{} = user -> user.account.id
-        %AuthenticatedAccount{account: account} -> account.id
+        %Project{} = project -> project.account
+        %User{} = user -> user.account
+        %AuthenticatedAccount{account: account} -> account
       end
 
-    %Preview{id: preview_id} =
-      Previews.create_preview(%{
-        project: selected_project,
-        type: body_params |> Map.get(:type) |> String.to_atom(),
+    supported_platforms = Map.get(body_params, :supported_platforms, [])
+    type = body_params |> Map.get(:type) |> String.to_atom()
+
+    {:ok, preview} =
+      AppBuilds.find_or_create_preview(%{
+        project_id: selected_project.id,
+        bundle_identifier: Map.get(body_params, :bundle_identifier),
+        version: Map.get(body_params, :version),
+        git_commit_sha: Map.get(body_params, :git_commit_sha),
+        created_by_account_id: account.id,
+        display_name: Map.get(body_params, :display_name),
+        git_branch: Map.get(body_params, :git_branch),
+        git_ref: Map.get(body_params, :git_ref),
+        visibility: :private,
+        supported_platforms: []
+      })
+
+    app_build =
+      AppBuilds.create_app_build(%{
+        preview_id: preview.id,
+        project_id: selected_project.id,
+        type: type,
         display_name: Map.get(body_params, :display_name),
         bundle_identifier: Map.get(body_params, :bundle_identifier),
         version: Map.get(body_params, :version),
-        supported_platforms: Map.get(body_params, :supported_platforms, []),
         git_branch: Map.get(body_params, :git_branch),
         git_commit_sha: Map.get(body_params, :git_commit_sha),
-        ran_by_account_id: account_id
+        created_by_account_id: account.id,
+        supported_platforms: supported_platforms
       })
 
-    upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
+    upload_id =
+      Storage.multipart_start(
+        AppBuilds.storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          app_build_id: app_build.id
+        })
+      )
 
-    json(conn, %{status: "success", data: %{upload_id: upload_id, preview_id: preview_id}})
+    # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
+    json(conn, %{
+      status: "success",
+      data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
+    })
   end
 
   operation(:multipart_generate_url,
@@ -166,7 +202,12 @@ defmodule TuistWeb.API.PreviewsController do
            multipart_upload_part: ArtifactMultipartUploadPart,
            preview_id: %Schema{
              type: :string,
-             description: "The id of the preview."
+             description: "The id of the preview.",
+             deprecated: true
+           },
+           app_build_id: %Schema{
+             type: :string,
+             description: "The id of the app build."
            }
          },
          required: [:multipart_upload_part, :preview_id]
@@ -181,19 +222,30 @@ defmodule TuistWeb.API.PreviewsController do
 
   def multipart_generate_url(
         %{
-          body_params: %{
-            preview_id: preview_id,
-            multipart_upload_part: %{part_number: part_number, upload_id: upload_id} = multipart_upload_part
-          }
+          path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
+          body_params:
+            %{
+              preview_id: preview_id,
+              multipart_upload_part: %{part_number: part_number, upload_id: upload_id} = multipart_upload_part
+            } = body_params
         } = conn,
         _params
       ) do
+    # The preview_id is still used to support CLI version pre 4.54.0
+    app_build_id = Map.get(body_params, :app_build_id, preview_id)
     expires_in = 120
     content_length = Map.get(multipart_upload_part, :content_length)
 
+    object_key =
+      AppBuilds.storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        app_build_id: app_build_id
+      })
+
     url =
       Storage.multipart_generate_url(
-        get_object_key(conn, preview_id),
+        object_key,
         upload_id,
         part_number,
         expires_in: expires_in,
@@ -230,7 +282,12 @@ defmodule TuistWeb.API.PreviewsController do
            multipart_upload_parts: ArtifactMultipartUploadParts,
            preview_id: %Schema{
              type: :string,
-             description: "The id of the preview."
+             description: "The id of the preview.",
+             deprecated: true
+           },
+           app_build_id: %Schema{
+             type: :string,
+             description: "The id of the app build."
            }
          },
          required: [:multipart_upload_parts, :preview_id]
@@ -246,47 +303,49 @@ defmodule TuistWeb.API.PreviewsController do
   def multipart_complete(
         %{
           path_params: %{"account_handle" => account_handle, "project_handle" => project_handle},
-          body_params: %{
-            preview_id: preview_id,
-            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: upload_id}
-          }
+          body_params:
+            %{
+              preview_id: preview_id,
+              multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: upload_id}
+            } = body_params
         } = conn,
         _params
       ) do
-    case Previews.get_preview_by_id(preview_id, preload: [:command_event]) do
-      {:ok, preview} ->
+    # The preview_id is still used to support CLI version pre 4.54.0
+    app_build_id = Map.get(body_params, :app_build_id, preview_id)
+
+    case AppBuilds.app_build_by_id(app_build_id, preload: [:preview]) do
+      {:ok, app_build} ->
         :ok =
           Storage.multipart_complete_upload(
-            get_object_key(conn, preview_id),
+            AppBuilds.storage_key(%{
+              account_handle: account_handle,
+              project_handle: project_handle,
+              app_build_id: app_build_id
+            }),
             upload_id,
             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
               {part_number, etag}
             end)
           )
 
-        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+        AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
 
-        {git_commit_sha, git_branch} =
-          if is_nil(preview.command_event) do
-            {nil, nil}
-          else
-            {
-              preview.command_event.git_commit_sha,
-              preview.command_event.git_branch
-            }
-          end
+        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
         conn
         |> put_status(:ok)
         |> json(%{
-          id: preview_id,
-          url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
-          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
-          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
-          bundle_identifier: preview.bundle_identifier,
-          display_name: preview.display_name,
-          git_commit_sha: git_commit_sha,
-          git_branch: git_branch
+          id: app_build.preview_id,
+          url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}"),
+          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}/qr-code.png"),
+          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}/icon.png"),
+          bundle_identifier: app_build.preview.bundle_identifier,
+          display_name: app_build.preview.display_name,
+          git_commit_sha: app_build.preview.git_commit_sha,
+          git_branch: app_build.preview.git_branch,
+          supported_platforms: app_build.preview.supported_platforms,
+          builds: []
         })
 
       {:error, :not_found} ->
@@ -340,44 +399,53 @@ defmodule TuistWeb.API.PreviewsController do
             "account_handle" => account_handle,
             "project_handle" => project_handle,
             "preview_id" => preview_id
-          }
+          },
+          params: _params
         } = conn,
-        _params
+        _args
       ) do
-    case Previews.get_preview_by_id(preview_id, preload: [:command_event]) do
+    case AppBuilds.preview_by_id(preview_id, preload: [:app_builds]) do
       {:ok, preview} ->
         expires_in = 3600
 
-        url =
-          Storage.generate_download_url(
-            get_object_key(conn, preview_id),
-            expires_in: expires_in
-          )
+        app_builds =
+          Enum.map(preview.app_builds, fn app_build ->
+            key =
+              AppBuilds.storage_key(%{
+                account_handle: account_handle,
+                project_handle: project_handle,
+                app_build_id: app_build.id
+              })
 
-        expires_at = System.system_time(:second) + expires_in
+            %{
+              id: app_build.id,
+              url:
+                Storage.generate_download_url(
+                  key,
+                  expires_in: expires_in
+                ),
+              type: app_build.type,
+              supported_platforms: app_build.supported_platforms,
+              inserted_at: app_build.inserted_at
+            }
+          end)
+
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-        {git_commit_sha, git_branch} =
-          if is_nil(preview.command_event) do
-            {nil, nil}
-          else
-            {
-              preview.command_event.git_commit_sha,
-              preview.command_event.git_branch
-            }
-          end
-
-        json(conn, %{
+        response = %{
           id: preview_id,
-          url: url,
-          expires_at: expires_at,
+          url: hd(app_builds).url,
           qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
           icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
           bundle_identifier: preview.bundle_identifier,
           display_name: preview.display_name,
-          git_commit_sha: git_commit_sha,
-          git_branch: git_branch
-        })
+          git_commit_sha: preview.git_commit_sha,
+          git_branch: preview.git_branch,
+          builds: Enum.sort_by(app_builds, & &1.inserted_at, {:desc, DateTime}),
+          supported_platforms: preview.supported_platforms
+        }
+
+        json(conn, response)
 
       {:error, :not_found} ->
         conn
@@ -493,7 +561,7 @@ defmodule TuistWeb.API.PreviewsController do
       end
 
     {previews, _meta} =
-      Previews.list_previews(
+      AppBuilds.list_previews(
         %{
           page: page,
           page_size: page_size,
@@ -502,8 +570,7 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         distinct: distinct,
-        supported_platforms: Map.get(params, :supported_platforms),
-        preload: [:command_event]
+        supported_platforms: Map.get(params, :supported_platforms)
       )
 
     json(conn, %{
@@ -517,8 +584,10 @@ defmodule TuistWeb.API.PreviewsController do
             icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/icon.png"),
             bundle_identifier: &1.bundle_identifier,
             display_name: &1.display_name,
-            git_commit_sha: &1.git_commit_sha || (&1.command_event && &1.command_event.git_commit_sha),
-            git_branch: &1.git_branch || (&1.command_event && &1.command_event.git_branch)
+            git_commit_sha: &1.git_commit_sha,
+            git_branch: &1.git_branch,
+            builds: [],
+            supported_platforms: &1.supported_platforms
           }
         )
     })
@@ -587,13 +656,13 @@ defmodule TuistWeb.API.PreviewsController do
         %{params: %{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}} = conn,
         _params
       ) do
-    case Previews.get_preview_by_id(preview_id) do
+    case AppBuilds.preview_by_id(preview_id) do
       {:ok, preview} ->
         expires_in = 3600
 
         upload_url =
           Storage.generate_upload_url(
-            Previews.get_icon_storage_key(%{
+            AppBuilds.icon_storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
               preview_id: preview.id
@@ -617,16 +686,5 @@ defmodule TuistWeb.API.PreviewsController do
 
   defp valid_git_commit_sha?(hash) do
     Regex.match?(~r/^[a-fA-F0-9]{40}$/, hash)
-  end
-
-  defp get_object_key(
-         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = _conn,
-         preview_id
-       ) do
-    Previews.get_storage_key(%{
-      account_handle: account_handle,
-      project_handle: project_handle,
-      preview_id: preview_id
-    })
   end
 end

@@ -7,10 +7,10 @@ defmodule Tuist.Authorization do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Billing
   alias Tuist.CommandEvents
   alias Tuist.Environment
-  alias Tuist.Previews.Preview
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.VCS
@@ -308,7 +308,7 @@ defmodule Tuist.Authorization do
     false
   end
 
-  def can(_, :read, %Preview{type: :ipa}) do
+  def can(_, :read, %Preview{visibility: :public}) do
     true
   end
 

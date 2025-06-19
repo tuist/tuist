@@ -6,8 +6,8 @@ defmodule TuistWeb.AuthorizationTest do
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Authorization
@@ -63,7 +63,7 @@ defmodule TuistWeb.AuthorizationTest do
   describe "authorization plug with options [:current_user, :read, :preview]" do
     test "raises an error when the user is not authenticated", %{conn: conn} do
       # Given
-      preview = PreviewsFixtures.preview_fixture()
+      preview = AppBuildsFixtures.preview_fixture()
       conn = assign(conn, :current_preview, preview)
 
       # When/Then
@@ -82,7 +82,7 @@ defmodule TuistWeb.AuthorizationTest do
       user: user
     } do
       # Given
-      preview = PreviewsFixtures.preview_fixture()
+      preview = AppBuildsFixtures.preview_fixture()
 
       conn =
         conn
@@ -103,7 +103,7 @@ defmodule TuistWeb.AuthorizationTest do
       user: user
     } do
       # Given
-      preview = PreviewsFixtures.preview_fixture()
+      preview = AppBuildsFixtures.preview_fixture()
 
       conn =
         conn

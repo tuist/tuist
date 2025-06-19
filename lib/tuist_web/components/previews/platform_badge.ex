@@ -7,21 +7,20 @@ defmodule TuistWeb.Previews.PlatformBadge do
 
   import TuistWeb.Previews.PlatformIcon
 
-  alias Tuist.Previews
+  alias Tuist.AppBuilds
 
-  attr :preview, :map, required: true
+  attr :platform, :map, required: true
 
   def platform_badge(assigns) do
     ~H"""
     <.badge
-      :if={not Enum.empty?(@preview.supported_platforms)}
       size="small"
-      label={Previews.get_supported_platforms_case_values(@preview) |> hd()}
+      label={AppBuilds.platform_string(@platform)}
       color="neutral"
       style="light-fill"
     >
       <:icon>
-        <.platform_icon platform={@preview.supported_platforms |> hd()} />
+        <.platform_icon platform={@platform} />
       </:icon>
     </.badge>
     """

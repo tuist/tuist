@@ -1,4 +1,4 @@
-defmodule Tuist.Previews.PromExPlugin do
+defmodule Tuist.AppBuilds.PromExPlugin do
   @moduledoc """
   Defines custom Prometheus metrics for the Tuist preview events
   """

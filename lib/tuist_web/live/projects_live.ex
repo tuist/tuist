@@ -5,8 +5,8 @@ defmodule TuistWeb.ProjectsLive do
 
   import TuistWeb.Previews.PlatformIcon
 
+  alias Tuist.AppBuilds
   alias Tuist.Authorization
-  alias Tuist.Previews
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.Utilities.Query
@@ -150,7 +150,7 @@ defmodule TuistWeb.ProjectsLive do
               <div data-part="tags">
                 <.tag
                   :for={platform <- Projects.platforms(project)}
-                  label={Previews.platform_string(platform)}
+                  label={Tuist.AppBuilds.platform_string(platform)}
                   icon={platform_icon_name(platform)}
                 />
               </div>
@@ -182,11 +182,11 @@ defmodule TuistWeb.ProjectsLive do
                 {project.name}
               </div>
               <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
-                <h3>Supported platforms</h3>
+                <h3>{gettext("Supported platforms")}</h3>
                 <div data-part="tags">
                   <.tag
                     :for={platform <- Projects.platforms(project)}
-                    label={Previews.platform_string(platform)}
+                    label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />
                 </div>
@@ -246,7 +246,7 @@ defmodule TuistWeb.ProjectsLive do
                 <div data-part="tags">
                   <.tag
                     :for={platform <- Projects.platforms(project)}
-                    label={Previews.platform_string(platform)}
+                    label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />
                 </div>
