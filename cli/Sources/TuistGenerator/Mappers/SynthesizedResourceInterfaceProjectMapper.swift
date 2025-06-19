@@ -193,6 +193,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     let signature = try fileHandle.read(upToCount: bplistSignature.count)
                     return signature != Data(bplistSignature.utf8)
                 } catch {
+                    AlertController.current.warning(.alert("\(path.basename) is not a valid plist or unreadable."))
                     return false
                 }
             }
