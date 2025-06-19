@@ -71,25 +71,12 @@ defmodule TuistWeb.API.AccountTokensController do
   def create(%{params: %{"scopes" => scopes}, assigns: %{selected_account: selected_account}} = conn, _opts) do
     current_user = Authentication.current_user(conn)
 
-    if is_nil(current_user) or
-         not Authorization.can(current_user, :create, selected_account, :token) do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message: "The authenticated subject is not authorized to perform this action"
-      })
-    else
-      {_, token} =
-        Accounts.create_account_token(%{
-          account: selected_account,
-          scopes: Enum.map(scopes, &String.to_atom/1)
-        })
-
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        token: token
-      })
+    with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
+         {:ok, {_token_record, token}} <- Accounts.create_account_token(%{
+           account: selected_account,
+           scopes: Enum.map(scopes, &String.to_atom/1)
+         }) do
+      json(conn, %{token: token})
     end
   end
 end

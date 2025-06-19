@@ -93,7 +93,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       response = json_response(conn, :forbidden)
 
       assert response == %{
-               "message" => "The authenticated subject is not authorized to perform this action"
+               "message" => "You are not authorized to view this resource."
              }
     end
   end

@@ -28,7 +28,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       opts = AuthenticationPlug.init(:load_authenticated_subject)
       user = AccountsFixtures.user_fixture(preload: [:account])
 
-      {account_token, account_token_value} =
+      {:ok, {account_token, account_token_value}} =
         Accounts.create_account_token(
           %{
             account: user.account,
@@ -67,7 +67,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
 
-      {account_token, account_token_value} =
+      {:ok, {account_token, account_token_value}} =
         Accounts.create_account_token(
           %{
             account: AccountsFixtures.user_fixture(preload: [:account]).account,

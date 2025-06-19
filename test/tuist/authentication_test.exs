@@ -62,7 +62,7 @@ defmodule Tuist.AuthenticationTest do
     # Given
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
-    {_, token_value} =
+    {:ok, {_, token_value}} =
       Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
 
     # When/Then

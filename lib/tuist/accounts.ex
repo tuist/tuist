@@ -1295,17 +1295,20 @@ defmodule Tuist.Accounts do
     encrypted_token_hash =
       Bcrypt.hash_pwd_salt(token_hash <> Environment.secret_key_password())
 
-    token =
-      %AccountToken{}
-      |> AccountToken.create_changeset(%{
-        account_id: account.id,
-        encrypted_token_hash: encrypted_token_hash,
-        scopes: scopes
-      })
-      |> Repo.insert!()
-      |> Repo.preload(preload)
+    case %AccountToken{}
+         |> AccountToken.create_changeset(%{
+           account_id: account.id,
+           encrypted_token_hash: encrypted_token_hash,
+           scopes: scopes
+         })
+         |> Repo.insert() do
+      {:ok, token} ->
+        token = Repo.preload(token, preload)
+        {:ok, {token, "tuist_#{token.id}_#{token_hash}"}}
 
-    {token, "tuist_#{token.id}_#{token_hash}"}
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   def account_token(full_token, opts \\ []) do

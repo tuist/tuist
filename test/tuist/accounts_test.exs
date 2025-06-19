@@ -2307,7 +2307,7 @@ defmodule Tuist.AccountsTest do
       # Given
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
-      {account_token, account_token_value} =
+      {:ok, {account_token, account_token_value}} =
         Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
 
       # When
@@ -2350,7 +2350,7 @@ defmodule Tuist.AccountsTest do
       expect(Base64, :encode, fn _ -> "generated-hash" end)
 
       # When
-      {_, got_token_value} =
+      {:ok, {_, got_token_value}} =
         Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
 
       # Then

@@ -82,7 +82,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
 
     scopes = Keyword.get(opts, :scopes, [])
 
-    {account_token, _} = Accounts.create_account_token(%{account: account, scopes: scopes})
+    {:ok, {account_token, _}} = Accounts.create_account_token(%{account: account, scopes: scopes})
 
     account_token
   end
