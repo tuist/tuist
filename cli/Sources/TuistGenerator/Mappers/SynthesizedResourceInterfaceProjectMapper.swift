@@ -182,7 +182,22 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     }
                 }
             }()
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files, .stringsCatalog:
+        case .plists:
+            // Exclude binary plists from synthesized interface generation
+            paths = paths.filter { path in
+                do {
+                    let fileHandle = try FileHandle(forReadingFrom: path.url)
+                    defer { try? fileHandle.close() }
+
+                    let bplistSignature = "bplist00"
+                    let signature = try fileHandle.read(upToCount: bplistSignature.count)
+                    return signature != Data(bplistSignature.utf8)
+                } catch {
+                    AlertController.current.warning(.alert("\(path.basename) is not a valid plist or unreadable."))
+                    return false
+                }
+            }
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .yaml, .files, .stringsCatalog:
             break
         }
 
