@@ -1,4 +1,4 @@
-name: cli
+name: CLI
 
 on:
   push:
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   cli-lint:
-    name: CLI Lint
+    name: Lint
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-spm-build:
-    name: CLI SwiftPM Build
+    name: SwiftPM Build
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +84,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-cache:
-    name: CLI Cache
+    name: Cache
     runs-on: macos-15
     if: github.ref == 'refs/heads/main'
     steps:
@@ -112,7 +112,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-unit-tests:
-    name: CLI Unit Tests
+    name: Unit Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -139,7 +139,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-automation-acceptance-tests:
-    name: CLI Automation Acceptance Tests
+    name: Automation Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -170,7 +170,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-dependencies-acceptance-tests:
-    name: CLI Dependencies Acceptance Tests
+    name: Dependencies Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -210,7 +210,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-generator-acceptance-tests:
-    name: CLI Generator Acceptance Tests
+    name: Generator Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -241,7 +241,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-kit-acceptance-tests:
-    name: CLI Kit Acceptance Tests
+    name: Kit Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

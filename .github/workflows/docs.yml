@@ -1,4 +1,4 @@
-name: documentation
+name: Documentation
 on:
   push:
     branches:
@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   docs-build-deploy:
-    name: Documentation Build & Deploy
+    name: Build & Deploy
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

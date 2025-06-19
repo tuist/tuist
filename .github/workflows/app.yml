@@ -1,4 +1,4 @@
-name: app
+name: App
 
 on:
   push:
@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   app-build:
-    name: App Build
+    name: Build
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   app-test:
-    name: App Test
+    name: Test
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   app-device-build:
-    name: App Device Build
+    name: Device Build
     runs-on: macos-15
     if: env.TUIST_CONFIG_TOKEN != ''
     steps:
