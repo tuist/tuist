@@ -251,22 +251,26 @@
             rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
             row_click={
               fn artifact ->
-                %{
-                  "phx-click" =>
-                    JS.dispatch(
-                      "bundle-size-analysis-table-row-clicked",
-                      to: "#bundle-size-analysis-current-contents",
-                      detail: %{
-                        artifact: %{
-                          name: artifact.name,
-                          artifact_type: artifact.artifact_type,
-                          artifact_id: Map.get(artifact, :artifact_id),
-                          current_path:
-                            @bundle_size_analysis_sunburst_chart_selected_artifact.path
+                if Map.get(artifact, :collapsed?) do
+                  nil
+                else
+                  %{
+                    "phx-click" =>
+                      JS.dispatch(
+                        "bundle-size-analysis-table-row-clicked",
+                        to: "#bundle-size-analysis-current-contents",
+                        detail: %{
+                          artifact: %{
+                            name: artifact.name,
+                            artifact_type: artifact.artifact_type,
+                            artifact_id: Map.get(artifact, :artifact_id),
+                            current_path:
+                              @bundle_size_analysis_sunburst_chart_selected_artifact.path
+                          }
                         }
-                      }
-                    )
-                }
+                      )
+                  }
+                end
               end
             }
           >

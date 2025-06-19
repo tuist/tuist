@@ -701,7 +701,9 @@ defmodule TuistWeb.BundleLive do
 
       children ->
         children_with_matches =
-          Enum.map(children, fn child ->
+          children
+          |> filter_collapsed_children()
+          |> Enum.map(fn child ->
             artifact_to_node_with_match(child, filter, duplicates)
           end)
 
@@ -718,6 +720,10 @@ defmodule TuistWeb.BundleLive do
           {base, false}
         end
     end
+  end
+
+  defp filter_collapsed_children(children) do
+    Enum.filter(children, &(not &1.collapsed? or is_nil(&1.collapsed?)))
   end
 
   defp map_single_child(single_child, filter, duplicates, self_matches, base) do
@@ -793,15 +799,21 @@ defmodule TuistWeb.BundleLive do
 
     table_page_size = 5
 
+    artifact_children =
+      Enum.map(
+        artifact.children,
+        &add_collapsed_to_artifact(&1, socket)
+      )
+
     current_page_children =
       Enum.slice(
-        artifact.children,
+        artifact_children,
         (bundle_size_analysis_sunburst_chart_table_page - 1) * table_page_size,
         table_page_size
       )
 
     bundle_size_analysis_sunburst_chart_table_page_count =
-      max(div(length(artifact.children), table_page_size), 1)
+      max(div(length(artifact_children), table_page_size), 1)
 
     socket
     |> assign(:bundle_size_analysis_sunburst_chart_table_artifact, artifact)
@@ -817,5 +829,16 @@ defmodule TuistWeb.BundleLive do
       :bundle_size_analysis_sunburst_chart_table_current_page_artifacts,
       current_page_children
     )
+  end
+
+  defp add_collapsed_to_artifact(artifact, %{assigns: %{artifacts_by_path: artifacts_by_path}} = _socket) do
+    path = Map.get(artifact, :path)
+    full_artifact = path && Map.get(artifacts_by_path, path)
+
+    if full_artifact do
+      Map.put(artifact, :collapsed?, full_artifact.collapsed? || false)
+    else
+      artifact
+    end
   end
 end

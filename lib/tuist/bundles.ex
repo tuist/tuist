@@ -144,27 +144,7 @@ defmodule Tuist.Bundles do
             children
           end
 
-        children = Enum.take(children, 100)
-
-        size_without_small_children =
-          Enum.reduce(children, 0, fn child, sum -> sum + child.size end)
-
-        children =
-          if !Enum.empty?(children) && size_without_small_children < parent.size do
-            smaller_objects_child = %{
-              id: Ecto.UUID.generate(),
-              artifact_id: parent.id,
-              artifact_type: parent.artifact_type,
-              path: parent.path <> "/Smaller objects",
-              size: parent.size - size_without_small_children,
-              shasum: Ecto.UUID.generate(),
-              children: []
-            }
-
-            [smaller_objects_child | children]
-          else
-            children
-          end
+        children = map_artifacts_with_collapsed(children)
 
         # Recursively process each child
         Enum.map(children, fn child ->
@@ -174,9 +154,20 @@ defmodule Tuist.Bundles do
     end
 
     # Process each top-level artifact
-    Enum.map(top_level_artifacts, fn artifact ->
+    top_level_artifacts
+    |> map_artifacts_with_collapsed()
+    |> Enum.map(fn artifact ->
       children = build_tree.(build_tree, artifact.id)
       Map.put(artifact, :children, children)
+    end)
+  end
+
+  defp map_artifacts_with_collapsed(artifacts) do
+    artifacts
+    |> Enum.sort_by(&(-&1.size))
+    |> Enum.with_index()
+    |> Enum.map(fn {artifact, index} ->
+      Map.put(artifact, :collapsed?, index >= 50)
     end)
   end
 
