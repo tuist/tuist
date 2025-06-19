@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
       - name: Check if there are releasable changes
         id: is-releasable
