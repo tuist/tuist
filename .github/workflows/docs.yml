@@ -10,7 +10,7 @@ on:
       - cli/Sources/**
       - Package.swift
       - Package.resolved
-      - mise/tasks/docs
+      - mise/tasks/docs/**
       - pnpm-lock.yaml
       - handbook/package.json
 

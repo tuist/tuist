@@ -11,8 +11,8 @@ on:
       - "*.swift"
       - "Package.resolved"
       - ".github/workflows/tuist.yml"
-      - "mise/tasks/lint"
-      - "mise/tasks/lint-fix"
+      - "mise/tasks/cli/lint"
+      - "mise/tasks/cli/lint-fix"
       - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
@@ -49,7 +49,7 @@ jobs:
           version: 2025.1.5
           experimental: true
       - name: Lint
-        run: mise run lint
+        run: mise run cli:lint
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -360,7 +360,7 @@ jobs:
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app
-        run: mise run bundle:ios-app
+        run: mise run app:bundle-ios-app
       - name: Inspect TuistApp
         run: mise x -- tuist inspect bundle build/Tuist.ipa
       - name: Share TuistApp
