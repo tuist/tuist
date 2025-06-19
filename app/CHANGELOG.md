@@ -1,10 +1,3 @@
-## What's Changed in app@0.10.0
-* feat: optimize download of previews, support grouped previews by @fortmarek in [#7690](https://github.com/tuist/tuist/pull/7690)
-* feat: list previews in Tuist iOS app by @fortmarek in [#7586](https://github.com/tuist/tuist/pull/7586)
-* feat: create Tuist iOS app by @fortmarek in [#7534](https://github.com/tuist/tuist/pull/7534)
-
-**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.9.0...app@0.10.0
-
 ## What's Changed in app@0.9.0
 * feat: keep message of installed preview with its commit sha by @fortmarek in [#7113](https://github.com/tuist/tuist/pull/7113)
 
@@ -82,6 +75,9 @@
 
 ## What's Changed in app@0.3.2
 * fix: getting devices when a device is unavailable, improve the menu tappable area by @foyoodo in [#6864](https://github.com/tuist/tuist/pull/6864)
+
+## New Contributors
+* @foyoodo made their first contribution in [#6864](https://github.com/tuist/tuist/pull/6864)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.1...app@0.3.2
 
