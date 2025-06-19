@@ -270,20 +270,23 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         for package in project.packages {
             switch package {
             case let .local(path, groupPath):
-                let relPath = path.relative(to: project.sourceRootPath).pathString
+
                 let reference = PBXFileReference(
                     sourceTree: .group,
                     name: path.components.last,
                     lastKnownFileType: "folder",
-                    path: relPath
+                    path: path.relative(to: project.sourceRootPath).pathString
                 )
+
+                let packageReference = XCLocalSwiftPackageReference(
+                    relativePath: path.pathString
+                )
+                pbxproj.add(object: packageReference)
+                localPackageReferences[path.pathString] = packageReference
+
                 pbxproj.add(object: reference)
 
                 if let groupPath {
-                    let packageReference = XCLocalSwiftPackageReference(relativePath: path.pathString)
-                    pbxproj.add(object: packageReference)
-                    localPackageReferences[path.pathString] = packageReference
-
                     guard let root = try pbxproj.rootGroup() else { continue }
                     let packagesGroup: PBXGroup?
                     if let existing = root.group(named: "Packages") {
