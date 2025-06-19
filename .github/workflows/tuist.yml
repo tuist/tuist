@@ -335,6 +335,7 @@ jobs:
   app-device-build:
     name: App Device Build
     runs-on: macos-15
+    if: env.TUIST_CONFIG_TOKEN != ''
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -351,7 +352,6 @@ jobs:
           key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
           restore-keys: .build
       - name: Activate .env.json
-        if: env.TUIST_CONFIG_TOKEN != ''
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
