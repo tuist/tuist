@@ -131,4 +131,4 @@ jobs:
             app/build/artifacts/SHASUMS512.txt
       - name: Release Homebrew cask
         if: env.should-release == 'true'
-        run: mise run cli:workspace:release:homebrew-cask --version ${{ steps.semvers.outputs.version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+        run: mise run cli:release:homebrew-cask --version ${{ steps.semvers.outputs.version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
