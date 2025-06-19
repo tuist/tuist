@@ -102,6 +102,29 @@ defmodule Tuist.AppBuildsTest do
       assert length(Repo.all(Preview)) == 1
     end
 
+    test "returns a preview when multiple matche all criteria" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App"
+      }
+
+      AppBuilds.create_preview(attrs)
+      AppBuilds.create_preview(attrs)
+
+      # When
+      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+
+      # Then
+      assert found_preview.bundle_identifier == attrs.bundle_identifier
+    end
+
     test "creates new preview when project_id differs" do
       # Given
       project1 = ProjectsFixtures.project_fixture()

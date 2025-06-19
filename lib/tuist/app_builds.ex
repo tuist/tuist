@@ -38,6 +38,7 @@ defmodule Tuist.AppBuilds do
       )
       |> then(&if(is_nil(git_commit_sha), do: &1, else: where(&1, [p], p.git_commit_sha == ^git_commit_sha)))
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
+      |> limit(1)
       |> Repo.one()
 
     if is_nil(preview) do
