@@ -3,8 +3,8 @@ import Mockable
 
 @Mockable
 public protocol MultipartUploadGenerateURLPreviewsServicing {
-    func uploadPreviews(
-        _ previewId: String,
+    func uploadPreview(
+        _ appBuildId: String,
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
@@ -44,8 +44,8 @@ public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGen
         self.fullHandleService = fullHandleService
     }
 
-    public func uploadPreviews(
-        _ previewId: String,
+    public func uploadPreview(
+        _ appBuildId: String,
         partNumber: Int,
         uploadId: String,
         fullHandle: String,
@@ -62,12 +62,13 @@ public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGen
                 ),
                 body: .json(
                     .init(
+                        app_build_id: appBuildId,
                         multipart_upload_part: .init(
                             content_length: contentLength,
                             part_number: partNumber,
                             upload_id: uploadId
                         ),
-                        preview_id: previewId
+                        preview_id: appBuildId
                     )
                 )
             )

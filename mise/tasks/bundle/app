@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# mise description="Bundles the CLI for distribution"
+# mise description="Bundles the Tuist macOS app for distribution"
 
 set -euo pipefail
 
-# Usage
-# CERTIFICATE_PASSWORD=xxxxx CERTIFICATE_ENCRYPTION_PASSWORD=xxxx APPLE_ID=email APP_SPECIFIC_PASSWORD=xxx mise run bundle
-
-TMP_DIRECTORY=$(mktemp -d)
-KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+TMP_DIR=$(mktemp -d)
+KEYCHAIN_PATH=$TMP_DIR/keychain.keychain
 KEYCHAIN_PASSWORD=$(uuidgen)
-ENCRYPTED_CERTIFICATE_PATH=$MISE_PROJECT_ROOT/app/certificates/certificate.p12.enc
-CERTIFICATE_PATH=$TMP_DIRECTORY/certificate.p12
 BUILD_DIRECTORY=$MISE_PROJECT_ROOT/app/build
 APP_DIRECTORY=$MISE_PROJECT_ROOT/app/app-binary
 DERIVED_DATA_PATH=$BUILD_DIRECTORY/app/derived
@@ -29,11 +24,7 @@ print_status() {
 }
 
 # Remove temporary directory on exit
-trap "rm -rf $TMP_DIRECTORY" EXIT
-
-# Decrypt the certificate
-print_status "Decrypting the certificate..."
-openssl enc -aes-256-cbc -d -pbkdf2 -in $ENCRYPTED_CERTIFICATE_PATH -out $CERTIFICATE_PATH -pass pass:"$CERTIFICATE_ENCRYPTION_PASSWORD"
+trap "rm -rf $TMP_DIR" EXIT
 
 # Codesign
 print_status "Code signing the Tuist App..."
@@ -44,12 +35,15 @@ if [ "${CI:-}" = "true" ]; then
     security default-keychain -s $KEYCHAIN_PATH
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
-security import $CERTIFICATE_PATH -P $CERTIFICATE_PASSWORD -A
+
+echo $BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
+mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+echo $BASE_64_MACOS_DISTRIBUTION_PROVISIONING_PROFILE | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
 
 # Build
 print_status "Building the Tuist App..."
 tuist generate --no-binary-cache --no-open
-xcodebuild clean build -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme TuistApp -configuration Release -destination generic/platform=macOS -derivedDataPath $DERIVED_DATA_PATH CODE_SIGN_IDENTITY="Developer ID Application: Tuist GmbH (U6LC622NKF)" CODE_SIGN_STYLE="Manual" CODE_SIGN_INJECT_BASE_ENTITLEMENTS="NO"
+xcodebuild build clean -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme TuistApp -configuration Release -destination generic/platform=macOS -derivedDataPath $DERIVED_DATA_PATH CODE_SIGN_IDENTITY="Developer ID Application: Tuist GmbH (U6LC622NKF)" CODE_SIGN_STYLE="Manual" CODE_SIGN_INJECT_BASE_ENTITLEMENTS="NO"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"

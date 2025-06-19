@@ -14,7 +14,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         gitCommitSHA: String?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> PreviewUpload
+    ) async throws -> AppBuildUpload
 }
 
 public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable {
@@ -58,7 +58,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         gitCommitSHA: String?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> PreviewUpload {
+    ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload
@@ -91,10 +91,10 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
-            case let .json(preview):
-                return PreviewUpload(
-                    previewId: preview.data.preview_id,
-                    uploadId: preview.data.upload_id
+            case let .json(appBuildUpload):
+                return AppBuildUpload(
+                    appBuildId: appBuildUpload.data.app_build_id,
+                    uploadId: appBuildUpload.data.upload_id
                 )
             }
         case let .undocumented(statusCode: statusCode, _):

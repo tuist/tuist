@@ -4,23 +4,20 @@ import Mockable
 import Path
 import TuistSupport
 
-enum AppBundleLoaderError: FatalError, Equatable {
+enum AppBundleLoaderError: LocalizedError, Equatable {
     case missingInfoPlist(AbsolutePath)
     case failedDecodingInfoPlist(AbsolutePath, String)
+    case appBundleInIPANotFound(AbsolutePath)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .missingInfoPlist(path):
             return "Expected Info.plist at \(path) was not found. Make sure it exists."
         case let .failedDecodingInfoPlist(path, reason):
             return "Failed decoding Info.plist at \(path) due to: \(reason)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .missingInfoPlist, .failedDecodingInfoPlist:
-            return .abort
+        case let .appBundleInIPANotFound(ipaPath):
+            return
+                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }
     }
 }
@@ -28,10 +25,12 @@ enum AppBundleLoaderError: FatalError, Equatable {
 @Mockable
 public protocol AppBundleLoading {
     func load(_ appBundle: AbsolutePath) async throws -> AppBundle
+    func load(ipa: AbsolutePath) async throws -> AppBundle
 }
 
 public struct AppBundleLoader: AppBundleLoading {
     private let fileSystem: FileSysteming
+    private let fileArchiverFactory: FileArchivingFactorying
 
     public init() {
         self.init(
@@ -40,9 +39,29 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     init(
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
     ) {
         self.fileSystem = fileSystem
+        self.fileArchiverFactory = fileArchiverFactory
+    }
+
+    public func load(ipa: AbsolutePath) async throws -> AppBundle {
+        let unarchivedIPA = try fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
+
+        guard let appBundlePath = try await fileSystem.glob(
+            directory: unarchivedIPA,
+            include: ["**/*.app"]
+        )
+        .collect()
+        .first
+        else { throw AppBundleLoaderError.appBundleInIPANotFound(ipa) }
+
+        let appBundleInfoPlist = try await load(appBundlePath).infoPlist
+        return AppBundle(
+            path: ipa,
+            infoPlist: appBundleInfoPlist
+        )
     }
 
     public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {

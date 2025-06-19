@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Testing
-import class TuistApp.MockServerURLServicing
+import class TuistMenuBar.MockServerURLServicing
 import TuistServer
 import TuistTesting
 
-@testable import TuistApp
+@testable import TuistMenuBar
 
 @Suite struct AppPreviewsViewModelTests {
     private let subject: AppPreviewsViewModel

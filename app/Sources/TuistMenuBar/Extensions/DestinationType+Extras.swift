@@ -2,12 +2,12 @@ import TuistCore
 import TuistSimulator
 
 extension Device {
-    var destinationType: DestinationType? {
+    func destinationType() throws -> DestinationType {
         switch self {
         case let .device(physicalDevice):
             .device(physicalDevice.platform)
         case let .simulator(simulator):
-            simulator.runtime.platform.map(DestinationType.simulator)
+            try .simulator(simulator.runtime.platform())
         }
     }
 }

@@ -20,6 +20,9 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     case appNotFound(String)
     case missingFullHandle(displayName: String, specifier: String)
     case previewNotFound(displayName: String, specifier: String)
+    case noCompatibleAppBuild(destination: String)
+    case appBundleNotFoundInArchive
+    case deviceNotFound(String)
 
     var errorDescription: String? {
         switch self {
@@ -39,10 +42,17 @@ enum RunCommandServiceError: LocalizedError, Equatable {
             return "We couldn't run the preview \(displayName)@\(specifier) because the full handle is missing. Make sure to specify it in your \(Constants.tuistManifestFileName) file."
         case let .previewNotFound(displayName: displayName, specifier: specifier):
             return "We could not find a preview for \(displayName)@\(specifier). You can create one by running tuist share \(displayName)."
+        case let .noCompatibleAppBuild(destination):
+            return "No compatible app build found for destination: \(destination)"
+        case .appBundleNotFoundInArchive:
+            return "Could not find app bundle in the downloaded archive"
+        case let .deviceNotFound(device):
+            return "Device '\(device)' not found among available devices or simulators"
         }
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct RunCommandService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
@@ -52,10 +62,11 @@ struct RunCommandService {
     private let getPreviewService: GetPreviewServicing
     private let listPreviewsService: ListPreviewsServicing
     private let fileSystem: FileSysteming
-    private let appRunner: AppRunning
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let appBundleLoader: AppBundleLoading
     private let fileArchiverFactory: FileArchivingFactorying
+    private let deviceController: DeviceControlling
+    private let simulatorController: SimulatorControlling
 
     init() {
         self.init(
@@ -67,10 +78,11 @@ struct RunCommandService {
             getPreviewService: GetPreviewService(),
             listPreviewsService: ListPreviewsService(),
             fileSystem: FileSystem(),
-            appRunner: AppRunner(),
             remoteArtifactDownloader: RemoteArtifactDownloader(),
             appBundleLoader: AppBundleLoader(),
-            fileArchiverFactory: FileArchivingFactory()
+            fileArchiverFactory: FileArchivingFactory(),
+            deviceController: DeviceController(),
+            simulatorController: SimulatorController()
         )
     }
 
@@ -83,10 +95,11 @@ struct RunCommandService {
         getPreviewService: GetPreviewServicing,
         listPreviewsService: ListPreviewsServicing,
         fileSystem: FileSystem,
-        appRunner: AppRunning,
         remoteArtifactDownloader: RemoteArtifactDownloading,
         appBundleLoader: AppBundleLoading,
-        fileArchiverFactory: FileArchivingFactorying
+        fileArchiverFactory: FileArchivingFactorying,
+        deviceController: DeviceControlling,
+        simulatorController: SimulatorControlling
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
@@ -96,10 +109,11 @@ struct RunCommandService {
         self.getPreviewService = getPreviewService
         self.listPreviewsService = listPreviewsService
         self.fileSystem = fileSystem
-        self.appRunner = appRunner
         self.remoteArtifactDownloader = remoteArtifactDownloader
         self.appBundleLoader = appBundleLoader
         self.fileArchiverFactory = fileArchiverFactory
+        self.deviceController = deviceController
+        self.simulatorController = simulatorController
     }
 
     // swiftlint:disable:next function_body_length
@@ -183,21 +197,103 @@ struct RunCommandService {
     private func runPreviewLink(
         _ previewLink: URL,
         device: String?,
-        version: Version?
+        version _: Version?
     ) async throws {
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
               previewLink.pathComponents.count > 4 // We expect at least four path components
         else { throw RunCommandServiceError.invalidPreviewURL(previewLink.absoluteString) }
+        let preview = try await getPreviewService.getPreview(
+            previewLink.lastPathComponent,
+            fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
+            serverURL: serverURL
+        )
+        let devices = try await deviceController.findAvailableDevices()
+        let simulators = try await simulators(for: preview)
+        if let device {
+            if let device = devices.first(where: { $0.name == device }) {
+                try await runApp(
+                    on: .physical(device),
+                    preview: preview,
+                    previewLink: previewLink
+                )
+            } else if let simulator = simulators.first(where: { $0.device.name == device }) {
+                try await runApp(
+                    on: .simulator(simulator),
+                    preview: preview,
+                    previewLink: previewLink
+                )
+            } else {
+                throw RunCommandServiceError.deviceNotFound(device)
+            }
 
-        let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
-            let preview = try await getPreviewService.getPreview(
-                previewLink.lastPathComponent,
-                fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
-                serverURL: serverURL
+            return
+        }
+
+        let bootedSimulators = simulators.filter { !$0.device.isShutdown }
+        if bootedSimulators.count == 1, let bootedDevice = bootedSimulators.first {
+            try await runApp(
+                on: .simulator(bootedDevice),
+                preview: preview,
+                previewLink: previewLink
             )
-            return try await remoteArtifactDownloader.download(url: preview.url)
+        } else {
+            let destinationDevices: [DestinationDevice] = devices.map(DestinationDevice.physical) + simulators
+                .map(DestinationDevice.simulator)
+            let destination = Noora.current.singleChoicePrompt(
+                title: nil,
+                question: "Select a destination",
+                options: destinationDevices,
+                description: nil,
+                collapseOnSelection: true,
+                filterMode: .enabled,
+                autoselectSingleChoice: true
+            )
+            try await runApp(
+                on: destination,
+                preview: preview,
+                previewLink: previewLink
+            )
+        }
+    }
+
+    private func simulators(
+        for preview: Preview
+    ) async throws -> [SimulatorDeviceAndRuntime] {
+        try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
+            try preview.supportedPlatforms.contains { supportedPlatform in
+                switch supportedPlatform {
+                case .device:
+                    return false
+                case let .simulator(platform):
+                    return try deviceAndRuntime.runtime.platform() == platform
+                }
+            }
+        }
+        .sorted(by: {
+            if $0.device.isShutdown != $1.device.isShutdown {
+                if $0.device.isShutdown {
+                    return false
+                } else {
+                    return true
+                }
+            } else {
+                return $0.device.description < $1.device.description
+            }
+        })
+    }
+
+    private func appBundle(
+        for destination: DestinationType,
+        preview: Preview,
+        previewLink: URL
+    ) async throws -> AppBundle {
+        guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url else {
+            throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
+        }
+        let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
+            return try await remoteArtifactDownloader.download(url: url)
         }
         guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
@@ -205,18 +301,13 @@ struct RunCommandService {
 
         try await fileSystem.remove(archivePath)
 
-        let apps = try await
+        guard let appBundlePath = try await
             fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
             .collect()
-            .concurrentMap {
-                try await appBundleLoader.load($0)
-            }
-
-        try await appRunner.runApp(
-            apps,
-            version: version,
-            device: device
-        )
+            .first
+        else { throw RunCommandServiceError.appBundleNotFoundInArchive }
+        let appBundle = try await appBundleLoader.load(appBundlePath)
+        return appBundle
     }
 
     private func runScheme(
@@ -309,5 +400,91 @@ struct RunCommandService {
             deviceName: device,
             arguments: arguments
         )
+    }
+
+    private func runApp(
+        on destinationDevice: DestinationDevice,
+        preview: Preview,
+        previewLink: URL
+    ) async throws {
+        let destination: DestinationType
+        switch destinationDevice {
+        case let .physical(physicalDevice):
+            destination = .device(physicalDevice.platform)
+        case let .simulator(simulator):
+            destination = .simulator(try simulator.runtime.platform())
+        }
+        let appBundle = try await appBundle(
+            for: destination,
+            preview: preview,
+            previewLink: previewLink
+        )
+        switch destinationDevice {
+        case let .physical(physicalDevice):
+            try await runApp(
+                on: physicalDevice,
+                appBundle: appBundle
+            )
+        case let .simulator(simulatorDevice):
+            try await runApp(
+                on: simulatorDevice.device,
+                appBundle: appBundle
+            )
+        }
+    }
+
+    private func runApp(
+        on physicalDevice: PhysicalDevice,
+        appBundle: AppBundle
+    ) async throws {
+        try await Noora.current.progressStep(
+            message: "Installing \(appBundle.infoPlist.name) on \(physicalDevice.name)",
+            successMessage: "\(appBundle.infoPlist.name) was successfully launched 📲",
+            errorMessage: nil,
+            showSpinner: true
+        ) { updateProgress in
+            try await deviceController.installApp(at: appBundle.path, device: physicalDevice)
+            updateProgress("Launching \(appBundle.infoPlist.name) on \(physicalDevice.name)")
+            try await deviceController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: physicalDevice)
+        }
+    }
+
+    private func runApp(
+        on simulatorDevice: SimulatorDevice,
+        appBundle: AppBundle
+    ) async throws {
+        try await Noora.current.progressStep(
+            message: "Installing \(appBundle.infoPlist.name) on \(simulatorDevice.name)",
+            successMessage: "\(appBundle.infoPlist.name) was successfully launched 📲",
+            errorMessage: nil,
+            showSpinner: true
+        ) { updateProgress in
+            let device = try simulatorController.booted(device: simulatorDevice)
+            try simulatorController.installApp(at: appBundle.path, device: device)
+            updateProgress("Launching \(appBundle.infoPlist.name) on \(simulatorDevice.name)")
+            try await simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
+        }
+    }
+}
+
+enum DestinationDevice: Equatable {
+    case simulator(SimulatorDeviceAndRuntime)
+    case physical(PhysicalDevice)
+}
+
+extension DestinationDevice: CustomStringConvertible {
+    var description: String {
+        switch self {
+        case let .physical(physicalDevice):
+            return physicalDevice.name
+        case let .simulator(simulatorDevice):
+            let description =
+                "\(simulatorDevice.device.name), \((try? simulatorDevice.runtime.platform().caseValue) ?? "Unknown platform") \(simulatorDevice.runtime.version), \(simulatorDevice.device.udid)"
+            if simulatorDevice.device.isShutdown {
+                return description
+            } else {
+                return description + " (Booted)"
+            }
+        }
     }
 }

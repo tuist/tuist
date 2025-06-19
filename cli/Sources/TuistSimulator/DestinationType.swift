@@ -2,7 +2,7 @@ import Foundation
 import XcodeGraph
 
 /// Represents a destination type either for a simulator or a device with a given platform.
-public enum DestinationType: Codable, Equatable {
+public enum DestinationType: Codable, Equatable, CustomStringConvertible {
     case simulator(Platform)
     case device(Platform)
 
@@ -16,6 +16,13 @@ public enum DestinationType: Codable, Equatable {
             return "\(configuration)-\(platform.xcodeDeviceSDK)"
         case let .simulator(platform):
             return "\(configuration)-\(platform.xcodeSimulatorSDK!)"
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case let .device(platform), let .simulator(platform):
+            return platform.caseValue
         }
     }
 }

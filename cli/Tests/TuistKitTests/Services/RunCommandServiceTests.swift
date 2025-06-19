@@ -43,11 +43,12 @@ struct RunCommandServiceTests {
     private let getPreviewService = MockGetPreviewServicing()
     private let listPreviewsService = MockListPreviewsServicing()
     private let serverURLService = MockServerURLServicing()
-    private let appRunner = MockAppRunning()
     private let remoteArtifactDownloader = MockRemoteArtifactDownloading()
     private let appBundleLoader = MockAppBundleLoading()
     private let fileArchiverFactory = MockFileArchivingFactorying()
     private let fileSystem = FileSystem()
+    private let deviceController = MockDeviceControlling()
+    private let simulatorController = MockSimulatorControlling()
     private let subject: RunCommandService
 
     private struct TestError: Equatable, Error {}
@@ -55,6 +56,31 @@ struct RunCommandServiceTests {
         given(generatorFactory)
             .defaultGenerator(config: .any, includedTargets: .any)
             .willReturn(generator)
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn(
+                [.test()]
+            )
+        given(deviceController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+        given(deviceController)
+            .launchApp(bundleId: .any, device: .any)
+            .willReturn()
+        given(simulatorController)
+            .devicesAndRuntimes()
+            .willReturn(
+                [.test(device: .test(name: "iPhone 15 Pro"))]
+            )
+        given(simulatorController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+        given(simulatorController)
+            .launchApp(bundleId: .any, device: .any, arguments: .any)
+            .willReturn()
+        given(simulatorController)
+            .booted(device: .any)
+            .willProduce { $0 }
         subject = RunCommandService(
             generatorFactory: generatorFactory,
             buildGraphInspector: buildGraphInspector,
@@ -64,10 +90,11 @@ struct RunCommandServiceTests {
             getPreviewService: getPreviewService,
             listPreviewsService: listPreviewsService,
             fileSystem: FileSystem(),
-            appRunner: appRunner,
             remoteArtifactDownloader: remoteArtifactDownloader,
             appBundleLoader: appBundleLoader,
-            fileArchiverFactory: fileArchiverFactory
+            fileArchiverFactory: fileArchiverFactory,
+            deviceController: deviceController,
+            simulatorController: simulatorController
         )
     }
 
@@ -223,34 +250,36 @@ struct RunCommandServiceTests {
         )
     }
 
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-            temporaryDirectory in
-            // Given
-            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
-            given(generator)
-                .load(path: .any, options: .any)
-                .willReturn(.test())
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test())
-            given(buildGraphInspector)
-                .workspacePath(directory: .any)
-                .willReturn(workspacePath)
-            given(buildGraphInspector)
-                .runnableSchemes(graphTraverser: .any)
-                .willReturn([.test()])
-            given(buildGraphInspector)
-                .runnableTarget(scheme: .any, graphTraverser: .any)
-                .willReturn(.test())
-            targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in }
-            targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+        given(generator)
+            .load(path: .any, options: .any)
+            .willReturn(.test())
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(buildGraphInspector)
+            .workspacePath(directory: .any)
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .runnableSchemes(graphTraverser: .any)
+            .willReturn([.test()])
+        given(buildGraphInspector)
+            .runnableTarget(scheme: .any, graphTraverser: .any)
+            .willReturn(.test())
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in }
+        targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
-            // Then
-            await #expect(
-                throws: TestError.self
-            ) { try await subject.run() }
-        }
+        // Then
+        await #expect(
+            throws: TestError.self
+        ) { try await subject.run() }
     }
 
     @Test
@@ -275,11 +304,15 @@ struct RunCommandServiceTests {
             )
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "iPhone 15 Pro"
             )
         }
     }
 
+    @Test(
+        .withMockedDependencies()
+    )
     func test_run_share_link_when_version_is_invalid() async throws {
         // When / Then
         await #expect(
@@ -292,151 +325,140 @@ struct RunCommandServiceTests {
         }
     }
 
-    @Test
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func test_run_share_link_runs_app() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                given(getPreviewService)
-                    .getPreview(
-                        .any,
-                        fullHandle: .any,
-                        serverURL: .any
-                    )
-                    .willReturn(.test())
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test())
 
-                let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
-                given(remoteArtifactDownloader)
-                    .download(url: .any)
-                    .willReturn(downloadedArchive)
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
 
-                let fileUnarchiver = MockFileUnarchiving()
-                given(fileArchiverFactory)
-                    .makeFileUnarchiver(for: .any)
-                    .willReturn(fileUnarchiver)
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
 
-                let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
 
-                given(fileUnarchiver)
-                    .unzip()
-                    .willReturn(unarchivedPath)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
 
-                try await fileSystem.makeDirectory(at: unarchivedPath)
-                try await fileSystem.touch(unarchivedPath.appending(component: "App.app"))
+        try await fileSystem.makeDirectory(at: unarchivedPath.appending(component: "App.app"))
 
-                given(appRunner)
-                    .runApp(
-                        .any,
-                        version: .any,
-                        device: .any
-                    )
-                    .willReturn()
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
 
-                let appBundle: AppBundle = .test()
-                given(appBundleLoader)
-                    .load(.any)
-                    .willReturn(appBundle)
+        // When
+        try await subject.run(
+            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            device: "iPhone 15 Pro"
+        )
 
-                // When
-                try await subject.run(
-                    runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
-                )
-
-                // Then
-                verify(appRunner)
-                    .runApp(
-                        .value([appBundle]),
-                        version: .value(nil),
-                        device: .value(nil)
-                    )
-                    .called(1)
-            }
-        }
+        // Then
+        verify(simulatorController)
+            .launchApp(
+                bundleId: .value(appBundle.infoPlist.bundleId),
+                device: .value(.test(name: "iPhone 15 Pro")),
+                arguments: .any
+            )
+            .called(1)
     }
 
-    @Test
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func test_run_preview_with_specifier_runs_app() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                given(getPreviewService)
-                    .getPreview(
-                        .any,
-                        fullHandle: .any,
-                        serverURL: .any
-                    )
-                    .willReturn(.test())
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test())
 
-                let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
-                given(remoteArtifactDownloader)
-                    .download(url: .any)
-                    .willReturn(downloadedArchive)
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
 
-                let fileUnarchiver = MockFileUnarchiving()
-                given(fileArchiverFactory)
-                    .makeFileUnarchiver(for: .any)
-                    .willReturn(fileUnarchiver)
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
 
-                let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
 
-                given(fileUnarchiver)
-                    .unzip()
-                    .willReturn(unarchivedPath)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
 
-                try await fileSystem.makeDirectory(at: unarchivedPath)
-                try await fileSystem.touch(unarchivedPath.appending(component: "App.app"))
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+        try await fileSystem.touch(unarchivedPath.appending(component: "App.app"))
 
-                given(appRunner)
-                    .runApp(
-                        .any,
-                        version: .any,
-                        device: .any
-                    )
-                    .willReturn()
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
 
-                let appBundle: AppBundle = .test()
-                given(appBundleLoader)
-                    .load(.any)
-                    .willReturn(appBundle)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
 
-                given(configLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(.test(fullHandle: "tuist/tuist"))
+        given(deviceController)
+            .launchApp(bundleId: .any, device: .any)
+            .willReturn()
 
-                given(listPreviewsService)
-                    .listPreviews(
-                        displayName: .value("App"),
-                        specifier: .value("latest"),
-                        supportedPlatforms: .any,
-                        page: .value(1),
-                        pageSize: .value(1),
-                        distinctField: .any,
-                        fullHandle: .any,
-                        serverURL: .any
-                    )
-                    .willReturn(
-                        [
-                            .test(),
-                        ]
-                    )
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .value("App"),
+                specifier: .value("latest"),
+                supportedPlatforms: .any,
+                page: .value(1),
+                pageSize: .value(1),
+                distinctField: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(
+                [
+                    .test(),
+                ]
+            )
 
-                // When
-                try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest"))
+        // When
+        try await subject.run(
+            runnable: .specifier(displayName: "App", specifier: "latest"),
+            device: "iPhone 15 Pro"
+        )
 
-                // Then
-                verify(appRunner)
-                    .runApp(
-                        .value([appBundle]),
-                        version: .value(nil),
-                        device: .value(nil)
-                    )
-                    .called(1)
-            }
-        }
+        // Then
+        verify(simulatorController)
+            .launchApp(
+                bundleId: .value(appBundle.infoPlist.bundleId),
+                device: .value(.test(name: "iPhone 15 Pro")),
+                arguments: .any
+            )
+            .called(1)
     }
 
     @Test
@@ -483,133 +505,122 @@ struct RunCommandServiceTests {
         }
     }
 
-    @Test
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func test_run_share_link_runs_ipa() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                given(getPreviewService)
-                    .getPreview(
-                        .any,
-                        fullHandle: .any,
-                        serverURL: .any
-                    )
-                    .willReturn(.test())
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test())
 
-                let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
 
-                given(remoteArtifactDownloader)
-                    .download(url: .any)
-                    .willReturn(downloadedArchive)
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
 
-                let fileUnarchiver = MockFileUnarchiving()
-                given(fileArchiverFactory)
-                    .makeFileUnarchiver(for: .any)
-                    .willReturn(fileUnarchiver)
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
 
-                let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
 
-                given(fileUnarchiver)
-                    .unzip()
-                    .willReturn(unarchivedPath)
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
 
-                try await fileSystem.makeDirectory(at: unarchivedPath)
-                // The `.app` bundle is nested in an `Payload` directory in the `.ipa` archive
-                try await fileSystem.makeDirectory(
-                    at: unarchivedPath.appending(components: "Payload", "App.app")
-                )
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+        // The `.app` bundle is nested in an `Payload` directory in the `.ipa` archive
+        try await fileSystem.makeDirectory(
+            at: unarchivedPath.appending(components: "Payload", "App.app")
+        )
 
-                given(appRunner)
-                    .runApp(
-                        .any,
-                        version: .any,
-                        device: .any
-                    )
-                    .willReturn()
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
 
-                let appBundle: AppBundle = .test()
-                given(appBundleLoader)
-                    .load(.any)
-                    .willReturn(appBundle)
+        // When
+        try await subject.run(
+            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            device: "My iPhone"
+        )
 
-                // When
-                try await subject.run(
-                    runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
-                )
-
-                // Then
-                verify(appRunner)
-                    .runApp(
-                        .value([appBundle]),
-                        version: .value(nil),
-                        device: .value(nil)
-                    )
-                    .called(1)
-            }
-        }
+        // Then
+        verify(deviceController)
+            .launchApp(
+                bundleId: .value(appBundle.infoPlist.bundleId),
+                device: .value(.test(name: "My iPhone"))
+            )
+            .called(1)
     }
 
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func test_run_share_link_runs_with_destination_and_version() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-            temporaryDirectory in
-            // Given
-            given(getPreviewService)
-                .getPreview(
-                    .any,
-                    fullHandle: .any,
-                    serverURL: .any
-                )
-                .willReturn(.test())
-
-            let downloadedArchive = temporaryDirectory.appending(component: "archive")
-
-            given(remoteArtifactDownloader)
-                .download(url: .any)
-                .willReturn(downloadedArchive)
-
-            let fileUnarchiver = MockFileUnarchiving()
-            given(fileArchiverFactory)
-                .makeFileUnarchiver(for: .any)
-                .willReturn(fileUnarchiver)
-
-            let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
-
-            given(fileUnarchiver)
-                .unzip()
-                .willReturn(unarchivedPath)
-
-            try await fileSystem.touch(unarchivedPath.appending(component: "App.app"))
-
-            given(appRunner)
-                .runApp(
-                    .any,
-                    version: .any,
-                    device: .any
-                )
-                .willReturn()
-
-            let appBundle: AppBundle = .test()
-            given(appBundleLoader)
-                .load(.any)
-                .willReturn(appBundle)
-
-            // When
-            try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
-                osVersion: "18.0",
-                arguments: ["-destination", "iPhone 15 Pro"]
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
             )
+            .willReturn(.test())
 
-            // Then
-            verify(appRunner)
-                .runApp(
-                    .value([appBundle]),
-                    version: .value("18.0.0"),
-                    device: .value("iPhone 15 Pro")
-                )
-                .called(1)
-        }
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try await fileSystem.makeDirectory(at: unarchivedPath.appending(component: "App.app"))
+
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([])
+
+        // When
+        try await subject.run(
+            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            osVersion: "18.0",
+            arguments: ["-destination", "iPhone 15 Pro"]
+        )
+
+        // Then
+        verify(simulatorController)
+            .launchApp(
+                bundleId: .value(appBundle.infoPlist.bundleId),
+                device: .value(.test(name: "iPhone 15 Pro")),
+                arguments: .value([])
+            )
+            .called(1)
     }
 }
 

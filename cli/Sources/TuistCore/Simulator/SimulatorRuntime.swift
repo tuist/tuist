@@ -3,6 +3,17 @@ import Path
 import TuistSupport
 import XcodeGraph
 
+enum SimulatorRuntimeError: LocalizedError {
+    case invalidPlatformName(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidPlatformName(name):
+            return "Unable to extract platform name from simulator runtime name: \(name)"
+        }
+    }
+}
+
 /// It represents a runtime that is available in the system. The list of available runtimes is obtained
 /// using Xcode's simctl cli tool.
 public struct SimulatorRuntime: Equatable, Codable, Hashable, CustomStringConvertible {
@@ -27,12 +38,13 @@ public struct SimulatorRuntime: Equatable, Codable, Hashable, CustomStringConver
     /// Name of the runtime (e.g. iOS 13.5).
     public let name: String
 
-    public var platform: Platform? {
+    public func platform() throws -> Platform {
         // We pluck out the platform name from the name of the runtime (e.g. iOS 13.5)
-        guard let platformName = name.components(separatedBy: " ").first
-        else { return nil }
+        guard let platformName = name.components(separatedBy: " ").first,
+              let platform = Platform(commandLineValue: platformName)
+        else { throw SimulatorRuntimeError.invalidPlatformName(name) }
 
-        return Platform(commandLineValue: platformName)
+        return platform
     }
 
     public init(

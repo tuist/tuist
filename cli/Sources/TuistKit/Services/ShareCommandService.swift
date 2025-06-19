@@ -17,39 +17,21 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
     case multipleAppsSpecified([String])
     case platformsNotSpecified
     case fullHandleNotFound
-    case appBundleInIPANotFound(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
         case let .projectOrWorkspaceNotFound(path):
             return "Workspace or project not found at \(path)"
         case let .noAppsFound(app: app, configuration: configuration):
-            return
-                "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
+            return "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
         case .appNotSpecified:
-            return
-                "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
         case .platformsNotSpecified:
-            return
-                "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
+            return "If you're not using Tuist projects, you must specify the platforms when sharing an app, such as `tuist share App --platforms ios`."
         case let .multipleAppsSpecified(apps):
-            return
-                "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
+            return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return
-                "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
-        case let .appBundleInIPANotFound(ipaPath):
-            return
-                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .projectOrWorkspaceNotFound, .noAppsFound, .appNotSpecified, .platformsNotSpecified,
-             .multipleAppsSpecified,
-             .fullHandleNotFound, .appBundleInIPANotFound:
-            return .abort
+            return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         }
     }
 }
@@ -210,7 +192,7 @@ struct ShareCommandService {
             let platforms =
                 platforms.isEmpty ? appTarget.target.supportedPlatforms.map { $0 } : platforms
 
-            try await uploadPreviews(
+            try await uploadPreview(
                 for: platforms,
                 workspacePath: graph.workspace.xcWorkspacePath,
                 configuration: configuration,
@@ -239,7 +221,7 @@ struct ShareCommandService {
                 throw ShareCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
             }
 
-            try await uploadPreviews(
+            try await uploadPreview(
                 for: platforms,
                 workspacePath: workspaceOrProjectPath,
                 configuration: configuration,
@@ -274,23 +256,12 @@ struct ShareCommandService {
               let ipaPath = appPaths.first
         else { throw ShareCommandServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
 
-        guard let appBundlePath = try await fileSystem.glob(
-            directory: fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip(),
-            include: ["**/*.app"]
-        )
-        .collect()
-        .first
-        else { throw ShareCommandServiceError.appBundleInIPANotFound(ipaPath) }
-        let appBundle = try await appBundleLoader.load(appBundlePath)
+        let appBundle = try await appBundleLoader.load(ipa: ipaPath)
         let displayName = appBundle.infoPlist.name
 
-        try await uploadPreviews(
-            .ipa(ipaPath),
+        try await uploadPreview(
+            .ipa(appBundle),
             displayName: displayName,
-            version: appBundle.infoPlist.version.description,
-            bundleIdentifier: appBundle.infoPlist.bundleId,
-            icon: iconPaths(for: appBundle).first,
-            supportedPlatforms: appBundle.infoPlist.supportedPlatforms,
             path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -315,16 +286,9 @@ struct ShareCommandService {
               appPaths.allSatisfy({ $0.extension == "app" })
         else { throw ShareCommandServiceError.multipleAppsSpecified(appNames) }
 
-        try await uploadPreviews(
-            .appBundles(appPaths),
+        try await uploadPreview(
+            .appBundles(appBundles),
             displayName: appName,
-            version: appBundles.map(\.infoPlist.version.description).first,
-            bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
-            icon:
-            appBundles
-                .concurrentFlatMap { try await iconPaths(for: $0) }
-                .first,
-            supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
             path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
@@ -362,7 +326,7 @@ struct ShareCommandService {
         return newAppPath
     }
 
-    private func uploadPreviews(
+    private func uploadPreview(
         for platforms: [Platform],
         workspacePath: AbsolutePath,
         configuration: String,
@@ -407,16 +371,9 @@ struct ShareCommandService {
                 throw ShareCommandServiceError.noAppsFound(app: app, configuration: configuration)
             }
 
-            try await uploadPreviews(
-                .appBundles(appPaths),
+            try await uploadPreview(
+                .appBundles(appBundles),
                 displayName: app,
-                version: appBundles.first?.infoPlist.version.description,
-                bundleIdentifier: appBundles.first?.infoPlist.bundleId,
-                icon:
-                appBundles
-                    .concurrentFlatMap { try await iconPaths(for: $0) }
-                    .first,
-                supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
@@ -425,22 +382,9 @@ struct ShareCommandService {
         }
     }
 
-    private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
-        try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
-            // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
-            .map { appBundle.path.appending(component: $0 + "@2x.png") }
-            .concurrentFilter {
-                try await fileSystem.exists($0)
-            }
-    }
-
-    private func uploadPreviews(
+    private func uploadPreview(
         _ previewUploadType: PreviewUploadType,
         displayName: String,
-        version: String?,
-        bundleIdentifier: String?,
-        icon: AbsolutePath?,
-        supportedPlatforms: [DestinationType],
         path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
@@ -451,13 +395,8 @@ struct ShareCommandService {
             successMessage: "\(displayName) uploaded",
             errorMessage: "Failed to load manifests"
         ) { updateProgress in
-            try await previewsUploadService.uploadPreviews(
+            try await previewsUploadService.uploadPreview(
                 previewUploadType,
-                displayName: displayName,
-                version: version,
-                bundleIdentifier: bundleIdentifier,
-                icon: icon,
-                supportedPlatforms: supportedPlatforms,
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,

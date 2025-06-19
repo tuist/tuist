@@ -5,7 +5,7 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 
-@testable import TuistApp
+@testable import TuistMenuBar
 
 final class SimulatorRowViewModelTests: TuistUnitTestCase {
     private var subject: SimulatorRowViewModel!

@@ -1,4 +1,6 @@
 import Foundation
+import TuistSimulator
+import XcodeGraph
 
 public struct Preview: Equatable, Codable, Identifiable {
     public let id: String
@@ -9,6 +11,8 @@ public struct Preview: Equatable, Codable, Identifiable {
     public var displayName: String?
     public let gitCommitSHA: String?
     public let gitBranch: String?
+    public let appBuilds: [AppBuild]
+    public let supportedPlatforms: [DestinationType]
 }
 
 extension Preview {
@@ -25,6 +29,8 @@ extension Preview {
         displayName = preview.display_name
         gitCommitSHA = preview.git_commit_sha
         gitBranch = preview.git_branch
+        appBuilds = preview.builds.compactMap(AppBuild.init)
+        supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
     }
 }
 
@@ -38,12 +44,19 @@ extension Preview {
                 URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg")!,
             // swiftlint:disable:this force_try
             iconURL: URL =
-                URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png")!,
+                URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png")!,
             // swiftlint:disable:this force_try
             bundleIdentifier: String? = "com.tuist.app",
             displayName: String? = "App",
             gitCommitSHA: String? = nil,
-            gitBranch: String? = nil
+            gitBranch: String? = nil,
+            appBuilds: [AppBuild] = [
+                .test(),
+            ],
+            supportedPlatforms: [DestinationType] = [
+                .device(.iOS),
+                .simulator(.iOS),
+            ]
         ) -> Self {
             .init(
                 id: id,
@@ -53,7 +66,9 @@ extension Preview {
                 bundleIdentifier: bundleIdentifier,
                 displayName: displayName,
                 gitCommitSHA: gitCommitSHA,
-                gitBranch: gitBranch
+                gitBranch: gitBranch,
+                appBuilds: appBuilds,
+                supportedPlatforms: supportedPlatforms
             )
         }
     }
