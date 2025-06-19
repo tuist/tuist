@@ -286,8 +286,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
                 pbxproj.add(object: reference)
 
+                guard let root = try pbxproj.rootGroup() else { continue }
                 if let groupPath {
-                    guard let root = try pbxproj.rootGroup() else { continue }
                     let packagesGroup: PBXGroup?
                     if let existing = root.group(named: "Packages") {
                         packagesGroup = existing
@@ -307,11 +307,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
                     currentGroup?.children.append(reference)
                 } else {
-                    if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
+                    if let existingPackageGroup = root.group(named: "Packages") {
                         existingPackageGroup.children.append(reference)
                     } else {
-                        let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
-                        packageGroup?.first?.children.append(reference)
+                        let packageGroup = try root.addGroup(named: "Packages", options: .withoutFolder)
+                        packageGroup.first?.children.append(reference)
                     }
                 }
 
