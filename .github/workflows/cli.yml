@@ -1,4 +1,4 @@
-name: tuist
+name: cli
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - "cli/Tests/**"
       - "*.swift"
       - "Package.resolved"
-      - ".github/workflows/tuist.yml"
+      - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise.toml"
       - "cli/Fixtures/**"
@@ -25,12 +25,12 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
-  group: tuist-${{ github.head_ref }}
+  group: cli-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
+  cli-lint:
+    name: CLI Lint
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -41,8 +41,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -56,8 +56,8 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  spm_build:
-    name: SwiftPM Build
+  cli-spm-build:
+    name: CLI SwiftPM Build
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +68,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -83,7 +83,8 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  cache:
+  cli-cache:
+    name: CLI Cache
     runs-on: macos-15
     if: github.ref == 'refs/heads/main'
     steps:
@@ -95,8 +96,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -110,8 +111,8 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  unit_tests:
-    name: Unit tests
+  cli-unit-tests:
+    name: CLI Unit Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -122,8 +123,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -137,8 +138,8 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  automation_acceptance_tests:
-    name: Automation Acceptance Tests
+  cli-automation-acceptance-tests:
+    name: CLI Automation Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -149,8 +150,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -167,8 +168,9 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  dependencies_acceptance_tests:
-    name: Dependencies Acceptance Tests
+
+  cli-dependencies-acceptance-tests:
+    name: CLI Dependencies Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -179,8 +181,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -206,8 +208,9 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  generator_acceptance_tests:
-    name: Generator Acceptance Tests
+
+  cli-generator-acceptance-tests:
+    name: CLI Generator Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -218,8 +221,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -236,8 +239,9 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  kit_acceptance_tests:
-    name: Kit Acceptance Tests
+
+  cli-kit-acceptance-tests:
+    name: CLI Kit Acceptance Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -248,8 +252,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-tuist-
+          key: ${{ runner.os }}-cli-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
           version: 2025.1.5
@@ -260,111 +264,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistKitAcceptanceTests
         run: mise x -- tuist test TuistKitAcceptanceTests
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  app-build:
-    name: App Build
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
-      - uses: jdx/mise-action@v2
-        with:
-          version: 2025.1.5
-          experimental: true
-      - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
-      - name: Build TuistApp
-        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-      - name: Share TuistApp
-        if: env.TUIST_CONFIG_TOKEN != ''
-        run: mise x -- tuist share TuistApp
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  app-test:
-    name: App Test
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
-      - uses: jdx/mise-action@v2
-        with:
-          version: 2025.1.5
-          experimental: true
-      - name: Test TuistApp
-        run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-  app-device-build:
-    name: App Device Build
-    runs-on: macos-15
-    if: env.TUIST_CONFIG_TOKEN != ''
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-tuist-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
-      - name: Activate .env.json
-        run: cp .optional.env.json .env.json
-      - uses: jdx/mise-action@v2
-        with:
-          version: 2025.1.5
-          experimental: true
-      - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
-      - name: Bundle iOS app
-        run: mise run app:bundle-ios
-      - name: Inspect TuistApp
-        run: mise x -- tuist inspect bundle build/Tuist.ipa
-      - name: Share TuistApp
-        if: env.TUIST_CONFIG_TOKEN != ''
-        run: mise x -- tuist share build/Tuist.ipa
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

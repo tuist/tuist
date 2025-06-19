@@ -1,4 +1,4 @@
-name: Handbook
+name: handbook
 
 on:
   push:
@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  handbook-build:
+    name: Handbook Build
     runs-on: "ubuntu-latest"
     timeout-minutes: 15
     steps:

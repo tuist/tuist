@@ -12,6 +12,7 @@ on:
 
 jobs:
   lint-pr:
+    name: Lint PR
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

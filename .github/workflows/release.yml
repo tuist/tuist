@@ -1,4 +1,4 @@
-name: Release
+name: release
 
 on:
   push:
@@ -22,7 +22,7 @@ env:
   MISE_EXPERIMENTAL: "1"
 
 jobs:
-  release:
+  release-tuist-app:
     name: Release Tuist App
     runs-on: macos-15
     timeout-minutes: 50
