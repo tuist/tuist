@@ -12,7 +12,6 @@ on:
       - "Package.resolved"
       - ".github/workflows/tuist.yml"
       - "mise/tasks/cli/lint"
-      - "mise/tasks/cli/lint-fix"
       - "mise.toml"
       - "cli/Fixtures/**"
       - "Tuist/**"
