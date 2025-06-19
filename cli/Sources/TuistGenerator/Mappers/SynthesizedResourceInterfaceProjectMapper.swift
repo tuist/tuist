@@ -185,21 +185,14 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         case .plists:
             // Exclude binary plists from synthesized interface generation
             paths = paths.filter { path in
-                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path.pathString)) else { return false
-                }
-                if data.isEmpty { return true }
-
-                // specify xml as placeholder, overwritten by deserialization
-                var format = PropertyListSerialization.PropertyListFormat.xml
                 do {
-                    _ = try PropertyListSerialization.propertyList(
-                        from: data,
-                        options: [],
-                        format: &format
-                    )
-                    return format != .binary
+                    let fileHandle = try FileHandle(forReadingFrom: path.url)
+                    defer { try? fileHandle.close() }
+
+                    let bplistSignature = "bplist00"
+                    let signature = try fileHandle.read(upToCount: bplistSignature.count)
+                    return signature != Data(bplistSignature.utf8)
                 } catch {
-                    // exclude on parse failure
                     return false
                 }
             }
