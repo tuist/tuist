@@ -1,4 +1,5 @@
 #if canImport(TuistCore)
+    import Command
     import FileSystem
     import Foundation
     import Mockable
@@ -36,6 +37,7 @@
         private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
         private let uploadPreviewIconService: UploadPreviewIconServicing
         private let gitController: GitControlling
+        private let commandRunner: CommandRunning
 
         public init() {
             self.init(
@@ -49,7 +51,8 @@
                 multipartUploadCompletePreviewsService:
                 MultipartUploadCompletePreviewsService(),
                 uploadPreviewIconService: UploadPreviewIconService(),
-                gitController: GitController()
+                gitController: GitController(),
+                commandRunner: CommandRunner()
             )
         }
 
@@ -62,7 +65,8 @@
             multipartUploadArtifactService: MultipartUploadArtifactServicing,
             multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
             uploadPreviewIconService: UploadPreviewIconServicing,
-            gitController: GitControlling
+            gitController: GitControlling,
+            commandRunner: CommandRunning
         ) {
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -73,6 +77,7 @@
             self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
             self.uploadPreviewIconService = uploadPreviewIconService
             self.gitController = gitController
+            self.commandRunner = commandRunner
         }
 
         public func uploadPreview(
@@ -219,12 +224,16 @@
                     return []
                 }
 
-                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                let icons = try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
                     // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
                     .map { appPath.appending(component: $0 + "@2x.png") }
                     .concurrentFilter {
                         try await fileSystem.exists($0)
                     }
+                for icon in icons {
+                    try await revertiPhoneOptimizations(of: icon)
+                }
+                return icons
             }
         }
 
@@ -235,6 +244,20 @@
                 .concurrentFilter {
                     try await fileSystem.exists($0)
                 }
+        }
+
+        private func revertiPhoneOptimizations(
+            of image: AbsolutePath
+        ) async throws {
+            try await commandRunner
+                .run(arguments: [
+                    "/usr/bin/xcrun",
+                    "pngcrush",
+                    "-revert-iphone-optimizations",
+                    image.pathString,
+                    image.pathString,
+                ])
+                .awaitCompletion()
         }
     }
 #endif

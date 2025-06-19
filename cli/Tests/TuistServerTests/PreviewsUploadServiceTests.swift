@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -23,6 +24,7 @@ struct PreviewsUploadServiceTests {
         MockMultipartUploadCompletePreviewsServicing()
     private let uploadPreviewIconService = MockUploadPreviewIconServicing()
     private let gitController = MockGitControlling()
+    private let commandRunner = MockCommandRunning()
 
     private let serverURL: URL = .test()
     private let shareURL: URL = .test()
@@ -39,7 +41,8 @@ struct PreviewsUploadServiceTests {
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
             uploadPreviewIconService: uploadPreviewIconService,
-            gitController: gitController
+            gitController: gitController,
+            commandRunner: commandRunner
         )
 
         given(fileArchiverFactory)
@@ -310,6 +313,20 @@ struct PreviewsUploadServiceTests {
             given(uploadPreviewIconService)
                 .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
                 .willReturn()
+
+            given(commandRunner)
+                .run(
+                    arguments: .any,
+                    environment: .any,
+                    workingDirectory: .any
+                )
+                .willReturn(
+                    .init(
+                        unfolding: {
+                            nil
+                        }
+                    )
+                )
 
             // When
             let got = try await subject.uploadPreview(
