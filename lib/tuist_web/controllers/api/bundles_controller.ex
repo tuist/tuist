@@ -13,6 +13,7 @@ defmodule TuistWeb.API.BundlesController do
   alias TuistWeb.API.Schemas.BundleArtifact
   alias TuistWeb.API.Schemas.BundleSupportedPlatform
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.LoaderPlug)
@@ -104,9 +105,10 @@ defmodule TuistWeb.API.BundlesController do
       ]
     },
     responses: %{
-      ok: {"The bundle was created", "application/json", TuistWeb.API.Schemas.Bundle},
-      bad_request: {"An error occurred while updating the account.", "application/json", Error},
-      unauthorized: {"You need to be authenticated to update your account.", "application/json", Error}
+      ok: {"The bundle was created successfully", "application/json", TuistWeb.API.Schemas.Bundle},
+      bad_request: {"Validation errors occurred", "application/json", ValidationError},
+      unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
+      forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
 
   def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
@@ -120,36 +122,28 @@ defmodule TuistWeb.API.BundlesController do
         %AuthenticatedAccount{account: account} -> account.id
       end
 
-    case Bundles.create_bundle(%{
-           id: id,
-           project_id: selected_project.id,
-           app_bundle_id: bundle["app_bundle_id"],
-           name: bundle["name"],
-           install_size: bundle["install_size"],
-           download_size: bundle["download_size"],
-           supported_platforms: bundle["supported_platforms"],
-           version: bundle["version"],
-           artifacts: bundle["artifacts"],
-           git_branch: bundle["git_branch"],
-           git_commit_sha: bundle["git_commit_sha"],
-           git_ref: bundle["git_ref"],
-           uploaded_by_account_id: account_id
-         }) do
-      {:ok, %Bundle{} = bundle} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          id: bundle.id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
-        })
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        message =
-          changeset
-          |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
-          |> Enum.map_join(", ", fn {key, value} -> "#{Atom.to_string(key)} field #{value}" end)
-
-        conn |> put_status(:bad_request) |> json(%Error{message: message})
+    with {:ok, %Bundle{} = bundle} <-
+           Bundles.create_bundle(%{
+             id: id,
+             project_id: selected_project.id,
+             app_bundle_id: bundle["app_bundle_id"],
+             name: bundle["name"],
+             install_size: bundle["install_size"],
+             download_size: bundle["download_size"],
+             supported_platforms: bundle["supported_platforms"],
+             version: bundle["version"],
+             artifacts: bundle["artifacts"],
+             git_branch: bundle["git_branch"],
+             git_commit_sha: bundle["git_commit_sha"],
+             git_ref: bundle["git_ref"],
+             uploaded_by_account_id: account_id
+           }) do
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        id: bundle.id,
+        url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
+      })
     end
   end
 end

@@ -7,25 +7,13 @@ defmodule TuistWeb.API.AccountController do
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
   alias TuistWeb.API.Schemas.Account, as: AccountSchema
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.ValidationError
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
-
-  defmodule Error do
-    @moduledoc false
-    require OpenApiSpex
-
-    OpenApiSpex.schema(%{
-      type: :object,
-      properties: %{
-        message: %Schema{
-          type: :string
-        }
-      }
-    })
-  end
 
   tags ["Account"]
 
@@ -55,7 +43,7 @@ defmodule TuistWeb.API.AccountController do
        }},
     responses: %{
       ok: {"Account successfully updated", "application/json", AccountSchema},
-      bad_request: {"An error occurred while updating the account.", "application/json", Error},
+      bad_request: {"Validation errors occurred", "application/json", ValidationError},
       unauthorized: {"You need to be authenticated to update your account.", "application/json", Error},
       forbidden: {"You don't have permission to update this account.", "application/json", Error},
       not_found: {"An account with this handle was not found.", "application/json", Error}

@@ -56,7 +56,7 @@ defmodule TuistWeb.Controller do
     fields =
       Changeset.traverse_errors(changeset, fn {msg, opts} ->
         Enum.reduce(opts, msg, fn {key, value}, acc ->
-          String.replace(acc, "%{#{key}}", to_string(value))
+          String.replace(acc, "%{#{key}}", safe_to_string(value))
         end)
       end)
 
@@ -66,4 +66,10 @@ defmodule TuistWeb.Controller do
   defp format_error(reason) when is_binary(reason) do
     %{message: reason}
   end
+
+  defp safe_to_string(value) when is_binary(value), do: value
+  defp safe_to_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp safe_to_string(value) when is_integer(value), do: Integer.to_string(value)
+  defp safe_to_string(value) when is_float(value), do: Float.to_string(value)
+  defp safe_to_string(_value), do: "Unknown"
 end

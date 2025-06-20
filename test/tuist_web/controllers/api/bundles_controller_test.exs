@@ -116,8 +116,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
       response = json_response(conn, :bad_request)
 
       # Then
-      assert response["message"] ==
-               "supported_platforms field is invalid"
+      assert response["message"] == "There was an error handling your request."
+      assert response["fields"]["supported_platforms"] == ["is invalid"]
     end
 
     test "returns forbidden when user is not authorized to create a bundle", %{
