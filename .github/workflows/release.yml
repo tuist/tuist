@@ -1,4 +1,4 @@
-name: Release
+name: release
 
 on:
   push:
@@ -22,7 +22,7 @@ env:
   MISE_EXPERIMENTAL: "1"
 
 jobs:
-  release:
+  release-tuist-app:
     name: Release Tuist App
     runs-on: macos-15
     timeout-minutes: 50
@@ -89,15 +89,11 @@ jobs:
       - name: Select Xcode
         if: env.should-release == 'true'
         run: sudo xcode-select -switch /Applications/Xcode_16.3.app
-      - name: Install dependencies
-        if: env.should-release == 'true'
-        run: |
-          mise run install
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Bundle Tuist App
         if: env.should-release == 'true'
-        run: mise run bundle:app
+        run: mise run app:bundle
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -135,4 +131,4 @@ jobs:
             app/build/artifacts/SHASUMS512.txt
       - name: Release Homebrew cask
         if: env.should-release == 'true'
-        run: mise run workspace:release:homebrew-cask --version ${{ steps.semvers.outputs.version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+        run: mise run cli:release:homebrew-cask --version ${{ steps.semvers.outputs.version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}

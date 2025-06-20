@@ -1,4 +1,4 @@
-name: Handbook Deploy
+name: handbook-deploy
 on:
   push:
     branches:
@@ -9,8 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cloudflare:
-    name: Cloudflare
+  handbook-deploy:
+    name: Handbook Deploy
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

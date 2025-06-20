@@ -1,4 +1,4 @@
-name: docs
+name: Documentation
 on:
   push:
     branches:
@@ -10,7 +10,7 @@ on:
       - cli/Sources/**
       - Package.swift
       - Package.resolved
-      - mise/tasks/docs
+      - mise/tasks/docs/**
       - pnpm-lock.yaml
       - handbook/package.json
 
@@ -28,7 +28,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs:
+  docs-build-deploy:
+    name: Build & Deploy
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +41,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
+          restore-keys: ${{ runner.os }}-docs-
       - name: Activate .env.json
         if: github.ref == 'refs/heads/main'
         run: cp .optional.env.json .env.json

@@ -1,7 +1,5 @@
-#!/bin/bash
-# mise description="Lint the workspace"
+#!/usr/bin/env bash
 set -euo pipefail
 
-swiftformat cli/ app/ --lint
-swiftlint lint --quiet --config .swiftlint.yml cli/Sources
-tuist inspect implicit-imports
+# Lint all components of the project
+mise run cli:lint "$@"

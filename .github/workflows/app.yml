@@ -1,0 +1,136 @@
+name: App
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "app/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/app.yml"
+      - "mise.toml"
+      - "Tuist/**"
+
+permissions:
+  contents: read
+
+env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: app-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  app-build:
+    name: Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Build TuistApp
+        run: mise x -- tuist xcodebuild build -scheme TuistApp -destination "generic/platform=iOS Simulator" -workspace Tuist.xcworkspace CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: mise x -- tuist share TuistApp
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  app-test:
+    name: Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Test TuistApp
+        run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  app-device-build:
+    name: Device Build
+    runs-on: macos-15
+    if: env.TUIST_CONFIG_TOKEN != ''
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - name: Activate .env.json
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: cp .optional.env.json .env.json
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.1.5
+          experimental: true
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Bundle iOS app
+        run: mise run app:bundle-ios
+      - name: Inspect TuistApp
+        run: mise x -- tuist inspect bundle build/Tuist.ipa
+      - name: Share TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
+        run: mise x -- tuist share build/Tuist.ipa
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
