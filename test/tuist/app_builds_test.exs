@@ -417,6 +417,100 @@ defmodule Tuist.AppBuildsTest do
       # Then
       assert got == nil
     end
+
+    test "returns latest preview for specified git_branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Main App",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      preview_feature =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Feature App",
+          git_branch: "feature/test",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      # When
+      got = AppBuilds.latest_preview(project, git_branch: "feature/test")
+
+      # Then
+      assert got.id == preview_feature.id
+      assert got.git_branch == "feature/test"
+      assert got.display_name == "Feature App"
+    end
+
+    test "returns latest preview when git_branch matches default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_older =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Older App",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      preview_newer =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Newer App",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      # When
+      got = AppBuilds.latest_preview(project, git_branch: project.default_branch)
+
+      # Then
+      assert got.id == preview_newer.id
+      assert got.git_branch == "main"
+      assert got.display_name == "Newer App"
+    end
+
+    test "returns any preview when git_branch is nil" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Main App",
+          git_branch: "feature"
+        )
+
+      # When
+      got = AppBuilds.latest_preview(project, git_branch: nil)
+
+      # Then
+      assert got.id == preview.id
+    end
+
+    test "returns nil when no previews exist for specified git_branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "Main App",
+          git_branch: "main"
+        )
+
+      # When
+      got = AppBuilds.latest_preview(project, git_branch: "nonexistent-branch")
+
+      # Then
+      assert got == nil
+    end
   end
 
   describe "list_previews/1" do
@@ -622,6 +716,77 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert previews == []
+    end
+
+    test "returns previews from any branch when no previews exist on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_feature_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          git_branch: "feature/new-feature",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      _preview_develop_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-two",
+          display_name: "App Two",
+          git_branch: "develop",
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert length(previews) == 2
+    end
+
+    test "returns only previews from default branch when previews exist on default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_main_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      _preview_feature_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-two",
+          display_name: "App Two",
+          git_branch: "feature/new-feature",
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      _preview_main_branch_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-three",
+          display_name: "App Three",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 03:00:00Z]
+        )
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert length(previews) == 2
+      bundle_identifiers = previews |> Enum.map(& &1.bundle_identifier) |> Enum.sort()
+      assert bundle_identifiers == ["com.example.app-one", "com.example.app-three"]
+      git_branches = previews |> Enum.map(& &1.git_branch) |> Enum.uniq()
+      assert git_branches == ["main"]
     end
   end
 

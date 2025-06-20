@@ -95,13 +95,22 @@ defmodule Tuist.AppBuilds do
   Gets the latest previews with distinct bundle identifiers for a given project.
   """
   def latest_previews_with_distinct_bundle_ids(%Project{} = project) do
+    filters = [
+      %{field: :project_id, op: :==, value: project.id}
+    ]
+
+    filters =
+      if is_nil(latest_preview(project, git_branch: project.default_branch)) do
+        filters
+      else
+        filters ++ [%{field: :git_branch, op: :==, value: project.default_branch}]
+      end
+
     {previews, _meta} =
       list_previews(
         %{
           first: 20,
-          filters: [
-            %{field: :project_id, op: :==, value: project.id}
-          ],
+          filters: filters,
           order_by: [:inserted_at],
           order_directions: [:desc]
         },
@@ -160,13 +169,12 @@ defmodule Tuist.AppBuilds do
     end
   end
 
-  def latest_preview(%Project{} = project) do
+  def latest_preview(%Project{} = project, opts \\ []) do
+    git_branch = Keyword.get(opts, :git_branch, project.default_branch)
+
     Preview
-    |> where(
-      [p],
-      p.project_id == ^project.id and
-        p.git_branch == ^project.default_branch
-    )
+    |> where([p], p.project_id == ^project.id)
+    |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [p], p.git_branch == ^git_branch)))
     |> order_by(desc: :inserted_at)
     |> limit(1)
     |> Repo.one()
