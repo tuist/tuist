@@ -1,3 +1,8 @@
+## What's Changed in app@0.10.1
+* chore: change TuistApp product name in debug by @fortmarek in [#7716](https://github.com/tuist/tuist/pull/7716)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.10.0...app@0.10.1
+
 ## What's Changed in app@0.10.0
 * feat: optimize download of previews, support grouped previews by @fortmarek in [#7690](https://github.com/tuist/tuist/pull/7690)
 * feat: list previews in Tuist iOS app by @fortmarek in [#7586](https://github.com/tuist/tuist/pull/7586)
