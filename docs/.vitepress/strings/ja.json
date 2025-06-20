@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "機能"
+        },
         "develop": {
           "text": "開発",
           "items": {
@@ -335,22 +338,14 @@
             }
           }
         },
-        "automate": {
-          "text": "自動化",
-          "items": {
-            "continuous-integration": {
-              "text": "継続的インテグレーション"
-            },
-            "workflows": {
-              "text": "ワークフロー"
-            }
-          }
-        },
-        "ai": {
-          "text": "AI",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "モデルコンテキストプロトコル(MCP)"
+            },
+            "continuous-integration": {
+              "text": "継続的インテグレーション"
             }
           }
         },

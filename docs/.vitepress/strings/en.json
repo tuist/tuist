@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "Features"
+        },
         "develop": {
           "text": "Develop",
           "items": {
@@ -335,22 +338,14 @@
             }
           }
         },
-        "automate": {
-          "text": "Automate",
-          "items": {
-            "continuous-integration": {
-              "text": "Continuous integration"
-            },
-            "workflows": {
-              "text": "Workflows"
-            }
-          }
-        },
-        "ai": {
-          "text": "AI",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"
+            },
+            "continuous-integration": {
+              "text": "Continuous integration"
             }
           }
         },

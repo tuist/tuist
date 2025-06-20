@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "Возможности"
+        },
         "develop": {
           "text": "Разработка",
           "items": {
@@ -335,22 +338,14 @@
             }
           }
         },
-        "automate": {
-          "text": "Автоматизация",
-          "items": {
-            "continuous-integration": {
-              "text": "Непрерывная интеграция (CI)"
-            },
-            "workflows": {
-              "text": "Процессы"
-            }
-          }
-        },
-        "ai": {
-          "text": "ИИ",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "Протокол контекста модели (MCP)"
+            },
+            "continuous-integration": {
+              "text": "Непрерывная интеграция (CI)"
             }
           }
         },
