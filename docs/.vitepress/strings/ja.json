@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "機能"
+        },
         "develop": {
           "text": "開発",
           "items": {
@@ -341,8 +344,8 @@
             "continuous-integration": {
               "text": "継続的インテグレーション"
             },
-            "workflows": {
-              "text": "ワークフロー"
+            "environments": {
+              "text": "環境"
             }
           }
         },

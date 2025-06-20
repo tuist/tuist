@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "기능"
+        },
         "develop": {
           "text": "Develop",
           "items": {
@@ -341,8 +344,8 @@
             "continuous-integration": {
               "text": "Continuous integration"
             },
-            "workflows": {
-              "text": "Workflows"
+            "environments": {
+              "text": "환경"
             }
           }
         },

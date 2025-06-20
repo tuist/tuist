@@ -330,8 +330,11 @@ export default defineConfig({
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 /:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
 /:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
-/:locale/guides/develop/automate/continuous-integration /:locale/guides/automate/continuous-integration 301
-/:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
+/:locale/guides/develop/automate/continuous-integration /:locale/guides/environments/continuous-integration 301
+/:locale/guides/develop/automate/workflows /:locale/guides/environments/automate/continuous-integration 301
+/:locale/guides/automate/workflows /:locale/guides/environments/automate/continuous-integration 301
+/:locale/guides/automate/* /:locale/guides/environments/:splat 301
+/:locale/guides/develop/* /:locale/guides/features/:splat 301
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 /:locale/guides/develop/selective-testing/xcodebuild /:locale/guides/develop/selective-testing/xcode-project 301

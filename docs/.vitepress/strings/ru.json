@@ -204,6 +204,9 @@
             }
           }
         },
+        "features": {
+          "text": "Возможности"
+        },
         "develop": {
           "text": "Разработка",
           "items": {
@@ -341,8 +344,8 @@
             "continuous-integration": {
               "text": "Непрерывная интеграция (CI)"
             },
-            "workflows": {
-              "text": "Процессы"
+            "environments": {
+              "text": "Окружения"
             }
           }
         },
