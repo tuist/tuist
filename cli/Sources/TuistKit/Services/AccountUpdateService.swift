@@ -30,7 +30,7 @@ struct AccountUpdateService: AccountUpdateServicing {
     private let fileSystem: FileSysteming
     private let serverURLService: ServerURLServicing
     private let updateAccountService: UpdateAccountServicing
-    private let authTokenRefreshService: AuthTokenRefreshServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let serverSessionController: ServerSessionControlling
 
     // MARK: - Init
@@ -40,14 +40,14 @@ struct AccountUpdateService: AccountUpdateServicing {
         fileSystem: FileSysteming = FileSystem(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
-        authTokenRefreshService: AuthTokenRefreshServicing = AuthTokenRefreshService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         serverSessionController: ServerSessionControlling = ServerSessionController()
     ) {
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.serverURLService = serverURLService
         self.updateAccountService = updateAccountService
-        self.authTokenRefreshService = authTokenRefreshService
+        self.serverAuthenticationController = serverAuthenticationController
         self.serverSessionController = serverSessionController
     }
 
@@ -74,7 +74,9 @@ struct AccountUpdateService: AccountUpdateServicing {
             accountHandle: accountHandle,
             handle: handle
         )
-        try await authTokenRefreshService.refreshTokens(serverURL: serverURL)
+
+        // Force the refresh of the token
+        try await serverAuthenticationController.refreshToken(serverURL: serverURL)
 
         onEvent(.completed(handle: account.handle))
     }

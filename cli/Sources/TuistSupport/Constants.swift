@@ -62,8 +62,6 @@ public enum Constants {
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
         public static let token = "TUIST_CONFIG_TOKEN"
-        @available(*, deprecated, message: "Use `token` instead")
-        public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
     }
 
