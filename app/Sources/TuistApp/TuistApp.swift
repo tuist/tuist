@@ -1,4 +1,5 @@
 import SwiftUI
+import TuistOnboarding
 
 #if canImport(TuistMenuBar)
     import Sparkle
@@ -35,9 +36,15 @@ import SwiftUI
 
     @main
     struct TuistApp: App {
+        @StateObject private var authenticationService = AuthenticationService()
+        
         var body: some Scene {
             WindowGroup {
-                PreviewsView()
+                if authenticationService.isAuthenticated {
+                    PreviewsView()
+                } else {
+                    LogInView()
+                }
             }
         }
     }

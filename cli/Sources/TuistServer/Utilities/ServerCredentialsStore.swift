@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import KeychainAccess
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -101,10 +102,20 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
                 try await fileSystem.makeDirectory(at: path.parentDirectory)
             }
             try data.write(to: path.url, options: .atomic)
+        #else
+        if let refreshToken = credentials.refreshToken, let accessToken = credentials.accessToken {
+            try keychain(serverURL: serverURL)
+                .comment("Refresh token against \(serverURL.absoluteString)")
+                .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+            try keychain(serverURL: serverURL)
+                .comment("Refresh token against \(serverURL.absoluteString)")
+                .set(accessToken, key: serverURL.absoluteString + "_access_token")
+        }
         #endif
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
+#if canImport(TuistSupport)
         let path = try credentialsFilePath(serverURL: serverURL)
         guard try await fileSystem.exists(path) else { return nil }
         let data = try await fileSystem.readFile(at: path)
@@ -113,6 +124,15 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
         // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
         return try? JSONDecoder().decode(ServerCredentials.self, from: data)
+        #else
+        let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
+        let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
+        return ServerCredentials(
+            token: nil,
+            accessToken: accessToken,
+            refreshToken: refreshToken
+        )
+        #endif
     }
 
     public func get(serverURL: URL) async throws -> ServerCredentials {
@@ -146,5 +166,11 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         }
         // swiftlint:disable:next force_try
         return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
+    }
+    
+    fileprivate func keychain(serverURL: URL) -> Keychain {
+        Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
+            .synchronizable(false)
+            .label("\(serverURL.absoluteString)")
     }
 }

@@ -71,6 +71,7 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
+                .target(name: "TuistOnboarding", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -94,6 +95,17 @@ let project = Project(
             bundleId: "io.tuist.previews",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistPreviews/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+            ]
+        ),
+        .target(
+            name: "TuistOnboarding",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.onboarding",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistOnboarding/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
             ]

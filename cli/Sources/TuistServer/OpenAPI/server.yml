@@ -661,6 +661,33 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
       x-validate:
+    ValidationError:
+      properties:
+        fields:
+          additionalProperties:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          description: Field-specific validation errors
+          type: object
+          x-struct:
+          x-validate:
+        message:
+          description: The error message
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - message
+        - fields
+      title: ValidationError
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
+      x-validate:
     RunParams:
       description: Parameters to create a single run.
       oneOf:
@@ -1864,6 +1891,15 @@ components:
       in: cookie
       name: _tuist_cloud_key
       type: apiKey
+    oauth2:
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth/authorize
+          scopes:
+            read: Read access to resources
+            write: Write access to resources
+          tokenUrl: /oauth/token
+      type: oauth2
 info:
   title: Tuist
   version: 0.1.0
@@ -2661,19 +2697,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Bundle'
-          description: The bundle was created
+          description: The bundle was created successfully
         400:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: An error occurred while updating the account.
+                $ref: '#/components/schemas/ValidationError'
+          description: Validation errors occurred
         401:
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to update your account.
+          description: You need to be authenticated to create a bundle
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You are not authorized to create a bundle
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
@@ -5442,8 +5484,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: An error occurred while updating the account.
+                $ref: '#/components/schemas/ValidationError'
+          description: Validation errors occurred
         401:
           content:
             application/json:
