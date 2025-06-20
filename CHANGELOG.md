@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.54.3 - 2025-06-20
+
+### CLI
+
+#### Fixed
+
+- Refactor authentication token refresh logic and add cross-process synchronization [#7700](https://github.com/tuist/tuist/pull/7700) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.54.2 - 2025-06-20
 
 ### CLI
