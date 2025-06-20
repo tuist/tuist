@@ -88,8 +88,6 @@
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Preview {
             let gitInfo = try gitController.gitInfo(workingDirectory: path)
-            let gitCommitSHA = gitInfo.sha
-            let gitBranch = gitInfo.branch
 
             switch previewUploadType {
             case let .ipa(bundle):
@@ -101,8 +99,7 @@
                     bundleIdentifier: bundle.infoPlist.bundleId,
                     icon: iconPaths(for: previewUploadType).first,
                     supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                    gitBranch: gitBranch,
-                    gitCommitSHA: gitCommitSHA,
+                    gitInfo: gitInfo,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     updateProgress: updateProgress
@@ -127,8 +124,7 @@
                         bundleIdentifier: bundle.infoPlist.bundleId,
                         icon: iconPaths(for: bundle).first,
                         supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                        gitBranch: gitBranch,
-                        gitCommitSHA: gitCommitSHA,
+                        gitInfo: gitInfo,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         updateProgress: { progress in
@@ -149,8 +145,7 @@
             bundleIdentifier: String?,
             icon: AbsolutePath?,
             supportedPlatforms: [DestinationType],
-            gitBranch: String?,
-            gitCommitSHA: String?,
+            gitInfo: GitInfo,
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
@@ -165,8 +160,9 @@
                         version: version,
                         bundleIdentifier: bundleIdentifier,
                         supportedPlatforms: supportedPlatforms,
-                        gitBranch: gitBranch,
-                        gitCommitSHA: gitCommitSHA,
+                        gitBranch: gitInfo.branch,
+                        gitCommitSHA: gitInfo.sha,
+                        gitRef: gitInfo.ref,
                         fullHandle: fullHandle,
                         serverURL: serverURL
                     )

@@ -2365,6 +2365,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_ref:
+                  description: The git ref associated with the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
