@@ -338,8 +338,8 @@
             }
           }
         },
-        "automate": {
-          "text": "Автоматизация",
+        "environments": {
+          "text": "Окружения",
           "items": {
             "continuous-integration": {
               "text": "Непрерывная интеграция (CI)"

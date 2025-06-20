@@ -338,8 +338,8 @@
             }
           }
         },
-        "automate": {
-          "text": "Automate",
+        "environments": {
+          "text": "Environments",
           "items": {
             "continuous-integration": {
               "text": "Continuous integration"

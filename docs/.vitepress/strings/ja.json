@@ -338,8 +338,8 @@
             }
           }
         },
-        "automate": {
-          "text": "自動化",
+        "environments": {
+          "text": "環境",
           "items": {
             "continuous-integration": {
               "text": "継続的インテグレーション"

@@ -603,13 +603,13 @@ export function guidesSidebar(locale) {
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
-        "sidebars.guides.items.automate.text",
+        "sidebars.guides.items.environments.text",
       )} ${playIcon()}</span>`,
       items: [
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.automate.items.continuous-integration.text",
+            "sidebars.guides.items.environments.items.continuous-integration.text",
           ),
           link: `/${locale}/guides/environments/continuous-integration`,
         },
