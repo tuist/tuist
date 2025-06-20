@@ -88,7 +88,7 @@ jobs:
         run: git cliff --include-path "app/**/*" --repository "../" --bump -o CHANGELOG.md
       - name: Select Xcode
         if: env.should-release == 'true'
-        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Bundle Tuist App
