@@ -38,6 +38,7 @@ let project = Project(
             name: "TuistApp",
             destinations: [.mac, .iPhone],
             product: .app,
+            productName: "Tuist",
             bundleId: "io.tuist.app",
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
@@ -77,14 +78,10 @@ let project = Project(
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
                 ],
-                debug: [
-                    "PRODUCT_NAME": "TuistApp",
-                ],
                 release: [
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
-                    "PRODUCT_NAME": "Tuist",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist Ad hoc",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
