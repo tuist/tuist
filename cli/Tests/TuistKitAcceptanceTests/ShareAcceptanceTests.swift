@@ -2,13 +2,13 @@ import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Path
 import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
 import TuistSupport
 import TuistTesting
-import XCTest
 
 @testable import TuistKit
 
@@ -50,6 +50,31 @@ struct ShareAcceptanceTests {
         #expect(
             ui()
                 .contains("Launching App on \(simulator.name)") == true
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_app"),
+    )
+    func share_tuist_ipa() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let ipaPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.ipa"))
+
+        // When
+        try await TuistTest.run(
+            ShareCommand.self,
+            ["--path", fixtureDirectory.pathString, ipaPath.pathString]
+        )
+
+        // Then
+        #expect(
+            ui()
+                .contains("Share Tuist with others") == true
         )
     }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mise description="Lint the workspace using SwiftFormat, SwiftLint, and Tuist implicit imports analysis"
-# USAGE flag "--fix" help="Automatically fix linting issues where possible"
+#USAGE flag "-f --fix" help="Automatically fix linting issues where possible"
 
 set -euo pipefail
 
