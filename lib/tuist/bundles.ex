@@ -227,9 +227,11 @@ defmodule Tuist.Bundles do
         where(query, [b], b.inserted_at < ^DateTime.new!(inserted_before, ~T[00:00:00]))
       end
 
+    git_branch = Keyword.get(opts, :git_branch)
+
     last_bundle =
       query
-      |> where([b], b.git_branch == ^project.default_branch)
+      |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> Repo.one()
@@ -336,18 +338,21 @@ defmodule Tuist.Bundles do
   defp project_bundles_by_date(%Project{} = project, opts) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    git_branch = Keyword.get(opts, :git_branch)
     date_period = date_period(start_date: start_date, end_date: end_date)
+
     # Get all bundles for the project with date truncated to day
     query =
-      from b in Bundle,
-        where: b.project_id == ^project.id and b.git_branch == ^project.default_branch,
-        select: %{
-          id: b.id,
-          date: fragment("DATE(?) as date", b.inserted_at),
-          install_size: b.install_size,
-          download_size: b.download_size,
-          inserted_at: b.inserted_at
-        }
+      from(b in Bundle)
+      |> where([b], b.project_id == ^project.id)
+      |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
+      |> select([b], %{
+        id: b.id,
+        date: fragment("DATE(?) as date", b.inserted_at),
+        install_size: b.install_size,
+        download_size: b.download_size,
+        inserted_at: b.inserted_at
+      })
 
     query
     |> Repo.all()
@@ -407,6 +412,14 @@ defmodule Tuist.Bundles do
       (apps |> Enum.filter(&Enum.member?(&1.supported_platforms, :ios)) |> List.first() ||
          List.first(apps)).name
     end
+  end
+
+  def has_bundles_in_project_default_branch?(%Project{} = project) do
+    from(b in Bundle)
+    |> where([b], b.project_id == ^project.id)
+    |> where([b], b.git_branch == ^project.default_branch)
+    |> limit(1)
+    |> Repo.exists?()
   end
 
   defp flatten_artifacts(

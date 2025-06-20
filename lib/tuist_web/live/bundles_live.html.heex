@@ -37,6 +37,33 @@
             </.dropdown_item>
           <% end %>
         </.dropdown>
+        <.dropdown
+          :if={@show_branch_dropdown}
+          id="bundle-size-branch-dropdown"
+          label={
+            if @bundle_size_branch == "any",
+              do: gettext("Any"),
+              else: @selected_project.default_branch
+          }
+          secondary_text={gettext("Branch:")}
+        >
+          <.dropdown_item
+            value="default-branch"
+            label={@selected_project.default_branch}
+            patch={"?#{Query.put(@uri.query, "bundle-size-branch", @selected_project.default_branch)}"}
+            data-selected={@bundle_size_branch == "default-branch"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="any"
+            label={gettext("Any")}
+            patch={"?#{Query.put(@uri.query, "bundle-size-branch", "any")}"}
+            data-selected={@bundle_size_branch == "any"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.button_group size="large">
           <.button_group_item
             patch={"?#{Query.put(@uri.query, "bundle-size-date-range", "last-7-days")}"}

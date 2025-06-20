@@ -287,7 +287,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_date: Date.add(DateTime.utc_now(), -2),
+          git_branch: "main"
         )
 
       assert got == [
@@ -334,7 +335,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90)
+          start_date: Date.add(DateTime.utc_now(), -90),
+          git_branch: "main"
         )
 
       assert got == [
@@ -390,7 +392,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2)
+          start_date: Date.add(DateTime.utc_now(), -2),
+          git_branch: "main"
         )
 
       assert got == [
@@ -437,7 +440,8 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90)
+          start_date: Date.add(DateTime.utc_now(), -90),
+          git_branch: "main"
         )
 
       assert got == [
@@ -557,6 +561,51 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert result == "TvApp"
+    end
+  end
+
+  describe "has_bundles_in_project_default_branch?/1" do
+    test "returns true when there are bundles in the project's default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main"
+      )
+
+      # When
+      result = Bundles.has_bundles_in_project_default_branch?(project)
+
+      # Then
+      assert result == true
+    end
+
+    test "returns false when there are no bundles in the project's default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "feature/test"
+      )
+
+      # When
+      result = Bundles.has_bundles_in_project_default_branch?(project)
+
+      # Then
+      assert result == false
+    end
+
+    test "returns false when there are no bundles at all in the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Bundles.has_bundles_in_project_default_branch?(project)
+
+      # Then
+      assert result == false
     end
   end
 end

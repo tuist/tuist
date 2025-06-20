@@ -32,7 +32,8 @@ defmodule TuistWeb.BundlesLive do
               "bundles-sort-order",
               "bundle-size-app",
               "bundle-size-date-range",
-              "bundle-size-selected-widget"
+              "bundle-size-selected-widget",
+              "bundle-size-branch"
             ])
           )
       )
@@ -43,6 +44,12 @@ defmodule TuistWeb.BundlesLive do
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
     bundle_size_date_range = params["bundle-size-date-range"] || "last-30-days"
+
+    bundle_size_branch =
+      case params["bundle-size-branch"] do
+        "any" -> "any"
+        _ -> "default-branch"
+      end
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
@@ -61,18 +68,24 @@ defmodule TuistWeb.BundlesLive do
         :bundle_size_date_range,
         bundle_size_date_range
       )
+      |> assign(:bundle_size_branch, bundle_size_branch)
       |> assign(
         :bundle_size_last_bundle,
-        Bundles.last_project_bundle(project, name: bundle_size_selected_app)
+        Bundles.last_project_bundle(project,
+          name: bundle_size_selected_app,
+          git_branch: bundle_size_branch
+        )
       )
       |> assign(
         :bundle_size_previous_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          inserted_before: start_date(bundle_size_date_range)
+          inserted_before: start_date(bundle_size_date_range),
+          git_branch: bundle_size_branch
         )
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
+      |> assign(:show_branch_dropdown, Bundles.has_bundles_in_project_default_branch?(project))
       |> assign_bundle_size_analytics()
       |> assign_bundles(params)
     }
@@ -126,17 +139,26 @@ defmodule TuistWeb.BundlesLive do
            assigns: %{
              selected_project: project,
              bundle_size_date_range: bundle_size_date_range,
-             bundle_size_selected_widget: bundle_size_selected_widget
+             bundle_size_selected_widget: bundle_size_selected_widget,
+             bundle_size_branch: bundle_size_branch
            }
          } = socket
        ) do
+    git_branch =
+      cond do
+        bundle_size_branch == "any" -> nil
+        Bundles.has_bundles_in_project_default_branch?(project) -> project.default_branch
+        true -> nil
+      end
+
     bundle_size_analytics =
       case bundle_size_selected_widget do
         "download-size" ->
           project
           |> Bundles.bundle_download_size_analytics(
             project_id: project.id,
-            start_date: start_date(bundle_size_date_range)
+            start_date: start_date(bundle_size_date_range),
+            git_branch: git_branch
           )
           |> Enum.map(
             &[
@@ -149,7 +171,8 @@ defmodule TuistWeb.BundlesLive do
           project
           |> Bundles.project_bundle_install_size_analytics(
             project_id: project.id,
-            start_date: start_date(bundle_size_date_range)
+            start_date: start_date(bundle_size_date_range),
+            git_branch: git_branch
           )
           |> Enum.map(
             &[
