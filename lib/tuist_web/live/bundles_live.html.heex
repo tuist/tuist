@@ -90,7 +90,7 @@
             (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
                format_bytes(@bundle_size_last_bundle.download_size)) || gettext("0 MB")
           }
-          id="widget-bundle-size"
+          id="widget-download-size"
           patch={"?#{Query.put(@uri.query, "bundle-size-selected-widget", "download-size")}"}
           selected={@bundle_size_selected_widget == "download-size"}
           trend_value={
