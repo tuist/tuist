@@ -120,8 +120,8 @@ struct ServerAuthenticationControllerTests {
             let currentAccessToken = JWT.test(token: "access-token", expiryDate: date.addingTimeInterval(+60))
             let currentRefreshToken = JWT.test(token: "refresh-token", expiryDate: date.addingTimeInterval(+2000))
             given(credentialsStore).read(serverURL: .value(serverURL)).willReturn(.test(
-                accessToken: try ServerAuthenticationController.encodeJWT(currentAccessToken),
-                refreshToken: try ServerAuthenticationController.encodeJWT(currentRefreshToken)
+                accessToken: try currentAccessToken.encode(),
+                refreshToken: try currentRefreshToken.encode()
             ))
 
             // When
@@ -154,22 +154,22 @@ struct ServerAuthenticationControllerTests {
                 }
             ).willReturn(authenticationToken)
 
-            let currentAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            let currentAccessToken = try JWT.test(
                 token: "access-token",
                 expiryDate: date.addingTimeInterval(-100)
-            ))
-            let currentRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let currentRefreshToken = try JWT.test(
                 token: "refresh-token",
                 expiryDate: date.addingTimeInterval(+2000)
-            ))
-            let refreshedAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedAccessToken = try JWT.test(
                 token: "refreshed-access-token",
                 expiryDate: date.addingTimeInterval(+10)
-            ))
-            let refreshedRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedRefreshToken = try JWT.test(
                 token: "refreshed-refresh-token",
                 expiryDate: date.addingTimeInterval(+2010)
-            ))
+            ).encode()
             let refreshedServerCredentials = ServerCredentials.test(
                 accessToken: refreshedAccessToken,
                 refreshToken: refreshedRefreshToken
@@ -218,22 +218,22 @@ struct ServerAuthenticationControllerTests {
                 }
             ).willReturn(authenticationToken)
 
-            let currentAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            let currentAccessToken = try JWT.test(
                 token: "access-token",
                 expiryDate: date.addingTimeInterval(5)
-            ))
-            let currentRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let currentRefreshToken = try JWT.test(
                 token: "refresh-token",
                 expiryDate: date.addingTimeInterval(+2000)
-            ))
-            let refreshedAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedAccessToken = try JWT.test(
                 token: "refreshed-access-token",
                 expiryDate: date.addingTimeInterval(+10)
-            ))
-            let refreshedRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedRefreshToken = try JWT.test(
                 token: "refreshed-refresh-token",
                 expiryDate: date.addingTimeInterval(+2010)
-            ))
+            ).encode()
             let refreshedServerCredentials = ServerCredentials.test(
                 accessToken: refreshedAccessToken,
                 refreshToken: refreshedRefreshToken
@@ -282,22 +282,22 @@ struct ServerAuthenticationControllerTests {
                 }
             ).willReturn(authenticationToken)
 
-            let currentAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            let currentAccessToken = try JWT.test(
                 token: "access-token",
                 expiryDate: date.addingTimeInterval(60)
-            ))
-            let currentRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let currentRefreshToken = try JWT.test(
                 token: "refresh-token",
                 expiryDate: date.addingTimeInterval(+2000)
-            ))
-            let refreshedAccessToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedAccessToken = try JWT.test(
                 token: "refreshed-access-token",
                 expiryDate: date.addingTimeInterval(+10)
-            ))
-            let refreshedRefreshToken = try ServerAuthenticationController.encodeJWT(JWT.test(
+            ).encode()
+            let refreshedRefreshToken = try JWT.test(
                 token: "refreshed-refresh-token",
                 expiryDate: date.addingTimeInterval(+2010)
-            ))
+            ).encode()
             let refreshedServerCredentials = ServerCredentials.test(
                 accessToken: refreshedAccessToken,
                 refreshToken: refreshedRefreshToken

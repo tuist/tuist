@@ -7,7 +7,7 @@ import Mockable
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    @discardableResult func authenticationToken(serverURL: URL) async throws
+    func authenticationToken(serverURL: URL) async throws
         -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
 }
@@ -42,18 +42,6 @@ public enum AuthenticationToken: CustomStringConvertible, Equatable {
             return "tuist user token: \(value)"
         case let .project(token):
             return "tuist project token: \(token)"
-        }
-    }
-}
-
-enum ServerAuthenticationControllerError: LocalizedError {
-    case invalidJWT(String)
-
-    var errorDescription: String? {
-        switch self {
-        case let .invalidJWT(token):
-            return
-                "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
         }
     }
 }
@@ -165,13 +153,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                                 #endif
                                 upToDateToken = .user(
                                     legacyToken: nil,
-                                    accessToken: try Self.parseJWT(tokens.accessToken),
-                                    refreshToken: try Self.parseJWT(tokens.refreshToken)
+                                    accessToken: try JWT.parse(tokens.accessToken),
+                                    refreshToken: try JWT.parse(tokens.refreshToken)
                                 )
-                                expiresAt = try ServerAuthenticationController.parseJWT(
-                                    tokens.accessToken
-                                )
-                                .expiryDate
+                                expiresAt = try JWT.parse(tokens.accessToken)
+                                    .expiryDate
                             } else {
                                 upToDateToken = .user(
                                     legacyToken: nil, accessToken: accessToken,
@@ -195,8 +181,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if let refreshToken = $0.refreshToken {
                 return .user(
                     legacyToken: nil,
-                    accessToken: try $0.accessToken.map(Self.parseJWT),
-                    refreshToken: try Self.parseJWT(refreshToken)
+                    accessToken: try $0.accessToken.map(JWT.parse),
+                    refreshToken: try JWT.parse(refreshToken)
                 )
             } else {
                 #if canImport(TuistSupport)
@@ -241,88 +227,6 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     func isTuistDevURL(_ serverURL: URL) -> Bool {
         // URL fails if one of the URLs has a trailing slash and the other not.
         return serverURL.absoluteString.hasPrefix("https://tuist.dev")
-    }
-
-    static func parseJWT(_ jwt: String) throws -> JWT {
-        let components = jwt.components(separatedBy: ".")
-        guard components.count == 3
-        else {
-            throw ServerAuthenticationControllerError.invalidJWT(jwt)
-        }
-        let jwtEncodedPayload = components[1]
-        let remainder = jwtEncodedPayload.count % 4
-        let paddedJWTEncodedPayload: String
-        if remainder > 0 {
-            paddedJWTEncodedPayload = jwtEncodedPayload.padding(
-                toLength: jwtEncodedPayload.count + 4 - remainder,
-                withPad: "=",
-                startingAt: 0
-            )
-        } else {
-            paddedJWTEncodedPayload = jwtEncodedPayload
-        }
-        guard let data = Data(base64Encoded: paddedJWTEncodedPayload)
-        else {
-            throw ServerAuthenticationControllerError.invalidJWT(jwtEncodedPayload)
-        }
-        let jsonDecoder = JSONDecoder()
-        let payload = try jsonDecoder.decode(JWTPayload.self, from: data)
-
-        return JWT(
-            token: jwt,
-            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
-            email: payload.email,
-            preferredUsername: payload.preferred_username
-        )
-    }
-
-    static func encodeJWT(_ jwt: JWT) throws -> String {
-        // Create header (typically static for most JWTs)
-        let header = [
-            "alg": "HS256", // or whatever algorithm you're using
-            "typ": "JWT",
-        ]
-
-        // Create payload
-        let payload = JWTPayload(
-            exp: Int(jwt.expiryDate.timeIntervalSince1970),
-            email: jwt.email,
-            preferred_username: jwt.preferredUsername
-            // Add any other fields your JWTPayload has
-        )
-
-        // Encode header
-        let jsonEncoder = JSONEncoder()
-        let headerData = try jsonEncoder.encode(header)
-        let headerBase64 = headerData.base64EncodedString()
-            .replacingOccurrences(of: "=", with: "")
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-
-        // Encode payload
-        let payloadData = try jsonEncoder.encode(payload)
-        let payloadBase64 = payloadData.base64EncodedString()
-            .replacingOccurrences(of: "=", with: "")
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-
-        // For a complete JWT, you'd need to sign it with a secret key
-        // This is a simplified version that creates an unsigned token
-        let unsignedToken = "\(headerBase64).\(payloadBase64)"
-
-        // In a real implementation, you'd create a signature here
-        // let signature = createSignature(unsignedToken, secret: secretKey)
-        // return "\(unsignedToken).\(signature)"
-
-        // For now, returning unsigned token with empty signature
-        return "\(unsignedToken)."
-    }
-
-    private struct JWTPayload: Codable {
-        let exp: Int
-        let email: String?
-        // swiftlint:disable:next identifier_name
-        let preferred_username: String?
     }
 
     private func refreshTokens(
