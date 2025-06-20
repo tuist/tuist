@@ -5,7 +5,6 @@ import {
   guidesSidebar,
   contributorsSidebar,
   referencesSidebar,
-  serverSidebar,
   navBar,
 } from "./bars.mjs";
 import { cliSidebar } from "./data/cli";
@@ -16,7 +15,6 @@ async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
   sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
-  sidebar[`/${locale}/server/`] = serverSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
   sidebar[`/${locale}/`] = guidesSidebar(locale);
@@ -341,6 +339,14 @@ export default defineConfig({
 /:locale/guides/features/mcp /:locale/guides/integrations/mcp 301
 /:locale/guides/environments/continuous-integration /:locale/guides/integrations/continuous-integration 301
 /:locale/guides/environments/automate/continuous-integration /:locale/guides/integrations/continuous-integration 301
+/:locale/server/introduction/accounts-and-projects /:locale/guides/server/accounts-and-projects 301
+/:locale/server/introduction/authentication /:locale/guides/server/authentication 301
+/:locale/server/introduction/integrations /:locale/guides/integrations/gitforge/github 301
+/:locale/server/on-premise/install /:locale/guides/server/self-host/install 301
+/:locale/server/on-premise/metrics /:locale/guides/server/self-host/telemetry 301
+/:locale/guides/server/install /:locale/guides/server/self-host/install 301
+/:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
+/:locale/server /:locale/guides/server/accounts-and-projects 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
