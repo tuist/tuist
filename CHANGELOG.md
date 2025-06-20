@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.54.1 - 2025-06-20
+
+### CLI
+
+#### Fixed
+
+- Fix missing git ref when uploading preview [#7717](https://github.com/tuist/tuist/pull/7717) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.54.0 - 2025-06-19
 
 ### CLI
