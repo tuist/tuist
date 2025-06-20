@@ -96,7 +96,6 @@ jobs:
   app-device-build:
     name: Device Build
     runs-on: macos-15
-    if: env.TUIST_CONFIG_TOKEN != ''
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -122,8 +121,10 @@ jobs:
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: mise run app:bundle-ios
       - name: Inspect TuistApp
+        if: env.TUIST_CONFIG_TOKEN != ''
         run: mise x -- tuist inspect bundle build/Tuist.ipa
       - name: Share TuistApp
         if: env.TUIST_CONFIG_TOKEN != ''

@@ -2,7 +2,7 @@
 
 --symlinks ignore
 --exclude cli/Tests/XCTestManifests.swift,cli/Sources/TuistSupport/Vendored,cli/Sources/TuistAutomation/XcodeBuild/XcodeBuildController.swift
---exclude cli/Fixtures/tuist_plugin,cli/Sources/TuistServer/OpenAPI
+--exclude cli/Fixtures/tuist_plugin,cli/Sources/TuistServer/OpenAPI,app/build
 --exclude **/Derived
 --disable conditionalAssignment
 --disable hoistAwait
