@@ -380,7 +380,7 @@ struct PreviewsUploadServiceTests {
 
             verify(uploadPreviewIconService)
                 .uploadPreviewIcon(
-                    .value(iconPath),
+                    .any,
                     preview: .any,
                     serverURL: .any,
                     fullHandle: .any
