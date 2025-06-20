@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.54.2 - 2025-06-20
+
+### CLI
+
+#### Fixed
+
+- Fix Xcode version used for releasing the app [#7718](https://github.com/tuist/tuist/pull/7718) by [@fortmarek](https://github.com/fortmarek)
+- Fix app release by selecting Xcode version right after checkout [#7720](https://github.com/tuist/tuist/pull/7720) by [@fortmarek](https://github.com/fortmarek)
+- Fix uploading .ipa icon [#7719](https://github.com/tuist/tuist/pull/7719) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.54.1 - 2025-06-20
 
 ### CLI
