@@ -39,7 +39,8 @@ defmodule TuistWeb.PreviewsControllerTest do
           version: "1.0.0",
           bundle_identifier: "dev.tuist.app",
           git_branch: "main",
-          git_commit_sha: "commit-sha"
+          git_commit_sha: "commit-sha",
+          git_ref: "git-ref"
         )
 
       # Then
@@ -58,6 +59,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                :bundle_identifier,
                :git_branch,
                :git_commit_sha,
+               :git_ref,
                :created_by_account_id
              ]) == %{
                display_name: "name",
@@ -65,6 +67,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                bundle_identifier: "dev.tuist.app",
                git_branch: "main",
                git_commit_sha: "commit-sha",
+               git_ref: "git-ref",
                created_by_account_id: account.id
              }
     end

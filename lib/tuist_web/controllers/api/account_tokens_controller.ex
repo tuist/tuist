@@ -72,10 +72,11 @@ defmodule TuistWeb.API.AccountTokensController do
     current_user = Authentication.current_user(conn)
 
     with :ok <- Authorization.authorize(:account_token_create, current_user, selected_account),
-         {:ok, {_token_record, token}} <- Accounts.create_account_token(%{
-           account: selected_account,
-           scopes: Enum.map(scopes, &String.to_atom/1)
-         }) do
+         {:ok, {_token_record, token}} <-
+           Accounts.create_account_token(%{
+             account: selected_account,
+             scopes: Enum.map(scopes, &String.to_atom/1)
+           }) do
       json(conn, %{token: token})
     end
   end

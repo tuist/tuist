@@ -80,6 +80,10 @@ defmodule TuistWeb.API.PreviewsController do
            git_commit_sha: %Schema{
              type: :string,
              description: "The git commit SHA associated with the preview."
+           },
+           git_ref: %Schema{
+             type: :string,
+             description: "The git ref associated with the preview."
            }
          }
        }},
