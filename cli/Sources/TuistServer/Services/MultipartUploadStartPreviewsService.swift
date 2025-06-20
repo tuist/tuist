@@ -12,6 +12,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
         gitCommitSHA: String?,
+        gitRef: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> AppBuildUpload
@@ -56,6 +57,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         supportedPlatforms: [DestinationType],
         gitBranch: String?,
         gitCommitSHA: String?,
+        gitRef: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> AppBuildUpload {
@@ -81,6 +83,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                         display_name: displayName,
                         git_branch: gitBranch,
                         git_commit_sha: gitCommitSHA,
+                        git_ref: gitRef,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                         _type: type,
                         version: version

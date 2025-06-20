@@ -4976,6 +4976,10 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_commit_sha`.
                     internal var git_commit_sha: Swift.String?
+                    /// The git ref associated with the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_ref`.
+                    internal var git_ref: Swift.String?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -5002,6 +5006,7 @@ internal enum Operations {
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
                     ///   - git_commit_sha: The git commit SHA associated with the preview.
+                    ///   - git_ref: The git ref associated with the preview.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
@@ -5010,6 +5015,7 @@ internal enum Operations {
                         display_name: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
@@ -5018,6 +5024,7 @@ internal enum Operations {
                         self.display_name = display_name
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
                         self.supported_platforms = supported_platforms
                         self._type = _type
                         self.version = version
@@ -5027,6 +5034,7 @@ internal enum Operations {
                         case display_name
                         case git_branch
                         case git_commit_sha
+                        case git_ref
                         case supported_platforms
                         case _type = "type"
                         case version

@@ -93,6 +93,7 @@ struct PreviewsUploadServiceTests {
                 supportedPlatforms: .any,
                 gitBranch: .any,
                 gitCommitSHA: .any,
+                gitRef: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -161,6 +162,7 @@ struct PreviewsUploadServiceTests {
                     supportedPlatforms: .value([.simulator(.iOS)]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
+                    gitRef: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL)
                 )
@@ -204,6 +206,7 @@ struct PreviewsUploadServiceTests {
                     supportedPlatforms: .any,
                     gitBranch: .any,
                     gitCommitSHA: .any,
+                    gitRef: .any,
                     fullHandle: .any,
                     serverURL: .any
                 )
@@ -238,6 +241,7 @@ struct PreviewsUploadServiceTests {
                     supportedPlatforms: .any,
                     gitBranch: .any,
                     gitCommitSHA: .any,
+                    gitRef: .any,
                     fullHandle: .any,
                     serverURL: .any
                 )
@@ -280,17 +284,8 @@ struct PreviewsUploadServiceTests {
 
             gitController.reset()
             given(gitController)
-                .isInGitRepository(workingDirectory: .any)
-                .willReturn(true)
-            given(gitController)
-                .hasCurrentBranchCommits(workingDirectory: .any)
-                .willReturn(true)
-            given(gitController)
-                .currentCommitSHA(workingDirectory: .any)
-                .willReturn("commit-sha")
-            given(gitController)
                 .gitInfo(workingDirectory: .any)
-                .willReturn(.test(ref: nil, branch: "main", sha: "commit-sha"))
+                .willReturn(.test(ref: "git-ref", branch: "main", sha: "commit-sha"))
 
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!
@@ -377,6 +372,7 @@ struct PreviewsUploadServiceTests {
                     supportedPlatforms: .value([.device(.iOS)]),
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),
+                    gitRef: .value("git-ref"),
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL)
                 )
