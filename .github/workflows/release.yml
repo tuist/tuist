@@ -33,7 +33,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Select Xcode
-        if: env.should-release == 'true'
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Activate .env.json
         run: cp .optional.env.json .env.json
