@@ -39,7 +39,7 @@ msgstr ""
 msgid "$0.50"
 msgstr ""
 
-#: lib/tuist_web/components/previews/app_preview.ex:31
+#: lib/tuist_web/components/previews/app_preview.ex:25
 #: lib/tuist_web/live/preview_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"

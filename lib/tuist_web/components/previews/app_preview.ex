@@ -13,54 +13,54 @@ defmodule TuistWeb.Previews.AppPreview do
 
   def app_preview(assigns) do
     ~H"""
-    <.link
-      navigate={
-        ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}"
-      }
-      class="tuist-app-preview"
-    >
-      <div data-part="card">
-        <img
-          src={~p"/app/images/app-icon-placeholder.svg"}
-          data-image-src={
-            url(
-              ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
-            )
-          }
-          alt={
-            gettext("%{app_name} icon",
-              app_name: @preview.display_name
-            )
-          }
-          data-part="icon"
-          id={"tuist-app-preview-#{@preview.id}"}
-          phx-hook="ImageFallback"
-        />
-        <div data-part="metadata">
-          <%= if assigns[:app_name] do %>
-            <span data-part="title">{@app_name}</span>
-          <% else %>
-            <span data-part="title">
-              {@preview.display_name}
-            </span>
+    <div class="tuist-app-preview">
+      <img
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+          )
+        }
+        alt={
+          gettext("%{app_name} icon",
+            app_name: @preview.display_name
+          )
+        }
+        data-part="icon"
+        id={"tuist-app-preview-#{@preview.id}"}
+        phx-hook="ImageFallback"
+      />
+      <div data-part="metadata">
+        <%= if assigns[:app_name] do %>
+          <span data-part="title">{@app_name}</span>
+        <% else %>
+          <span data-part="title">
+            {@preview.display_name}
+          </span>
+        <% end %>
+        <div data-part="extra-metadata">
+          <%= for platform <- @preview.supported_platforms do %>
+            <.platform_badge platform={platform} />
           <% end %>
-          <div data-part="extra-metadata">
-            <%= for platform <- @preview.supported_platforms do %>
-              <.platform_badge platform={platform} />
-            <% end %>
-            <div data-part="time">
-              <div data-part="icon">
-                <.history />
-              </div>
-              <span data-part="label">
-                {Tuist.Utilities.DateFormatter.from_now(@preview.inserted_at)}
-              </span>
+          <div data-part="time">
+            <div data-part="icon">
+              <.history />
             </div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.from_now(@preview.inserted_at)}
+            </span>
           </div>
         </div>
-        <object><.run_button preview={@preview} user_agent={@user_agent} /></object>
       </div>
-    </.link>
+      <.run_button preview={@preview} user_agent={@user_agent} data-part="run-button" />
+      <.link
+        navigate={
+          ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}"
+        }
+        data-part="link"
+      >
+      </.link>
+    </div>
     """
   end
 end

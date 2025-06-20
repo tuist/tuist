@@ -7,6 +7,7 @@ defmodule TuistWeb.Previews.RunButton do
 
   attr :preview, :map, required: true
   attr :user_agent, :map, required: true
+  attr :rest, :global
 
   def run_button(assigns) do
     ~H"""
@@ -25,7 +26,7 @@ defmodule TuistWeb.Previews.RunButton do
            "open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{@preview.id}&full_handle=#{@preview.project.account.name}/#{@preview.project.name}"}
       end %>
     <%= if not is_nil(href) do %>
-      <.button icon_only variant="secondary" size="small" href={href}>
+      <.button icon_only variant="secondary" size="small" href={href} {@rest}>
         <.player_play />
       </.button>
     <% end %>
