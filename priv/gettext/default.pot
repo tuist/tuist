@@ -1616,11 +1616,6 @@ msgstr ""
 msgid "Or set up a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:172
-#, elixir-autogen, elixir-format
-msgid "Or share using CLI"
-msgstr ""
-
 #: lib/tuist_web/live/account_settings_live.html.heex:46
 #: lib/tuist_web/live/account_settings_live.html.heex:109
 #, elixir-autogen, elixir-format
@@ -4174,6 +4169,11 @@ msgstr ""
 #: lib/tuist_web/controllers/preview_controller.ex:119
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.html.heex:172
+#, elixir-autogen, elixir-format
+msgid "Or run using CLI"
 msgstr ""
 
 #: lib/tuist_web/live/bundles_live.html.heex:48
