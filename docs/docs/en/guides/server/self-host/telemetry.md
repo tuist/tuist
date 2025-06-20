@@ -1,10 +1,10 @@
 ---
-title: Metrics
-titleTemplate: :title | On-premise | Server | Tuist
-description: Optimize your build times by caching compiled binaries and sharing them across different environments.
+title: Telemetry
+titleTemplate: :title | Self-hosting | Server | Guides | Tuist
+description: Monitor your Tuist server with Prometheus and Grafana telemetry.
 ---
 
-# Metrics {#metrics}
+# Telemetry {#telemetry}
 
 You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
 

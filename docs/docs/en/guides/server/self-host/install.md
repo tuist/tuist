@@ -1,10 +1,10 @@
 ---
 title: Installation
-titleTemplate: :title | On-premise | Server | Tuist
+titleTemplate: :title | Self-hosting | Server | Guides | Tuist
 description: Learn how to install Tuist on your infrastructure.
 ---
 
-# On-premise installation {#onpremise-installation}
+# Self-host installation {#self-host-installation}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
@@ -72,7 +72,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
+| `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://tuist.dev |
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |

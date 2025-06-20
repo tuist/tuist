@@ -99,13 +99,6 @@ export function navBar(locale) {
       link: `/${locale}/cli/auth`,
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "navbar.server.text",
-      )} ${server04Icon()}</span>`,
-      link: `/${locale}/server/introduction/why-a-server`,
-    },
-    {
       text: localizedString(locale, "navbar.resources.text"),
       items: [
         {
@@ -128,6 +121,24 @@ export function navBar(locale) {
             "navbar.resources.items.changelog.text",
           ),
           link: "https://github.com/tuist/tuist/releases",
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.server.items.api-documentation.text",
+          ),
+          link: "https://tuist.dev/api/docs",
+        },
+        {
+          text: localizedString(locale, "sidebars.server.items.status.text"),
+          link: "https://status.tuist.io",
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.server.items.metrics-dashboard.text",
+          ),
+          link: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
         },
       ],
     },
@@ -192,87 +203,6 @@ export function contributorsSidebar(locale) {
   ];
 }
 
-export function serverSidebar(locale) {
-  return [
-    {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "sidebars.server.items.introduction.text",
-      )} ${server04Icon()}</span>`,
-      items: [
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.introduction.items.why-server.text",
-          ),
-          link: `/${locale}/server/introduction/why-a-server`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.introduction.items.accounts-and-projects.text",
-          ),
-          link: `/${locale}/server/introduction/accounts-and-projects`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.introduction.items.authentication.text",
-          ),
-          link: `/${locale}/server/introduction/authentication`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.introduction.items.integrations.text",
-          ),
-          link: `/${locale}/server/introduction/integrations`,
-        },
-      ],
-    },
-    {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "sidebars.server.items.on-premise.text",
-      )} ${building07Icon()}</span>`,
-      collapsed: true,
-      items: [
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.on-premise.items.install.text",
-          ),
-          link: `/${locale}/server/on-premise/install`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.server.items.on-premise.items.metrics.text",
-          ),
-          link: `/${locale}/server/on-premise/metrics`,
-        },
-      ],
-    },
-    {
-      text: localizedString(
-        locale,
-        "sidebars.server.items.api-documentation.text",
-      ),
-      link: "https://tuist.dev/api/docs",
-    },
-    {
-      text: localizedString(locale, "sidebars.server.items.status.text"),
-      link: "https://status.tuist.io",
-    },
-    {
-      text: localizedString(
-        locale,
-        "sidebars.server.items.metrics-dashboard.text",
-      ),
-      link: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
-    },
-  ];
-}
 
 export function guidesSidebar(locale) {
   return [
@@ -612,6 +542,47 @@ export function guidesSidebar(locale) {
             "sidebars.guides.items.integrations.items.continuous-integration.text",
           ),
           link: `/${locale}/guides/integrations/continuous-integration`,
+        },
+        {
+          text: "SSO",
+          link: `/${locale}/guides/integrations/sso`,
+        },
+        {
+          text: "Git forges",
+          collapsed: true,
+          items: [
+            {
+              text: "GitHub",
+              link: `/${locale}/guides/integrations/gitforge/github`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+      items: [
+        {
+          text: "Accounts and projects",
+          link: `/${locale}/guides/server/accounts-and-projects`,
+        },
+        {
+          text: "Authentication",
+          link: `/${locale}/guides/server/authentication`,
+        },
+        {
+          text: "Self-hosting",
+          collapsed: true,
+          items: [
+            {
+              text: "Installation",
+              link: `/${locale}/guides/server/self-host/install`,
+            },
+            {
+              text: "Telemetry",
+              link: `/${locale}/guides/server/self-host/telemetry`,
+            },
+          ],
         },
       ],
     },

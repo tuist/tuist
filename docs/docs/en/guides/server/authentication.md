@@ -1,6 +1,6 @@
 ---
 title: Authentication
-titleTemplate: :title | Introduction | Server | Tuist
+titleTemplate: :title | Server | Guides | Tuist
 description: Learn how to authenticate with the Tuist server from the CLI.
 ---
 
@@ -16,24 +16,9 @@ When using the CLI locally on your machine, we recommend authenticating as a use
 tuist auth login
 ```
 
-The command will take you through a web-based authentication flow. Once you authenticate, the CLI will store a long-lived refresh token and a short-lived access token under `~/.config/tuist/credentials`. Each file in the directory represents the domain you authenticated against, which by default should be `cloud.tuist.io.json`. The information stored in that directory is sensitive, so **make sure to keep it safe**.
+The command will take you through a web-based authentication flow. Once you authenticate, the CLI will store a long-lived refresh token and a short-lived access token under `~/.config/tuist/credentials`. Each file in the directory represents the domain you authenticated against, which by default should be `tuist.dev.json`. The information stored in that directory is sensitive, so **make sure to keep it safe**.
 
 The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
-
-### Organization SSO {#organization-sso}
-
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
-```bash
-tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
-```
-
-For on-premise customers that have Okta set up, you can get the same behavior as for Google by running:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
-
-> [!IMPORTANT]
-> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
 
 ## As a project {#as-a-project}
 
