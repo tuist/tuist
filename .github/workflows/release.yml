@@ -32,6 +32,9 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Select Xcode
+        if: env.should-release == 'true'
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Activate .env.json
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
@@ -86,9 +89,6 @@ jobs:
         working-directory: app
         if: env.should-release == 'true'
         run: git cliff --include-path "app/**/*" --repository "../" --bump -o CHANGELOG.md
-      - name: Select Xcode
-        if: env.should-release == 'true'
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Bundle Tuist App
