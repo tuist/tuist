@@ -8,6 +8,25 @@ import {
   codeBrowserIcon,
   star06Icon,
   playIcon,
+  cacheIcon,
+  testIcon,
+  registryIcon,
+  insightsIcon,
+  bundleSizeIcon,
+  previewsIcon,
+  projectsIcon,
+  mcpIcon,
+  ciIcon,
+  githubIcon,
+  ssoIcon,
+  accountsIcon,
+  authIcon,
+  installIcon,
+  telemetryIcon,
+  gitForgesIcon,
+  selfHostingIcon,
+  installTuistIcon,
+  getStartedIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -220,38 +239,38 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+      text: localizedString(
         locale,
         "sidebars.guides.items.quick-start.text",
-      )} ${tuistIcon()}</span>`,
+      ),
       items: [
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installTuistIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.quick-start.items.install-tuist.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/quick-start/install-tuist`,
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.quick-start.items.get-started.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/quick-start/get-started`,
         },
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+      text: localizedString(
         locale,
         "sidebars.guides.items.features.text",
-      )} ${cube02Icon()}</span>`,
+      ),
       items: [
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${projectsIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.generated-projects.text",
-          ),
+          )}</span>`,
           collapsed: true,
           link: `/${locale}/guides/features/projects`,
           items: [
@@ -425,17 +444,17 @@ export function guidesSidebar(locale) {
           ],
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.cache.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/cache`,
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.selective-testing.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/selective-testing`,
           collapsed: true,
           items: [
@@ -456,10 +475,10 @@ export function guidesSidebar(locale) {
           ],
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${registryIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.registry.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/registry`,
           collapsed: true,
           items: [
@@ -501,58 +520,58 @@ export function guidesSidebar(locale) {
           ],
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${insightsIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.insights.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/insights`,
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.bundle-size.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/bundle-size`,
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.share.items.previews.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/features/previews`,
         },
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+      text: localizedString(
         locale,
         "sidebars.guides.items.integrations.text",
-      )} ${playIcon()}</span>`,
+      ),
       items: [
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.integrations.items.mcp.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/integrations/mcp`,
         },
         {
-          text: localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ciIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.integrations.items.continuous-integration.text",
-          ),
+          )}</span>`,
           link: `/${locale}/guides/integrations/continuous-integration`,
         },
         {
-          text: "SSO",
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} SSO</span>`,
           link: `/${locale}/guides/integrations/sso`,
         },
         {
-          text: "Git forges",
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} Git forges</span>`,
           collapsed: true,
           items: [
             {
-              text: "GitHub",
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${githubIcon()} GitHub</span>`,
               link: `/${locale}/guides/integrations/gitforge/github`,
             },
           ],
@@ -560,26 +579,26 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+      text: "Server",
       items: [
         {
-          text: "Accounts and projects",
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${accountsIcon()} Accounts and projects</span>`,
           link: `/${locale}/guides/server/accounts-and-projects`,
         },
         {
-          text: "Authentication",
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} Authentication</span>`,
           link: `/${locale}/guides/server/authentication`,
         },
         {
-          text: "Self-hosting",
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} Self-hosting</span>`,
           collapsed: true,
           items: [
             {
-              text: "Installation",
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} Installation</span>`,
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
-              text: "Telemetry",
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} Telemetry</span>`,
               link: `/${locale}/guides/server/self-host/telemetry`,
             },
           ],

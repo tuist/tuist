@@ -346,6 +346,7 @@ export default defineConfig({
 /:locale/server/on-premise/metrics /:locale/guides/server/self-host/telemetry 301
 /:locale/guides/server/install /:locale/guides/server/self-host/install 301
 /:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
+/:locale/server /:locale/guides/server/accounts-and-projects 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
