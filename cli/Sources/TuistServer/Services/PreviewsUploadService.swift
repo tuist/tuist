@@ -220,16 +220,17 @@
                     return []
                 }
 
-                let icons = try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
                     // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
                     .map { appPath.appending(component: $0 + "@2x.png") }
                     .concurrentFilter {
                         try await fileSystem.exists($0)
                     }
-                for icon in icons {
-                    try await revertiPhoneOptimizations(of: icon)
-                }
-                return icons
+                    .concurrentMap { icon in
+                        let outputPath = appPath.appending(component: icon.basenameWithoutExt + "-reverted.png")
+                        try await revertiPhoneOptimizations(of: icon, to: outputPath)
+                        return outputPath
+                    }
             }
         }
 
@@ -243,7 +244,8 @@
         }
 
         private func revertiPhoneOptimizations(
-            of image: AbsolutePath
+            of image: AbsolutePath,
+            to outputPath: AbsolutePath
         ) async throws {
             try await commandRunner
                 .run(arguments: [
@@ -251,7 +253,7 @@
                     "pngcrush",
                     "-revert-iphone-optimizations",
                     image.pathString,
-                    image.pathString,
+                    outputPath.pathString,
                 ])
                 .awaitCompletion()
         }
