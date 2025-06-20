@@ -587,13 +587,6 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.ai.items.mcp.text",
-          ),
-          link: `/${locale}/guides/features/mcp`,
-        },
-        {
-          text: localizedString(
-            locale,
             "sidebars.guides.items.share.items.previews.text",
           ),
           link: `/${locale}/guides/features/previews`,
@@ -603,15 +596,22 @@ export function guidesSidebar(locale) {
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
-        "sidebars.guides.items.environments.text",
+        "sidebars.guides.items.integrations.text",
       )} ${playIcon()}</span>`,
       items: [
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.environments.items.continuous-integration.text",
+            "sidebars.guides.items.integrations.items.mcp.text",
           ),
-          link: `/${locale}/guides/environments/continuous-integration`,
+          link: `/${locale}/guides/integrations/mcp`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.continuous-integration.text",
+          ),
+          link: `/${locale}/guides/integrations/continuous-integration`,
         },
       ],
     },

@@ -338,22 +338,14 @@
             }
           }
         },
-        "environments": {
-          "text": "Environments",
-          "items": {
-            "continuous-integration": {
-              "text": "Continuous integration"
-            },
-            "environments": {
-              "text": "Environments"
-            }
-          }
-        },
-        "ai": {
-          "text": "AI",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"
+            },
+            "continuous-integration": {
+              "text": "Continuous integration"
             }
           }
         },

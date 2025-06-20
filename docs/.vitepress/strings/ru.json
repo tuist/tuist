@@ -338,22 +338,14 @@
             }
           }
         },
-        "environments": {
-          "text": "Окружения",
-          "items": {
-            "continuous-integration": {
-              "text": "Непрерывная интеграция (CI)"
-            },
-            "environments": {
-              "text": "Окружения"
-            }
-          }
-        },
-        "ai": {
-          "text": "ИИ",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "Протокол контекста модели (MCP)"
+            },
+            "continuous-integration": {
+              "text": "Непрерывная интеграция (CI)"
             }
           }
         },

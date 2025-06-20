@@ -338,22 +338,14 @@
             }
           }
         },
-        "environments": {
-          "text": "環境",
-          "items": {
-            "continuous-integration": {
-              "text": "継続的インテグレーション"
-            },
-            "environments": {
-              "text": "環境"
-            }
-          }
-        },
-        "ai": {
-          "text": "AI",
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "mcp": {
               "text": "モデルコンテキストプロトコル(MCP)"
+            },
+            "continuous-integration": {
+              "text": "継続的インテグレーション"
             }
           }
         },
