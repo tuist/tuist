@@ -76,7 +76,7 @@ struct AccountUpdateService: AccountUpdateServicing {
         )
 
         // Force the refresh of the token
-        try await serverAuthenticationController.authenticationToken(serverURL: serverURL, forceRefresh: true)
+        try await serverAuthenticationController.refreshToken(serverURL: serverURL)
 
         onEvent(.completed(handle: account.handle))
     }

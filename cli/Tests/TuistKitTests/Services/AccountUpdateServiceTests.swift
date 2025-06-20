@@ -41,11 +41,7 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).willReturn(.user(
-            legacyToken: nil,
-            accessToken: .test(token: "access-token"),
-            refreshToken: .test(token: "refresh-token")
-        ))
+        given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
     @Test func test_update_with_implicit_handle() async throws {
@@ -66,7 +62,7 @@ struct AccountUpdateServiceTests {
             handle: .value("newhandle")
         ).called(1)
 
-        verify(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).called(1)
+        given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
     @Test func test_update_with_explicit_handle() async throws {
@@ -86,6 +82,6 @@ struct AccountUpdateServiceTests {
         )
         .called(1)
 
-        verify(serverAuthenticationController).authenticationToken(serverURL: .any, forceRefresh: .value(true)).called(1)
+        given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 }

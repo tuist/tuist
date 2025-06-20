@@ -24,7 +24,7 @@ struct ServerClientAuthenticationMiddlewareTests {
         let response = HTTPResponse(
             status: 200
         )
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(url), forceRefresh: .value(false))
+        given(serverAuthenticationController).authenticationToken(serverURL: .value(url))
             .willReturn(nil)
 
         // When / Then
@@ -52,7 +52,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             accessToken: .test(token: "access-token"),
             refreshToken: .test(token: "refresh-token")
         )
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(url), forceRefresh: .value(false))
+        given(serverAuthenticationController).authenticationToken(serverURL: .value(url))
             .willReturn(token)
         var gotRequest: HTTPRequest!
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# mise description="Lint the workspace using SwiftFormat, SwiftLint, and Tuist implicit imports analysis"
-# USAGE flag "--fix" help="Automatically fix linting issues where possible"
+#MISE description="Lint the CLI"
+#USAGE flag "-f --fix" help="Automatically fix linting issues where possible"
 
-set -euo pipefail
+set -eo pipefail
 
-if [ "${usage_fix:-}" = "true" ]; then
-    # Fix mode: apply automatic fixes
+if [ "$usage_fix" = "true" ]; then    # Fix mode: apply automatic fixes
     swiftformat cli/ app/
     swiftlint lint --fix --quiet --config .swiftlint.yml cli/Sources
 else

@@ -94,7 +94,7 @@ struct RegistryLoginCommandServiceTests {
                 let mockEnvironment = try #require(Environment.mocked)
                 mockEnvironment.variables = ["CI": "1"]
                 given(serverAuthenticationController)
-                    .authenticationToken(serverURL: .any, forceRefresh: .value(false))
+                    .authenticationToken(serverURL: .any)
                     .willReturn(.project("project-token"))
                 given(swiftPackageManagerController)
                     .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
@@ -129,7 +129,7 @@ struct RegistryLoginCommandServiceTests {
             let mockEnvironment = try #require(Environment.mocked)
             mockEnvironment.variables = ["CI": "1"]
             given(serverAuthenticationController)
-                .authenticationToken(serverURL: .any, forceRefresh: .value(false))
+                .authenticationToken(serverURL: .any)
                 .willReturn(.project("project-token"))
             given(securityController)
                 .addInternetPassword(

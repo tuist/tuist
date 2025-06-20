@@ -104,6 +104,6 @@ actor CachedValueStore: CachedValueStoring {
 
         // Wait for the task to complete and return its value
         // swiftlint:disable:next force_unwrapping, force_cast
-        return try await tasks[key]?.value as? Value
+        return try await tasks[key]!.value as? Value
     }
 }

@@ -7,16 +7,9 @@ import Mockable
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    @discardableResult func authenticationToken(serverURL: URL, forceRefresh: Bool) async throws
+    @discardableResult func authenticationToken(serverURL: URL) async throws
         -> AuthenticationToken?
-}
-
-extension ServerAuthenticationControlling {
-    @discardableResult public func authenticationToken(serverURL: URL) async throws
-        -> AuthenticationToken?
-    {
-        return try await authenticationToken(serverURL: serverURL, forceRefresh: false)
-    }
+    func refreshToken(serverURL: URL) async throws
 }
 
 public enum AuthenticationToken: CustomStringConvertible, Equatable {
@@ -91,15 +84,16 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         self.refreshAuthTokenService = refreshAuthTokenService
     }
 
-    @discardableResult public func authenticationToken(serverURL: URL, forceRefresh: Bool)
+    @discardableResult public func authenticationToken(serverURL: URL)
         async throws -> AuthenticationToken?
     {
         #if canImport(TuistSupport)
             if Environment.current.isCI {
                 return try await ciAuthenticationToken()
             } else {
-                return try await cliManagedAuthenticationToken(
-                    serverURL: serverURL, forceRefresh: forceRefresh)
+                return try await cliManagedAuthenticationTokenRefreshingIfNeeded(
+                    serverURL: serverURL, forceRefresh: false
+                )
             }
         #else
             return .user(
@@ -115,85 +109,88 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         #endif
     }
 
-    private func cliManagedAuthenticationToken(serverURL: URL, forceRefresh: Bool) async throws
+    public func refreshToken(serverURL: URL) async throws {
+        try await cliManagedAuthenticationTokenRefreshingIfNeeded(serverURL: serverURL, forceRefresh: true)
+    }
+
+    @discardableResult private func cliManagedAuthenticationTokenRefreshingIfNeeded(
+        serverURL: URL,
+        forceRefresh: Bool
+    ) async throws
         -> AuthenticationToken?
     {
         return
             try await cachedValueStore
-            .getValue(key: "token_\(serverURL.absoluteString)") {
-                () -> (value: AuthenticationToken, expiresAt: Date?)? in
-                guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
-                    return nil
-                }
-
-                let upToDateToken: AuthenticationToken
-                var expiresAt: Date?
-
-                switch token {
-                case .project:
-                    upToDateToken = token
-                case let .user(
-                    legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
-                ):
-                    if legacyToken != nil {
-                        upToDateToken = token
-                    } else if let accessToken {
-                        // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
-                        let now = Date.now()
-                        let expiresIn = accessToken.expiryDate
-                            .timeIntervalSince(now)
-                        let refresh = expiresIn < 30 || forceRefresh
-
-                        #if canImport(TuistSupport)
-                            Logger.current.debug(
-                                "Access token expires in less than \(expiresIn) seconds. Renewing..."
-                            )
-                        #endif
-                        if refresh {
-                            guard let refreshToken else {
-                                throw ServerClientAuthenticationError.notAuthenticated
-                            }
-                            #if canImport(TuistSupport)
-                                Logger.current.debug("Refreshing access token for \(serverURL)")
-                            #endif
-                            let tokens = try await refreshTokens(
-                                serverURL: serverURL, refreshToken: refreshToken
-                            )
-                            #if canImport(TuistSupport)
-                                Logger.current.debug("Access token refreshed for \(serverURL)")
-                            #endif
-                            upToDateToken = .user(
-                                legacyToken: nil,
-                                accessToken: try Self.parseJWT(tokens.accessToken),
-                                refreshToken: try Self.parseJWT(tokens.refreshToken)
-                            )
-                            expiresAt = try ServerAuthenticationController.parseJWT(
-                                tokens.accessToken
-                            )
-                            .expiryDate
-                        } else {
-                            upToDateToken = .user(
-                                legacyToken: nil, accessToken: accessToken,
-                                refreshToken: refreshToken)
-                            expiresAt = accessToken.expiryDate
-                        }
-                    } else {
-                        throw ServerClientAuthenticationError.notAuthenticated
+                .getValue(key: "token_\(serverURL.absoluteString)") {
+                    () -> (value: AuthenticationToken, expiresAt: Date?)? in
+                    guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+                        return nil
                     }
+
+                    let upToDateToken: AuthenticationToken
+                    var expiresAt: Date?
+
+                    switch token {
+                    case .project:
+                        upToDateToken = token
+                    case let .user(
+                        legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
+                    ):
+                        if legacyToken != nil {
+                            upToDateToken = token
+                        } else if let accessToken {
+                            // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
+                            let now = Date.now()
+                            let expiresIn = accessToken.expiryDate
+                                .timeIntervalSince(now)
+                            let refresh = expiresIn < 30 || forceRefresh
+
+                            #if canImport(TuistSupport)
+                                Logger.current.debug(
+                                    "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                                )
+                            #endif
+                            if refresh {
+                                guard let refreshToken else {
+                                    throw ServerClientAuthenticationError.notAuthenticated
+                                }
+                                #if canImport(TuistSupport)
+                                    Logger.current.debug("Refreshing access token for \(serverURL)")
+                                #endif
+                                let tokens = try await refreshTokens(
+                                    serverURL: serverURL, refreshToken: refreshToken
+                                )
+                                #if canImport(TuistSupport)
+                                    Logger.current.debug("Access token refreshed for \(serverURL)")
+                                #endif
+                                upToDateToken = .user(
+                                    legacyToken: nil,
+                                    accessToken: try Self.parseJWT(tokens.accessToken),
+                                    refreshToken: try Self.parseJWT(tokens.refreshToken)
+                                )
+                                expiresAt = try ServerAuthenticationController.parseJWT(
+                                    tokens.accessToken
+                                )
+                                .expiryDate
+                            } else {
+                                upToDateToken = .user(
+                                    legacyToken: nil, accessToken: accessToken,
+                                    refreshToken: refreshToken
+                                )
+                                expiresAt = accessToken.expiryDate
+                            }
+                        } else {
+                            throw ServerClientAuthenticationError.notAuthenticated
+                        }
+                    }
+                    return (value: upToDateToken, expiresAt: expiresAt)
                 }
-                return (value: upToDateToken, expiresAt: expiresAt)
-            }
     }
 
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
         var credentials: ServerCredentials? = try await credentialsStore.read(
             serverURL: serverURL
         )
-        if isTuistDevURL(serverURL), credentials == nil {
-            credentials = try await credentialsStore.read(
-                serverURL: URL(string: "https://cloud.tuist.io")!
-            )
-        }
         return try credentials.map {
             if let refreshToken = $0.refreshToken {
                 return .user(
@@ -282,7 +279,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     static func encodeJWT(_ jwt: JWT) throws -> String {
         // Create header (typically static for most JWTs)
         let header = [
-            "alg": "HS256",  // or whatever algorithm you're using
+            "alg": "HS256", // or whatever algorithm you're using
             "typ": "JWT",
         ]
 
@@ -291,7 +288,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             exp: Int(jwt.expiryDate.timeIntervalSince1970),
             email: jwt.email,
             preferred_username: jwt.preferredUsername
-                // Add any other fields your JWTPayload has
+            // Add any other fields your JWTPayload has
         )
 
         // Encode header
