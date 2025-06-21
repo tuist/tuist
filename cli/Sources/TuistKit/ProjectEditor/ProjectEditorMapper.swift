@@ -317,7 +317,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
         let runAction = RunAction(
             configurationName: "Debug",
-            attachDebugger: true,
+            attachDebugger: false,
             customLLDBInitFile: nil,
             executable: nil,
             filePath: tuistPath,
