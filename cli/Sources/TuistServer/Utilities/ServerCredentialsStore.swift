@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import KeychainAccess
+import Combine
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -80,9 +81,14 @@ enum ServerCredentialsStoreError: LocalizedError {
     }
 }
 
-public struct ServerCredentialsStore: ServerCredentialsStoring {
+public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
     private let fileSystem: FileSysteming
     private let configDirectory: AbsolutePath?
+    private let credentialsChangedSubject = PassthroughSubject<ServerCredentials?, Never>()
+    
+    public var credentialsChanged: AnyPublisher<ServerCredentials?, Never> {
+        credentialsChangedSubject.eraseToAnyPublisher()
+    }
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
@@ -112,6 +118,8 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
                 .set(accessToken, key: serverURL.absoluteString + "_access_token")
         }
         #endif
+        
+        credentialsChangedSubject.send(credentials)
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
@@ -149,6 +157,8 @@ public struct ServerCredentialsStore: ServerCredentialsStoring {
         if try await fileSystem.exists(path) {
             try await fileSystem.remove(path)
         }
+        
+        credentialsChangedSubject.send(nil)
     }
 
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
