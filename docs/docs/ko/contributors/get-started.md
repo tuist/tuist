@@ -29,7 +29,7 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 - 개발 환경을 위해 Mise 를 [설치](https://mise.jdx.dev/getting-started.html) 합니다.
 - `mise install` 을 실행하여 Tuist에 필요한 시스템 종속성을 설치합니다.
 - `tuist install` 을 실행하여 Tuist에 필요한 외부 종속성을 설치합니다.
-- (선택 사항) `tuist auth login`을 실행하여 <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink>에 접근합니다.
+- (선택 사항) `tuist auth login`을 실행하여 <LocalizedLink href="/guides/features/build/cache">Tuist Cache</LocalizedLink>에 접근합니다.
 - `tuist generate` 를 실행하여 Tuist를 사용하는 Tuist Xcode  프로젝트를 생성합니다.
 
 **생성된 프로젝트는 자동으로 열립니다**. 프로젝트 생성 없이 프로젝트를 열려면, `open Tuist.xcworkspace` 를 실행하거나 Finder 를 사용합니다.
@@ -39,7 +39,7 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 ## 프로젝트 수정하기 {#edit-the-project}
 
-의존성을 추가하거나 타겟을 조정하는 것과 같이 프로젝트 수정이 필요한 경우, <LocalizedLink href="/guides/develop/projects/editing">`tuist edit` 명령어</LocalizedLink>를 사용할 수 있습니다. 거의 사용되지 않지만, 이런 명령어가 존재한다는 것을 알아두면 좋습니다.
+의존성을 추가하거나 타겟을 조정하는 것과 같이 프로젝트 수정이 필요한 경우, <LocalizedLink href="/guides/features/projects/editing">`tuist edit` 명령어</LocalizedLink>를 사용할 수 있습니다. 거의 사용되지 않지만, 이런 명령어가 존재한다는 것을 알아두면 좋습니다.
 
 ## Tuist 실행하기 {#run-tuist}
 

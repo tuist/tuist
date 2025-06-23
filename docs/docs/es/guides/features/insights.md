@@ -26,7 +26,7 @@ While you probably have some metrics for the performance of CI workflows, you mi
 
 To start tracking local build times, you can leverage the `tuist inspect build` command by adding it to your scheme's post-action:
 
-![Post-action for inspecting builds](/images/guides/develop/insights/inspect-build-scheme-post-action.png)
+![Post-action for inspecting builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to activate `tuist` in the post-action environment:
 
@@ -43,7 +43,7 @@ Your local builds are now tracked as long as you are logged in to your Tuist acc
 > [!TIP]
 > To quickly access the dashboard, run `tuist project show --web` from the CLI.
 
-![Dashboard with build insights](/images/guides/develop/insights/builds-dashboard.png)
+![Dashboard with build insights](/images/guides/features/insights/builds-dashboard.png)
 
 ## Projects {#projects}
 

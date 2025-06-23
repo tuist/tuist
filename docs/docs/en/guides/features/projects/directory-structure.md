@@ -27,12 +27,12 @@ Workspace.swift
 
 - **Tuist directory:** This directory has two purposes. First, it signals **where the root of the project is**. This allows constructing paths relative to the root of the project, and also running Tuist commands from any directory within the project. Second, it's the container for the following files:
   - **ProjectDescriptionHelpers:** This directory contains Swift code that's shared across all the manifest files. Manifest files can `import ProjectDescriptionHelpers` to use the code defined in this directory. Sharing code is useful to avoid duplications and ensure consistency across the projects.
-  - **Package.swift:** This file contains Swift Package dependencies for Tuist to integrate them using Xcode projects and targets (like [CocoaPods](https://cococapods)) that are configurable and optimizable. Learn more <LocalizedLink href="/guides/develop/projects/dependencies">here</LocalizedLink>.
+  - **Package.swift:** This file contains Swift Package dependencies for Tuist to integrate them using Xcode projects and targets (like [CocoaPods](https://cococapods)) that are configurable and optimizable. Learn more <LocalizedLink href="/guides/features/projects/dependencies">here</LocalizedLink>.
 
 - **Root directory**: The root directory of your project that also contains the `Tuist` directory.
-  - <LocalizedLink href="/guides/develop/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink> This file contains configuration for Tuist that's shared across all the projects, workspaces, and environments. For example, it can be used to disable automatic generation of schemes, or to define the deployment target of the projects.
-  - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> This manifest represents an Xcode workspace. It's used to group other projects and can also add additional files and schemes.
-  - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> This manifest represents an Xcode project. It's used to define the targets that are part of the project, and their dependencies.
+  - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink> This file contains configuration for Tuist that's shared across all the projects, workspaces, and environments. For example, it can be used to disable automatic generation of schemes, or to define the deployment target of the projects.
+  - <LocalizedLink href="/guides/features/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> This manifest represents an Xcode workspace. It's used to group other projects and can also add additional files and schemes.
+  - <LocalizedLink href="/guides/features/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> This manifest represents an Xcode project. It's used to define the targets that are part of the project, and their dependencies.
 
 When interacting with the above project, commands expect to find either a `Workspace.swift` or a `Project.swift` file in the working directory or the directory indicated via the `--path` flag. The manifest should be in a directory or subdirectory of a directory containing a `Tuist` directory, which represents the root of the project.
 
@@ -43,4 +43,4 @@ When interacting with the above project, commands expect to find either a `Works
 
 Tuist also supports SPM package projects. If you are working on an SPM package, you shouldn't need to update anything. Tuist automatically picks up on your root `Package.swift` and all the features of Tuist work as if it was a `Project.swift` manifest.
 
-To get started, run `tuist install` and `tuist generate` in your SPM package. Your project should now have all the same schemes and files that you would see in the vanilla Xcode SPM integration. However, now you can also run <LocalizedLink href="/guides/develop/build/cache">`tuist cache`</LocalizedLink> and have majority of your SPM dependencies and modules precompiled, making subsequent builds extremely fast.
+To get started, run `tuist install` and `tuist generate` in your SPM package. Your project should now have all the same schemes and files that you would see in the vanilla Xcode SPM integration. However, now you can also run <LocalizedLink href="/guides/features/build/cache">`tuist cache`</LocalizedLink> and have majority of your SPM dependencies and modules precompiled, making subsequent builds extremely fast.

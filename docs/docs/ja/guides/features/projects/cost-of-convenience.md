@@ -56,7 +56,7 @@ it might manifest as failing builds that are hard to debug when the project grow
 The consequence of this design decision is that many projects acidentally compile with a graph that is not well-defined.
 
 > [!TIP] TUIST DETECTION OF IMPLICIT DEPENDENCIES
-> Tuist provides a <LocalizedLink href="/guides/develop/inspect/implicit-dependencies">command</LocalizedLink> to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
+> Tuist provides a <LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink> to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
 
 ### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
 

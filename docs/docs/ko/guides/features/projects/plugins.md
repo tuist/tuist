@@ -8,10 +8,10 @@ description: Tuist에서 Plugin을 생성하고 사용하여 기능을 확장하
 
 Plugin은 여러 프로젝트에서 Tuist 아티팩트를 공유하고 재사용할 수 있는 도구입니다. 지원되는 아티팩트는 다음과 같습니다:
 
-- <LocalizedLink href="/guides/develop/projects/code-sharing">Project description helpers</LocalizedLink>를 여러 프로젝트에서 사용.
-- <LocalizedLink href="/guides/develop/projects/templates"> Templates</LocalizedLink>을 여러 프로젝트에서 사용.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Project description helpers</LocalizedLink>를 여러 프로젝트에서 사용.
+- <LocalizedLink href="/guides/features/projects/templates"> Templates</LocalizedLink>을 여러 프로젝트에서 사용.
 - Tasks를 여러 프로젝트에서 사용.
-- <LocalizedLink href="/guides/develop/projects/synthesized-files">Resource accessor</LocalizedLink> 템플릿을 여러 프로젝트에서 사용.
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource accessor</LocalizedLink> 템플릿을 여러 프로젝트에서 사용.
 
 Plugin은 Tuist의 기능을 확장하기 위한 간단한 방법으로 설계되었습니다. 따라서 고려해야 할 **몇 가지 제한 사항이 있습니다.**
 
@@ -47,7 +47,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Resource accessor templates plugin {#resource-accessor-templates-plugin}
 
-<LocalizedLink href="/guides/develop/projects/synthesized-files#resource-accessors">synthesized Resource accessor</LocalizedLink>를 공유해야 하는 경우, 이 유형의 plugin을 사용할 수 있습니다. 이 plugin은 plugin의 이름을 선언하는 `Plugin.swift` 매니페스트 파일이 포함된 디렉토리와 resource accessor 템플릿 파일이 포함된 `ResourceSynthesizer` 디렉토리로 표시됩니다.
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized Resource accessor</LocalizedLink>를 공유해야 하는 경우, 이 유형의 plugin을 사용할 수 있습니다. 이 plugin은 plugin의 이름을 선언하는 `Plugin.swift` 매니페스트 파일이 포함된 디렉토리와 resource accessor 템플릿 파일이 포함된 `ResourceSynthesizer` 디렉토리로 표시됩니다.
 
 ::: code-group
 

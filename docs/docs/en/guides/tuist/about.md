@@ -26,13 +26,13 @@ Why choose Tuist? Here are compelling reasons:
 
 As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ### Optimize workflows 🚀 {#optimize-workflows}
 
 Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds.
 
-**Further reading:** <LocalizedLink href="/guides/develop/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/develop/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/share/previews">Previews</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink>
 
 ### Foster healthy project evolution 📈 {#foster-healthy-project-evolution}
 
@@ -43,7 +43,7 @@ We provide insights into your project's dynamics and expert guidance for informe
 ### Break down silos 💜 {#break-down-silos}
 Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ---
 

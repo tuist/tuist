@@ -125,7 +125,7 @@ Tuist 프로젝트에서 환경 간 Tuist 버전을 고정하려면 `mise use -p
 
 ## 인증 {#authentication}
 
-<LocalizedLink href="/guides/develop/build/cache">cache</LocalizedLink>와 같은 server-side 기능을 사용할 때, CI 워크플로우에서 서버로 가는 요청을 인증할 방법이 필요합니다. 이를 위해, 다음 명령어를 실행하여 프로젝트 범위의 토큰을 생성할 수 있습니다.
+<LocalizedLink href="/guides/features/build/cache">cache</LocalizedLink>와 같은 server-side 기능을 사용할 때, CI 워크플로우에서 서버로 가는 요청을 인증할 방법이 필요합니다. 이를 위해, 다음 명령어를 실행하여 프로젝트 범위의 토큰을 생성할 수 있습니다.
 
 ```bash
 tuist project tokens create my-handle/MyApp

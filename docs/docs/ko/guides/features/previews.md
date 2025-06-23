@@ -61,10 +61,10 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA�
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
-    
-    
+
+
     <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
-    <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
 Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Preview를 실행하는 대신, macOS 앱을 [다운로드](https://tuist.dev/download)하여 사용할 수 있습니다. `brew install --cask tuist/tuist/tuist` 명령어를 실행하여 설치할 수도 있습니다.
@@ -85,7 +85,7 @@ Preview 페이지에서 "Run"을 클릭하면, macOS 앱이 현재 선택된 디
 새로운 기능에 대한 테스트는 모든 코드 리뷰에서 필수 과정이어야 합니다. 그러나 앱을 로컬에서 빌드하는 과정은 번거로워 개발자들이 실기기에서 기능을 전혀 테스트하지 않게 되는 경우가 많습니다. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 
 [GitHub](https://github.com)와 같은 Git 플랫폼에 Tuist 프로젝트를 연결한 후, CI workflow에 <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>을 추가하세요. 이후 Tuist는 Pull request에 Preview 링크를 직접 게시합니다:
-![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+![GitHub app comment with a Tuist Preview link](/images/guides/features/github-app-with-preview.png)
 
 ## README 배지 {#readme-badge}
 

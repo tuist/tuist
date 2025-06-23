@@ -26,7 +26,7 @@ CI 워크플로우의 성능에 대한 지표는 가지고 있을 수 있지만,
 
 로컬 빌드 시간을 추적하려면 `tuist inspect build` 명령어를 스킴의 후속 작업으로 추가하여 활용할 수 있습니다:
 
-![빌드 검사용 후속 작업](/images/guides/develop/insights/inspect-build-scheme-post-action.png)
+![빌드 검사용 후속 작업](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 [Mise](https://mise.jdx.dev/)를 사용하는 경우에, 후속 작업 환경에 `tuist`를 활성화하도록 스크립트를 설정해야 합니다:
 
@@ -43,7 +43,7 @@ tuist inspect build
 > [!TIP]\
 > 대시보드에 빠르게 접근하려면, CLI에서 `tuist project show-web` 명령어를 수행하세요.
 
-![빌드 인사이트 대시보드](/images/guides/develop/insights/builds-dashboard.png)
+![빌드 인사이트 대시보드](/images/guides/features/insights/builds-dashboard.png)
 
 ## Projects {#projects}
 

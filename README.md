@@ -19,12 +19,12 @@ Tuist is a virtual platform team for Swift app devs who ship. Through an integra
 
 The following solutions are part of Tuist:
 
-- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/develop/projects): A solution for more accessible and easier-to-manage Xcode projects.
-- [🚝 **Cache**](https://docs.tuist.dev/en/guides/develop/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/develop/selective-testing): Run tests faster by selecting them based on the file changes.
-- [📦 **Registry**](https://docs.tuist.dev/en/guides/develop/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
-- [📈 **Insights**](https://docs.tuist.dev/en/guides/develop/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
-- [📱 **Bundle analysis**](https://docs.tuist.dev/en/guides/develop/bundle-size): Analyze your built apps and get suggestions to improve them.
+- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
+- [🚝 **Cache**](https://docs.tuist.dev/en/guides/features/cache): Speed up builds across environments with a content-addressable store.
+- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
+- [📦 **Registry**](https://docs.tuist.dev/en/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
+- [📈 **Insights**](https://docs.tuist.dev/en/guides/features/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
+- [📱 **Bundle analysis**](https://docs.tuist.dev/en/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
 
 Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
@@ -44,7 +44,7 @@ mise x tuist@latest -- tuist init
 ```
 
 > [!IMPORTANT]
-> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://docs.tuist.dev/en/guides/develop/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://docs.tuist.dev/en/guides/develop/projects/adoption/migrate/xcode-project).
+> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://docs.tuist.dev/en/guides/features/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project).
 
 ## Documentation
 

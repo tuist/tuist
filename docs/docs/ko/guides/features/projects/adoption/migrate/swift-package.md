@@ -12,7 +12,7 @@ Swift Package Manager는 원래 Swift 코드의 의존성을 관리하기 위해
 
 우리는 종종 Swift Package Manager도 유사한 프로젝트 관리 역할을 수행할 수 있다는 이유로 Tuist의 필요성에 의문을 제기하는 개발자와 조직을 마주하고는 합니다. 일부 개발자들은 Swift Package Manager을 이용한 마이그레이션을 시도하지만, 결국 개발자 경험이 크게 저하되었다는 사실을 깨닫게 됩니다. 예를 들어, 파일의 이름을 변경하면 다시 인덱싱하기 위해 15초나 걸리는 경우도 있습니다. 무려 15초요!
 
-**Apple이 Swift Package Manager를 대규모 프로젝트에 적합한 프로젝트 관리 도구로 발전시킬지는 여전히 불확실합니다.** 하지만, 현재로서는 그런 방향으로 나아간다는 뚜렷한 조짐은 보이지 않습니다. 사실 우리는 그와는 정반대의 흐름을 보고 있습니다. Apple은 Xcode에서 영감을 받아, 암시적 구성을 통해 편리함을 추구하는 방향으로 움직이고 있습니다. 하지만 이는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">여러분도 아시다시피</LocalizedLink> 규모가 커질수록 복잡성을 초래하는 주된 원인입니다. 우리는 Apple이 근본적인 원칙으로 되돌아가, 의존성 관리자로서는 타당했지만 프로젝트 관리자로서는 적절하지 않은 결정들, 예를 들어 컴파일된 언어를 프로젝트 정의의 인터페이스로 사용하는 방식 등을 재검토할 필요가 있다고 보고 있습니다.
+**Apple이 Swift Package Manager를 대규모 프로젝트에 적합한 프로젝트 관리 도구로 발전시킬지는 여전히 불확실합니다.** 하지만, 현재로서는 그런 방향으로 나아간다는 뚜렷한 조짐은 보이지 않습니다. 사실 우리는 그와는 정반대의 흐름을 보고 있습니다. Apple은 Xcode에서 영감을 받아, 암시적 구성을 통해 편리함을 추구하는 방향으로 움직이고 있습니다. 하지만 이는 <LocalizedLink href="/guides/features/projects/cost-of-convenience">여러분도 아시다시피</LocalizedLink> 규모가 커질수록 복잡성을 초래하는 주된 원인입니다. 우리는 Apple이 근본적인 원칙으로 되돌아가, 의존성 관리자로서는 타당했지만 프로젝트 관리자로서는 적절하지 않은 결정들, 예를 들어 컴파일된 언어를 프로젝트 정의의 인터페이스로 사용하는 방식 등을 재검토할 필요가 있다고 보고 있습니다.
 
 > [!TIP] SPM은 의존성 관리도구로만 활용하자 \
 > Tuist는 Swift Package Manager를 의존성 관리 도구로만 취급하며, 이런 용도로는 아주 훌륭합니다. 우리는 SPM을 의존성 해결 및 빌드를 위해서만 사용합니다. 프로젝트 정의를 위해서는 사용하지 않습니다.
@@ -54,11 +54,11 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-`Tuist.swift` 파일은 프로젝트의 구성 정보를 담고 있으며, 이 파일의 위치는 프로젝트 루트를 판단하는 기준이 됩니다. Tuist 프로젝트의 구조에 대해 더 알고 싶다면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서를 참고하세요.
+`Tuist.swift` 파일은 프로젝트의 구성 정보를 담고 있으며, 이 파일의 위치는 프로젝트 루트를 판단하는 기준이 됩니다. Tuist 프로젝트의 구조에 대해 더 알고 싶다면 <LocalizedLink href="/guides/features/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서를 참고하세요.
 
 ## 프로젝트 편집하기 {#editing-the-project}
 
-이 명령어는 Xcode 프로젝트를 생성하며, 이를 열어 바로 작업을 시작할 수 있게 합니다. <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> 명령어를 사용하면 Xcode에서 프로젝트를 편집할 수 있습니다.
+이 명령어는 Xcode 프로젝트를 생성하며, 이를 열어 바로 작업을 시작할 수 있게 합니다. <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> 명령어를 사용하면 Xcode에서 프로젝트를 편집할 수 있습니다.
 
 ```bash
 tuist edit

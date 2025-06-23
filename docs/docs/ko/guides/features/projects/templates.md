@@ -64,4 +64,4 @@ tuist scaffold name_of_template --name Name --platform macos
 `.directory`를 사용하면, 주어진 경로에 전체 폴더를 복사할 수 있습니다.
 
 > [!TIP] 프로젝트 설명 도우미
-> 템플릿은 템플릿간의 코드 재사용을 위해 <LocalizedLink href="/guides/develop/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>의 사용을 지원합니다.
+> 템플릿은 템플릿간의 코드 재사용을 위해 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>의 사용을 지원합니다.

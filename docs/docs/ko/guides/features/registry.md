@@ -28,12 +28,12 @@ tuist registry login
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
 
-- <LocalizedLink href="/guides/develop/registry/xcode-project">Xcode project</LocalizedLink>
-- <LocalizedLink href="/guides/develop/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift package</LocalizedLink>
 
-CI에서 레지스트리를 설정하려면, 다음 내용을 참고해주세요: <LocalizedLink href="/guides/develop/registry/continuous-integration">Continuous integration</LocalizedLink>.
+CI에서 레지스트리를 설정하려면, 다음 내용을 참고해주세요: <LocalizedLink href="/guides/features/registry/continuous-integration">Continuous integration</LocalizedLink>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 

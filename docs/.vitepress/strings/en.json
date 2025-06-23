@@ -342,7 +342,7 @@
           "text": "Integrations",
           "items": {
             "mcp": {
-              "text": "Model Context Protocol (MCP)"
+              "text": "MCP"
             },
             "continuous-integration": {
               "text": "Continuous integration"

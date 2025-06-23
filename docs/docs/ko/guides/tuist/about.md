@@ -26,13 +26,13 @@ Tuist는 개발자들을 위한 주된 인터페이스인 [CLI](https://github.c
 
 프로젝트가 성장하고 여러 플랫폼에 걸쳐 확장될수록 모듈화는 매우 중요해집니다. Tuist는 복잡한 과정을 간단하게 만들어 프로젝트 구조를 최적화하고 더 이해하기 쉬운 도구를 제공합니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ### Optimize workflows 🚀 {#optimize-workflows}
 
 프로젝트 정보를 활용하여 Tuist는 선택적 테스트 실행과 빌드 바이너리 재사용을 통해 효율성을 향상시킵니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/develop/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/share/previews">Previews</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink>
 
 ### Foster healthy project evolution 📈 {#foster-healthy-project-evolution}
 
@@ -44,7 +44,7 @@ Tuist는 개발자들을 위한 주된 인터페이스인 [CLI](https://github.c
 
 플랫폼별 생태계(예: Xcode의 폐쇄적인 환경 등)과 달리, Tuist는 웹 중심 경험을 제공하며 Slack, Prometheus, Github과 같은 인기 있는 도구와 원활하게 통합되어 도구 간 협업을 강화합니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ---
 
