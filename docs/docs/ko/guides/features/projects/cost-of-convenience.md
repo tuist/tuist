@@ -53,7 +53,7 @@ Xcode는 Derived Data 디렉토리 내에 각 결과물의 디렉토리를 사�
 이 설계의 결과로 많은 프로젝트는 명확하게 정의되지 않은 그래프로 컴파일 됩니다.
 
 > [!TIP] TUIST의 암시적 의존성 감지
-> Tuist는 암시적 의존성을 감지하기 위한 <LocalizedLink href="/guides/develop/inspect/implicit-dependencies">명령어</LocalizedLink>를 제공합니다. 해당 명령어를 사용하여 모든 의존성이 명시적으로 선언되었는지 CI에서 검증할 수 있습니다.
+> Tuist는 암시적 의존성을 감지하기 위한 <LocalizedLink href="/guides/features/inspect/implicit-dependencies">명령어</LocalizedLink>를 제공합니다. 해당 명령어를 사용하여 모든 의존성이 명시적으로 선언되었는지 CI에서 검증할 수 있습니다.
 
 ### 스킴에서 암시적 의존성 찾기 {#find-implicit-dependencies-in-schemes}
 

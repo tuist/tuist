@@ -63,7 +63,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">selective test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/features/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -254,7 +254,7 @@ The **general rule of thumb** is that you want as many things as possible to be 
 
 The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
 
-Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination with <LocalizedLink href="/guides/develop/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
+Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination with <LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -267,7 +267,7 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist <LocalizedLink href="/guides/develop/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
+Note that Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
 > [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
 > A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.

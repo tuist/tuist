@@ -6,7 +6,7 @@ description: Learn about Tuist's hashing logic upon which features like binary c
 
 # Hashing {#hashing}
 
-Features like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> or selective test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
+Features like <LocalizedLink href="/guides/features/build/cache">caching</LocalizedLink> or selective test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
 
 - The target's attributes (e.g., name, platform, product, etc.)
 - The target's files
@@ -14,7 +14,7 @@ Features like <LocalizedLink href="/guides/develop/build/cache">caching</Localiz
 
 ### Cache attributes {#cache-attributes}
 
-Additionally, when calculating the hash for <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink>, we also hash the following attributes.
+Additionally, when calculating the hash for <LocalizedLink href="/guides/features/build/cache">caching</LocalizedLink>, we also hash the following attributes.
 
 #### Swift version {#swift-version}
 

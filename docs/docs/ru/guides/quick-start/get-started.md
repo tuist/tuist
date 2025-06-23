@@ -20,7 +20,7 @@ tuist init
 
 :::
 
-Команда проведет вас по шагам для <LocalizedLink href="/guides/develop/projects">создания сгенерированного проекта</LocalizedLink> или интегрирования существующего Xcode-проекта или workspace. Это поможет вам подключить вашу среду к удаленному серверу, предоставляя доступ к таким функциям, как <LocalizedLink href="/guides/develop/selective-testing">выборочное тестирование</LocalizedLink>, <LocalizedLink href="/guides/share/previews">предварительные просмотры</LocalizedLink>, и <LocalizedLink href="/guides/develop/registry">реестры</LocalizedLink>.
+Команда проведет вас по шагам для <LocalizedLink href="/guides/features/projects">создания сгенерированного проекта</LocalizedLink> или интегрирования существующего Xcode-проекта или workspace. Это поможет вам подключить вашу среду к удаленному серверу, предоставляя доступ к таким функциям, как <LocalizedLink href="/guides/features/selective-testing">выборочное тестирование</LocalizedLink>, <LocalizedLink href="/guides/features/previews">предварительные просмотры</LocalizedLink>, и <LocalizedLink href="/guides/features/registry">реестры</LocalizedLink>.
 
 > [!NOTE] MIGRATE AN EXISTING PROJECT
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/develop/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.

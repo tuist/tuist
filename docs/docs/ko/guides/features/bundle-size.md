@@ -34,7 +34,7 @@ tuist inspect bundle App.app
 
 `tuist inspect bundle` 명령어는 번들을 분석하고 번들의 구성 내용이나 모듈별 분포 등 상세 내용을 링크로 제공합니다:
 
-![Analyzed bundle](/images/guides/develop/bundle-size/analyzed-bundle.png)
+![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
 
 ## Continuous integration {#continuous-integration}
 
@@ -57,7 +57,7 @@ jobs:
 
 설정이 완료되면, 번들 크기가 시간에 따라 어떻게 변화하는지 확인할 수 있습니다:
 
-![Bundle size graph](/images/guides/develop/bundle-size/bundle-size-graph.png)
+![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
@@ -65,4 +65,4 @@ jobs:
 > 자동으로 pull/merge request 의견을 받으려면, <0>Tuist 프로젝트</0>를 <1>Git 플랫폼</1>과 연동해야 합니다.
 
 Tuist 프로젝트가 [GitHub](https://github.com)와 같은 Git 플랫폼과 연결되면, `tuist inspect bundle`을 수행할 때마다 Tuist가 Pull Request나 Merge Request 시 직접 댓글을 남깁니다:
-![GitHub app comment with inspected bundles](/images/guides/develop/bundle-size/github-app-with-bundles.png)
+![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)

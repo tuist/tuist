@@ -38,6 +38,6 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 ```
 
 > [!IMPORTANT] TUIST PROJECT-ONLY FEATURES
-> Note that there are some features like <LocalizedLink href="/guides/develop/build/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+> Note that there are some features like <LocalizedLink href="/guides/features/build/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
 
 Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is the project's full handle.

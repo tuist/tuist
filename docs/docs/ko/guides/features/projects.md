@@ -15,7 +15,7 @@ Generated는 복잡성과 비용을 적절하게 유지하면서 문제를 해�
 프로젝트를 정의한 후, Tuist는 프로젝트를 관리하고 상호 작용할 수 있는 다양한 워크플로우를 제공합니다:
 
 - **Generate:** 이것은 기본 워크플로우입니다. 이를 사용하면 Xcode와 호환되는 Xcode 프로젝트를 생성합니다.
-- **<LocalizedLink href="/guides/develop/test">Build</LocalizedLink>:** 이 워크플로우는 Xcode 프로젝트를 생성할 뿐만 아니라 `xcodebuild`를 사용하여 프로젝트를 컴파일 합니다.
+- **<LocalizedLink href="/guides/features/test">Build</LocalizedLink>:** 이 워크플로우는 Xcode 프로젝트를 생성할 뿐만 아니라 `xcodebuild`를 사용하여 프로젝트를 컴파일 합니다.
 - **<0>Test</0>:** 빌드 워크플로우와 유사하게 동작하고, Xcode 프로젝트를 생성할 뿐만 아니라 `xcodebuild`를 활용하여 프로젝트를 테스트 합니다.
 
 ## Xcode 프로젝트의 문제 {#challenges-with-xcode-projects}

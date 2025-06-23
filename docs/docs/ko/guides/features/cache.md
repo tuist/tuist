@@ -8,7 +8,7 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 
 > [!IMPORTANT] 요구사항
 >
-> - <LocalizedLink href="/guides/develop/projects">생성된 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를 제공하여 일반적인 상황에서 효율을 높입니다. 하지만 이 기능은 증분 빌드에 필요한 데이터가 서로 다른 빌드에서 공유되지 않으므로, [Continuous Integration (CI) 환경](https://en.wikipedia.org/wiki/Continuous_integration)에서는 적절하지 않습니다. 게다가 **개발자는 복잡한 컴파일 문제를 해결하기 위해 로컬에서 이 데이터를 초기화 하므로**, 클린 빌드가 자주 발생하게 됩니다. 팀은 이것으로 인해 로컬 빌드가 완료되거나 Continuous Integration 파이프라인이 Pull Request에 대한 피드백을 제공할 때까지 과도한 시간을 기다려야 합니다. 더욱이 이러한 환경에서 빈번한 컨텍스트 전환은 생산성을 더욱 악화시킵니다.
@@ -17,7 +17,7 @@ Tuist는 캐싱 기능으로 이 문제를 효과적으로 해결합니다. 이 
 
 ## 워밍 {#warming}
 
-Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 그래프가 생성될 때, Tuist는 기존 타겟을 바이너리로 원할하게 대체합니다.
+Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/features/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 그래프가 생성될 때, Tuist는 기존 타겟을 바이너리로 원할하게 대체합니다.
 
 이런 작업을 \*"워밍"\*이라 하며, Tuist를 통해 로컬 사용이나 팀원과 CI 환경에서 공유할 수 있는 바이너리를 생성합니다. 캐시 워밍 과정은 간단하며 단순한 명령어로 시작할 수 있습니다:
 
@@ -70,7 +70,7 @@ tuist test
 2. 프로토콜/인터페이스 타겟으로 의존성을 정의하고, 최상위 타겟에서 의존성 주입을 구현합니다.
 3. 자주 수정되는 타겟은 변경 가능성이 적은 타겟으로 나눕니다.
 
-위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 [The Modular Architecture](https://docs.tuist.dev/ko/guides/develop/projects/tma-architecture)의 일부분입니다.
+위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 [The Modular Architecture](https://docs.tuist.dev/ko/guides/features/projects/tma-architecture)의 일부분입니다.
 
 ## 권장 설정 {#recommended-setup}
 
@@ -97,6 +97,6 @@ tuist test
 
 ### 내 타겟에 대해 바이너리를 사용하지 않음 {#it-doesnt-use-binaries-for-my-targets}
 
-같은 환경과 프로젝트 실행에서 <LocalizedLink href="/guides/develop/projects/hashing#debugging">해시는 항상 동일해야</LocalizedLink> 합니다. 예를 들어, 절대 경로를 사용하는 것과 같이 프로젝트가 환경에 대한 참조를 포함하고 있을 때 발생할 수 있습니다. `diff` 명령어를 사용하여 두 번의 `tuist generate`를 통해 생성된 프로젝트나 환경 또는 프로젝트 실행 차이를 비교할 수 있습니다.
+같은 환경과 프로젝트 실행에서 <LocalizedLink href="/guides/features/projects/hashing#debugging">해시는 항상 동일해야</LocalizedLink> 합니다. 예를 들어, 절대 경로를 사용하는 것과 같이 프로젝트가 환경에 대한 참조를 포함하고 있을 때 발생할 수 있습니다. `diff` 명령어를 사용하여 두 번의 `tuist generate`를 통해 생성된 프로젝트나 환경 또는 프로젝트 실행 차이를 비교할 수 있습니다.
 
-또한 타겟이 직접적으로나 간접적으로 <LocalizedLink href="/guides/develop/cache.html#supported-products">캐시가 불가능한 타겟</LocalizedLink>에 의존하지 않도록 확인해야 합니다.
+또한 타겟이 직접적으로나 간접적으로 <LocalizedLink href="/guides/features/cache.html#supported-products">캐시가 불가능한 타겟</LocalizedLink>에 의존하지 않도록 확인해야 합니다.
