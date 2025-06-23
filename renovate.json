@@ -2,11 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "dependencyDashboard": false,
   "extends": ["config:base"],
-  "enabledManagers": ["dockerfile", "mix"],
+  "enabledManagers": ["dockerfile", "mix", "npm"],
   "reviewers": ["team:company"],
   "schedule": "* 0-10 * * 1",
   "packageRules": [
     {
+      "matchManagers": ["dockerfile", "mix"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeType": "pr",
