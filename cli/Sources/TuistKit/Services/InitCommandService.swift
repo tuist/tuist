@@ -100,7 +100,8 @@ public struct InitCommandService {
             let platform =
                 answers?.generatedProjectPlatform ?? prompter.promptGeneratedProjectPlatform()
             projectDirectory = try await createGeneratedProject(
-                at: directory, name: name, platform: platform)
+                at: directory, name: name, platform: platform
+            )
             if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(
                 named: name,
                 in: directory,
@@ -128,10 +129,10 @@ public struct InitCommandService {
         }
 
         let tuistSwiftFileContent = """
-            import ProjectDescription
+        import ProjectDescription
 
-            \(tuistSwiftLine)
-            """
+        \(tuistSwiftLine)
+        """
         let tuistSwiftFilePath = projectDirectory.appending(component: "Tuist.swift")
         if try await fileSystem.exists(tuistSwiftFilePath) {
             try await fileSystem.remove(tuistSwiftFilePath)
@@ -149,7 +150,8 @@ public struct InitCommandService {
         }
 
         AlertController.current.success(
-            .alert("You are all set to explore the Tuist universe", takeaways: nextSteps))
+            .alert("You are all set to explore the Tuist universe", takeaways: nextSteps)
+        )
     }
 
     private func mise(path: AbsolutePath, nextSteps _: inout [TerminalText]) async throws {
@@ -246,8 +248,8 @@ public struct InitCommandService {
                 showSpinner: true,
                 task: { _ in
                     if (try? await getProjectService.getProject(
-                        fullHandle: fullHandle, serverURL: serverURL)) == nil
-                    {
+                        fullHandle: fullHandle, serverURL: serverURL
+                    )) == nil {
                         _ = try await createProjectService.createProject(
                             fullHandle: fullHandle,
                             serverURL: serverURL
@@ -266,7 +268,7 @@ public struct InitCommandService {
             return fullHandle
         } else {
             nextSteps.append(contentsOf: [
-                "Learn more about how our \(.link(title: "platform capabilities", href: "https://docs.tuist.dev/en/"))"
+                "Learn more about how our \(.link(title: "platform capabilities", href: "https://docs.tuist.dev/en/"))",
             ])
         }
 
@@ -289,14 +291,14 @@ public struct InitCommandService {
         case .createOrganizationAccount:
             let organizationHandle =
                 answers?.newOrganizationAccountHandle
-                ?? prompter.promptNewOrganizationAccountHandle()
+                    ?? prompter.promptNewOrganizationAccountHandle()
             _ = try await createOrganizationService.createOrganization(
                 name: organizationHandle,
                 serverURL: serverURL
             )
             return organizationHandle
         case let .userAccount(handle),
-            let .organization(handle):
+             let .organization(handle):
             return handle
         }
     }
@@ -310,7 +312,7 @@ public struct InitCommandService {
             ?? prompter
             .promptWorkflowType(
                 xcodeProjectOrWorkspace:
-                    xcodeProjectsAndWorkspaces
+                xcodeProjectsAndWorkspaces
                     .first(where: \.isWorkspace)
                     ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
             )
