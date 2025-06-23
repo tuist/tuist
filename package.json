@@ -21,7 +21,7 @@
     "culori": "^4.0.1",
     "echarts": "^5.6.0",
     "prettier-plugin-css-order": "^2.1.2",
-    "shiki": "1.26.1",
+    "shiki": "1.29.2",
     "vanilla-cookieconsent": "3.1.0"
   },
   "pnpm": {
