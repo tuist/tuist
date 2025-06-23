@@ -230,6 +230,11 @@ Some companies support our community and open source efforts with contributions 
           <img src="assets/companies/snoonu.svg" alt="rbkbusiness_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://get.sajda.app" target="_blank">
+          <img src="assets/companies/sajda_app.svg" alt="sajda_logo" height="75"/>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
