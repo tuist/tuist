@@ -60,7 +60,7 @@ extension SynthesizedResourceInterfaceTemplates {
 
     // MARK: - Implementation Details
 
-    {{accessModifier}} struct {{resourceType}} {
+    {{accessModifier}} struct {{resourceType}}: Sendable {
       {{accessModifier}} let name: String
       {{accessModifier}} let ext: String?
       {{accessModifier}} let relativePath: String
