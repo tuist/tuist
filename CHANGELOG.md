@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### CLI
+
+#### Added
+
+- Add MCP setup commands for Claude Code, Cursor, Zed, and VS Code editors by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.54.3 - 2025-06-20
 
 ### CLI
