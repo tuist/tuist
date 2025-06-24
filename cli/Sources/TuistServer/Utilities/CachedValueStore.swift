@@ -66,23 +66,23 @@ actor CachedValueStore: CachedValueStoring {
                 defer { tasks[key] = nil }
 
                 #if canImport(TuistSupport) && !os(iOS)
-                    // Use file-based lock for cross-process synchronization on non-iOS platforms
+                    /// Use file-based lock for cross-process synchronization on non-iOS platforms
                     let lockPath = lockFilePath(for: key)
 
-                    // Ensure the directory exists
+                    /// Ensure the directory exists
                     let lockDirectory = lockPath.parentDirectory
                     if !(try await fileSystem.exists(lockPath.parentDirectory)) {
                         try await fileSystem.makeDirectory(at: lockDirectory)
                     }
 
                     let fileLock = FileLock(
-                        at: try TSCBasic.AbsolutePath(validating: lockPath.pathString))
+                        at: try TSCBasic.AbsolutePath(validating: lockPath.pathString)
+                    )
 
                     return try await fileLock.withLock(type: .exclusive) {
                         // Double-check cache after acquiring lock
                         // Another process might have computed the value
-                        if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired
-                        {
+                        if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
                             return cacheEntry.value
                         }
 

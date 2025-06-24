@@ -72,6 +72,7 @@ let project = Project(
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
+                .target(name: "TuistErrorHandling", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -97,6 +98,7 @@ let project = Project(
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistErrorHandling"),
             ]
         ),
         .target(
@@ -108,7 +110,16 @@ let project = Project(
             sources: ["Sources/TuistOnboarding/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistErrorHandling"),
             ]
+        ),
+        .target(
+            name: "TuistErrorHandling",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.error-handling",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistErrorHandling/**"],
         ),
         .target(
             name: "TuistMenuBar",

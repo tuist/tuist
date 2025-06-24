@@ -92,7 +92,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
     public func refreshToken(serverURL: URL) async throws {
         try await authenticationTokenRefreshingIfNeeded(
-            serverURL: serverURL, forceRefresh: true)
+            serverURL: serverURL, forceRefresh: true
+        )
     }
 
     @discardableResult private func authenticationTokenRefreshingIfNeeded(
@@ -103,68 +104,68 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     {
         return
             try await cachedValueStore
-            .getValue(key: "token_\(serverURL.absoluteString)") {
-                () -> (value: AuthenticationToken, expiresAt: Date?)? in
-                guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
-                    return nil
-                }
-
-                let upToDateToken: AuthenticationToken
-                var expiresAt: Date?
-
-                switch token {
-                case .project:
-                    upToDateToken = token
-                case let .user(
-                    legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
-                ):
-                    if legacyToken != nil {
-                        upToDateToken = token
-                    } else if let accessToken {
-                        // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
-                        let now = Date.now()
-                        let expiresIn = accessToken.expiryDate
-                            .timeIntervalSince(now)
-                        let refresh = expiresIn < 30 || forceRefresh
-
-                        #if canImport(TuistSupport)
-                            Logger.current.debug(
-                                "Access token expires in less than \(expiresIn) seconds. Renewing..."
-                            )
-                        #endif
-                        if refresh {
-                            guard let refreshToken else {
-                                throw ServerClientAuthenticationError.notAuthenticated
-                            }
-                            #if canImport(TuistSupport)
-                                Logger.current.debug("Refreshing access token for \(serverURL)")
-                            #endif
-                            let tokens = try await refreshTokens(
-                                serverURL: serverURL, refreshToken: refreshToken
-                            )
-                            #if canImport(TuistSupport)
-                                Logger.current.debug("Access token refreshed for \(serverURL)")
-                            #endif
-                            upToDateToken = .user(
-                                legacyToken: nil,
-                                accessToken: try JWT.parse(tokens.accessToken),
-                                refreshToken: try JWT.parse(tokens.refreshToken)
-                            )
-                            expiresAt = try JWT.parse(tokens.accessToken)
-                                .expiryDate
-                        } else {
-                            upToDateToken = .user(
-                                legacyToken: nil, accessToken: accessToken,
-                                refreshToken: refreshToken
-                            )
-                            expiresAt = accessToken.expiryDate
-                        }
-                    } else {
-                        throw ServerClientAuthenticationError.notAuthenticated
+                .getValue(key: "token_\(serverURL.absoluteString)") {
+                    () -> (value: AuthenticationToken, expiresAt: Date?)? in
+                    guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+                        return nil
                     }
+
+                    let upToDateToken: AuthenticationToken
+                    var expiresAt: Date?
+
+                    switch token {
+                    case .project:
+                        upToDateToken = token
+                    case let .user(
+                        legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken
+                    ):
+                        if legacyToken != nil {
+                            upToDateToken = token
+                        } else if let accessToken {
+                            // We consider a token to be expired if the expiration date is in the past or 30 seconds from now
+                            let now = Date.now()
+                            let expiresIn = accessToken.expiryDate
+                                .timeIntervalSince(now)
+                            let refresh = expiresIn < 30 || forceRefresh
+
+                            #if canImport(TuistSupport)
+                                Logger.current.debug(
+                                    "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                                )
+                            #endif
+                            if refresh {
+                                guard let refreshToken else {
+                                    throw ServerClientAuthenticationError.notAuthenticated
+                                }
+                                #if canImport(TuistSupport)
+                                    Logger.current.debug("Refreshing access token for \(serverURL)")
+                                #endif
+                                let tokens = try await refreshTokens(
+                                    serverURL: serverURL, refreshToken: refreshToken
+                                )
+                                #if canImport(TuistSupport)
+                                    Logger.current.debug("Access token refreshed for \(serverURL)")
+                                #endif
+                                upToDateToken = .user(
+                                    legacyToken: nil,
+                                    accessToken: try JWT.parse(tokens.accessToken),
+                                    refreshToken: try JWT.parse(tokens.refreshToken)
+                                )
+                                expiresAt = try JWT.parse(tokens.accessToken)
+                                    .expiryDate
+                            } else {
+                                upToDateToken = .user(
+                                    legacyToken: nil, accessToken: accessToken,
+                                    refreshToken: refreshToken
+                                )
+                                expiresAt = accessToken.expiryDate
+                            }
+                        } else {
+                            throw ServerClientAuthenticationError.notAuthenticated
+                        }
+                    }
+                    return (value: upToDateToken, expiresAt: expiresAt)
                 }
-                return (value: upToDateToken, expiresAt: expiresAt)
-            }
     }
 
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {

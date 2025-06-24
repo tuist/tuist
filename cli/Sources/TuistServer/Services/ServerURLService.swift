@@ -15,19 +15,28 @@ enum ServerURLServiceError: LocalizedError, Equatable {
     }
 }
 
-@Mockable
-public protocol ServerURLServicing {
-    func url(configServerURL: URL) throws -> URL
-}
+#if canImport(TuistSupport)
+    @Mockable
+    public protocol ServerURLServicing {
+        func url(configServerURL: URL) throws -> URL
+    }
+#else
+    @Mockable
+    public protocol ServerURLServicing {
+        func url() -> URL
+    }
+#endif
 
 public final class ServerURLService: ServerURLServicing {
     public init() {}
 
-    public func url(configServerURL: URL) throws -> URL {
-        return try (
-            envVariableURL("TUIST_URL") ?? configServerURL
-        )
-    }
+    #if canImport(TuistSupport)
+        func url(configServerURL: URL) throws -> URL
+    #else
+        public func url() -> URL {
+            return try! envVariableURL("TUIST_URL") ?? URL(string: "https://tuist.dev")!
+        }
+    #endif
 
     private func envVariableURL(_ envVariable: String) throws -> URL? {
         #if canImport(TuistSupport)

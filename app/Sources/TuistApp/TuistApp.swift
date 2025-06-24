@@ -32,27 +32,37 @@ import TuistOnboarding
         }
     }
 #else
+    import TuistErrorHandling
     import TuistPreviews
 
     @main
     struct TuistApp: App {
         @StateObject private var authenticationService = AuthenticationService()
-        
+
         var body: some Scene {
             WindowGroup {
-                if authenticationService.isAuthenticated {
-                    NavigationView {
-                        PreviewsView()
-                            .navigationBarItems(trailing:
-                                Button("Log Out") {
-                                    Task {
-                                        await authenticationService.signOut()
+                Group {
+                    if authenticationService.isAuthenticated {
+                        NavigationView {
+                            PreviewsView()
+                                .navigationBarItems(
+                                    trailing:
+                                    Button("Log Out") {
+                                        Task {
+                                            await authenticationService.signOut()
+                                        }
                                     }
-                                }
-                            )
+                                )
+                        }
+                    } else {
+                        LogInView()
                     }
-                } else {
-                    LogInView()
+                }
+                .withErrorHandling()
+                .onAppear {
+                    Task {
+                        await authenticationService.loadCredentials()
+                    }
                 }
             }
         }

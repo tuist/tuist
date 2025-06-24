@@ -62,7 +62,7 @@ public final class ListPreviewsService: ListPreviewsServicing {
     ) async throws -> [Preview] {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try! await client.listPreviews(
+        let response = try await client.listPreviews(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,

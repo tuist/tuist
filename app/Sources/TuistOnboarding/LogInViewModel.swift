@@ -4,185 +4,155 @@ import Foundation
 import Security
 import TuistServer
 
-public final class LoginViewModel: ObservableObject {
-    public init() {}
-    @Published var isAuthenticating = false
-    @Published var authenticationError: String?
-    @Published var isAuthenticated = false
+public enum LogInViewModelError: LocalizedError {
+    case invalidCallbackURL
+    case missingAuthorizationCode
+    case invalidTokenResponse
+    case tokenExchangeFailed(statusCode: Int)
+    case missingTokens
 
-    private var presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
-    private let serverURL = "http://localhost:8080"
-    //    private let clientId = "tuist" // You may need to configure this based on your OAuth2 server setup
-    //    private let clientId: String = (UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString).lowercased()
+    public var description: String {
+        switch self {
+        case .invalidCallbackURL:
+            return "Invalid callback URL received"
+        case .missingAuthorizationCode:
+            return "Authorization code not found"
+        case .invalidTokenResponse:
+            return "Invalid response format"
+        case let .tokenExchangeFailed(statusCode):
+            return "Token exchange failed with status code: \(statusCode)"
+        case .missingTokens:
+            return "Access token or refresh token missing from response"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .invalidCallbackURL, .missingAuthorizationCode:
+            return "Please try signing in again"
+        case .invalidTokenResponse, .tokenExchangeFailed, .missingTokens:
+            return "Please check your network connection and try again"
+        }
+    }
+}
+
+public final class LoginViewModel: ObservableObject {
+    private let serverURLService: ServerURLServicing
+    private let serverCredentialsStore: ServerCredentialsStoring
+
+    private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let clientId = "5339abf2-467c-4690-b816-17246ed149d2"
     private let redirectURI = "tuist://oauth-callback"
 
-    private var codeVerifier: String?
-    private var codeChallenge: String?
-
-    private let serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
-
-    func signIn() {
-        startOAuth2Flow(endpoint: "/oauth/authorize", provider: nil)
+    public init(
+        serverURLService: ServerURLServicing = ServerURLService(),
+        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
+    ) {
+        self.serverURLService = serverURLService
+        self.serverCredentialsStore = serverCredentialsStore
     }
 
-    func signInWithGitHub() {
-        startOAuth2Flow(endpoint: "/oauth/github", provider: "github")
+    func signIn() async throws {
+        try await startOAuth2Flow(with: "/oauth/authorize")
     }
 
-    func signInWithGoogle() {
-        startOAuth2Flow(endpoint: "/oauth/google", provider: "google")
+    func signInWithGitHub() async throws {
+        try await startOAuth2Flow(with: "/oauth/github")
     }
 
-    private func startOAuth2Flow(endpoint: String, provider: String?) {
-        guard var urlComponents = URLComponents(string: "\(serverURL)\(endpoint)") else {
-            authenticationError = "Invalid server URL"
-            return
-        }
+    func signInWithGoogle() async throws {
+        try await startOAuth2Flow(with: "/oauth/google")
+    }
 
-        // Generate PKCE parameters
-        let verifier = generateCodeVerifier()
-        let challenge = generateCodeChallenge(from: verifier)
+    private func startOAuth2Flow(with path: String) async throws {
+        var urlComponents = URLComponents(
+            url: serverURLService.url().appending(
+                path: path
+            ),
+            resolvingAgainstBaseURL: false
+        )!
 
-        self.codeVerifier = verifier
-        self.codeChallenge = challenge
-
-        // Create state parameter
-        let state: String
-        if let provider = provider {
-            // Create state parameter that includes provider info
-            let oauthParams = [
-                "response_type": "code",
-                "client_id": clientId,
-                "redirect_uri": redirectURI,
-                "code_challenge": challenge,
-                "code_challenge_method": "S256",
-            ]
-
-            let stateData = try? JSONSerialization.data(withJSONObject: oauthParams)
-            state = stateData?.base64EncodedString() ?? generateState()
-        } else {
-            state = generateState()
-        }
-
-        // Build query items
-        var queryItems = [
+        let codeVerifier = codeVerifier()
+        urlComponents.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "state", value: state),
-            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "state", value: UUID().uuidString),
+            URLQueryItem(name: "code_challenge", value: codeChallenge(from: codeVerifier)),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
 
-        // Add provider parameter if specified
-        if let provider = provider {
-            queryItems.append(URLQueryItem(name: "provider", value: provider))
-        }
-
-        urlComponents.queryItems = queryItems
-
-        guard let authURL = urlComponents.url else {
-            authenticationError = "Failed to construct authorization URL"
-            return
-        }
-
-        authenticateWithURL(authURL.absoluteString)
+        try await authenticate(
+            with: urlComponents.url!,
+            codeVerifier: codeVerifier
+        )
     }
 
-    private func generateState() -> String {
-        return UUID().uuidString
-    }
-
-    private func generateCodeVerifier() -> String {
+    private func codeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return Data(bytes).base64URLEncodedString()
     }
 
-    private func generateCodeChallenge(from verifier: String) -> String {
+    private func codeChallenge(from verifier: String) -> String {
         let data = Data(verifier.utf8)
         let hash = SHA256.hash(data: data)
         return Data(hash).base64URLEncodedString()
     }
 
-    private func authenticateWithURL(_ urlString: String) {
-        guard let authURL = URL(string: urlString) else {
-            authenticationError = "Invalid authentication URL"
-            return
-        }
-
-        isAuthenticating = true
-        authenticationError = nil
-
-        let authSession = ASWebAuthenticationSession(
-            url: authURL,
-            callbackURLScheme: "tuist"
-        ) { callbackURL, error in
-            Task { @MainActor in
-                self.isAuthenticating = false
-
-                if let error = error {
-                    if case ASWebAuthenticationSessionError.canceledLogin = error {
-                        self.authenticationError = "Login was cancelled"
-                    } else {
-                        self.authenticationError =
-                            "Authentication failed: \(error.localizedDescription)"
-                    }
+    private func authenticate(
+        with authURL: URL,
+        codeVerifier: String
+    ) async throws {
+        let code: String? = try await withCheckedThrowingContinuation { continuation in
+            let authSession = ASWebAuthenticationSession(
+                url: authURL,
+                callbackURLScheme: "tuist"
+            ) { callbackURL, error in
+                if let error {
+                    continuation.resume(throwing: error)
                     return
                 }
 
-                guard let callbackURL = callbackURL else {
-                    self.authenticationError = "No callback URL received"
+                guard let callbackURL else {
+                    continuation.resume(throwing: LogInViewModelError.invalidCallbackURL)
                     return
                 }
 
-                self.handleAuthenticationCallback(callbackURL)
+                guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .first(where: { $0.name == "code" })?.value
+                else {
+                    continuation.resume(throwing: LogInViewModelError.missingAuthorizationCode)
+                    return
+                }
+
+                continuation.resume(returning: code)
             }
-        }
-
-        authSession.presentationContextProvider = presentationContextProvider
-        authSession.prefersEphemeralWebBrowserSession = true
-        authSession.start()
-    }
-
-    private func handleAuthenticationCallback(_ url: URL) {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-            let queryItems = components.queryItems
-        else {
-            authenticationError = "Invalid callback URL"
-            return
-        }
-
-        if let code = queryItems.first(where: { $0.name == "code" })?.value {
+            authSession.presentationContextProvider = presentationContextProvider
+            authSession.prefersEphemeralWebBrowserSession = true
             Task {
-                await exchangeCodeForToken(code)
+                await MainActor.run {
+                    authSession.start()
+                }
             }
-        } else if let error = queryItems.first(where: { $0.name == "error" })?.value {
-            authenticationError = "Authentication error: \(error)"
-        } else {
-            authenticationError = "Unknown authentication response"
+        }
+        if let code {
+            try await exchangeCodeForToken(code, codeVerifier: codeVerifier)
         }
     }
 
-    private func exchangeCodeForToken(_ code: String) async {
-        guard let url = URL(string: "\(serverURL)/oauth/token") else {
-            await MainActor.run {
-                authenticationError = "Invalid token endpoint URL"
-            }
-            return
-        }
+    private func exchangeCodeForToken(
+        _ code: String,
+        codeVerifier: String
+    ) async throws {
+        let url = serverURLService.url().appending(
+            path: "oauth/token"
+        )
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        guard let codeVerifier = self.codeVerifier else {
-            await MainActor.run {
-                authenticationError = "Missing PKCE code verifier"
-            }
-            return
-        }
 
         let parameters = [
             "grant_type": "authorization_code",
@@ -194,90 +164,52 @@ public final class LoginViewModel: ObservableObject {
 
         let body =
             parameters
-            .map {
-                "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-            }
-            .joined(separator: "&")
+                .map {
+                    "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                }
+                .joined(separator: "&")
 
         request.httpBody = body.data(using: .utf8)
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                await MainActor.run {
-                    authenticationError = "Invalid response type"
-                }
-                return
-            }
-
-            if httpResponse.statusCode == 200 {
-                await handleTokenResponse(data)
-            } else {
-                await handleTokenError(data, statusCode: httpResponse.statusCode)
-            }
-
-        } catch {
-            await MainActor.run {
-                authenticationError = "Network error: \(error.localizedDescription)"
-            }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LogInViewModelError.invalidTokenResponse
         }
-    }
 
-    private func handleTokenResponse(_ data: Data) async {
-        do {
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let accessToken = json["access_token"] as? String {
-                    let refreshToken = json["refresh_token"] as? String
-
-                    let credentials = ServerCredentials(
-                        token: nil,
-                        accessToken: accessToken,
-                        refreshToken: refreshToken
-                    )
-                    try await self.serverCredentialsStore.store(
-                        credentials: ServerCredentials(
-                            token: nil, accessToken: accessToken, refreshToken: refreshToken),
-                        serverURL: URL(string: "http://localhost:8080")!)
-                } else {
-                    await MainActor.run {
-                        authenticationError = "No access token in response"
-                    }
-                }
-            } else {
-                await MainActor.run {
-                    authenticationError = "Invalid token response format"
-                }
-            }
-        } catch {
-            await MainActor.run {
-                authenticationError =
-                    "Failed to parse token response: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    private func handleTokenError(_ data: Data, statusCode: Int) async {
-        let errorMessage: String
-
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let error = json["error"] as? String
-        {
-            errorMessage = "OAuth2 error: \(error)"
+        if httpResponse.statusCode == 200 {
+            try await handleTokenResponse(data)
         } else {
-            errorMessage = "Token exchange failed with status: \(statusCode)"
+            throw LogInViewModelError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
+        }
+    }
+
+    private func handleTokenResponse(_ data: Data) async throws {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw LogInViewModelError.invalidTokenResponse
         }
 
-        await MainActor.run {
-            authenticationError = errorMessage
+        guard let accessToken = json["access_token"] as? String,
+              let refreshToken = json["refresh_token"] as? String
+        else {
+            throw LogInViewModelError.missingTokens
         }
+
+        try await serverCredentialsStore.store(
+            credentials: ServerCredentials(
+                token: nil,
+                accessToken: accessToken,
+                refreshToken: refreshToken
+            ),
+            serverURL: serverURLService.url()
+        )
     }
 }
 
-private class ASWebAuthenticationPresentationContextProvider: NSObject,
+private final class ASWebAuthenticationPresentationContextProvider: NSObject,
     ASWebAuthenticationPresentationContextProviding
 {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
         return ASPresentationAnchor()
     }
 }

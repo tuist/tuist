@@ -1,7 +1,9 @@
 import AuthenticationServices
 import SwiftUI
+import TuistErrorHandling
 
 public struct LogInView: View {
+    @EnvironmentObject var errorHandling: ErrorHandling
     @StateObject private var viewModel = LoginViewModel()
 
     public init() {}
@@ -16,15 +18,10 @@ public struct LogInView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
 
-            Button(action: { viewModel.signIn() }) {
+            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signIn() } }) {
                 HStack {
-                    if viewModel.isAuthenticating {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "person.crop.circle")
-                    }
-                    Text(viewModel.isAuthenticating ? "Signing in..." : "Sign in with Tuist")
+                    Image(systemName: "person.crop.circle")
+                    Text("Sign in with Tuist")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -32,17 +29,11 @@ public struct LogInView: View {
                 .foregroundColor(.white)
                 .cornerRadius(10)
             }
-            .disabled(viewModel.isAuthenticating)
 
-            Button(action: { viewModel.signInWithGitHub() }) {
+            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signInWithGitHub() } }) {
                 HStack {
-                    if viewModel.isAuthenticating {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                    }
-                    Text(viewModel.isAuthenticating ? "Signing in..." : "Sign in with GitHub")
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                    Text("Sign in with GitHub")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -50,30 +41,17 @@ public struct LogInView: View {
                 .foregroundColor(.white)
                 .cornerRadius(10)
             }
-            .disabled(viewModel.isAuthenticating)
 
-            Button(action: { viewModel.signInWithGoogle() }) {
+            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signInWithGoogle() } }) {
                 HStack {
-                    if viewModel.isAuthenticating {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "globe")
-                    }
-                    Text(viewModel.isAuthenticating ? "Signing in..." : "Sign in with Google")
+                    Image(systemName: "globe")
+                    Text("Sign in with Google")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.red)
                 .foregroundColor(.white)
                 .cornerRadius(10)
-            }
-            .disabled(viewModel.isAuthenticating)
-
-            if let error = viewModel.authenticationError {
-                Text(error)
-                    .foregroundColor(.red)
-                    .font(.caption)
             }
         }
         .padding()

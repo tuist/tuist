@@ -1,9 +1,8 @@
 import FileSystem
 import Foundation
+import KeychainAccess
 import Mockable
 import Path
-import KeychainAccess
-import Combine
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
@@ -84,10 +83,10 @@ enum ServerCredentialsStoreError: LocalizedError {
 public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
     private let fileSystem: FileSysteming
     private let configDirectory: AbsolutePath?
-    private static let credentialsChangedSubject = PassthroughSubject<ServerCredentials?, Never>()
-    
-    public static var credentialsChanged: AnyPublisher<ServerCredentials?, Never> {
-        credentialsChangedSubject.eraseToAnyPublisher()
+    private static let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
+
+    public static var credentialsChanged: AsyncStream<ServerCredentials?> {
+        credentialsChangedContinuation.stream
     }
 
     public init(
@@ -109,37 +108,37 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
             }
             try data.write(to: path.url, options: .atomic)
         #else
-        if let refreshToken = credentials.refreshToken, let accessToken = credentials.accessToken {
-            try keychain(serverURL: serverURL)
-                .comment("Refresh token against \(serverURL.absoluteString)")
-                .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
-            try keychain(serverURL: serverURL)
-                .comment("Refresh token against \(serverURL.absoluteString)")
-                .set(accessToken, key: serverURL.absoluteString + "_access_token")
-        }
+            if let refreshToken = credentials.refreshToken, let accessToken = credentials.accessToken {
+                try keychain(serverURL: serverURL)
+                    .comment("Refresh token against \(serverURL.absoluteString)")
+                    .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+                try keychain(serverURL: serverURL)
+                    .comment("Refresh token against \(serverURL.absoluteString)")
+                    .set(accessToken, key: serverURL.absoluteString + "_access_token")
+            }
         #endif
-        
-        Self.credentialsChangedSubject.send(credentials)
+
+        Self.credentialsChangedContinuation.continuation.yield(credentials)
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
-#if canImport(TuistSupport)
-        let path = try credentialsFilePath(serverURL: serverURL)
-        guard try await fileSystem.exists(path) else { return nil }
-        let data = try await fileSystem.readFile(at: path)
+        #if canImport(TuistSupport)
+            let path = try credentialsFilePath(serverURL: serverURL)
+            guard try await fileSystem.exists(path) else { return nil }
+            let data = try await fileSystem.readFile(at: path)
 
-        // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-        // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-        // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
-        return try? JSONDecoder().decode(ServerCredentials.self, from: data)
+            // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+            // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+            // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
+            return try? JSONDecoder().decode(ServerCredentials.self, from: data)
         #else
-        let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
-        let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
-        return ServerCredentials(
-            token: nil,
-            accessToken: accessToken,
-            refreshToken: refreshToken
-        )
+            let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
+            let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
+            return ServerCredentials(
+                token: nil,
+                accessToken: accessToken,
+                refreshToken: refreshToken
+            )
         #endif
     }
 
@@ -154,17 +153,17 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
 
     public func delete(serverURL: URL) async throws {
         #if canImport(TuistSupport)
-        let path = try credentialsFilePath(serverURL: serverURL)
-        if try await fileSystem.exists(path) {
-            try await fileSystem.remove(path)
-        }
+            let path = try credentialsFilePath(serverURL: serverURL)
+            if try await fileSystem.exists(path) {
+                try await fileSystem.remove(path)
+            }
         #else
-        let keychain = keychain(serverURL: serverURL)
-        try keychain.remove(serverURL.absoluteString + "_refresh_token")
-        try keychain.remove(serverURL.absoluteString + "_access_token")
+            let keychain = keychain(serverURL: serverURL)
+            try keychain.remove(serverURL.absoluteString + "_refresh_token")
+            try keychain.remove(serverURL.absoluteString + "_access_token")
         #endif
-        
-        Self.credentialsChangedSubject.send(nil)
+
+        Self.credentialsChangedContinuation.continuation.yield(nil)
     }
 
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
@@ -183,7 +182,7 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
         // swiftlint:disable:next force_try
         return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
     }
-    
+
     fileprivate func keychain(serverURL: URL) -> Keychain {
         Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
             .synchronizable(false)

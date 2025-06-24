@@ -25,6 +25,5 @@ final class PreviewsViewModel: Sendable {
             fullHandle: "tuist/ios_app_with_frameworks",
             serverURL: URL(string: "http://localhost:8080")!
         )
-        print(previews)
     }
 }
