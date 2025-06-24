@@ -17,7 +17,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var manifestFilesLocator: MockManifestFilesLocating!
     private var configLoader: MockConfigLoading!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var cleanCacheService: MockCleanCacheServicing!
 
     override func setUpWithError() throws {
@@ -26,7 +26,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider = .init()
         manifestFilesLocator = MockManifestFilesLocating()
         configLoader = .init()
-        serverURLService = .init()
+        serverEnvironmentService = .init()
         cleanCacheService = .init()
 
         subject = CleanService(
@@ -35,7 +35,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             manifestFilesLocator: manifestFilesLocator,
             configLoader: configLoader,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             cleanCacheService: cleanCacheService,
             fileSystem: FileSystem()
         )
@@ -46,7 +46,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider = nil
         manifestFilesLocator = nil
         configLoader = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         cleanCacheService = nil
         subject = nil
         super.tearDown()
@@ -216,7 +216,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                     )
                 )
 
-            given(serverURLService)
+            given(serverEnvironmentService)
                 .url(configServerURL: .any)
                 .willReturn(url)
 

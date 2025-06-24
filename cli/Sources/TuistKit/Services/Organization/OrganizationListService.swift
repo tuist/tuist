@@ -13,16 +13,16 @@ protocol OrganizationListServicing {
 
 final class OrganizationListService: OrganizationListServicing {
     private let listOrganizationsService: ListOrganizationsServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.listOrganizationsService = listOrganizationsService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -39,7 +39,7 @@ final class OrganizationListService: OrganizationListServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let organizations = try await listOrganizationsService.listOrganizations(
             serverURL: serverURL

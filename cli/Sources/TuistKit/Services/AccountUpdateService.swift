@@ -28,7 +28,7 @@ enum AccountUpdateServiceEvent: CustomStringConvertible {
 struct AccountUpdateService: AccountUpdateServicing {
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let updateAccountService: UpdateAccountServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let serverSessionController: ServerSessionControlling
@@ -38,14 +38,14 @@ struct AccountUpdateService: AccountUpdateServicing {
     init(
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         serverSessionController: ServerSessionControlling = ServerSessionController()
     ) {
         self.configLoader = configLoader
         self.fileSystem = fileSystem
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.updateAccountService = updateAccountService
         self.serverAuthenticationController = serverAuthenticationController
         self.serverSessionController = serverSessionController
@@ -59,7 +59,7 @@ struct AccountUpdateService: AccountUpdateServicing {
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let passedAccountHandle = accountHandle
         let accountHandle: String

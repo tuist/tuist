@@ -13,18 +13,18 @@ protocol WhoamiServicing: AnyObject {
 
 final class WhoamiService: WhoamiServicing {
     private let serverSessionController: ServerSessionControlling
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     // MARK: - Init
 
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverSessionController = serverSessionController
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -40,7 +40,7 @@ final class WhoamiService: WhoamiServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let whoami = try await serverSessionController.authenticatedHandle(serverURL: serverURL)
         Logger.current.notice("\(whoami)")
     }

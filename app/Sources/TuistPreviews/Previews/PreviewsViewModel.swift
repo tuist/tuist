@@ -5,13 +5,16 @@ import TuistServer
 @Observable
 final class PreviewsViewModel: Sendable {
     private let listPreviewsService: ListPreviewsServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
 
     private(set) var previews: [TuistServer.Preview] = []
 
     init(
-        listPreviewsService: ListPreviewsServicing = ListPreviewsService()
+        listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.listPreviewsService = listPreviewsService
+        self.serverEnvironmentService = serverEnvironmentService
     }
 
     func onAppear() async throws {
@@ -23,7 +26,7 @@ final class PreviewsViewModel: Sendable {
             pageSize: nil,
             distinctField: nil,
             fullHandle: "tuist/ios_app_with_frameworks",
-            serverURL: URL(string: "http://localhost:8080")!
+            serverURL: serverEnvironmentService.url()
         )
     }
 }

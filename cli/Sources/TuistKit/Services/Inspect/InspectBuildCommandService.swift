@@ -41,7 +41,7 @@ struct InspectBuildCommandService {
     private let xcActivityLogController: XCActivityLogControlling
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let dateService: DateServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
 
     init(
@@ -54,7 +54,7 @@ struct InspectBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         dateService: DateServicing = DateService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController()
     ) {
         self.derivedDataLocator = derivedDataLocator
@@ -66,7 +66,7 @@ struct InspectBuildCommandService {
         self.xcActivityLogController = xcActivityLogController
         self.backgroundProcessRunner = backgroundProcessRunner
         self.dateService = dateService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
     }
 
@@ -156,7 +156,7 @@ struct InspectBuildCommandService {
         let config =
             try await configLoader
                 .loadConfig(path: projectPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else {
             throw InspectBuildCommandServiceError.missingFullHandle
         }

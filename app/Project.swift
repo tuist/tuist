@@ -26,6 +26,18 @@ let inspectBuildPostAction: ExecutionAction = .executionAction(
     """
 )
 
+let oauthClientIdEnvironmentVariable: EnvironmentVariable = switch Environment.env {
+case .string("staging"): "5339abf2-467c-4690-b816-17246ed149d2"
+case .string("canary"): "5339abf2-467c-4690-b816-17246ed149d2"
+default: .environmentVariable(value: "", isEnabled: false)
+}
+let serverURLEnvironmentVariable: EnvironmentVariable = switch Environment.env {
+case .string("staging"): "https://staging.tuist.dev"
+case .string("canary"): "https://canary.tuist.dev"
+case .string("development"): "http://localhost:8080"
+default: .environmentVariable(value: "", isEnabled: false)
+}
+
 let project = Project(
     name: "TuistApp",
     settings: .settings(
@@ -171,6 +183,8 @@ let project = Project(
                     environmentVariables: [
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                        "TUIST_OAUTH_CLIENT_ID": oauthClientIdEnvironmentVariable,
+                        "TUIST_URL": serverURLEnvironmentVariable,
                     ]
                 )
             )

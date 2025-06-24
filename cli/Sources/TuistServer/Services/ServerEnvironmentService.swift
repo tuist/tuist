@@ -17,26 +17,40 @@ enum ServerURLServiceError: LocalizedError, Equatable {
 
 #if canImport(TuistSupport)
     @Mockable
-    public protocol ServerURLServicing {
+    public protocol ServerEnvironmentServicing {
         func url(configServerURL: URL) throws -> URL
     }
 #else
     @Mockable
-    public protocol ServerURLServicing {
+    public protocol ServerEnvironmentServicing: Sendable {
         func url() -> URL
+        func oauthClientId() -> String
     }
 #endif
 
-public final class ServerURLService: ServerURLServicing {
+public final class ServerEnvironmentService: ServerEnvironmentServicing {
     public init() {}
 
     #if canImport(TuistSupport)
-        func url(configServerURL: URL) throws -> URL
+        public func url(configServerURL: URL) throws -> URL {
+            return try (
+                envVariableURL("TUIST_URL") ?? configServerURL
+            )
+        }
     #else
         public func url() -> URL {
             return try! envVariableURL("TUIST_URL") ?? URL(string: "https://tuist.dev")!
         }
     #endif
+
+    public func oauthClientId() -> String {
+        #if canImport(TuistSupport)
+            let variables = Environment.current.variables
+        #else
+            let variables = ProcessInfo.processInfo.environment
+        #endif
+        return variables["TUIST_OAUTH_CLIENT_ID"] ?? "5339abf2-467c-4690-b816-17246ed149d2"
+    }
 
     private func envVariableURL(_ envVariable: String) throws -> URL? {
         #if canImport(TuistSupport)

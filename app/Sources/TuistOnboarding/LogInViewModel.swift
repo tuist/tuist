@@ -1,7 +1,6 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
-import Security
 import TuistServer
 
 public enum LogInViewModelError: LocalizedError {
@@ -11,7 +10,7 @@ public enum LogInViewModelError: LocalizedError {
     case tokenExchangeFailed(statusCode: Int)
     case missingTokens
 
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case .invalidCallbackURL:
             return "Invalid callback URL received"
@@ -25,30 +24,20 @@ public enum LogInViewModelError: LocalizedError {
             return "Access token or refresh token missing from response"
         }
     }
-
-    public var recoverySuggestion: String? {
-        switch self {
-        case .invalidCallbackURL, .missingAuthorizationCode:
-            return "Please try signing in again"
-        case .invalidTokenResponse, .tokenExchangeFailed, .missingTokens:
-            return "Please check your network connection and try again"
-        }
-    }
 }
 
 public final class LoginViewModel: ObservableObject {
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverCredentialsStore: ServerCredentialsStoring
 
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
-    private let clientId = "5339abf2-467c-4690-b816-17246ed149d2"
     private let redirectURI = "tuist://oauth-callback"
 
     public init(
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
     ) {
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.serverCredentialsStore = serverCredentialsStore
     }
 
@@ -66,7 +55,7 @@ public final class LoginViewModel: ObservableObject {
 
     private func startOAuth2Flow(with path: String) async throws {
         var urlComponents = URLComponents(
-            url: serverURLService.url().appending(
+            url: serverEnvironmentService.url().appending(
                 path: path
             ),
             resolvingAgainstBaseURL: false
@@ -75,7 +64,7 @@ public final class LoginViewModel: ObservableObject {
         let codeVerifier = codeVerifier()
         urlComponents.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: clientId),
+            URLQueryItem(name: "client_id", value: serverEnvironmentService.oauthClientId()),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "state", value: UUID().uuidString),
             URLQueryItem(name: "code_challenge", value: codeChallenge(from: codeVerifier)),
@@ -146,7 +135,7 @@ public final class LoginViewModel: ObservableObject {
         _ code: String,
         codeVerifier: String
     ) async throws {
-        let url = serverURLService.url().appending(
+        let url = serverEnvironmentService.url().appending(
             path: "oauth/token"
         )
 
@@ -158,7 +147,7 @@ public final class LoginViewModel: ObservableObject {
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirectURI,
-            "client_id": clientId,
+            "client_id": serverEnvironmentService.oauthClientId(),
             "code_verifier": codeVerifier,
         ]
 
@@ -201,7 +190,7 @@ public final class LoginViewModel: ObservableObject {
                 accessToken: accessToken,
                 refreshToken: refreshToken
             ),
-            serverURL: serverURLService.url()
+            serverURL: serverEnvironmentService.url()
         )
     }
 }

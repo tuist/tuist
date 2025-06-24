@@ -79,7 +79,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if Environment.current.isCI {
                 return try await ciAuthenticationToken()
             } else {
-                return try await cliManagedAuthenticationTokenRefreshingIfNeeded(
+                return try await authenticationTokenRefreshingIfNeeded(
                     serverURL: serverURL, forceRefresh: false
                 )
             }
@@ -161,6 +161,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                                 expiresAt = accessToken.expiryDate
                             }
                         } else {
+                            try await credentialsStore.delete(serverURL: serverURL)
                             throw ServerClientAuthenticationError.notAuthenticated
                         }
                     }

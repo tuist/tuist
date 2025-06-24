@@ -15,17 +15,17 @@ protocol OrganizationUpdateMemberServicing {
 
 final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     private let updateOrganizationMemberService: UpdateOrganizationMemberServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         updateOrganizationMemberService: UpdateOrganizationMemberServicing =
             UpdateOrganizationMemberService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.updateOrganizationMemberService = updateOrganizationMemberService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -45,7 +45,7 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let member = try await updateOrganizationMemberService.updateOrganizationMember(
             organizationName: organizationName,
             username: username,

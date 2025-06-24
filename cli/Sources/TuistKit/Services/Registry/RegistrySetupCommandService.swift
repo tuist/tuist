@@ -29,7 +29,7 @@ enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
 }
 
 struct RegistrySetupCommandService {
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let fullHandleService: FullHandleServicing
@@ -39,7 +39,7 @@ struct RegistrySetupCommandService {
     private let defaultsController: DefaultsControlling
 
     init(
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
@@ -49,7 +49,7 @@ struct RegistrySetupCommandService {
         createAccountTokenService: CreateAccountTokenServicing = CreateAccountTokenService(),
         defaultsController: DefaultsControlling = DefaultsController()
     ) {
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
@@ -70,7 +70,7 @@ struct RegistrySetupCommandService {
         }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         try await Noora.current.progressStep(
             message: "Logging into the registry...",
@@ -78,7 +78,7 @@ struct RegistrySetupCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { _ in
-            let serverURL = try serverURLService.url(configServerURL: config.url)
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let registryURL = serverURL.appending(
                 path: "api/accounts/\(accountHandle)/registry/swift"
             )

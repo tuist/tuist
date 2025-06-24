@@ -18,7 +18,7 @@ struct InspectBundleCommandServiceTests {
     private let rosalind = MockRosalind()
     private let createBundleService = MockCreateBundleServicing()
     private let configLoader = MockConfigLoading()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
     private let subject: InspectBundleCommandService
 
@@ -28,7 +28,7 @@ struct InspectBundleCommandServiceTests {
             rosalind: rosalind,
             createBundleService: createBundleService,
             configLoader: configLoader,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             gitController: gitController
         )
 
@@ -40,7 +40,7 @@ struct InspectBundleCommandServiceTests {
             .gitInfo(workingDirectory: .any)
             .willReturn(.test(ref: "refs/pull/1/merge", branch: nil, sha: nil))
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(.test())
 

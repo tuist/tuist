@@ -10,7 +10,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct RegistrySetupCommandServiceTests {
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
     private let fullHandleService = MockFullHandleServicing()
@@ -22,7 +22,7 @@ struct RegistrySetupCommandServiceTests {
 
     init() {
         subject = RegistrySetupCommandService(
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             fileSystem: fileSystem,
             fullHandleService: fullHandleService,
@@ -53,7 +53,7 @@ struct RegistrySetupCommandServiceTests {
                 given(fullHandleService)
                     .parse(.any)
                     .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-                given(serverURLService)
+                given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
                 given(manifestFilesLocator)
@@ -120,7 +120,7 @@ struct RegistrySetupCommandServiceTests {
                 given(fullHandleService)
                     .parse(.any)
                     .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-                given(serverURLService)
+                given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
                 given(manifestFilesLocator)
@@ -169,7 +169,7 @@ struct RegistrySetupCommandServiceTests {
                 given(fullHandleService)
                     .parse(.any)
                     .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-                given(serverURLService)
+                given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
                 given(manifestFilesLocator)

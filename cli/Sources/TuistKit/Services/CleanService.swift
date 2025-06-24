@@ -60,7 +60,7 @@ final class CleanService {
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let manifestFilesLocator: ManifestFilesLocating
     private let configLoader: ConfigLoading
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let cleanCacheService: CleanCacheServicing
     private let fileSystem: FileSystem
 
@@ -70,7 +70,7 @@ final class CleanService {
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         manifestFilesLocator: ManifestFilesLocating,
         configLoader: ConfigLoading,
-        serverURLService: ServerURLServicing,
+        serverEnvironmentService: ServerEnvironmentServicing,
         cleanCacheService: CleanCacheServicing,
         fileSystem: FileSystem
     ) {
@@ -79,7 +79,7 @@ final class CleanService {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.manifestFilesLocator = manifestFilesLocator
         self.configLoader = configLoader
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.cleanCacheService = cleanCacheService
         self.fileSystem = fileSystem
     }
@@ -91,7 +91,7 @@ final class CleanService {
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             manifestFilesLocator: ManifestFilesLocator(),
             configLoader: ConfigLoader(),
-            serverURLService: ServerURLService(),
+            serverEnvironmentService: ServerEnvironmentService(),
             cleanCacheService: CleanCacheService(),
             fileSystem: FileSystem()
         )
@@ -135,7 +135,7 @@ final class CleanService {
         if remote {
             let config = try await configLoader.loadConfig(path: resolvedPath)
             guard let fullHandle = config.fullHandle else { return }
-            let serverURL = try serverURLService.url(configServerURL: config.url)
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             try await cleanCacheService.cleanCache(
                 serverURL: serverURL,
                 fullHandle: fullHandle

@@ -1,5 +1,4 @@
 import SwiftUI
-import TuistOnboarding
 
 #if canImport(TuistMenuBar)
     import Sparkle
@@ -33,6 +32,7 @@ import TuistOnboarding
     }
 #else
     import TuistErrorHandling
+    import TuistOnboarding
     import TuistPreviews
 
     @main
