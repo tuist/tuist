@@ -943,6 +943,7 @@ extension ProjectDescription.ResourceFileElements {
         "xcmappingmodel",
         "xcassets",
         "strings",
+        "stringsdict",
         "metal",
     ])
 
