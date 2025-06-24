@@ -39,6 +39,7 @@ public final class ServerEnvironmentService: ServerEnvironmentServicing {
         }
     #else
         public func url() -> URL {
+            // swiftlint:disable:next force_try
             return try! envVariableURL("TUIST_URL") ?? URL(string: "https://tuist.dev")!
         }
     #endif

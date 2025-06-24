@@ -81,6 +81,7 @@ let project = Project(
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
             dependencies: [
+                .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
