@@ -2,7 +2,7 @@ defmodule Tuist.Repo.Migrations.DropXcodeTables do
   use Ecto.Migration
 
   def change do
-    if Tuist.Environment.on_premise?() || Mix.env() == :test do
+    if Tuist.Environment.on_premise?() || Tuist.Environment.test?() do
       :ok
     else
       # excellent_migrations:safety-assured-for-next-line table_dropped

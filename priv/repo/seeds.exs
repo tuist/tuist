@@ -2,9 +2,7 @@ import Ecto.Query, only: [from: 2]
 
 alias Tuist.Accounts
 alias Tuist.Billing.Subscription
-alias Tuist.ClickHouseRepo
 alias Tuist.CommandEvents
-alias Tuist.Environment
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
