@@ -26,7 +26,7 @@ public class AuthenticationService: ObservableObject {
     }
     
     private func setupCredentialsListener() {
-        serverCredentialsStore.credentialsChanged
+        ServerCredentialsStore.credentialsChanged
             .receive(on: DispatchQueue.main)
             .sink { [weak self] credentials in
                 self?.isAuthenticated = credentials?.refreshToken != nil

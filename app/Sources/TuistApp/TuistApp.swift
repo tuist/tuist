@@ -41,7 +41,16 @@ import TuistOnboarding
         var body: some Scene {
             WindowGroup {
                 if authenticationService.isAuthenticated {
-                    PreviewsView()
+                    NavigationView {
+                        PreviewsView()
+                            .navigationBarItems(trailing:
+                                Button("Log Out") {
+                                    Task {
+                                        await authenticationService.signOut()
+                                    }
+                                }
+                            )
+                    }
                 } else {
                     LogInView()
                 }

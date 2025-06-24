@@ -84,9 +84,9 @@ enum ServerCredentialsStoreError: LocalizedError {
 public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
     private let fileSystem: FileSysteming
     private let configDirectory: AbsolutePath?
-    private let credentialsChangedSubject = PassthroughSubject<ServerCredentials?, Never>()
+    private static let credentialsChangedSubject = PassthroughSubject<ServerCredentials?, Never>()
     
-    public var credentialsChanged: AnyPublisher<ServerCredentials?, Never> {
+    public static var credentialsChanged: AnyPublisher<ServerCredentials?, Never> {
         credentialsChangedSubject.eraseToAnyPublisher()
     }
 
@@ -119,7 +119,7 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
         }
         #endif
         
-        credentialsChangedSubject.send(credentials)
+        Self.credentialsChangedSubject.send(credentials)
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
@@ -153,12 +153,18 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     }
 
     public func delete(serverURL: URL) async throws {
+        #if canImport(TuistSupport)
         let path = try credentialsFilePath(serverURL: serverURL)
         if try await fileSystem.exists(path) {
             try await fileSystem.remove(path)
         }
+        #else
+        let keychain = keychain(serverURL: serverURL)
+        try keychain.remove(serverURL.absoluteString + "_refresh_token")
+        try keychain.remove(serverURL.absoluteString + "_access_token")
+        #endif
         
-        credentialsChangedSubject.send(nil)
+        Self.credentialsChangedSubject.send(nil)
     }
 
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
