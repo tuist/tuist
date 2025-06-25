@@ -43,7 +43,14 @@ extension TuistCore.Tuist {
         }
 
         switch manifest.project {
-        case let .tuist(compatibleXcodeVersions, manifestSwiftVersion, plugins, generationOptions, inspectOptions, installOptions):
+        case let .tuist(
+            compatibleXcodeVersions,
+            manifestSwiftVersion,
+            plugins,
+            generationOptions,
+            inspectOptions,
+            installOptions
+        ):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
             let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,

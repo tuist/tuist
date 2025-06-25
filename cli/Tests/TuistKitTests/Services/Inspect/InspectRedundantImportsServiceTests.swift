@@ -79,7 +79,12 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
                 installOptions: .test()
             ))
             let framework = Target.test(name: "Framework", product: .framework)
-            let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")], metadata: .metadata(tags: ["IgnoreRedundantDependencies"]))
+            let app = Target.test(
+                name: "App",
+                product: .app,
+                dependencies: [TargetDependency.target(name: "Framework")],
+                metadata: .metadata(tags: ["IgnoreRedundantDependencies"])
+            )
             let project = Project.test(path: path, targets: [app, framework])
             let graph = Graph.test(path: path, projects: [path: project], dependencies: [
                 .target(name: app.name, path: project.path): [

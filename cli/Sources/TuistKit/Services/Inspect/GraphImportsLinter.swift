@@ -27,15 +27,16 @@ final class GraphImportsLinter: GraphImportsLinting {
         inspectType: InspectType,
         ignoreTagsMatching: Set<String>
     ) async throws -> [LintingIssue] {
-        return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType).compactMap { target, implicitDependencies in
-            guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
-                return nil
+        return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType)
+            .compactMap { target, implicitDependencies in
+                guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
+                    return nil
+                }
+                return LintingIssue(
+                    reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
+                    severity: .error
+                )
             }
-            return LintingIssue(
-                reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
-                severity: .error
-            )
-        }
     }
 
     private func targetImportsMap(

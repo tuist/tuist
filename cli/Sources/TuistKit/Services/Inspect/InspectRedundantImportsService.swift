@@ -28,7 +28,7 @@ final class InspectRedundantImportsService {
             options: config.project.generatedProject?.generationOptions
         )
         let ignoreTagsMatching = switch config.project {
-        case .generated(let options):
+        case let .generated(options):
             options.inspectOptions.redundantDependencies.ignoreTagsMatching
         case .swiftPackage, .xcode:
             []
