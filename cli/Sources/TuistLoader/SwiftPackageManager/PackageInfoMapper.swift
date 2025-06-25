@@ -12,7 +12,7 @@ import XcodeGraph
 
 // MARK: - PackageInfo Mapper Errors
 
-enum PackageInfoMapperError: FatalError, Equatable {
+enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when the default path folder is not present.
     case defaultPathNotFound(AbsolutePath, String, [String])
 
@@ -44,24 +44,9 @@ enum PackageInfoMapperError: FatalError, Equatable {
         PackageInfo.Target.TargetBuildSettingDescription.SettingName
     )
 
-    /// Thrown when a binary target defined in a package doesn't have a corresponding artifact
-    case missingBinaryArtifact(package: String, target: String)
-
     case modulemapMissing(moduleMapPath: String, package: String, target: String)
 
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
-             .modulemapMissing:
-            return .abort
-        case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
-            return .bug
-        }
-    }
-
-    /// Error description.
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .defaultPathNotFound(packageFolder, targetName, predefinedPaths):
             return """
@@ -82,8 +67,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
-        case let .missingBinaryArtifact(package, target):
-            return "The artifact for binary target \(target) of package \(package) cannot be found."
         case let .modulemapMissing(moduleMapPath, package, target):
             return "Target \(target) of package \(package) is a system library. Module map is missing at \(moduleMapPath)."
         }
@@ -613,10 +596,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             return nil
         }
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
-                guard let artifactPath = artifactPaths[target.name] else {
-                    throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
-                }
+            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType,
+               let artifactPath = artifactPaths[target.name]
+            {
                 return .xcframework(
                     path: .path(artifactPath.pathString),
                     expectedSignature: nil,
