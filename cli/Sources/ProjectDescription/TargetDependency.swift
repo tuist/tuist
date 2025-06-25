@@ -105,7 +105,7 @@ public enum TargetDependency: Codable, Hashable, Sendable {
 
     /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
     /// For more info, check the [external dependencies documentation
-    /// ](https://docs.tuist.io/documentation/tuist/dependencies/#External-dependencies).
+    /// ](https://docs.tuist.dev/en/guides/features/projects/dependencies#external-dependencies).
     ///
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
