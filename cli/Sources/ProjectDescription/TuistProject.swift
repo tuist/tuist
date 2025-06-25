@@ -6,12 +6,14 @@ public enum TuistProject: Codable, Equatable, Sendable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
+    ///   - inspectOptions: List of options to use when running `tuist inspect`.
     ///   - installOptions: List of options to use when running `tuist install`.
     case tuist(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: Tuist.GenerationOptions = .options(),
+        inspectOptions: Tuist.InspectOptions = .options(),
         installOptions: Tuist.InstallOptions = .options()
     )
     case xcode(TuistXcodeProjectOptions = TuistXcodeProjectOptions.options())

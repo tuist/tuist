@@ -2,16 +2,57 @@ import Path
 import XcodeGraph
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
-    public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
-        public var passthroughSwiftPackageManagerArguments: [String]
+    public let compatibleXcodeVersions: CompatibleXcodeVersions
+    public let swiftVersion: Version?
+    public let plugins: [PluginLocation]
+    public let generationOptions: GenerationOptions
+    public let inspectOptions: InspectOptions
+    public let installOptions: InstallOptions
 
-        public init(
-            passthroughSwiftPackageManagerArguments: [String] = []
-        ) {
-            self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
-        }
+    public init(
+        compatibleXcodeVersions: CompatibleXcodeVersions,
+        swiftVersion: Version?,
+        plugins: [PluginLocation],
+        generationOptions: GenerationOptions,
+        inspectOptions: InspectOptions,
+        installOptions: InstallOptions
+    ) {
+        self.compatibleXcodeVersions = compatibleXcodeVersions
+        self.swiftVersion = swiftVersion
+        self.plugins = plugins
+        self.generationOptions = generationOptions
+        self.inspectOptions = inspectOptions
+        self.installOptions = installOptions
     }
 
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(compatibleXcodeVersions)
+        hasher.combine(swiftVersion)
+        hasher.combine(plugins)
+        hasher.combine(generationOptions)
+        hasher.combine(inspectOptions)
+        hasher.combine(installOptions)
+    }
+
+    public static var `default`: Self {
+        TuistGeneratedProjectOptions(
+            compatibleXcodeVersions: .all,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .init(
+                resolveDependenciesWithSystemScm: false,
+                disablePackageVersionLocking: false,
+                staticSideEffectsWarningTargets: .all,
+                buildInsightsDisabled: true,
+                disableSandbox: false
+            ),
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            installOptions: .init(passthroughSwiftPackageManagerArguments: [])
+        )
+    }
+}
+
+extension TuistGeneratedProjectOptions {
     public struct GenerationOptions: Codable, Hashable, Equatable {
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all
@@ -52,48 +93,34 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         }
     }
 
-    public let compatibleXcodeVersions: CompatibleXcodeVersions
-    public let swiftVersion: Version?
-    public let plugins: [PluginLocation]
-    public let generationOptions: GenerationOptions
-    public let installOptions: InstallOptions
+    public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
+        public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
+            public let ignoreTagsMatching: Set<String>
 
-    public init(
-        compatibleXcodeVersions: CompatibleXcodeVersions,
-        swiftVersion: Version?,
-        plugins: [PluginLocation],
-        generationOptions: GenerationOptions,
-        installOptions: InstallOptions
-    ) {
-        self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.swiftVersion = swiftVersion
-        self.plugins = plugins
-        self.generationOptions = generationOptions
-        self.installOptions = installOptions
+            public init(
+                ignoreTagsMatching: Set<String>
+            ) {
+                self.ignoreTagsMatching = ignoreTagsMatching
+            }
+        }
+
+        public var redundantDependencies: RedundantDependencies
+
+        public init(
+            redundantDependencies: RedundantDependencies
+        ) {
+            self.redundantDependencies = redundantDependencies
+        }
     }
 
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(compatibleXcodeVersions)
-        hasher.combine(swiftVersion)
-        hasher.combine(plugins)
-        hasher.combine(generationOptions)
-        hasher.combine(installOptions)
-    }
+    public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
+        public var passthroughSwiftPackageManagerArguments: [String]
 
-    public static var `default`: Self {
-        TuistGeneratedProjectOptions(
-            compatibleXcodeVersions: .all,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .init(
-                resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false,
-                staticSideEffectsWarningTargets: .all,
-                buildInsightsDisabled: true,
-                disableSandbox: false
-            ),
-            installOptions: .init(passthroughSwiftPackageManagerArguments: [])
-        )
+        public init(
+            passthroughSwiftPackageManagerArguments: [String] = []
+        ) {
+            self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+        }
     }
 }
 
@@ -104,6 +131,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = .test(),
+            inspectOptions: InspectOptions = .test(),
             installOptions: InstallOptions = .test()
         ) -> Self {
             return .init(
@@ -111,6 +139,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
+                inspectOptions: inspectOptions,
                 installOptions: installOptions
             )
         }
@@ -139,6 +168,16 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
                 disableSandbox: disableSandbox
+            )
+        }
+    }
+
+    extension TuistGeneratedProjectOptions.InspectOptions {
+        public static func test(
+            redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
+        ) -> Self {
+            .init(
+                redundantDependencies: redundantDependencies
             )
         }
     }

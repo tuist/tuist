@@ -31,6 +31,26 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
     }
 }
 
+extension TuistCore.TuistGeneratedProjectOptions.InspectOptions {
+    static func from(
+        manifest: ProjectDescription.Config.InspectOptions
+    ) -> Self {
+        return .init(
+            redundantDependencies: .from(manifest: manifest.redundantDependencies)
+        )
+    }
+}
+
+extension TuistCore.TuistGeneratedProjectOptions.InspectOptions.RedundantDependencies {
+    static func from(
+        manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
+    ) -> Self {
+        return .init(
+            ignoreTagsMatching: manifest.ignoreTagsMatching
+        )
+    }
+}
+
 extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     static func from(
         manifest: ProjectDescription.Config.InstallOptions

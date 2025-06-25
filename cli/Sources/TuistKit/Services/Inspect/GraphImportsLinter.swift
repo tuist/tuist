@@ -10,7 +10,8 @@ enum InspectType {
 protocol GraphImportsLinting {
     func lint(
         graphTraverser: GraphTraverser,
-        inspectType: InspectType
+        inspectType: InspectType,
+        ignoreTagsMatching: Set<String>
     ) async throws -> [LintingIssue]
 }
 
@@ -23,12 +24,13 @@ final class GraphImportsLinter: GraphImportsLinting {
 
     func lint(
         graphTraverser: GraphTraverser,
-        inspectType: InspectType
+        inspectType: InspectType,
+        ignoreTagsMatching: Set<String>
     ) async throws -> [LintingIssue] {
-        return try await targetImportsMap(
-            graphTraverser: graphTraverser,
-            inspectType: inspectType
-        ).compactMap { target, implicitDependencies in
+        return try await targetImportsMap(graphTraverser: graphTraverser, inspectType: inspectType).compactMap { target, implicitDependencies in
+            guard target.metadata.tags.intersection(ignoreTagsMatching).isEmpty else {
+                return nil
+            }
             return LintingIssue(
                 reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
                 severity: .error

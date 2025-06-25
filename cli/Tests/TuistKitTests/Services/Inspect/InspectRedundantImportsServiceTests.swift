@@ -66,6 +66,38 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_ignoreError_when_excludedByTag() async throws {
+        try await withMockedDependencies {
+            // Given
+            let path = try AbsolutePath(validating: "/project")
+            let config = Tuist.test(project: .generated(
+                compatibleXcodeVersions: .test(),
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                inspectOptions: .test(redundantDependencies: .init(ignoreTagsMatching: ["IgnoreRedundantDependencies"])),
+                installOptions: .test()
+            ))
+            let framework = Target.test(name: "Framework", product: .framework)
+            let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")], metadata: .metadata(tags: ["IgnoreRedundantDependencies"]))
+            let project = Project.test(path: path, targets: [app, framework])
+            let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: framework.name, path: project.path),
+                ],
+            ])
+
+            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+            given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+            given(generator).load(path: .value(path), options: .any).willReturn(graph)
+            given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+            given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+
+            // When
+            try await subject.run(path: path.pathString)
+        }
+    }
+
     func test_run_when_external_package_target_is_recursively_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")

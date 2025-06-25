@@ -27,7 +27,17 @@ final class InspectRedundantImportsService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
-        let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .redundant)
+        let ignoreTagsMatching = switch config.project {
+        case .generated(let options):
+            options.inspectOptions.redundantDependencies.ignoreTagsMatching
+        case .swiftPackage, .xcode:
+            []
+        }
+        let issues = try await graphImportsLinter.lint(
+            graphTraverser: GraphTraverser(graph: graph),
+            inspectType: .redundant,
+            ignoreTagsMatching: ignoreTagsMatching
+        )
         if !issues.isEmpty {
             Logger.current.info(
                 "The following redundant dependencies were found:"

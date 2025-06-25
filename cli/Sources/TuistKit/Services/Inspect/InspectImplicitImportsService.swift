@@ -54,7 +54,11 @@ final class InspectImplicitImportsService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
-        let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .implicit)
+        let issues = try await graphImportsLinter.lint(
+            graphTraverser: GraphTraverser(graph: graph),
+            inspectType: .implicit,
+            ignoreTagsMatching: []
+        )
         if !issues.isEmpty {
             Logger.current.log(
                 level: .info,
