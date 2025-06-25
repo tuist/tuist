@@ -66,7 +66,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_ignoreError_when_excludedByTag() async throws {
+    func test_run_throwsAnErrorButIgnoresIgnoredTags_when_thereAreIssues() async throws {
         try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
@@ -85,7 +85,12 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
                 dependencies: [TargetDependency.target(name: "Framework")],
                 metadata: .metadata(tags: ["IgnoreRedundantDependencies"])
             )
-            let project = Project.test(path: path, targets: [app, framework])
+            let framework2 = Target.test(
+                name: "Framework2",
+                product: .framework,
+                dependencies: [TargetDependency.target(name: "Framework")]
+            )
+            let project = Project.test(path: path, targets: [app, framework, framework2])
             let graph = Graph.test(path: path, projects: [path: project], dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: framework.name, path: project.path),
@@ -99,7 +104,8 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
             // When
-            try await subject.run(path: path.pathString)
+            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
+            XCTAssertStandardError(pattern: "Framework2 redundantly depends on: Framework")
         }
     }
 
