@@ -196,6 +196,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "Difference"),
                     .external(name: "SwiftToolsSupport"),

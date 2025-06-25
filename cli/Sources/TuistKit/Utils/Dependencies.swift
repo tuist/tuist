@@ -2,6 +2,7 @@ import Foundation
 import Noora
 import Path
 import TSCBasic
+import TuistServer
 import TuistSupport
 
 private enum DependenciesError: LocalizedError {
@@ -26,10 +27,14 @@ public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void)
 
     try await Noora.$current.withValue(initNoora()) {
         try await Logger.$current.withValue(logger) {
-            try await RecentPathsStore.$current
-                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                    try await action(logFilePath)
+            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                    try await RecentPathsStore.$current
+                        .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                            try await action(logFilePath)
+                        }
                 }
+            }
         }
     }
 }

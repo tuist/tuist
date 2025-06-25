@@ -60,7 +60,6 @@ public protocol ServerSessionControlling: AnyObject {
 public final class ServerSessionController: ServerSessionControlling {
     static let port: UInt16 = 4545
 
-    private let credentialsStore: ServerCredentialsStoring
     private let getAuthTokenService: GetAuthTokenServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
 
@@ -69,26 +68,20 @@ public final class ServerSessionController: ServerSessionControlling {
         private let uniqueIDGenerator: UniqueIDGenerating
 
         public convenience init() {
-            let credentialsStore = ServerCredentialsStore()
             self.init(
-                credentialsStore: credentialsStore,
                 opener: Opener(),
                 getAuthTokenService: GetAuthTokenService(),
                 uniqueIDGenerator: UniqueIDGenerator(),
-                serverAuthenticationController: ServerAuthenticationController(
-                    credentialsStore: credentialsStore
-                )
+                serverAuthenticationController: ServerAuthenticationController()
             )
         }
 
         init(
-            credentialsStore: ServerCredentialsStoring,
             opener: Opening,
             getAuthTokenService: GetAuthTokenServicing,
             uniqueIDGenerator: UniqueIDGenerating,
             serverAuthenticationController: ServerAuthenticationControlling
         ) {
-            self.credentialsStore = credentialsStore
             self.opener = opener
             self.getAuthTokenService = getAuthTokenService
             self.uniqueIDGenerator = uniqueIDGenerator
@@ -96,7 +89,6 @@ public final class ServerSessionController: ServerSessionControlling {
         }
     #else
         public init() {
-            credentialsStore = ServerCredentialsStore()
             getAuthTokenService = GetAuthTokenService()
             serverAuthenticationController = ServerAuthenticationController()
         }
@@ -137,7 +129,7 @@ public final class ServerSessionController: ServerSessionControlling {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
-            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+            try await ServerCredentialsStore.current.store(credentials: credentials, serverURL: serverURL)
         }
     #else
         public func authenticate(
@@ -180,7 +172,7 @@ public final class ServerSessionController: ServerSessionControlling {
     }
 
     public func logout(serverURL: URL) async throws {
-        try await credentialsStore.delete(serverURL: serverURL)
+        try await ServerCredentialsStore.current.delete(serverURL: serverURL)
         #if canImport(TuistSupport)
             AlertController.current.success(.alert("Successfully logged out."))
         #endif

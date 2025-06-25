@@ -39,7 +39,6 @@ final class LoginService: LoginServicing {
     private let configLoader: ConfigLoading
     private let userInputReader: UserInputReading
     private let authenticateService: AuthenticateServicing
-    private let serverCredentialsStore: ServerCredentialsStoring
 
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
@@ -47,14 +46,12 @@ final class LoginService: LoginServicing {
         configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
-        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
     ) {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.userInputReader = userInputReader
         self.authenticateService = authenticateService
-        self.serverCredentialsStore = serverCredentialsStore
     }
 
     // MARK: - AuthServicing
@@ -102,7 +99,7 @@ final class LoginService: LoginServicing {
             serverURL: serverURL
         )
 
-        try await serverCredentialsStore.store(
+        try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(
                 token: nil,
                 accessToken: authenticationTokens.accessToken,
