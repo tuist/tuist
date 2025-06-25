@@ -1894,7 +1894,7 @@ components:
     oauth2:
       flows:
         authorizationCode:
-          authorizationUrl: /oauth/authorize
+          authorizationUrl: /oauth2/authorize
           scopes:
             read: Read access to resources
             write: Write access to resources

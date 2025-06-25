@@ -42,15 +42,15 @@ public final class LoginViewModel: ObservableObject {
     }
 
     func signIn() async throws {
-        try await startOAuth2Flow(with: "/oauth/authorize")
+        try await startOAuth2Flow(with: "/oauth2/authorize")
     }
 
     func signInWithGitHub() async throws {
-        try await startOAuth2Flow(with: "/oauth/github")
+        try await startOAuth2Flow(with: "/oauth2/github")
     }
 
     func signInWithGoogle() async throws {
-        try await startOAuth2Flow(with: "/oauth/google")
+        try await startOAuth2Flow(with: "/oauth2/google")
     }
 
     private func startOAuth2Flow(with path: String) async throws {
@@ -108,9 +108,10 @@ public final class LoginViewModel: ObservableObject {
                     return
                 }
 
-                guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                    .queryItems?
-                    .first(where: { $0.name == "code" })?.value
+                guard
+                    let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                        .queryItems?
+                        .first(where: { $0.name == "code" })?.value
                 else {
                     continuation.resume(throwing: LogInViewModelError.missingAuthorizationCode)
                     return
@@ -136,7 +137,7 @@ public final class LoginViewModel: ObservableObject {
         codeVerifier: String
     ) async throws {
         let url = serverEnvironmentService.url().appending(
-            path: "oauth/token"
+            path: "oauth2/token"
         )
 
         var request = URLRequest(url: url)
@@ -153,10 +154,10 @@ public final class LoginViewModel: ObservableObject {
 
         let body =
             parameters
-                .map {
-                    "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-                }
-                .joined(separator: "&")
+            .map {
+                "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            }
+            .joined(separator: "&")
 
         request.httpBody = body.data(using: .utf8)
 
@@ -179,7 +180,7 @@ public final class LoginViewModel: ObservableObject {
         }
 
         guard let accessToken = json["access_token"] as? String,
-              let refreshToken = json["refresh_token"] as? String
+            let refreshToken = json["refresh_token"] as? String
         else {
             throw LogInViewModelError.missingTokens
         }
