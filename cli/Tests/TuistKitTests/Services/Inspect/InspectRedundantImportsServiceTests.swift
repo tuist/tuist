@@ -77,7 +77,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             let app = Target.test(
                 name: "App",
                 product: .app,
-                dependencies: [TargetDependency.target(name: "Framework")],
+                dependencies: [TargetDependency.target(name: "Framework"), TargetDependency.target(name: "Framework2")],
                 metadata: .metadata(tags: ["IgnoreRedundantDependencies"])
             )
             let framework2 = Target.test(
@@ -89,6 +89,10 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             let graph = Graph.test(path: path, projects: [path: project], dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: framework.name, path: project.path),
+                    .target(name: framework2.name, path: project.path),
+                ],
+                .target(name: framework2.name, path: project.path): [
+                    .target(name: framework.name, path: project.path),
                 ],
             ])
 
@@ -97,6 +101,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             given(generator).load(path: .value(path), options: .any).willReturn(graph)
             given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
             given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+            given(targetScanner).imports(for: .value(framework2)).willReturn(Set([]))
 
             // When
             await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
