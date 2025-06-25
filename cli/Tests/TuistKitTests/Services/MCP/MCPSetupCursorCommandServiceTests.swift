@@ -31,15 +31,18 @@ struct MCPSetupCursorCommandServiceTests {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-            
+
             // When
             try await subject.run()
-            
+
             // Then
-            let configPath = mockedEnvironment.currentWorkingDirectory.appending(components: [".cursor", "settings.json"])
+            let configPath = try await mockedEnvironment.currentWorkingDirectory().appending(components: [
+                ".cursor",
+                "settings.json",
+            ])
             let exists = try await fileSystem.exists(configPath)
             #expect(exists)
-            
+
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)
             #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "tuist")
@@ -47,21 +50,24 @@ struct MCPSetupCursorCommandServiceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func run_createsConfigurationInSpecifiedPath_whenPathProvided() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func run_createsConfigurationInSpecifiedPath_whenPathProvided() async throws {
         try await withMockedDependencies {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
-            let customPath = try await FileSystem.temporaryTestDirectory.appending(component: "custom")
+            let customPath = try await FileSystem.temporaryTestDirectory!.appending(component: "custom")
             try await fileSystem.makeDirectory(at: customPath)
-            
+
             // When
             try await subject.run(path: customPath.pathString)
-            
+
             // Then
             let configPath = customPath.appending(components: [".cursor", "settings.json"])
             let exists = try await fileSystem.exists(configPath)
             #expect(exists)
-            
+
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)
             #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "tuist")
@@ -69,20 +75,23 @@ struct MCPSetupCursorCommandServiceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func run_createsGlobalConfiguration_whenGlobalFlagProvided() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func run_createsGlobalConfiguration_whenGlobalFlagProvided() async throws {
         try await withMockedDependencies {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-            
+
             // When
             try await subject.run(global: true)
-            
+
             // Then
             let configPath = mockedEnvironment.homeDirectory.appending(components: [".cursor", "settings.json"])
             let exists = try await fileSystem.exists(configPath)
             #expect(exists)
-            
+
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)
             #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "tuist")
@@ -95,23 +104,23 @@ struct MCPSetupCursorCommandServiceTests {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-            
+
             // Create existing configuration
-            let cursorDir = mockedEnvironment.currentWorkingDirectory.appending(component: ".cursor")
+            let cursorDir = try await mockedEnvironment.currentWorkingDirectory().appending(component: ".cursor")
             try await fileSystem.makeDirectory(at: cursorDir)
             let configPath = cursorDir.appending(component: "settings.json")
-            
+
             let existingConfig: JSON = [
                 "editor.fontSize": 14,
                 "mcp.servers": [
-                    "other": ["command": "other-server"]
-                ]
+                    "other": ["command": "other-server"],
+                ],
             ]
             try existingConfig.rawData().write(to: configPath.url, options: .atomic)
-            
+
             // When
             try await subject.run()
-            
+
             // Then
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)

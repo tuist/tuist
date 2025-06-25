@@ -18,25 +18,25 @@ struct MCPSetupZedCommandService {
 
     func run(path: String? = nil, global: Bool = false) async throws {
         let configPath: AbsolutePath
-        
+
         if global {
             // Global Zed settings location
             configPath = Environment.current.homeDirectory.appending(components: [
                 ".config",
                 "zed",
-                "settings.json"
+                "settings.json",
             ])
         } else {
             // Local Zed settings in workspace
             let basePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
             configPath = basePath.appending(components: [".zed", "settings.json"])
         }
-        
+
         try await configurationFileController.update(
             for: .zed,
             at: configPath
         )
-        
+
         let location = global ? "globally" : "locally at \(configPath.parentDirectory.pathString)"
         AlertController.current.success(.alert("Zed editor configured \(location) to point to Tuist's MCP server.", takeaways: [
             "Restart Zed editor if it was opened",

@@ -89,7 +89,7 @@ struct MCPClientConfigurationControllerTests {
 //                    ]
 //                ]
 //            ])
-//            
+//
 //            given(serverCommandResolver)
 //                .resolve()
 //                .willReturn(("/path/to/tuist", ["mcp", "start"]))

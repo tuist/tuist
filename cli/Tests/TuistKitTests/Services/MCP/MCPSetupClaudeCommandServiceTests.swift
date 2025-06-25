@@ -31,20 +31,20 @@ struct MCPSetupClaudeCommandServiceTests {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-            
+
             // When
             try await subject.run()
-            
+
             // Then
             let configPath = mockedEnvironment.homeDirectory.appending(components: [
                 "Library",
                 "Application Support",
                 "Claude",
-                "claude_desktop_config.json"
+                "claude_desktop_config.json",
             ])
             let exists = try await fileSystem.exists(configPath)
             #expect(exists)
-            
+
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)
             #expect(json["mcpServers"]["tuist"]["command"].stringValue == "tuist")
@@ -57,22 +57,22 @@ struct MCPSetupClaudeCommandServiceTests {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-            
+
             // Create existing configuration
             let claudeDir = mockedEnvironment.homeDirectory.appending(components: ["Library", "Application Support", "Claude"])
             try await fileSystem.makeDirectory(at: claudeDir)
-            
+
             let configPath = claudeDir.appending(component: "claude_desktop_config.json")
             let existingConfig: JSON = [
                 "mcpServers": [
-                    "other": ["command": "other-server"]
-                ]
+                    "other": ["command": "other-server"],
+                ],
             ]
             try existingConfig.rawData().write(to: configPath.url, options: .atomic)
-            
+
             // When
             try await subject.run()
-            
+
             // Then
             let content = try await fileSystem.readTextFile(at: configPath)
             let json = JSON(parseJSON: content)
@@ -86,7 +86,7 @@ struct MCPSetupClaudeCommandServiceTests {
         try await withMockedDependencies {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
-            
+
             // When
             try await subject.run()
 

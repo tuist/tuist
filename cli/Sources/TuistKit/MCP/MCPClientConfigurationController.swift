@@ -48,68 +48,56 @@ struct MCPClientConfigurationController: MCPClientConfigurationControlling {
         }
     }
 
-    private func updateClaudeConfig(at configPath: AbsolutePath, command: String, args: [String]) async throws {
-        var mcpJSON: JSON = if try await fileSystem.exists(configPath) {
-            JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
+    private func loadOrCreateJSON(at configPath: AbsolutePath) async throws -> JSON {
+        if try await fileSystem.exists(configPath) {
+            return JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
         } else {
-            [:]
+            return [:]
         }
+    }
 
-        if !mcpJSON["mcpServers"].exists() {
-            mcpJSON["mcpServers"] = [:]
+    private func ensureServersKeyExists(in json: inout JSON, keyPath: String) {
+        if !json[keyPath].exists() {
+            json[keyPath] = [:]
         }
-        mcpJSON["mcpServers"]["tuist"] = ["command": command, "args": args]
-        try mcpJSON.rawData().write(to: configPath.url, options: .atomic)
+    }
+
+    private func setTuistServerConfig(in json: inout JSON, keyPath: String, command: String, args: [String]) {
+        json[keyPath]["tuist"] = [
+            "command": command,
+            "args": args,
+        ]
+    }
+
+    private func writeJSON(_ json: JSON, to configPath: AbsolutePath) throws {
+        try json.rawData().write(to: configPath.url, options: .atomic)
+    }
+
+    private func updateClaudeConfig(at configPath: AbsolutePath, command: String, args: [String]) async throws {
+        var mcpJSON = try await loadOrCreateJSON(at: configPath)
+        ensureServersKeyExists(in: &mcpJSON, keyPath: "mcpServers")
+        setTuistServerConfig(in: &mcpJSON, keyPath: "mcpServers", command: command, args: args)
+        try writeJSON(mcpJSON, to: configPath)
     }
 
     private func updateCursorConfig(at configPath: AbsolutePath, command: String, args: [String]) async throws {
-        var settingsJSON: JSON = if try await fileSystem.exists(configPath) {
-            JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
-        } else {
-            [:]
-        }
-
-        if !settingsJSON["mcp.servers"].exists() {
-            settingsJSON["mcp.servers"] = [:]
-        }
-        settingsJSON["mcp.servers"]["tuist"] = [
-            "command": command,
-            "args": args
-        ]
-        try settingsJSON.rawData().write(to: configPath.url, options: .atomic)
+        var settingsJSON = try await loadOrCreateJSON(at: configPath)
+        ensureServersKeyExists(in: &settingsJSON, keyPath: "mcp.servers")
+        setTuistServerConfig(in: &settingsJSON, keyPath: "mcp.servers", command: command, args: args)
+        try writeJSON(settingsJSON, to: configPath)
     }
 
     private func updateZedConfig(at configPath: AbsolutePath, command: String, args: [String]) async throws {
-        var settingsJSON: JSON = if try await fileSystem.exists(configPath) {
-            JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
-        } else {
-            [:]
-        }
-
-        if !settingsJSON["mcp_servers"].exists() {
-            settingsJSON["mcp_servers"] = [:]
-        }
-        settingsJSON["mcp_servers"]["tuist"] = [
-            "command": command,
-            "args": args
-        ]
-        try settingsJSON.rawData().write(to: configPath.url, options: .atomic)
+        var settingsJSON = try await loadOrCreateJSON(at: configPath)
+        ensureServersKeyExists(in: &settingsJSON, keyPath: "mcp_servers")
+        setTuistServerConfig(in: &settingsJSON, keyPath: "mcp_servers", command: command, args: args)
+        try writeJSON(settingsJSON, to: configPath)
     }
 
     private func updateVSCodeConfig(at configPath: AbsolutePath, command: String, args: [String]) async throws {
-        var settingsJSON: JSON = if try await fileSystem.exists(configPath) {
-            JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
-        } else {
-            [:]
-        }
-
-        if !settingsJSON["mcp.servers"].exists() {
-            settingsJSON["mcp.servers"] = [:]
-        }
-        settingsJSON["mcp.servers"]["tuist"] = [
-            "command": command,
-            "args": args
-        ]
-        try settingsJSON.rawData().write(to: configPath.url, options: .atomic)
+        var settingsJSON = try await loadOrCreateJSON(at: configPath)
+        ensureServersKeyExists(in: &settingsJSON, keyPath: "mcp.servers")
+        setTuistServerConfig(in: &settingsJSON, keyPath: "mcp.servers", command: command, args: args)
+        try writeJSON(settingsJSON, to: configPath)
     }
 }
