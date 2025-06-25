@@ -2,6 +2,20 @@ extension Config {
     /// Options for inspect.
     public struct InspectOptions: Codable, Equatable, Sendable {
         /// Options for inspect redundant dependencies.
+        public struct RedundantDependencies: Codable, Equatable, Sendable {
+            /// The set of tags which targets should be ignored when inspecting redundant dependencies
+            public let ignoreTagsMatching: Set<String>
+
+            public static func options(
+                ignoreTagsMatching: Set<String> = []
+            ) -> Self {
+                self.init(
+                    ignoreTagsMatching: ignoreTagsMatching
+                )
+            }
+        }
+
+        /// Options for inspect redundant dependencies.
         public var redundantDependencies: RedundantDependencies
 
         public static func options(
@@ -9,22 +23,6 @@ extension Config {
         ) -> Self {
             self.init(
                 redundantDependencies: redundantDependencies
-            )
-        }
-    }
-}
-
-extension Config.InspectOptions {
-    /// Options for inspect redundant dependencies.
-    public struct RedundantDependencies: Codable, Equatable, Sendable {
-        /// The set of tags which targets should be ignored when inspecting redundant dependencies
-        public let ignoreTagsMatching: Set<String>
-
-        public static func options(
-            ignoreTagsMatching: Set<String> = []
-        ) -> Self {
-            self.init(
-                ignoreTagsMatching: ignoreTagsMatching
             )
         }
     }
