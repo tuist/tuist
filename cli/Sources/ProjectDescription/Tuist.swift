@@ -35,6 +35,9 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// The full project handle such as tuist-org/tuist.
     public let fullHandle: String?
 
+    /// The options to use when running `tuist inspect`.
+    public let inspectOptions: InspectOptions
+
     /// The base URL that points to the Tuist server.
     public let url: String
 
@@ -60,6 +63,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
+        inspectOptions: InspectOptions = .options(),
         installOptions: InstallOptions = .options()
     ) {
         let fullHandle = cloud?.projectId ?? fullHandle
@@ -77,17 +81,20 @@ public struct Tuist: Codable, Equatable, Sendable {
             installOptions: installOptions
         )
         self.fullHandle = fullHandle
+        self.inspectOptions = inspectOptions
         self.url = url
         dumpIfNeeded(self)
     }
 
     public init(
         fullHandle: String? = nil,
+        inspectOptions: InspectOptions = .options(),
         url: String = "https://tuist.dev",
         project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
+        self.inspectOptions = inspectOptions
         self.url = url
         dumpIfNeeded(self)
     }

@@ -23,6 +23,9 @@ public struct Tuist: Equatable, Hashable {
     /// The full project handle such as "tuist-org/tuist".
     public let fullHandle: String?
 
+    /// The options to use when running `tuist inspect`.
+    public let inspectOptions: InspectOptions
+
     /// The base `URL` that points to the Tuist server.
     public let url: URL
 
@@ -31,6 +34,7 @@ public struct Tuist: Equatable, Hashable {
         return Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
     }
@@ -40,14 +44,17 @@ public struct Tuist: Equatable, Hashable {
     /// - Parameters:
     ///   - project: The `TuistProject` instance that represents the project Tuist will interact with.
     ///   - fullHandle: An optional string representing the full handle of the project, such as "tuist-org/tuist".
+    ///   - inspectOptions: The options to use when running `tuist inspect`.
     ///   - url: The base `URL` pointing to the Tuist server.
     public init(
         project: TuistProject,
         fullHandle: String?,
+        inspectOptions: InspectOptions,
         url: URL
     ) {
         self.project = project
         self.fullHandle = fullHandle
+        self.inspectOptions = inspectOptions
         self.url = url
     }
 
@@ -67,14 +74,35 @@ public struct Tuist: Equatable, Hashable {
     }
 }
 
+public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
+  public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
+    public let ignoreTagsMatching: Set<String>
+
+    public init(
+      ignoreTagsMatching: Set<String>
+    ) {
+      self.ignoreTagsMatching = ignoreTagsMatching
+    }
+  }
+
+  public var redundantDependencies: RedundantDependencies
+
+  public init(
+    redundantDependencies: RedundantDependencies
+  ) {
+    self.redundantDependencies = redundantDependencies
+  }
+}
+
 #if DEBUG
     extension Tuist {
         public static func test(
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
+            inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: URL = Constants.URLs.production
         ) -> Tuist {
-            return Tuist(project: project, fullHandle: fullHandle, url: url)
+          return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
         }
     }
 #endif

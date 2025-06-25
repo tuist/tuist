@@ -6,7 +6,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let swiftVersion: Version?
     public let plugins: [PluginLocation]
     public let generationOptions: GenerationOptions
-    public let inspectOptions: InspectOptions
     public let installOptions: InstallOptions
 
     public init(
@@ -14,14 +13,12 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
-        inspectOptions: InspectOptions,
         installOptions: InstallOptions
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
-        self.inspectOptions = inspectOptions
         self.installOptions = installOptions
     }
 
@@ -30,7 +27,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         hasher.combine(swiftVersion)
         hasher.combine(plugins)
         hasher.combine(generationOptions)
-        hasher.combine(inspectOptions)
         hasher.combine(installOptions)
     }
 
@@ -46,7 +42,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 buildInsightsDisabled: true,
                 disableSandbox: false
             ),
-            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
         )
     }
@@ -93,26 +88,6 @@ extension TuistGeneratedProjectOptions {
         }
     }
 
-    public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
-        public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
-            public let ignoreTagsMatching: Set<String>
-
-            public init(
-                ignoreTagsMatching: Set<String>
-            ) {
-                self.ignoreTagsMatching = ignoreTagsMatching
-            }
-        }
-
-        public var redundantDependencies: RedundantDependencies
-
-        public init(
-            redundantDependencies: RedundantDependencies
-        ) {
-            self.redundantDependencies = redundantDependencies
-        }
-    }
-
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
 
@@ -131,7 +106,6 @@ extension TuistGeneratedProjectOptions {
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = .test(),
-            inspectOptions: InspectOptions = .test(),
             installOptions: InstallOptions = .test()
         ) -> Self {
             return .init(
@@ -139,7 +113,6 @@ extension TuistGeneratedProjectOptions {
                 swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
-                inspectOptions: inspectOptions,
                 installOptions: installOptions
             )
         }
@@ -168,16 +141,6 @@ extension TuistGeneratedProjectOptions {
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
                 disableSandbox: disableSandbox
-            )
-        }
-    }
-
-    extension TuistGeneratedProjectOptions.InspectOptions {
-        public static func test(
-            redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
-        ) -> Self {
-            .init(
-                redundantDependencies: redundantDependencies
             )
         }
     }

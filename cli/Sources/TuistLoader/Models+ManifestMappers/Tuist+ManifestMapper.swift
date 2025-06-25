@@ -36,6 +36,7 @@ extension TuistCore.Tuist {
         at path: AbsolutePath
     ) async throws -> TuistCore.Tuist {
         let fullHandle = manifest.fullHandle
+        let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -48,7 +49,6 @@ extension TuistCore.Tuist {
             manifestSwiftVersion,
             plugins,
             generationOptions,
-            inspectOptions,
             installOptions
         ):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
@@ -66,10 +66,6 @@ extension TuistCore.Tuist {
                 swiftVersion = nil
             }
 
-            let inspectOptions = TuistCore.TuistGeneratedProjectOptions.InspectOptions.from(
-                manifest: inspectOptions
-            )
-
             let installOptions = TuistCore.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
             )
@@ -81,15 +77,35 @@ extension TuistCore.Tuist {
                         swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
                         plugins: plugins,
                         generationOptions: generationOptions,
-                        inspectOptions: inspectOptions,
                         installOptions: installOptions
                     )
                 ),
                 fullHandle: fullHandle,
+                inspectOptions: inspectOptions,
                 url: url
             )
         case .xcode:
-            return TuistCore.Tuist(project: .xcode(TuistXcodeProjectOptions()), fullHandle: fullHandle, url: url)
+          return TuistCore.Tuist(project: .xcode(TuistXcodeProjectOptions()), fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
         }
     }
+}
+
+extension TuistCore.InspectOptions {
+  static func from(
+    manifest: ProjectDescription.Config.InspectOptions
+  ) -> Self {
+    return .init(
+      redundantDependencies: .from(manifest: manifest.redundantDependencies)
+    )
+  }
+}
+
+extension TuistCore.InspectOptions.RedundantDependencies {
+  static func from(
+    manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
+  ) -> Self {
+    return .init(
+      ignoreTagsMatching: manifest.ignoreTagsMatching
+    )
+  }
 }
