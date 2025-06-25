@@ -101,8 +101,16 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: URL = Constants.URLs.production
-        ) -> Tuist {
+        ) -> Self {
           return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
+        }
+    }
+
+    extension InspectOptions {
+        public static func test(
+            redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
+        ) -> Self {
+            return .init(redundantDependencies: redundantDependencies)
         }
     }
 #endif

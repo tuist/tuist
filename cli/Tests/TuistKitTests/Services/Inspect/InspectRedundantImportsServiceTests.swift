@@ -70,14 +70,9 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await withMockedDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
-            let config = Tuist.test(project: .generated(
-                compatibleXcodeVersions: .test(),
-                swiftVersion: nil,
-                plugins: [],
-                generationOptions: .test(),
+            let config = Tuist.test(
                 inspectOptions: .test(redundantDependencies: .init(ignoreTagsMatching: ["IgnoreRedundantDependencies"])),
-                installOptions: .test()
-            ))
+            )
             let framework = Target.test(name: "Framework", product: .framework)
             let app = Target.test(
                 name: "App",
