@@ -145,6 +145,7 @@ let targets: [Target] = [
         name: "TuistTesting",
         dependencies: [
             "TuistSupport",
+            "TuistServer",
             "XcodeGraph",
             pathDependency,
             "Difference",
