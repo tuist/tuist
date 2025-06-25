@@ -541,21 +541,21 @@ export function guidesSidebar(locale) {
           )}</span>`,
           link: `/${locale}/guides/features/previews`,
         },
-      ],
-    },
-    {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
-        locale,
-        "sidebars.guides.items.agentic-building.text",
-      )}</span>`,
-      collapsed: true,
-      items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
             locale,
-            "sidebars.guides.items.agentic-building.items.mcp.text",
+            "sidebars.guides.items.agentic-building.text",
           )}</span>`,
-          link: `/${locale}/guides/agentic-building/mcp`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.agentic-building.items.mcp.text",
+              )}</span>`,
+              link: `/${locale}/guides/features/agentic-building/mcp`,
+            },
+          ],
         },
       ],
     },
