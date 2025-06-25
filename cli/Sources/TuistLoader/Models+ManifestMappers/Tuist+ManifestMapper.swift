@@ -85,27 +85,32 @@ extension TuistCore.Tuist {
                 url: url
             )
         case .xcode:
-          return TuistCore.Tuist(project: .xcode(TuistXcodeProjectOptions()), fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
+            return TuistCore.Tuist(
+                project: .xcode(TuistXcodeProjectOptions()),
+                fullHandle: fullHandle,
+                inspectOptions: inspectOptions,
+                url: url
+            )
         }
     }
 }
 
 extension TuistCore.InspectOptions {
-  static func from(
-    manifest: ProjectDescription.Config.InspectOptions
-  ) -> Self {
-    return .init(
-      redundantDependencies: .from(manifest: manifest.redundantDependencies)
-    )
-  }
+    static func from(
+        manifest: ProjectDescription.Config.InspectOptions
+    ) -> Self {
+        return .init(
+            redundantDependencies: .from(manifest: manifest.redundantDependencies)
+        )
+    }
 }
 
 extension TuistCore.InspectOptions.RedundantDependencies {
-  static func from(
-    manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
-  ) -> Self {
-    return .init(
-      ignoreTagsMatching: manifest.ignoreTagsMatching
-    )
-  }
+    static func from(
+        manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
+    ) -> Self {
+        return .init(
+            ignoreTagsMatching: manifest.ignoreTagsMatching
+        )
+    }
 }

@@ -75,23 +75,23 @@ public struct Tuist: Equatable, Hashable {
 }
 
 public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
-  public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
-    public let ignoreTagsMatching: Set<String>
+    public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
+        public let ignoreTagsMatching: Set<String>
+
+        public init(
+            ignoreTagsMatching: Set<String>
+        ) {
+            self.ignoreTagsMatching = ignoreTagsMatching
+        }
+    }
+
+    public var redundantDependencies: RedundantDependencies
 
     public init(
-      ignoreTagsMatching: Set<String>
+        redundantDependencies: RedundantDependencies
     ) {
-      self.ignoreTagsMatching = ignoreTagsMatching
+        self.redundantDependencies = redundantDependencies
     }
-  }
-
-  public var redundantDependencies: RedundantDependencies
-
-  public init(
-    redundantDependencies: RedundantDependencies
-  ) {
-    self.redundantDependencies = redundantDependencies
-  }
 }
 
 #if DEBUG
@@ -102,7 +102,7 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: URL = Constants.URLs.production
         ) -> Self {
-          return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
+            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
         }
     }
 
