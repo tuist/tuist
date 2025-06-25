@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-building": {
+          "text": "에이전틱 빌딩",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "Continuous integration"
             }

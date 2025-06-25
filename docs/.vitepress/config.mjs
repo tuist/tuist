@@ -336,7 +336,8 @@ export default defineConfig({
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 /:locale/guides/develop/selective-testing/xcodebuild /:locale/guides/develop/selective-testing/xcode-project 301
-/:locale/guides/features/mcp /:locale/guides/integrations/mcp 301
+/:locale/guides/features/mcp /:locale/guides/agentic-building/mcp 301
+/:locale/guides/integrations/mcp /:locale/guides/agentic-building/mcp 301
 /:locale/guides/environments/continuous-integration /:locale/guides/integrations/continuous-integration 301
 /:locale/guides/environments/automate/continuous-integration /:locale/guides/integrations/continuous-integration 301
 /:locale/server/introduction/accounts-and-projects /:locale/guides/server/accounts-and-projects 301

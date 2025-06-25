@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-building": {
+          "text": "Agentic Building",
           "items": {
             "mcp": {
               "text": "MCP"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "Continuous integration"
             }

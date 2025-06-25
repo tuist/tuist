@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-building": {
+          "text": "Агентное Строительство",
           "items": {
             "mcp": {
               "text": "Протокол контекста модели (MCP)"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "Непрерывная интеграция (CI)"
             }
