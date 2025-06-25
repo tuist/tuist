@@ -144,6 +144,8 @@ public actor CachedValueStore: CachedValueStoring {
     }
 }
 
-extension CachedValueStore {
-    public static var mocked: MockCachedValueStoring? { current as? MockCachedValueStoring }
-}
+#if DEBUG
+    extension CachedValueStore {
+        public static var mocked: MockCachedValueStoring? { current as? MockCachedValueStoring }
+    }
+#endif

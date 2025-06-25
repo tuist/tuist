@@ -214,6 +214,8 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     }
 }
 
-extension ServerCredentialsStore {
-    public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
-}
+#if DEBUG
+    extension ServerCredentialsStore {
+        public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
+    }
+#endif
