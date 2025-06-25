@@ -9,239 +9,139 @@ import TuistTesting
 @testable import TuistKit
 
 struct MCPClientConfigurationControllerTests {
+    private let fileSystem = FileSystem()
     private let serverCommandResolver = MockMCPServerCommandResolving()
     private let subject: MCPClientConfigurationController
 
-    init() throws {
+    init() {
         subject = MCPClientConfigurationController(
-            fileSystem: FileSystem(),
+            fileSystem: fileSystem,
             serverCommandResolver: serverCommandResolver
         )
     }
 
-//    @Test func update_claude_creates_directory_if_missing() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(false)
-//            given(fileSystem)
-//                .makeDirectory(at: configPath.parentDirectory)
-//                .willReturn()
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            // When
-//            try await subject.update(for: .claude, at: configPath)
-//
-//            // Then
-//            verify(fileSystem)
-//                .makeDirectory(at: configPath.parentDirectory)
-//                .called(1)
-//        }
-//    }
-//
-//    @Test func update_claude_creates_new_config_when_file_doesnt_exist() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .claude, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcpServers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
-//
-//    @Test func update_claude_merges_with_existing_config() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
-//            let existingConfig = JSON([
-//                "mcpServers": [
-//                    "other": [
-//                        "command": "/other/command",
-//                        "args": ["arg1"]
-//                    ]
-//                ]
-//            ])
-//
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .readTextFile(at: configPath)
-//                .willReturn(existingConfig.rawString()!)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .claude, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcpServers"]["other"]["command"].stringValue == "/other/command")
-//            #expect(json["mcpServers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
-//
-//    @Test func update_cursor_creates_correct_config_structure() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "settings.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .cursor, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcp.servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
-//
-//    @Test func update_zed_creates_correct_config_structure() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "settings.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .zed, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcp_servers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcp_servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
-//
-//    @Test func update_vscode_creates_correct_config_structure() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "settings.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .vscode, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcp.servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
-//
-//    @Test func update_claude_code_creates_correct_config_structure() async throws {
-//        try await withMockedDependencies {
-//            // Given
-//            let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
-//            given(serverCommandResolver)
-//                .resolve()
-//                .willReturn(("/path/to/tuist", ["mcp", "start"]))
-//            given(fileSystem)
-//                .exists(configPath.parentDirectory, isDirectory: true)
-//                .willReturn(true)
-//            given(fileSystem)
-//                .exists(configPath)
-//                .willReturn(false)
-//
-//            var writtenData: Data?
-//            given(fileSystem)
-//                .writeFile(data: any(), to: configPath.url, options: any())
-//                .willProduce { data, _, _ in
-//                    writtenData = data
-//                }
-//
-//            // When
-//            try await subject.update(for: .claudeCode, at: configPath)
-//
-//            // Then
-//            let json = try JSON(data: writtenData!)
-//            #expect(json["mcpServers"]["tuist"]["command"].stringValue == "/path/to/tuist")
-//            #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
-//        }
-//    }
+    @Test(.inTemporaryDirectory, .withMockedDependencies()) func update_claude_creates_directory_if_missing() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .claude, at: configPath)
+
+        // Then
+        let parentExists = try await fileSystem.exists(configPath.parentDirectory, isDirectory: true)
+        #expect(parentExists)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func update_claude_creates_new_config_when_file_doesnt_exist() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .claude, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcpServers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies()) func update_claude_merges_with_existing_config() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
+        let existingConfig: JSON = [
+            "mcpServers": [
+                "other": ["command": "other-server"],
+            ],
+        ]
+
+        try existingConfig.rawData().write(to: configPath.url, options: .atomic)
+
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .claude, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcpServers"]["other"]["command"].stringValue == "other-server")
+        #expect(json["mcpServers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies()) func update_cursor_creates_correct_config_structure() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "settings.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .cursor, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcp.servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies()) func update_zed_creates_correct_config_structure() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "settings.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .zed, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcp_servers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcp_servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies()) func update_vscode_creates_correct_config_structure() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "settings.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .vscode, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcp.servers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcp.servers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func update_claude_code_creates_correct_config_structure() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let configPath = temporaryDirectory.appending(component: "claude_desktop_config.json")
+        given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
+
+        // When
+        try await subject.update(for: .claudeCode, at: configPath)
+
+        // Then
+        let content = try await fileSystem.readTextFile(at: configPath)
+        let json = JSON(parseJSON: content)
+        #expect(json["mcpServers"]["tuist"]["command"].stringValue == "tuist")
+        #expect(json["mcpServers"]["tuist"]["args"].arrayValue.map(\.stringValue) == ["mcp", "start"])
+    }
 }

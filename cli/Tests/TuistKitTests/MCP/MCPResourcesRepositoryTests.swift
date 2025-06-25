@@ -30,72 +30,64 @@ struct MCPResourcesRepositoryTests {
         )
     }
 
-    @Test func list() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-                // Given
-                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
-                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+    @Test(.withMockedDependencies(), .inTemporaryDirectory) func list() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+        given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
 
-                // When
-                let got = try await subject.list()
+        // When
+        let got = try await subject.list()
 
-                // Then
-                #expect(got == .init(resources: [Resource(
-                    name: "\(temporaryDirectory.basename) graph",
-                    uri: "tuist://\(temporaryDirectory.pathString)",
-                    description: "A graph representing the project \(temporaryDirectory.basename)",
-                    mimeType: "application/json"
-                )]))
-            }
-        }
+        // Then
+        #expect(got == .init(resources: [Resource(
+            name: "\(temporaryDirectory.basename) graph",
+            uri: "tuist://\(temporaryDirectory.pathString)",
+            description: "A graph representing the project \(temporaryDirectory.basename)",
+            mimeType: "application/json"
+        )]))
     }
 
-    @Test func listTemplates() async throws {
-        try await withMockedDependencies {
-            // When
-            let got = try await subject.listTemplates()
+    @Test(.withMockedDependencies()) func listTemplates() async throws {
+        // When
+        let got = try await subject.listTemplates()
 
-            // Then
-            #expect(got == .init(templates: [
-                Resource.Template(
-                    uriTemplate: "file:///{path}",
-                    name: "An Xcode project or workspace",
-                    description: "Through this template users can read the graph of an Xcode project or workspace to ask questions about it. They need to pass the absolute path to the Xcode project or workspace."
-                ),
-            ]))
-        }
+        // Then
+        #expect(got == .init(templates: [
+            Resource.Template(
+                uriTemplate: "file:///{path}",
+                name: "An Xcode project or workspace",
+                description: "Through this template users can read the graph of an Xcode project or workspace to ask questions about it. They need to pass the absolute path to the Xcode project or workspace."
+            ),
+        ]))
     }
 
-    @Test func read_when_tuistProject() async throws {
-        try await withMockedDependencies {
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-                // Given
-                let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
-                given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
-                let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
-                    .test(name: "Test"),
-                ])])
-                given(configLoader).loadConfig(path: .value(temporaryDirectory))
-                    .willReturn(Tuist.test(project: .testGeneratedProject()))
-                given(manifestLoader).hasRootManifest(at: .value(temporaryDirectory)).willReturn(true)
-                given(manifestGraphLoader).load(path: .value(temporaryDirectory), disableSandbox: .any).willReturn((
-                    graph,
-                    [],
-                    .init(),
-                    []
-                ))
+    @Test(.withMockedDependencies(), .inTemporaryDirectory) func read_when_tuistProject() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let recentPathsStoreMock = try #require(RecentPathsStore.mocked)
+        given(recentPathsStoreMock).read().willReturn([temporaryDirectory: RecentPathMetadata(lastUpdated: Date())])
+        let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
+            .test(name: "Test"),
+        ])])
+        given(configLoader).loadConfig(path: .value(temporaryDirectory))
+            .willReturn(Tuist.test(project: .testGeneratedProject()))
+        given(manifestLoader).hasRootManifest(at: .value(temporaryDirectory)).willReturn(true)
+        given(manifestGraphLoader).load(path: .value(temporaryDirectory), disableSandbox: .any).willReturn((
+            graph,
+            [],
+            .init(),
+            []
+        ))
 
-                // When
-                let got = try await subject.read(.init(uri: "tuist://\(temporaryDirectory.pathString)"))
+        // When
+        let got = try await subject.read(.init(uri: "tuist://\(temporaryDirectory.pathString)"))
 
-                // Then
-                let jsonGraph = JSON(parseJSON: try #require(got.contents.first?.text))
-                #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["sourcesCount"].intValue == 0)
-                #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resources"].null != nil)
-                #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resourcesCount"].intValue == 0)
-                #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resources"].null != nil)
-            }
-        }
+        // Then
+        let jsonGraph = JSON(parseJSON: try #require(got.contents.first?.text))
+        #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["sourcesCount"].intValue == 0)
+        #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resources"].null != nil)
+        #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resourcesCount"].intValue == 0)
+        #expect(jsonGraph["projects"][temporaryDirectory.pathString]["targets"][0]["resources"].null != nil)
     }
 }
