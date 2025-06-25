@@ -26,11 +26,8 @@ struct MCPConfigurationFileController: MCPConfigurationFileControlling {
             try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         }
 
-        var mcpJSON: JSON = if try await fileSystem.exists(configPath) {
-            JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
-        } else {
-            [:]
-        }
+        if try await !fileSystem.exists(configPath) { return }
+        var mcpJSON = JSON(parseJSON: try await fileSystem.readTextFile(at: configPath))
 
         let (command, args) = serverCommandResolver.resolve()
         if !mcpJSON["mcpServers"].exists() {
