@@ -7,7 +7,7 @@ let project = Project(
             name: "MyStaticLibrary",
             destinations: .iOS,
             product: .staticLibrary,
-            bundleId: "io.tuist.MyStaticLibrary",
+            bundleId: "dev.tuist.MyStaticLibrary",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: [

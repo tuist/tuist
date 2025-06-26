@@ -317,7 +317,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let app = Target.test(
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.my.app.id",
+            bundleId: "dev.tuist.my.app.id",
             dependencies: [
                 .target(name: watchApp.name),
             ]
@@ -352,7 +352,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             "CFBundleDisplayName": "MyWatchApp",
             "WKWatchKitApp": true,
-            "WKCompanionAppBundleIdentifier": "io.tuist.my.app.id",
+            "WKCompanionAppBundleIdentifier": "dev.tuist.my.app.id",
             "ExtraAttribute": "Value",
 
         ])
@@ -368,7 +368,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let watchApp = Target.test(
             destinations: .watchOS,
             product: .watch2App,
-            bundleId: "io.tuist.my.app.id.mywatchapp",
+            bundleId: "dev.tuist.my.app.id.mywatchapp",
             dependencies: [
                 .target(name: watchAppExtension.name),
             ]
@@ -400,7 +400,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "CFBundleDisplayName": "MyWatchAppExtension",
             "NSExtension": [
                 "NSExtensionAttributes": [
-                    "WKAppBundleIdentifier": "io.tuist.my.app.id.mywatchapp",
+                    "WKAppBundleIdentifier": "dev.tuist.my.app.id.mywatchapp",
                 ],
                 "NSExtensionPointIdentifier": "com.apple.watchkit",
             ] as [String: Any],

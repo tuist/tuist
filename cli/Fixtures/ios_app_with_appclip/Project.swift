@@ -8,7 +8,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .default,
             sources: ["App/Sources/**"],
             dependencies: [
@@ -19,7 +19,7 @@ let project = Project(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework",
+            bundleId: "dev.tuist.Framework",
             infoPlist: .default,
             sources: ["Framework/Sources/**"],
             dependencies: []
@@ -28,7 +28,7 @@ let project = Project(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.StaticFramework",
+            bundleId: "dev.tuist.StaticFramework",
             infoPlist: .default,
             sources: ["StaticFramework/Sources/**"],
             dependencies: []
@@ -37,7 +37,7 @@ let project = Project(
             name: "AppClip1",
             destinations: .iOS,
             product: .appClip,
-            bundleId: "io.tuist.App.Clip",
+            bundleId: "dev.tuist.App.Clip",
             infoPlist: .default,
             sources: ["AppClip1/Sources/**"],
             entitlements: "AppClip1/Entitlements/AppClip.entitlements",
@@ -51,7 +51,7 @@ let project = Project(
             name: "AppClip1Tests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppClip1Tests",
+            bundleId: "dev.tuist.AppClip1Tests",
             infoPlist: .default,
             sources: ["AppClip1Tests/Tests/**"],
             dependencies: [
@@ -63,7 +63,7 @@ let project = Project(
             name: "AppClip1UITests",
             destinations: .iOS,
             product: .uiTests,
-            bundleId: "io.tuist.AppClip1UITests",
+            bundleId: "dev.tuist.AppClip1UITests",
             infoPlist: .default,
             sources: ["AppClip1UITests/Tests/**"],
             dependencies: [
@@ -74,7 +74,7 @@ let project = Project(
             name: "AppClip1Widgets",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.App.Clip.Widgets",
+            bundleId: "dev.tuist.App.Clip.Widgets",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [

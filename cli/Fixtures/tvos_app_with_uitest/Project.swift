@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.appleTv],
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             deploymentTargets: .tvOS("14.0"),
             infoPlist: .default,
             sources: .paths([.relativeToManifest("App/Sources/**")])
@@ -16,7 +16,7 @@ let project = Project(
             name: "AppUITests",
             destinations: [.appleTv],
             product: .uiTests,
-            bundleId: "io.tuist.AppUITests",
+            bundleId: "dev.tuist.AppUITests",
             infoPlist: "UITests.plist",
             sources: "App/UITests/**",
             dependencies: [

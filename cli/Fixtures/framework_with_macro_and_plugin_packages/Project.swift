@@ -12,7 +12,7 @@ let project = Project(
                 .mac,
             ],
             product: .framework,
-            bundleId: "io.tuist.Framework",
+            bundleId: "dev.tuist.Framework",
             sources: ["Sources/**/*"],
             dependencies: [
                 .external(name: "Buildable"),

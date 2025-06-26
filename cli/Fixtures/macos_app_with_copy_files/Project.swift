@@ -5,7 +5,7 @@ func target(name: String) -> Target {
         name: name,
         destinations: [.mac],
         product: .app,
-        bundleId: "io.tuist.\(name)",
+        bundleId: "dev.tuist.\(name)",
         infoPlist: .file(path: .relativeToManifest("Info.plist")),
         sources: .paths([.relativeToManifest("Sources/**")]),
         copyFiles: [

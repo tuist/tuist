@@ -40,6 +40,11 @@ case .string("canary"): "https://canary.tuist.dev"
 case .string("development"): "http://localhost:8080"
 default: .environmentVariable(value: "", isEnabled: false)
 }
+let bundleId = switch Environment.env {
+case .string("staging"): "dev.tuist.app.staging"
+case .string("canary"): "dev.tuist.app.canary"
+default: "dev.tuist.app"
+}
 
 let project = Project(
     name: "TuistApp",
@@ -54,7 +59,7 @@ let project = Project(
             destinations: [.mac, .iPhone],
             product: .app,
             productName: "Tuist",
-            bundleId: "io.tuist.app",
+            bundleId: bundleId,
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
@@ -63,7 +68,7 @@ let project = Project(
                         Plist.Value.dictionary(
                             [
                                 "CFBundleTypeRole": "Viewer",
-                                "CFBundleURLName": "io.tuist.app",
+                                "CFBundleURLName": .string(bundleId),
                                 "CFBundleURLSchemes": ["tuist"],
                             ]
                         ),
@@ -110,7 +115,7 @@ let project = Project(
             name: "TuistPreviews",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.previews",
+            bundleId: "com.tuist.previews",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
@@ -122,7 +127,7 @@ let project = Project(
             name: "TuistOnboarding",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.onboarding",
+            bundleId: "com.tuist.onboarding",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistOnboarding/**"],
             dependencies: [
@@ -135,7 +140,7 @@ let project = Project(
             name: "TuistErrorHandling",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.error-handling",
+            bundleId: "com.tuist.error-handling",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
         ),
@@ -166,7 +171,7 @@ let project = Project(
             name: "TuistMenuBar",
             destinations: .macOS,
             product: .staticFramework,
-            bundleId: "io.tuist.menu-bar",
+            bundleId: "com.tuist.menu-bar",
             deploymentTargets: .macOS("14.0.0"),
             sources: ["Sources/TuistMenuBar/**"],
             resources: ["Resources/TuistMenuBar/**"],
@@ -176,7 +181,7 @@ let project = Project(
             name: "TuistMenuBarTests",
             destinations: .macOS,
             product: .unitTests,
-            bundleId: "io.tuist.TuistAppTests",
+            bundleId: "com.tuist.TuistAppTests",
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .default,
             sources: ["Tests/TuistMenuBarTests/**"],

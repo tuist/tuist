@@ -515,7 +515,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             destinations: .macOS,
             product: .staticFramework,
             productName: name,
-            bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",
+            bundleId: "dev.tuist.${PRODUCT_NAME:rfc1034identifier}",
             settings: targetSettings,
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,

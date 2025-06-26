@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: "Info.plist",
             sources: "App/**",
             dependencies: [
@@ -22,7 +22,7 @@ let project = Project(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework",
+            bundleId: "dev.tuist.Framework",
             infoPlist: "Framework.plist",
             sources: "Framework/**",
             settings: .settings(base: [

@@ -10,7 +10,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: "Support/App-Info.plist",
             sources: ["Sources/**"],
             resources: [
@@ -28,7 +28,7 @@ let project = Project(
             name: "WatchApp",
             platform: .watchOS,
             product: .watch2App,
-            bundleId: "io.tuist.App.watchkitapp",
+            bundleId: "dev.tuist.App.watchkitapp",
             infoPlist: .default,
             resources: "WatchApp/**",
             dependencies: [
@@ -39,7 +39,7 @@ let project = Project(
             name: "WatchAppExtension",
             platform: .watchOS,
             product: .watch2Extension,
-            bundleId: "io.tuist.App.watchkitapp.watchkitextension",
+            bundleId: "dev.tuist.App.watchkitapp.watchkitextension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "WatchApp Extension",
             ]),
@@ -54,7 +54,7 @@ let project = Project(
             name: "WatchAppWidgetExtension",
             platform: .watchOS,
             product: .appExtension,
-            bundleId: "io.tuist.App.watchkitapp.watchkitextension.WatchAppWidget",
+            bundleId: "dev.tuist.App.watchkitapp.watchkitextension.WatchAppWidget",
             infoPlist: .extendingDefault(with: [
                 "NSExtension": [
                     "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
@@ -71,7 +71,7 @@ let project = Project(
             name: "WatchAppUITests",
             platform: .watchOS,
             product: .uiTests,
-            bundleId: "io.tuist.App.watchkitapp.uitests",
+            bundleId: "dev.tuist.App.watchkitapp.uitests",
             dependencies: [.target(name: "WatchApp")]
         ),
     ]

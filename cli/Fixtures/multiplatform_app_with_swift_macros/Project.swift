@@ -4,7 +4,7 @@ let appTarget: Target = .target(
     name: "App",
     destinations: [.iPhone, .iPad, .mac, .appleWatch],
     product: .app,
-    bundleId: "io.tuist.App",
+    bundleId: "dev.tuist.App",
     deploymentTargets: .multiplatform(iOS: "14.0", macOS: "14.0.0", watchOS: "9.0"),
     sources: "Modules/App/Sources/**/*.swift",
     dependencies: [
@@ -18,7 +18,7 @@ let iOSStaticFramework: Target = .target(
     name: "iOSStaticFramework",
     destinations: [.iPhone, .iPad, .mac],
     product: .staticFramework,
-    bundleId: "io.tuist.App.iOSStaticFramework",
+    bundleId: "dev.tuist.App.iOSStaticFramework",
     deploymentTargets: .multiplatform(iOS: "14.0"),
     sources: "Modules/iOSStaticFramework/Sources/**/*.swift",
     resources: "Modules/iOSStaticFramework/Resources/**",
@@ -31,7 +31,7 @@ let watchOSDynamicFramework: Target = .target(
     name: "WatchOSDynamicFramework",
     destinations: [.appleWatch],
     product: .framework,
-    bundleId: "io.tuist.App.WatchOSDynamicFramework",
+    bundleId: "dev.tuist.App.WatchOSDynamicFramework",
     deploymentTargets: .multiplatform(watchOS: "9.0"),
     sources: "Modules/WatchOSDynamicFramework/Sources/**/*.swift",
     dependencies: [
@@ -45,7 +45,7 @@ let macOSStaticFramework: Target = .target(
     name: "MacOSStaticFramework",
     destinations: [.mac],
     product: .staticFramework,
-    bundleId: "io.tuist.App.MacOSStaticFramework",
+    bundleId: "dev.tuist.App.MacOSStaticFramework",
     deploymentTargets: .multiplatform(macOS: "14.0.0"),
     sources: "Modules/MacOSStaticFramework/Sources/**/*.swift",
     resources: "Modules/MacOSStaticFramework/Resources/**",
@@ -58,7 +58,7 @@ let macOSStaticFrameworkTests: Target = .target(
     name: "MacOSStaticFrameworkTests",
     destinations: [.mac],
     product: .unitTests,
-    bundleId: "io.tuist.App.MacOSStaticFrameworkTests",
+    bundleId: "dev.tuist.App.MacOSStaticFrameworkTests",
     deploymentTargets: .multiplatform(macOS: "14.0.0"),
     sources: "Modules/MacOSStaticFrameworkTests/Sources/**/*.swift",
     dependencies: [
@@ -70,7 +70,7 @@ let multiPlatformTransitiveDynamicFramework: Target = .target(
     name: "MultiPlatformTransitiveDynamicFramework",
     destinations: [.iPhone, .iPad, .mac, .appleWatch],
     product: .framework,
-    bundleId: "io.tuist.App.MultiPlatformTransitiveDynamicFramework",
+    bundleId: "dev.tuist.App.MultiPlatformTransitiveDynamicFramework",
     deploymentTargets: .multiplatform(iOS: "14.0", macOS: "14.0.0", watchOS: "9.0"),
     sources: "Modules/MultiPlatformTransitiveDynamicFramework/Sources/**/*.swift"
 )
