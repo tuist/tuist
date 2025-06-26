@@ -12,7 +12,7 @@ struct AccountUpdateServiceTests {
     private let subject: AccountUpdateService
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let updateAccountService = MockUpdateAccountServicing()
     private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let serverSessionController = MockServerSessionControlling()
@@ -21,7 +21,7 @@ struct AccountUpdateServiceTests {
         subject = AccountUpdateService(
             configLoader: configLoader,
             fileSystem: fileSystem,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             updateAccountService: updateAccountService,
             serverAuthenticationController: serverAuthenticationController,
             serverSessionController: serverSessionController
@@ -30,7 +30,7 @@ struct AccountUpdateServiceTests {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test())
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(.test())
 

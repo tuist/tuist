@@ -86,7 +86,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         let config = try await ConfigLoader().loadConfig(path: path)
-        let url = try ServerURLService().url(configServerURL: config.url)
+        let url = try ServerEnvironmentService().url(configServerURL: config.url)
         let backend: TuistAnalyticsServerBackend?
         if let fullHandle = config.fullHandle {
             let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(

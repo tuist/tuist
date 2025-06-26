@@ -32,7 +32,7 @@ struct InitCommandServiceTests {
     private let listOrganizationsService = MockListOrganizationsServicing()
     private let getProjectService = MockGetProjectServicing()
     private let commandRunner = MockCommandRunning()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: InitCommandService
 
     init() {
@@ -48,10 +48,10 @@ struct InitCommandServiceTests {
             listOrganizationsService: listOrganizationsService,
             getProjectService: getProjectService,
             commandRunner: commandRunner,
-            serverURLService: serverURLService
+            serverEnvironmentService: serverEnvironmentService
         )
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
     }

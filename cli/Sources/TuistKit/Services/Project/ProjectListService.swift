@@ -13,16 +13,16 @@ protocol ProjectListServicing {
 
 final class ProjectListService: ProjectListServicing {
     private let listProjectsService: ListProjectsServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.listProjectsService = listProjectsService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -37,7 +37,7 @@ final class ProjectListService: ProjectListServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let projects = try await listProjectsService.listProjects(
             serverURL: serverURL

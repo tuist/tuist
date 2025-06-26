@@ -15,7 +15,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     private var serverURL: URL!
     private var authenticateService: MockAuthenticateServicing!
     private var serverCredentialsStore: MockServerCredentialsStoring!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var userInputReader: MockUserInputReading!
     private var subject: LoginService!
 
@@ -26,19 +26,19 @@ final class LoginServiceTests: TuistUnitTestCase {
         serverURL = URL(string: "https://test.tuist.dev")!
         authenticateService = .init()
         serverCredentialsStore = .init()
-        serverURLService = .init()
+        serverEnvironmentService = .init()
         userInputReader = .init()
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
         subject = LoginService(
             serverSessionController: serverSessionController,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             userInputReader: userInputReader,
             authenticateService: authenticateService,
@@ -52,7 +52,7 @@ final class LoginServiceTests: TuistUnitTestCase {
         serverURL = nil
         authenticateService = nil
         serverCredentialsStore = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         userInputReader = nil
         subject = nil
         super.tearDown()

@@ -44,7 +44,7 @@ struct ShareCommandService {
     private let buildGraphInspector: BuildGraphInspecting
     private let previewsUploadService: PreviewsUploadServicing
     private let configLoader: ConfigLoading
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let manifestLoader: ManifestLoading
     private let manifestGraphLoader: ManifestGraphLoading
     private let userInputReader: UserInputReading
@@ -68,7 +68,7 @@ struct ShareCommandService {
             buildGraphInspector: BuildGraphInspector(),
             previewsUploadService: PreviewsUploadService(),
             configLoader: ConfigLoader(),
-            serverURLService: ServerURLService(),
+            serverEnvironmentService: ServerEnvironmentService(),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: UserInputReader(),
@@ -85,7 +85,7 @@ struct ShareCommandService {
         buildGraphInspector: BuildGraphInspecting,
         previewsUploadService: PreviewsUploadServicing,
         configLoader: ConfigLoading,
-        serverURLService: ServerURLServicing,
+        serverEnvironmentService: ServerEnvironmentServicing,
         manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading,
         userInputReader: UserInputReading,
@@ -99,7 +99,7 @@ struct ShareCommandService {
         self.buildGraphInspector = buildGraphInspector
         self.previewsUploadService = previewsUploadService
         self.configLoader = configLoader
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.manifestLoader = manifestLoader
         self.manifestGraphLoader = manifestGraphLoader
         self.userInputReader = userInputReader
@@ -120,7 +120,7 @@ struct ShareCommandService {
         let path = try self.path(path)
 
         let config = try await configLoader.loadConfig(path: path)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         guard let fullHandle = config.fullHandle else {
             throw ShareCommandServiceError.fullHandleNotFound

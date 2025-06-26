@@ -27,7 +27,7 @@ enum RegistryLoginCommandServiceError: Equatable, LocalizedError {
 
 struct RegistryLoginCommandService {
     private let createAccountTokenService: CreateAccountTokenServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let fullHandleService: FullHandleServicing
@@ -40,7 +40,7 @@ struct RegistryLoginCommandService {
 
     init(
         createAccountTokenService: CreateAccountTokenServicing = CreateAccountTokenService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
@@ -54,7 +54,7 @@ struct RegistryLoginCommandService {
         defaultsController: DefaultsControlling = DefaultsController()
     ) {
         self.createAccountTokenService = createAccountTokenService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
@@ -83,7 +83,7 @@ struct RegistryLoginCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { _ in
-            let serverURL = try serverURLService.url(configServerURL: config.url)
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let registryURL = serverURL.appending(
                 path: "api/accounts/\(accountHandle)/registry/swift"
             )

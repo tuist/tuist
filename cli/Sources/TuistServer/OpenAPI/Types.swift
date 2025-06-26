@@ -1974,6 +1974,53 @@ internal enum Components {
                 case url
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ValidationError`.
+        internal struct ValidationError: Codable, Hashable, Sendable {
+            /// Field-specific validation errors
+            ///
+            /// - Remark: Generated from `#/components/schemas/ValidationError/fields`.
+            internal struct fieldsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                internal var additionalProperties: [String: [Swift.String]]
+                /// Creates a new `fieldsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                internal init(additionalProperties: [String: [Swift.String]] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                internal init(from decoder: any Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                internal func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Field-specific validation errors
+            ///
+            /// - Remark: Generated from `#/components/schemas/ValidationError/fields`.
+            internal var fields: Components.Schemas.ValidationError.fieldsPayload
+            /// The error message
+            ///
+            /// - Remark: Generated from `#/components/schemas/ValidationError/message`.
+            internal var message: Swift.String
+            /// Creates a new `ValidationError`.
+            ///
+            /// - Parameters:
+            ///   - fields: Field-specific validation errors
+            ///   - message: The error message
+            internal init(
+                fields: Components.Schemas.ValidationError.fieldsPayload,
+                message: Swift.String
+            ) {
+                self.fields = fields
+                self.message = message
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case fields
+                case message
+            }
+        }
         /// Parameters to create a single run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunParams`.
@@ -6010,7 +6057,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// The bundle was created
+            /// The bundle was created successfully
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/200`.
             ///
@@ -6037,12 +6084,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.ValidationError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
+                    internal var json: Components.Schemas.ValidationError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -6061,7 +6108,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// An error occurred while updating the account.
+            /// Validation errors occurred
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/400`.
             ///
@@ -6112,7 +6159,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// You need to be authenticated to update your account.
+            /// You need to be authenticated to create a bundle
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/401`.
             ///
@@ -6130,6 +6177,57 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You are not authorized to create a bundle
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createBundle.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.createBundle.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -18974,12 +19072,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.ValidationError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
+                    internal var json: Components.Schemas.ValidationError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -18998,7 +19096,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// An error occurred while updating the account.
+            /// Validation errors occurred
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/400`.
             ///

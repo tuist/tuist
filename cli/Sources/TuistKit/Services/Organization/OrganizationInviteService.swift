@@ -14,17 +14,17 @@ protocol OrganizationInviteServicing {
 
 final class OrganizationInviteService: OrganizationInviteServicing {
     private let createOrganizationInviteService: CreateOrganizationInviteServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         createOrganizationInviteService: CreateOrganizationInviteServicing =
             CreateOrganizationInviteService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.createOrganizationInviteService = createOrganizationInviteService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -42,7 +42,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let invitation = try await createOrganizationInviteService.createOrganizationInvite(
             organizationName: organizationName,

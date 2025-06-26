@@ -13,16 +13,16 @@ protocol OrganizationCreateServicing {
 
 final class OrganizationCreateService: OrganizationCreateServicing {
     private let createOrganizationService: CreateOrganizationServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         createOrganizationService: CreateOrganizationServicing = CreateOrganizationService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.createOrganizationService = createOrganizationService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -39,7 +39,7 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let organization = try await createOrganizationService.createOrganization(
             name: organizationName,

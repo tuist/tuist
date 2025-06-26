@@ -17,7 +17,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
     private var buildGraphInspector: MockBuildGraphInspecting!
     private var previewsUploadService: MockPreviewsUploadServicing!
     private var configLoader: MockConfigLoading!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var manifestLoader: MockManifestLoading!
     private var manifestGraphLoader: MockManifestGraphLoading!
     private var userInputReader: MockUserInputReading!
@@ -33,7 +33,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
         buildGraphInspector = .init()
         previewsUploadService = .init()
         configLoader = .init()
-        serverURLService = .init()
+        serverEnvironmentService = .init()
         manifestLoader = .init()
         manifestGraphLoader = .init()
         userInputReader = .init()
@@ -53,7 +53,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             previewsUploadService: previewsUploadService,
             configLoader: configLoader,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
@@ -70,7 +70,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
             .hasRootManifest(at: .any)
             .willReturn(true)
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
 
@@ -92,7 +92,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         previewsUploadService = nil
         configLoader = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         manifestLoader = nil
         manifestGraphLoader = nil
         userInputReader = nil

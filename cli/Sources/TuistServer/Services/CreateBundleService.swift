@@ -118,6 +118,11 @@
                 case let .json(error):
                     throw CreateBundleServiceError.unauthorized(error.message)
                 }
+            case let .forbidden(forbiddenResponse):
+                switch forbiddenResponse.body {
+                case let .json(error):
+                    throw CreateBuildServiceError.forbidden(error.message)
+                }
             }
         }
     }

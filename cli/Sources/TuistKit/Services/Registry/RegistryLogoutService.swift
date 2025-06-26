@@ -6,19 +6,19 @@ import TuistServer
 import TuistSupport
 
 final class RegistryLogoutService {
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileSystem: FileSysteming
 
     init(
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling =
             SwiftPackageManagerController(),
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.swiftPackageManagerController = swiftPackageManagerController
         self.fileSystem = fileSystem
@@ -31,7 +31,7 @@ final class RegistryLogoutService {
         let config = try await configLoader.loadConfig(path: path)
 
         Logger.current.info("Logging out of the registry...")
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         try await swiftPackageManagerController.packageRegistryLogout(
             registryURL: serverURL

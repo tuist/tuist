@@ -6,7 +6,7 @@ import TuistSupport
 @testable import TuistServer
 
 struct ServerURLServiceTests {
-    let subject = ServerURLService()
+    let subject = ServerEnvironmentService()
 
     @Test(.withMockedEnvironment()) func returns_the_value_from_tuist_url_env_variable_when_present_and_valid() throws {
         // Given
