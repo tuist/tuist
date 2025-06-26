@@ -707,6 +707,37 @@ defmodule Tuist.AppBuildsTest do
       assert length(previews) == 2
     end
 
+    test "returns latest previews with distinct bundle identifiers when a preview is available from a default and non-default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      _preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          git_branch: "feature",
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      bundle_identifiers = previews |> Enum.map(& &1.bundle_identifier) |> Enum.sort()
+      assert bundle_identifiers == ["com.example.app-one"]
+      assert length(previews) == 1
+    end
+
     test "returns empty list when project has no previews" do
       # Given
       project = ProjectsFixtures.project_fixture()

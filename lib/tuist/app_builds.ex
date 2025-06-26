@@ -132,10 +132,12 @@ defmodule Tuist.AppBuilds do
 
     order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
 
+    filters = attrs |> Map.get(:filters, []) |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
+
     if distinct_bundle_identifier do
       preview_ids =
         from(p in Preview)
-        |> Flop.query(%Flop{}, for: Preview)
+        |> Flop.query(%Flop{filters: filters}, for: Preview)
         |> order_by({^order_direction, ^order_by})
         |> distinct([p], p.bundle_identifier)
         |> select([p], p.id)
