@@ -562,7 +562,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", exact: "0.4.2"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.4.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.4.3")),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.20.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.3.1")),
