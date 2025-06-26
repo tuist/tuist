@@ -67,7 +67,7 @@ TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방�
 
 모듈을 구축할 때, 타겟에 대한 **라이브러리와 프레임워크** 및 **정적과 동적 링킹** 중 선택할 수 있습니다. Tuist가 없다면 의존성 그래프를 수동으로 구성해야 하므로 이 결정을 내리는데 더 복잡합니다. 하지만 Tuist 프로젝트 덕분에 이건 아무런 문제가 되지 않습니다.
 
-타겟의 라이브러리나 프레임워크 특성과 번들 접근 로직을 분리하기 위해 개발 중에는 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 사용하여 동적 라이브러리나 동적 프레임워크를 사용하길 권장합니다. 이것은 빠른 컴파일 시간과 [SwiftUI 프리뷰](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가 잘 동작하기 위해 중요한 포인트입니다. 그리고 릴리즈 빌드에서 앱이 더 빠르게 실행되기 위해 정적 라이브러리나 정적 프레임워크를 사용하는 것이 좋습니다. <0>동적 구성</0>을 활용하여 생성 시점에 결과물 타입을 변경할 수 있습니다:
+타겟의 라이브러리나 프레임워크 특성과 번들 접근 로직을 분리하기 위해 개발 중에는 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 사용하여 동적 라이브러리나 동적 프레임워크를 사용하길 권장합니다. 이것은 빠른 컴파일 시간과 [SwiftUI 프리뷰](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가 잘 동작하기 위해 중요한 포인트입니다. 그리고 릴리즈 빌드에서 앱이 더 빠르게 실행되기 위해 정적 라이브러리나 정적 프레임워크를 사용하는 것이 좋습니다. <0>동적 구성</0>을 활용하여 생성 시점에 결과물 타입을 변경할 수 있습니다:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

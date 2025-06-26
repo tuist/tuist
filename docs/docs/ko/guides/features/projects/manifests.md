@@ -53,7 +53,7 @@ let workspace = Workspace(
 
 자주 질문하는 내용 중에 하나는 워크스페이스에 단일 프로젝트를 사용할지 아니면 여러 프로젝트를 사용할지에 대한 것입니다. Tuist가 없다면 단일 프로젝트 설정으로 인해 Git 충돌이 자주 발생하므로 워크스페이스 사용을 권장합니다. 그러나 Tuist로 생성한 Xcode 프로젝트는 Git 리포지토리에 포함하는 것을 권장하지 않으므로 Git 충돌은 문제가 되지 않습니다. 따라서 워크스페이스에서 단일 프로젝트를 사용할지 여러 프로젝트를 사용할지는 여러분 결정에 달렸습니다.
 
-Tuist 프로젝트에서는 첫 생성 시간 (Cold generation time) 이 더 빠르고 (더 적은 매니페스트 파일을 컴파일 하기 때문) <LocalizedLink href="/guides/develop/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 캡슐화 단위로 사용하기 때문에 단일 프로젝트를 사용합니다. 그러나 애플리케이션에 다른 도메인을 나타내기 위해 캡슐화의 단위로 Xcode 프로젝트를 사용하면 Xcode에서 권장하는 프로젝트 구조와 더 일치합니다.
+Tuist 프로젝트에서는 첫 생성 시간 (Cold generation time) 이 더 빠르고 (더 적은 매니페스트 파일을 컴파일 하기 때문) <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 캡슐화 단위로 사용하기 때문에 단일 프로젝트를 사용합니다. 그러나 애플리케이션에 다른 도메인을 나타내기 위해 캡슐화의 단위로 Xcode 프로젝트를 사용하면 Xcode에서 권장하는 프로젝트 구조와 더 일치합니다.
 
 ## Tuist.swift {#tuistswift}
 

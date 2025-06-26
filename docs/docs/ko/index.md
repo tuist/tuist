@@ -17,42 +17,42 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         title="Generated projects"
         details="A Swift-based DSL to make Xcode projects more managleable and scalable."
         linkText="Create or migrate project"
-        link="/guides/develop/projects"/>
+        link="/guides/features/projects"/>
     <HomeCard icon="📦"
         title="Cache"
         details="Get faster compilations by skipping compilation with cached binaries."
         linkText="Speed up compilations"
-        link="/guides/develop/cache"/>
+        link="/guides/features/cache"/>
     <HomeCard
         icon="✅"
         title="Selective testing"
         details="Skip test targets when the dependent-upon code hasn't changed."
         linkText="Speed up test runs"
-        link="/guides/develop/selective-testing"/>
+        link="/guides/features/selective-testing"/>
     <HomeCard
         icon="📱"
         title="Previews"
         details="Share previews of your app with a URL that launches the app on a click."
         linkText="Share your apps"
-        link="/guides/share/previews"/>
+        link="/guides/features/previews"/>
     <HomeCard
         icon="📦"
         title="Registry"
         details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
         linkText="Speed up package resolution"
-        link="/guides/develop/registry"/>
+        link="/guides/features/registry"/>
     <HomeCard
         icon="📊"
         title="Insights"
         details="Get project insights to maintain a productive developer environment."
         linkText="Track project health"
-        link="/guides/develop/insights"/>
+        link="/guides/features/insights"/>
     <HomeCard
         icon="🧰"
         title="Bundle size"
         details="Find out how to make and keep your app's memory footprint as small as possible."
         linkText="Analyze your app bundle"
-        link="/guides/develop/bundle-size"/>
+        link="/guides/features/bundle-size"/>
 </HomeCards>
 
 ## Installation

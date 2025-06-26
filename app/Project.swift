@@ -29,8 +29,9 @@ let inspectBuildPostAction: ExecutionAction = .executionAction(
 )
 
 let oauthClientIdEnvironmentVariable: EnvironmentVariable = switch Environment.env {
-case .string("staging"): "5339abf2-467c-4690-b816-17246ed149d2"
-case .string("canary"): "5339abf2-467c-4690-b816-17246ed149d2"
+case .string("staging"): "bcb85209-0cef-4acd-8dd4-e0d1c5e5e09a"
+case .string("canary"): "ca49d1d6-acaf-4eaa-b866-774b799044db"
+case .string("development"): "5339abf2-467c-4690-b816-17246ed149d2"
 default: .environmentVariable(value: "", isEnabled: false)
 }
 let serverURLEnvironmentVariable: EnvironmentVariable = switch Environment.env {

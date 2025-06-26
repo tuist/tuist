@@ -22,7 +22,9 @@ import TuistServer
 
         var body: some Scene {
             MenuBarExtra("Tuist", image: "MenuBarIcon") {
-                ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .keychain)) {
+                ServerCredentialsStore.$current.withValue(
+                    ServerCredentialsStore(backend: .keychain)
+                ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         MenuBarView(
                             appDelegate: appDelegate,
@@ -45,7 +47,9 @@ import TuistServer
 
         var body: some Scene {
             WindowGroup {
-                ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .keychain)) {
+                ServerCredentialsStore.$current.withValue(
+                    ServerCredentialsStore(backend: .keychain)
+                ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
                             if case .loggedIn = authenticationService.authenticationState {

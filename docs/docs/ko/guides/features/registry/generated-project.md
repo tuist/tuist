@@ -6,7 +6,7 @@ description: 생성된 Xcode 프로젝트에서 Xcode 패키지 통합을 사용
 
 # Generated project with the Xcode package integration {#generated-project-with-xcode-based-integration}
 
-<LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</LocalizedLink>을 사용하여 Tuist 프로젝트에 패키지를 추가하는 경우 URL 대신 레지스트리 식별자를 사용해야 합니다:
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</LocalizedLink>을 사용하여 Tuist 프로젝트에 패키지를 추가하는 경우 URL 대신 레지스트리 식별자를 사용해야 합니다:
 
 ```swift
 import ProjectDescription

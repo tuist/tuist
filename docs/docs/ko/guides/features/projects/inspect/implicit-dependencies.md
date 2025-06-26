@@ -17,7 +17,7 @@ tuist inspect implicit-imports
 해당 명령어가 암시적 임포트를 발견할 경우, 0이 아닌 종료 코드와 함께 종료됩니다.
 
 > [!TIP] CI에서의 검증
-> 새로운 코드가 upstream으로 push될 때마다 이 명령어를 <LocalizedLink href="/guides/develop/automate/continuous-integration">CI(continuous intergration)</LocalizedLink> 명령의 일부로 실행할 것을 강력히 권장합니다.
+> 새로운 코드가 upstream으로 push될 때마다 이 명령어를 <LocalizedLink href="/guides/features/automate/continuous-integration">CI(continuous intergration)</LocalizedLink> 명령의 일부로 실행할 것을 강력히 권장합니다.
 
 > [!IMPORTANT] 모든 암시적 경우가 감지되는 것은 아닙니다.
 > Tuist는 암시적 의존성을 감지하기 위해 정적 코드 분석에 의존하므로, 모든 경우를 찾아내지 못할 수 있습니다. 예를 들어, Tuist는 코드에서 컴파일러 지시문(compiler directives)을 통한 조건부 임포트(conditional imports)를 이해할 수 없습니다.

@@ -97,15 +97,19 @@ public struct InitCommandService {
             nextSteps.append("Visualize your project graph with \(.command("tuist graph"))")
 
             let name = answers?.generatedProjectName ?? prompter.promptGeneratedProjectName()
-            let platform = answers?.generatedProjectPlatform ?? prompter.promptGeneratedProjectPlatform()
-            projectDirectory = try await createGeneratedProject(at: directory, name: name, platform: platform)
+            let platform =
+                answers?.generatedProjectPlatform ?? prompter.promptGeneratedProjectPlatform()
+            projectDirectory = try await createGeneratedProject(
+                at: directory, name: name, platform: platform
+            )
             if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(
                 named: name,
                 in: directory,
                 answers: answers,
                 nextSteps: &nextSteps
             ) {
-                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
+                tuistSwiftLine =
+                    "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .tuist())"
             }
@@ -117,7 +121,8 @@ public struct InitCommandService {
                 answers: answers,
                 nextSteps: &nextSteps
             ) {
-                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
+                tuistSwiftLine =
+                    "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .xcode())"
             }
@@ -144,7 +149,9 @@ public struct InitCommandService {
             )
         }
 
-        AlertController.current.success(.alert("You are all set to explore the Tuist universe", takeaways: nextSteps))
+        AlertController.current.success(
+            .alert("You are all set to explore the Tuist universe", takeaways: nextSteps)
+        )
     }
 
     private func mise(path: AbsolutePath, nextSteps _: inout [TerminalText]) async throws {
@@ -162,7 +169,9 @@ public struct InitCommandService {
         ).awaitCompletion()
     }
 
-    private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
+    private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String)
+        async throws -> AbsolutePath
+    {
         let projectDirectory = directory.appending(component: name)
         try await Noora.current.progressStep(
             message: "Creating generated project",
@@ -189,7 +198,8 @@ public struct InitCommandService {
         answers: InitPromptAnswers?,
         nextSteps: inout [TerminalText]
     ) async throws -> String? {
-        let integrateWithServer = answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
+        let integrateWithServer =
+            answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
             let serverURL = try serverEnvironmentService.url(configServerURL: Constants.URLs.production)
             if try await serverSessionController.whoami(serverURL: serverURL) == nil {
@@ -199,11 +209,14 @@ public struct InitCommandService {
                     errorMessage: "Authentication failed",
                     visibleLines: 3,
                     task: { progress in
-                        try await loginService.run(email: nil, password: nil, directory: nil) { event in
+                        try await loginService.run(email: nil, password: nil, directory: nil) {
+                            event in
                             switch event {
                             case let .openingBrowser(url):
                                 await withCheckedContinuation { continuation in
-                                    progress("Press ENTER to open \(url) in your browser to authenticate...")
+                                    progress(
+                                        "Press ENTER to open \(url) in your browser to authenticate..."
+                                    )
                                     keystrokeListener.listen { key in
                                         switch key {
                                         case .returnKey:
@@ -221,7 +234,8 @@ public struct InitCommandService {
                     }
                 )
             }
-            let fullHandle = "\(try await accountHandle(answers: answers, serverURL: serverURL))/\(projectHandle)"
+            let fullHandle =
+                "\(try await accountHandle(answers: answers, serverURL: serverURL))/\(projectHandle)"
 
             if fullHandle == "" {
                 throw InitCommandServiceError.emptyProjectHandle
@@ -233,9 +247,9 @@ public struct InitCommandService {
                 errorMessage: "Project connection failed",
                 showSpinner: true,
                 task: { _ in
-                    if (try? await getProjectService.getProject(fullHandle: fullHandle, serverURL: serverURL)) ==
-                        nil
-                    {
+                    if (try? await getProjectService.getProject(
+                        fullHandle: fullHandle, serverURL: serverURL
+                    )) == nil {
                         _ = try await createProjectService.createProject(
                             fullHandle: fullHandle,
                             serverURL: serverURL
@@ -245,10 +259,10 @@ public struct InitCommandService {
             )
 
             nextSteps.append(contentsOf: [
-                "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
-                "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
-                "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
-                "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))",
+                "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/features/cache"))",
+                "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/features/selective-testing"))",
+                "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/features/registry"))",
+                "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/features/previews"))",
             ])
 
             return fullHandle
@@ -266,13 +280,18 @@ public struct InitCommandService {
         serverURL: URL
     ) async throws -> String {
         let accountHandle = try await serverSessionController.whoami(serverURL: serverURL)!
-        let organizations = (try? await listOrganizationsService.listOrganizations(serverURL: serverURL)) ?? []
-        switch answers?.accountType ?? prompter.promptAccountType(
-            authenticatedUserHandle: accountHandle,
-            organizations: organizations
-        ) {
+        let organizations =
+            (try? await listOrganizationsService.listOrganizations(serverURL: serverURL)) ?? []
+        switch answers?.accountType
+            ?? prompter.promptAccountType(
+                authenticatedUserHandle: accountHandle,
+                organizations: organizations
+            )
+        {
         case .createOrganizationAccount:
-            let organizationHandle = answers?.newOrganizationAccountHandle ?? prompter.promptNewOrganizationAccountHandle()
+            let organizationHandle =
+                answers?.newOrganizationAccountHandle
+                    ?? prompter.promptNewOrganizationAccountHandle()
             _ = try await createOrganizationService.createOrganization(
                 name: organizationHandle,
                 serverURL: serverURL
@@ -289,14 +308,19 @@ public struct InitCommandService {
         answers: InitPromptAnswers?
     ) async throws -> InitPromptingWorkflowType {
         let xcodeProjectsAndWorkspaces = try await findXcodeProjectsAndWorkspaces(in: directory)
-        return answers?.workflowType ?? prompter
+        return answers?.workflowType
+            ?? prompter
             .promptWorkflowType(
-                xcodeProjectOrWorkspace: xcodeProjectsAndWorkspaces
-                    .first(where: \.isWorkspace) ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
+                xcodeProjectOrWorkspace:
+                xcodeProjectsAndWorkspaces
+                    .first(where: \.isWorkspace)
+                    ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
             )
     }
 
-    private func findXcodeProjectsAndWorkspaces(in directory: AbsolutePath) async throws -> Set<XcodeProjectOrWorkspace> {
+    private func findXcodeProjectsAndWorkspaces(in directory: AbsolutePath) async throws -> Set<
+        XcodeProjectOrWorkspace
+    > {
         var paths = Set(
             try await fileSystem.glob(directory: directory, include: ["*.xcworkspace"]).collect()
                 .filter { $0.parentDirectory.extension != "xcodeproj" }

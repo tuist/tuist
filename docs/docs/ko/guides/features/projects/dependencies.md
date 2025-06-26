@@ -61,7 +61,7 @@ Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반
 
 Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
 이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 target을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
-덕분에, 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">캐싱</LocalizedLink> 및 <LocalizedLink href="/guides/develop/test/selective-testing">선택적 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
+덕분에, 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/features/build/cache">캐싱</LocalizedLink> 및 <LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj target 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 
@@ -252,7 +252,7 @@ Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 �
 
 Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함). Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
 
-다행히도, Tuist는 정적 및 동적 링크 간의 변경과 관련된 복잡성을 개념적으로 단순화하고, 링크 타입과 관계없이 표준화된 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>를 생성합니다. <LocalizedLink href="/guides/develop/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 함께 사용하면 호출 시점에 링크 타입을 전달할 수 있으며, 이 값을 manifest에서 사용해 target의 product 타입을 설정할 수 있습니다.
+다행히도, Tuist는 정적 및 동적 링크 간의 변경과 관련된 복잡성을 개념적으로 단순화하고, 링크 타입과 관계없이 표준화된 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>를 생성합니다. <LocalizedLink href="/guides/features/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 함께 사용하면 호출 시점에 링크 타입을 전달할 수 있으며, 이 값을 manifest에서 사용해 target의 product 타입을 설정할 수 있습니다.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -265,7 +265,7 @@ func productType() -> Product {
 }
 ```
 
-Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비용 문제로 인해 암시적 구성(implicit configuration)을 통한 편의성을 기본값으로 제공하지 않는 점</LocalizedLink>을 참고하세요. 이는 최종 바이너리가 올바르게 생성되기 위해 사용자가 직접 링크 타입과 [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) 같은 추가 빌드 설정을 해야한다는 뜻입니다. 따라서, 우리는 주로 문서 형태의 자료를 제공하여 사용자가 올바른 결정을 내릴 수 있도록 돕는 방식을 취하고 있습니다.
+Tuist는 <LocalizedLink href="/guides/features/projects/cost-of-convenience">비용 문제로 인해 암시적 구성(implicit configuration)을 통한 편의성을 기본값으로 제공하지 않는 점</LocalizedLink>을 참고하세요. 이는 최종 바이너리가 올바르게 생성되기 위해 사용자가 직접 링크 타입과 [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) 같은 추가 빌드 설정을 해야한다는 뜻입니다. 따라서, 우리는 주로 문서 형태의 자료를 제공하여 사용자가 올바른 결정을 내릴 수 있도록 돕는 방식을 취하고 있습니다.
 
 > [!TIP] 예시: COMPOSABLE ARCHITECTURE
 > 많은 프로젝트에서 사용하는 Swift Package로는 [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture)가 있습니다. [여기](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)와 [troubleshooting section](#troubleshooting)에 설명된 대로, package를 정적으로 링크할 때는 `OTHER_LDFLAGS` 빌드 설정을 `$(inherited) -ObjC`로 설정해야 합니다. Tuist의 기본 링크 방식이 정적 링크이기 때문입니다. 다른 방법으로는, package의 product type을 동적으로 override할 수 있습니다.

@@ -29,7 +29,7 @@ Tuist に貢献するには、最低限の要件があります。
 - 開発環境を整えるため、Mise を [インストール](https://mise.jdx.dev/getting-started.html) します。
 - Tuist が必要とするシステム依存関係をインストールするため、 `mise install` を実行します。
 - Tuist が必要とする外部依存関係をインストールするため、 `tuist install` を実行します。
-- (任意) `tuist auth login` を実行して、 <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink> へのアクセスを取得します
+- (任意) `tuist auth login` を実行して、 <LocalizedLink href="/guides/features/build/cache">Tuist Cache</LocalizedLink> へのアクセスを取得します
 - `tuist generate` を実行して、Tuist の Xcode プロジェクトを生成します。
 
 **生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。
@@ -39,7 +39,7 @@ Tuist に貢献するには、最低限の要件があります。
 
 ## プロジェクトの編集 {#edit-the-project}
 
-依存関係の追加やターゲットの調整など、プロジェクトを編集する必要がある場合は、<LocalizedLink href="/guides/develop/projects/editing">`tuist edit` コマンド</LocalizedLink>を使用できます。  あまり使われることはありませんが、知っておいて損はありません。
+依存関係の追加やターゲットの調整など、プロジェクトを編集する必要がある場合は、<LocalizedLink href="/guides/features/projects/editing">`tuist edit` コマンド</LocalizedLink>を使用できます。  あまり使われることはありませんが、知っておいて損はありません。
 
 ## Tuist を実行する {#run-tuist}
 

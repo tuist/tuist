@@ -102,15 +102,15 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signIn() async throws {
-        try await startOAuth2Flow(with: "/oauth/authorize")
+        try await startOAuth2Flow(with: "/oauth2/authorize")
     }
 
     public func signInWithGitHub() async throws {
-        try await startOAuth2Flow(with: "/oauth/github")
+        try await startOAuth2Flow(with: "/oauth2/github")
     }
 
     public func signInWithGoogle() async throws {
-        try await startOAuth2Flow(with: "/oauth/google")
+        try await startOAuth2Flow(with: "/oauth2/google")
     }
 
     private func startOAuth2Flow(with path: String) async throws {
@@ -193,7 +193,7 @@ public final class AuthenticationService: ObservableObject {
         _ code: String,
         codeVerifier: String
     ) async throws {
-        let url = serverEnvironmentService.url().appending(path: "oauth/token")
+        let url = serverEnvironmentService.url().appending(path: "oauth2/token")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

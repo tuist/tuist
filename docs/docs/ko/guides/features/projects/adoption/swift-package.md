@@ -9,10 +9,10 @@ description: Swift Package와 함께 Tuist를 사용하는 방법에 대해 알�
 Tuist는 프로젝트에 DSL로 `Package.swift` 사용을 지원하고 패키지 타겟을 Xcode 프로젝트와 타겟으로 변환합니다.
 
 > [!WARNING]\
-> 이 기능의 목적은 개발자가 Swift Package에 Tuist를 도입했을 때 영향도를 쉽게 파악하기 위함입니다. 따라서 우리는 Swift Package Manager의 모든 기능을 지원하거나 <LocalizedLink href="/guides/develop/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>와 같은 Tuist의 기능을 패키지 분야에 제공할 계획도 없습니다.
+> 이 기능의 목적은 개발자가 Swift Package에 Tuist를 도입했을 때 영향도를 쉽게 파악하기 위함입니다. 따라서 우리는 Swift Package Manager의 모든 기능을 지원하거나 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>와 같은 Tuist의 기능을 패키지 분야에 제공할 계획도 없습니다.
 
 > [!NOTE] 루트 디렉토리\
-> Tuist 명령어는 특정 <LocalizedLink href="/guides/develop/projects/directory-structure#standard-tuist-projects">디렉토리 구조</LocalizedLink>를 요구하며 루트는 `Tuist` 또는 `.git` 디렉토리로 식별됩니다.
+> Tuist 명령어는 특정 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">디렉토리 구조</LocalizedLink>를 요구하며 루트는 `Tuist` 또는 `.git` 디렉토리로 식별됩니다.
 
 ## Swift Package와 함께 Tuist 사용 {#using-tuist-with-a-swift-package}
 
