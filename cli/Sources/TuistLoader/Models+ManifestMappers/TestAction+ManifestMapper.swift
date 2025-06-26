@@ -31,26 +31,26 @@ extension XcodeGraph.TestAction {
 
         if let plans = manifest.testPlans {
             var resolvedTestPlans: [XcodeGraph.TestPlan] = []
-            
+
             for path in plans {
                 let resolvedPath = try generatorPaths.resolve(path: path)
                 let pathString = resolvedPath.pathString
-                
+
                 // Check if path contains glob patterns
                 if pathString.contains("*") {
                     let globPathString = String(pathString.dropFirst())
-                    
+
                     do {
                         let globPaths = try await fileSystem
                             .throwingGlob(directory: .root, include: [globPathString])
                             .collect()
                             .filter { $0.extension == "xctestplan" }
                             .sorted()
-                        
+
                         for globPath in globPaths {
                             let testPlan = try await TestPlan.from(
-                                path: globPath, 
-                                isDefault: resolvedTestPlans.isEmpty, 
+                                path: globPath,
+                                isDefault: resolvedTestPlans.isEmpty,
                                 generatorPaths: generatorPaths
                             )
                             resolvedTestPlans.append(testPlan)
@@ -63,15 +63,15 @@ extension XcodeGraph.TestAction {
                     // Handle as literal path
                     if try await fileSystem.exists(resolvedPath) && resolvedPath.extension == "xctestplan" {
                         let testPlan = try await TestPlan.from(
-                            path: resolvedPath, 
-                            isDefault: resolvedTestPlans.isEmpty, 
+                            path: resolvedPath,
+                            isDefault: resolvedTestPlans.isEmpty,
                             generatorPaths: generatorPaths
                         )
                         resolvedTestPlans.append(testPlan)
                     }
                 }
             }
-            
+
             testPlans = resolvedTestPlans
 
             // not used when using test plans
