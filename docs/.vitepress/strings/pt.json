@@ -338,8 +338,8 @@
             }
           }
         },
-        "agentic-building": {
-          "text": "Construção Agêntica",
+        "agentic-coding": {
+          "text": "Codificação Agêntica",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"

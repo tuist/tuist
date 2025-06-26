@@ -338,8 +338,8 @@
             }
           }
         },
-        "agentic-building": {
-          "text": "에이전틱 빌딩",
+        "agentic-coding": {
+          "text": "에이전틱 코딩",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"

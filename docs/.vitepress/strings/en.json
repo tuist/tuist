@@ -338,8 +338,8 @@
             }
           }
         },
-        "agentic-building": {
-          "text": "Agentic Building",
+        "agentic-coding": {
+          "text": "Agentic Coding",
           "items": {
             "mcp": {
               "text": "MCP"

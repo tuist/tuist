@@ -338,8 +338,8 @@
             }
           }
         },
-        "agentic-building": {
-          "text": "エージェンティック・ビルディング",
+        "agentic-coding": {
+          "text": "エージェンティック・コーディング",
           "items": {
             "mcp": {
               "text": "モデルコンテキストプロトコル(MCP)"

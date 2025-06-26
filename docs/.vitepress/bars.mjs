@@ -544,16 +544,16 @@ export function guidesSidebar(locale) {
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
             locale,
-            "sidebars.guides.items.agentic-building.text",
+            "sidebars.guides.items.agentic-coding.text",
           )}</span>`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
                 locale,
-                "sidebars.guides.items.agentic-building.items.mcp.text",
+                "sidebars.guides.items.agentic-coding.items.mcp.text",
               )}</span>`,
-              link: `/${locale}/guides/features/agentic-building/mcp`,
+              link: `/${locale}/guides/features/agentic-coding/mcp`,
             },
           ],
         },
