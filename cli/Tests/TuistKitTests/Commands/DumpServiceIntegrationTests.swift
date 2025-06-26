@@ -177,6 +177,13 @@ final class DumpServiceTests: TuistTestCase {
             let expected = """
             {
               "fullHandle": "tuist/tuist",
+              "inspectOptions": {
+                "redundantDependencies": {
+                  "ignoreTagsMatching": [
+
+                  ]
+                }
+              },
               "project": {
                 "tuist": {
                   "compatibleXcodeVersions": {
