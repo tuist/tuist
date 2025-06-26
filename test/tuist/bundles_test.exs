@@ -608,4 +608,17 @@ defmodule Tuist.BundlesTest do
       assert result == false
     end
   end
+
+  describe "delete_bundle!/1" do
+    test "deletes a bundle successfully" do
+      # Given
+      bundle = BundlesFixtures.bundle_fixture()
+
+      # When
+      Bundles.delete_bundle!(bundle)
+
+      # Then
+      assert Bundles.get_bundle(bundle.id) == {:error, :not_found}
+    end
+  end
 end

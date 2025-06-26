@@ -9,8 +9,11 @@
     margin: var(--noora-spacing-7);
   }
 
-  & > [data-part="back-button"] {
-    align-self: flex-start;
+  & > [data-part="action-buttons"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
   }
 
   & > #download-tuist-app-alert {

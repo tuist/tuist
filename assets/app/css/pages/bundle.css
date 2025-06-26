@@ -5,6 +5,14 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-0);
 
+  & > [data-part="action-buttons"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--noora-spacing-4);
+  }
+
   & .noora-card {
     width: 100%;
   }

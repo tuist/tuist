@@ -233,4 +233,8 @@ defmodule Tuist.AppBuilds do
     |> Enum.filter(&(&1.type == :ipa))
     |> List.first()
   end
+
+  def delete_preview!(%Preview{} = preview) do
+    Repo.delete!(preview)
+  end
 end

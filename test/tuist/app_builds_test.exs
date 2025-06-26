@@ -1035,6 +1035,19 @@ defmodule Tuist.AppBuildsTest do
     end
   end
 
+  describe "delete_preview!/1" do
+    test "deletes a preview successfully" do
+      # Given
+      preview = AppBuildsFixtures.preview_fixture()
+
+      # When
+      AppBuilds.delete_preview!(preview)
+
+      # Then
+      assert Repo.get(Preview, preview.id) == nil
+    end
+  end
+
   describe "latest_ipa_app_build_for_preview/1" do
     test "returns the latest ipa app build for a preview" do
       # Given

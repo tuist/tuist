@@ -1,14 +1,27 @@
 <div id="bundle">
-  <.button
-    variant="secondary"
-    size="medium"
-    label="Bundles"
-    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
-  >
-    <:icon_left>
-      <.icon name="arrow_left" />
-    </:icon_left>
-  </.button>
+  <div data-part="action-buttons">
+    <.button
+      variant="secondary"
+      size="medium"
+      label="Bundles"
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+    <.button
+      label={gettext("Delete bundle")}
+      data-part="delete-button"
+      variant="secondary"
+      size="medium"
+      phx-click="delete_bundle"
+    >
+      <:icon_left>
+        <.icon name="trash" />
+      </:icon_left>
+    </.button>
+  </div>
   <.card icon="chart_arcs" title="Details" data-part="details-card">
     <.card_section data-part="details-card-section">
       <div data-part="metadata-grid">

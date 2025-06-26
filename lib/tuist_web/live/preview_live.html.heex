@@ -18,18 +18,30 @@
       <.link_button size="large" variant="secondary" underline label={gettext("Download")} />
     </:action>
   </.alert>
-  <.button
-    :if={Map.get(assigns, :selected_project)}
-    label={gettext("Previews")}
-    data-part="back-button"
-    variant="secondary"
-    size="medium"
-    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/previews"}
-  >
-    <:icon_left>
-      <.icon name="arrow_left" />
-    </:icon_left>
-  </.button>
+  <div :if={Map.get(assigns, :selected_project)} data-part="action-buttons">
+    <.button
+      label={gettext("Previews")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/previews"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+    <.button
+      label={gettext("Delete preview")}
+      data-part="delete-button"
+      variant="secondary"
+      size="medium"
+      phx-click="delete_preview"
+    >
+      <:icon_left>
+        <.icon name="trash" />
+      </:icon_left>
+    </.button>
+  </div>
   <div data-part="header">
     <div data-part="icon-with-dots">
       <div data-part="dots">

@@ -422,6 +422,10 @@ defmodule Tuist.Bundles do
     |> Repo.exists?()
   end
 
+  def delete_bundle!(%Bundle{} = bundle) do
+    Repo.delete!(bundle)
+  end
+
   defp flatten_artifacts(
          artifacts,
          bundle_id,

@@ -101,6 +101,19 @@ defmodule TuistWeb.PreviewLive do
     """
   end
 
+  def handle_event(
+        "delete_preview",
+        _params,
+        %{assigns: %{preview: preview, selected_project: selected_project}} = socket
+      ) do
+    AppBuilds.delete_preview!(preview)
+
+    {
+      :noreply,
+      push_navigate(socket, to: ~p"/#{selected_project.account.name}/#{selected_project.name}/previews")
+    }
+  end
+
   defp get_current_preview(preview_id) do
     case Tuist.AppBuilds.preview_by_id(preview_id,
            preload: [:created_by_account, :app_builds, project: [:account]]

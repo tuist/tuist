@@ -467,6 +467,15 @@ defmodule TuistWeb.BundleLive do
     {:noreply, socket}
   end
 
+  def handle_event("delete_bundle", _params, %{assigns: %{bundle: bundle, selected_project: selected_project}} = socket) do
+    Bundles.delete_bundle!(bundle)
+
+    {
+      :noreply,
+      push_navigate(socket, to: ~p"/#{selected_project.account.name}/#{selected_project.name}/bundles")
+    }
+  end
+
   def sort_icon("desc") do
     "square_rounded_arrow_down"
   end
