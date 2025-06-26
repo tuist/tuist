@@ -89,7 +89,7 @@
           <div data-part="metadata">
             <div data-part="title">{gettext("Supported platforms")}</div>
             <div data-part="supported-platforms">
-              <%= for supported_platform <- @preview.supported_platforms do %>
+              <%= for supported_platform <- Enum.sort(@preview.supported_platforms) do %>
                 <.platform_tag platform={supported_platform} />
               <% end %>
             </div>

@@ -39,7 +39,7 @@ defmodule TuistWeb.Previews.AppPreview do
           </span>
         <% end %>
         <div data-part="extra-metadata">
-          <%= for platform <- @preview.supported_platforms do %>
+          <%= for platform <- Enum.sort(@preview.supported_platforms) do %>
             <.platform_badge platform={platform} />
           <% end %>
           <div data-part="time">

@@ -149,8 +149,8 @@ defmodule TuistWeb.ProjectsLive do
               <h3>Supported platforms</h3>
               <div data-part="tags">
                 <.tag
-                  :for={platform <- Projects.platforms(project)}
-                  label={Tuist.AppBuilds.platform_string(platform)}
+                  :for={platform <- Enum.sort(Projects.platforms(project))}
+                  label={AppBuilds.platform_string(platform)}
                   icon={platform_icon_name(platform)}
                 />
               </div>
@@ -185,7 +185,7 @@ defmodule TuistWeb.ProjectsLive do
                 <h3>{gettext("Supported platforms")}</h3>
                 <div data-part="tags">
                   <.tag
-                    :for={platform <- Projects.platforms(project)}
+                    :for={platform <- Enum.sort(Projects.platforms(project))}
                     label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />
@@ -245,7 +245,7 @@ defmodule TuistWeb.ProjectsLive do
                 <h3>Supported platforms</h3>
                 <div data-part="tags">
                   <.tag
-                    :for={platform <- Projects.platforms(project)}
+                    :for={platform <- Enum.sort(Projects.platforms(project))}
                     label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />

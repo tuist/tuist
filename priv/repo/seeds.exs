@@ -1,6 +1,7 @@
 import Ecto.Query, only: [from: 2]
 
 alias Tuist.Accounts
+alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
 alias Tuist.Projects
@@ -299,4 +300,56 @@ Enum.map(1..100, fn index ->
       flaky: Enum.random([test_case.flaky, false, false, false])
     )
   end
+end)
+
+test_previews = [
+  %{
+    display_name: "MyApp - Mixed Platforms",
+    bundle_identifier: "com.example.myapp.mixed",
+    version: "1.0.0",
+    supported_platforms: [:ios_simulator, :ios, :macos],
+    git_branch: "main",
+    git_commit_sha: "abc123def456",
+    project_id: ios_app_with_frameworks_project.id,
+    created_by_account_id: organization.id,
+    visibility: :public
+  },
+  %{
+    display_name: "MyApp - All Platforms",
+    bundle_identifier: "com.example.myapp.all",
+    version: "2.0.0",
+    supported_platforms: [:macos, :ios, :watchos_simulator, :tvos_simulator, :ios_simulator, :visionos],
+    git_branch: "develop",
+    git_commit_sha: "ghi789jkl012",
+    project_id: ios_app_with_frameworks_project.id,
+    created_by_account_id: organization.id,
+    visibility: :public
+  },
+  %{
+    display_name: "MyApp - Single Platform",
+    bundle_identifier: "com.example.myapp.single",
+    version: "1.5.0",
+    supported_platforms: [:ios],
+    git_branch: "main",
+    git_commit_sha: "jkl012mno345",
+    project_id: ios_app_with_frameworks_project.id,
+    created_by_account_id: organization.id,
+    visibility: :public
+  },
+  %{
+    display_name: "MyApp - Watch & Vision",
+    bundle_identifier: "com.example.myapp.watch",
+    version: "1.2.0",
+    supported_platforms: [:watchos_simulator, :visionos, :watchos, :visionos_simulator],
+    git_branch: "feature/wearables",
+    git_commit_sha: "mno345pqr678",
+    project_id: ios_app_with_frameworks_project.id,
+    created_by_account_id: organization.id,
+    visibility: :public
+  }
+]
+
+Enum.each(test_previews, fn preview_attrs ->
+  changeset = Preview.create_changeset(%Preview{}, preview_attrs)
+  Repo.insert!(changeset)
 end)

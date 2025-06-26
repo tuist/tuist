@@ -43,7 +43,7 @@
           </:col>
           <:col :let={preview} label={gettext("Platforms")}>
             <div data-part="platforms">
-              <%= for platform <- preview.supported_platforms do %>
+              <%= for platform <- Enum.sort(preview.supported_platforms) do %>
                 <.platform_cell platform={platform} />
               <% end %>
             </div>
