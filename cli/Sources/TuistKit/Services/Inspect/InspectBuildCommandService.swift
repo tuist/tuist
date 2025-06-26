@@ -72,7 +72,7 @@ struct InspectBuildCommandService {
 
     func run(
         path: String?,
-        projectDerivedDataPath: String? = nil
+        derivedDataPath: String? = nil
     ) async throws {
         let referenceDate = dateService.now()
         guard let executablePath = Bundle.main.executablePath else {
@@ -98,7 +98,7 @@ struct InspectBuildCommandService {
         }
         let projectPath = try await projectPath(path)
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        var projectDerivedDataDirectory: AbsolutePath! = try projectDerivedDataPath.map { try AbsolutePath(
+        var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
             validating: $0,
             relativeTo: currentWorkingDirectory
         ) }
