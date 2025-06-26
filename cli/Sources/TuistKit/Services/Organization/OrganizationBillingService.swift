@@ -12,16 +12,16 @@ protocol OrganizationBillingServicing {
 }
 
 final class OrganizationBillingService: OrganizationBillingServicing {
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let opener: Opening
     private let configLoader: ConfigLoading
 
     init(
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.opener = opener
         self.configLoader = configLoader
     }
@@ -39,7 +39,7 @@ final class OrganizationBillingService: OrganizationBillingServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         try opener.open(
             url:
             serverURL

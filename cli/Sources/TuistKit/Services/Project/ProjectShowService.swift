@@ -26,18 +26,18 @@ enum ProjectShowServiceError: Equatable, FatalError {
 struct ProjectShowService {
     private let opener: Opening
     private let configLoader: ConfigLoading
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let getProjectService: GetProjectServicing
 
     init(
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         getProjectService: GetProjectServicing = GetProjectService()
     ) {
         self.opener = opener
         self.configLoader = configLoader
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.getProjectService = getProjectService
     }
 
@@ -53,7 +53,7 @@ struct ProjectShowService {
             throw ProjectShowServiceError.missingFullHandle
         }
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         if web {
             var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!

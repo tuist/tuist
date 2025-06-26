@@ -9,7 +9,7 @@ import TuistSupport
 @testable import TuistKit
 
 struct RegistryLogoutServiceTests {
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
@@ -17,7 +17,7 @@ struct RegistryLogoutServiceTests {
 
     init() {
         subject = RegistryLogoutService(
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             swiftPackageManagerController: swiftPackageManagerController,
             fileSystem: fileSystem
@@ -29,7 +29,7 @@ struct RegistryLogoutServiceTests {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test())
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(.test())
         given(swiftPackageManagerController)

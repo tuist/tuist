@@ -31,13 +31,39 @@ import SwiftUI
         }
     }
 #else
+    import TuistErrorHandling
+    import TuistOnboarding
     import TuistPreviews
 
     @main
     struct TuistApp: App {
+        @StateObject private var authenticationService = AuthenticationService()
+
         var body: some Scene {
             WindowGroup {
-                PreviewsView()
+                Group {
+                    if authenticationService.isAuthenticated {
+                        NavigationView {
+                            PreviewsView()
+                                .navigationBarItems(
+                                    trailing:
+                                    Button("Log Out") {
+                                        Task {
+                                            await authenticationService.signOut()
+                                        }
+                                    }
+                                )
+                        }
+                    } else {
+                        LogInView()
+                    }
+                }
+                .withErrorHandling()
+                .onAppear {
+                    Task {
+                        await authenticationService.loadCredentials()
+                    }
+                }
             }
         }
     }

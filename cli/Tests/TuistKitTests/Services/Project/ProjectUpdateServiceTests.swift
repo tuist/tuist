@@ -10,7 +10,7 @@ import TuistTesting
 final class ProjectUpdateServiceTests: TuistUnitTestCase {
     private var opener: MockOpening!
     private var configLoader: MockConfigLoading!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var updateProjectService: MockUpdateProjectServicing!
     private var subject: ProjectUpdateService!
 
@@ -19,16 +19,16 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
 
         opener = MockOpening()
         configLoader = MockConfigLoading()
-        serverURLService = MockServerURLServicing()
+        serverEnvironmentService = MockServerEnvironmentServicing()
         updateProjectService = MockUpdateProjectServicing()
         subject = ProjectUpdateService(
             opener: opener,
             configLoader: configLoader,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             updateProjectService: updateProjectService
         )
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
 
@@ -46,7 +46,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
     override func tearDown() {
         opener = nil
         configLoader = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         updateProjectService = nil
         subject = nil
         super.tearDown()

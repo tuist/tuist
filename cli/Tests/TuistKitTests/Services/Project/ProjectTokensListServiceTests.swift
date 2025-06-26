@@ -9,7 +9,7 @@ import XCTest
 
 final class ProjectTokensListServiceTests: TuistUnitTestCase {
     private var listProjectTokensService: MockListProjectTokensServicing!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var configLoader: MockConfigLoading!
     private var serverURL: URL!
     private var subject: ProjectTokensListService!
@@ -18,25 +18,25 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
         super.setUp()
 
         listProjectTokensService = .init()
-        serverURLService = .init()
+        serverEnvironmentService = .init()
         configLoader = .init()
         serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .value(serverURL))
             .willReturn(serverURL)
         subject = ProjectTokensListService(
             listProjectTokensService: listProjectTokensService,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
     }
 
     override func tearDown() {
         listProjectTokensService = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         configLoader = nil
         serverURL = nil
         subject = nil

@@ -35,7 +35,7 @@ enum LoginServiceEvent: CustomStringConvertible {
 
 final class LoginService: LoginServicing {
     private let serverSessionController: ServerSessionControlling
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let userInputReader: UserInputReading
     private let authenticateService: AuthenticateServicing
@@ -43,14 +43,14 @@ final class LoginService: LoginServicing {
 
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
     ) {
         self.serverSessionController = serverSessionController
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
         self.userInputReader = userInputReader
         self.authenticateService = authenticateService
@@ -74,7 +74,7 @@ final class LoginService: LoginServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         if email != nil || password != nil {
             try await authenticateWithEmailAndPassword(

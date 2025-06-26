@@ -13,16 +13,16 @@ protocol ProjectCreateServicing {
 
 final class ProjectCreateService: ProjectCreateServicing {
     private let createProjectService: CreateProjectServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         createProjectService: CreateProjectServicing = CreateProjectService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.createProjectService = createProjectService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -38,7 +38,7 @@ final class ProjectCreateService: ProjectCreateServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let project = try await createProjectService.createProject(
             fullHandle: fullHandle,

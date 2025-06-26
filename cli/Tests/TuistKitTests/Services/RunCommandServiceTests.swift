@@ -42,7 +42,7 @@ struct RunCommandServiceTests {
     private let configLoader = MockConfigLoading()
     private let getPreviewService = MockGetPreviewServicing()
     private let listPreviewsService = MockListPreviewsServicing()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let remoteArtifactDownloader = MockRemoteArtifactDownloading()
     private let appBundleLoader = MockAppBundleLoading()
     private let fileArchiverFactory = MockFileArchivingFactorying()

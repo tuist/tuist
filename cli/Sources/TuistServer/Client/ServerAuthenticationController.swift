@@ -79,29 +79,24 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if Environment.current.isCI {
                 return try await ciAuthenticationToken()
             } else {
-                return try await cliManagedAuthenticationTokenRefreshingIfNeeded(
+                return try await authenticationTokenRefreshingIfNeeded(
                     serverURL: serverURL, forceRefresh: false
                 )
             }
         #else
-            return .user(
-                legacyToken: nil,
-                accessToken: JWT(
-                    token: "INSERT_HERE",
-                    expiryDate: Date(timeIntervalSinceNow: 10000),
-                    email: nil,
-                    preferredUsername: nil
-                ),
-                refreshToken: nil
+            return try await authenticationTokenRefreshingIfNeeded(
+                serverURL: serverURL, forceRefresh: false
             )
         #endif
     }
 
     public func refreshToken(serverURL: URL) async throws {
-        try await cliManagedAuthenticationTokenRefreshingIfNeeded(serverURL: serverURL, forceRefresh: true)
+        try await authenticationTokenRefreshingIfNeeded(
+            serverURL: serverURL, forceRefresh: true
+        )
     }
 
-    @discardableResult private func cliManagedAuthenticationTokenRefreshingIfNeeded(
+    @discardableResult private func authenticationTokenRefreshingIfNeeded(
         serverURL: URL,
         forceRefresh: Bool
     ) async throws
@@ -166,6 +161,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                                 expiresAt = accessToken.expiryDate
                             }
                         } else {
+                            try await credentialsStore.delete(serverURL: serverURL)
                             throw ServerClientAuthenticationError.notAuthenticated
                         }
                     }
@@ -174,7 +170,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
-        var credentials: ServerCredentials? = try await credentialsStore.read(
+        let credentials: ServerCredentials? = try await credentialsStore.read(
             serverURL: serverURL
         )
         return try credentials.map {

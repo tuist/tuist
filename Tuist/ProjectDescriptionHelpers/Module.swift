@@ -252,7 +252,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
                     .external(name: "XcodeProj"),
-                    .external(name: "KeychainAccess"),
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
@@ -419,6 +418,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
                     .external(name: "Rosalind", condition: .when([.macos])),
+                    .external(name: "KeychainAccess"),
                 ]
             case .hasher:
                 [

@@ -12,7 +12,7 @@ import TuistTesting
 struct RegistryLoginCommandServiceTests {
     private let subject: RegistryLoginCommandService
     private let createAccountTokenService = MockCreateAccountTokenServicing()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
     private let fullHandleService = MockFullHandleServicing()
@@ -25,7 +25,7 @@ struct RegistryLoginCommandServiceTests {
     init() {
         subject = RegistryLoginCommandService(
             createAccountTokenService: createAccountTokenService,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             fileSystem: fileSystem,
             fullHandleService: fullHandleService,
@@ -50,7 +50,7 @@ struct RegistryLoginCommandServiceTests {
             given(fullHandleService)
                 .parse(.any)
                 .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-            given(serverURLService)
+            given(serverEnvironmentService)
                 .url(configServerURL: .any)
                 .willReturn(.test())
             let mockEnvironment = try #require(Environment.mocked)
@@ -88,7 +88,7 @@ struct RegistryLoginCommandServiceTests {
                 given(fullHandleService)
                     .parse(.any)
                     .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-                given(serverURLService)
+                given(serverEnvironmentService)
                     .url(configServerURL: .any)
                     .willReturn(.test())
                 let mockEnvironment = try #require(Environment.mocked)
@@ -123,7 +123,7 @@ struct RegistryLoginCommandServiceTests {
             given(fullHandleService)
                 .parse(.any)
                 .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-            given(serverURLService)
+            given(serverEnvironmentService)
                 .url(configServerURL: .any)
                 .willReturn(.test())
             let mockEnvironment = try #require(Environment.mocked)

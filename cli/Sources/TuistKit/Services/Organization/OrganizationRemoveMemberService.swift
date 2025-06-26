@@ -14,17 +14,17 @@ protocol OrganizationRemoveMemberServicing {
 
 final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
     private let removeOrganizationMemberService: RemoveOrganizationMemberServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         removeOrganizationMemberService: RemoveOrganizationMemberServicing =
             RemoveOrganizationMemberService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.removeOrganizationMemberService = removeOrganizationMemberService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -42,7 +42,7 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         try await removeOrganizationMemberService.removeOrganizationMember(
             organizationName: organizationName,
