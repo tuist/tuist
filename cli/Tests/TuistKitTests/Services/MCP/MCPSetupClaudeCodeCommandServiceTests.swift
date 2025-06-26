@@ -9,18 +9,18 @@ import TuistTesting
 
 @testable import TuistKit
 
-struct MCPSetupClaudeCommandServiceTests {
+struct MCPSetupClaudeCodeCommandServiceTests {
     private let fileSystem = FileSystem()
     private let serverCommandResolver = MockMCPServerCommandResolving()
     private let configurationFileController: MCPClientConfigurationControlling
-    private let subject: MCPSetupClaudeCommandService
+    private let subject: MCPSetupClaudeCodeCommandService
 
     init() {
         configurationFileController = MCPClientConfigurationController(
             fileSystem: fileSystem,
             serverCommandResolver: serverCommandResolver
         )
-        subject = MCPSetupClaudeCommandService(
+        subject = MCPSetupClaudeCodeCommandService(
             fileSystem: fileSystem,
             configurationFileController: configurationFileController
         )
@@ -31,8 +31,6 @@ struct MCPSetupClaudeCommandServiceTests {
             // Given
             given(serverCommandResolver).resolve().willReturn(("tuist", ["mcp", "start"]))
             let mockedEnvironment = try #require(Environment.mocked)
-
-            // When
             try await subject.run()
 
             // Then
@@ -94,11 +92,12 @@ struct MCPSetupClaudeCommandServiceTests {
             #expect(
                 ui() == """
                 ✔ Success
-                  Claude configured to point to the Tuist's MCP server.
+                  Claude Code configured to point to Tuist's MCP server.
 
                   Takeaways:
-                   ▸ Restart the Claude app if it was opened
-                   ▸ Check out Claude's <documentation: https://modelcontextprotocol.io/quickstart/user>
+                   ▸ Restart Claude Code if it was opened
+                   ▸ Use `/mcp` command to check server status
+                   ▸ Check out the MCP <documentation: https://docs.anthropic.com/en/docs/claude-code/mcp>
                 """
             )
         }

@@ -27,6 +27,7 @@ import {
   selfHostingIcon,
   installTuistIcon,
   getStartedIcon,
+  agenticBuildingIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -540,6 +541,22 @@ export function guidesSidebar(locale) {
           )}</span>`,
           link: `/${locale}/guides/features/previews`,
         },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.agentic-coding.text",
+          )}</span>`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.agentic-coding.items.mcp.text",
+              )}</span>`,
+              link: `/${locale}/guides/features/agentic-coding/mcp`,
+            },
+          ],
+        },
       ],
     },
     {
@@ -548,13 +565,6 @@ export function guidesSidebar(locale) {
         "sidebars.guides.items.integrations.text",
       ),
       items: [
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.integrations.items.mcp.text",
-          )}</span>`,
-          link: `/${locale}/guides/integrations/mcp`,
-        },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ciIcon()} ${localizedString(
             locale,
