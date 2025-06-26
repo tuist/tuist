@@ -108,10 +108,9 @@ public final class LoginViewModel: ObservableObject {
                     return
                 }
 
-                guard
-                    let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                        .queryItems?
-                        .first(where: { $0.name == "code" })?.value
+                guard let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .first(where: { $0.name == "code" })?.value
                 else {
                     continuation.resume(throwing: LogInViewModelError.missingAuthorizationCode)
                     return
@@ -154,10 +153,10 @@ public final class LoginViewModel: ObservableObject {
 
         let body =
             parameters
-            .map {
-                "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-            }
-            .joined(separator: "&")
+                .map {
+                    "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                }
+                .joined(separator: "&")
 
         request.httpBody = body.data(using: .utf8)
 
@@ -180,7 +179,7 @@ public final class LoginViewModel: ObservableObject {
         }
 
         guard let accessToken = json["access_token"] as? String,
-            let refreshToken = json["refresh_token"] as? String
+              let refreshToken = json["refresh_token"] as? String
         else {
             throw LogInViewModelError.missingTokens
         }

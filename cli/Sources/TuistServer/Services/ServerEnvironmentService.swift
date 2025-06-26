@@ -50,7 +50,7 @@ public final class ServerEnvironmentService: ServerEnvironmentServicing {
         #else
             let variables = ProcessInfo.processInfo.environment
         #endif
-        return variables["TUIST_OAUTH_CLIENT_ID"] ?? "5339abf2-467c-4690-b816-17246ed149d2"
+        return variables["TUIST_OAUTH_CLIENT_ID"] ?? "b3298a92-3deb-4f5e-a526-b7ad324979b5"
     }
 
     private func envVariableURL(_ envVariable: String) throws -> URL? {
