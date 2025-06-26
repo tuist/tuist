@@ -73,8 +73,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.11.0",
-                    "CFBundleVersion": "0.11.0",
+                    "CFBundleShortVersionString": "0.12.0",
+                    "CFBundleVersion": "0.12.0",
                     "UILaunchScreen": [
                         "UIColorName": "",
                         "UIImageName": "",
