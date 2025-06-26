@@ -73,7 +73,7 @@ struct ConfigGeneratorTests {
         ]
 
         let releaseSettings: SettingsDictionary = [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+            "SWIFT_OPTIMIZATION_LEVEL": "-O",
         ]
 
         // When
