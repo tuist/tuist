@@ -14,20 +14,22 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   def init(opts), do: opts
 
   def call(%{path_params: %{"run_id" => run_id}} = conn, _opts) do
-    run =
+    run_result =
       cached(conn, ["run", run_id], fn ->
         CommandEvents.get_command_event_by_id(run_id,
           preload: [user: :account, project: :account]
         )
       end)
 
-    if is_nil(run) do
-      raise NotFoundError, gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
-    else
-      conn
-      |> assign(:selected_account, run.project.account)
-      |> assign(:selected_project, run.project)
-      |> assign(:selected_run, run)
+    case run_result do
+      {:ok, run} ->
+        conn
+        |> assign(:selected_account, run.project.account)
+        |> assign(:selected_project, run.project)
+        |> assign(:selected_run, run)
+
+      {:error, :not_found} ->
+        raise NotFoundError, gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
     end
   end
 

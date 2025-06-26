@@ -463,10 +463,10 @@ defmodule TuistWeb.API.AnalyticsController do
         %{path_params: %{"run_id" => run_id}, body_params: %{type: type} = command_event_artifact} = conn,
         _params
       ) do
-    upload_id =
-      Storage.multipart_start(get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}))
-
-    json(conn, %{status: "success", data: %{upload_id: upload_id}})
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+      upload_id = Storage.multipart_start(object_key)
+      json(conn, %{status: "success", data: %{upload_id: upload_id}})
+    end
   end
 
   operation(:multipart_generate_url,
@@ -510,19 +510,21 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    expires_in = 120
-    content_length = Map.get(multipart_upload_part, :content_length)
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+      expires_in = 120
+      content_length = Map.get(multipart_upload_part, :content_length)
 
-    url =
-      Storage.multipart_generate_url(
-        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}),
-        upload_id,
-        part_number,
-        expires_in: expires_in,
-        content_length: content_length
-      )
+      url =
+        Storage.multipart_generate_url(
+          object_key,
+          upload_id,
+          part_number,
+          expires_in: expires_in,
+          content_length: content_length
+        )
 
-    json(conn, %{status: "success", data: %{url: url}})
+      json(conn, %{status: "success", data: %{url: url}})
+    end
   end
 
   operation(:multipart_complete,
@@ -566,21 +568,20 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    object_key =
-      get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name})
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+      :ok =
+        Storage.multipart_complete_upload(
+          object_key,
+          upload_id,
+          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+            {part_number, etag}
+          end)
+        )
 
-    :ok =
-      Storage.multipart_complete_upload(
-        object_key,
-        upload_id,
-        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end)
-      )
-
-    conn
-    |> put_status(:no_content)
-    |> json(%{})
+      conn
+      |> put_status(:no_content)
+      |> json(%{})
+    end
   end
 
   operation(:complete_artifacts_uploads,
@@ -613,46 +614,52 @@ defmodule TuistWeb.API.AnalyticsController do
   )
 
   def complete_artifacts_uploads(%{path_params: %{"run_id" => run_id}} = conn, _params) do
-    command_event =
-      CommandEvents.get_command_event_by_id(run_id, preload: :project)
+    with {:ok, command_event} <- CommandEvents.get_command_event_by_id(run_id, preload: :project) do
+      current_project = Authentication.current_project(conn)
 
-    current_project = Authentication.current_project(conn)
+      if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
+        # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
+        test_summary =
+          CommandEvents.get_test_summary(command_event)
 
-    if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
-      # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
-      test_summary =
-        CommandEvents.get_test_summary(command_event)
+        if not is_nil(test_summary) and not is_nil(current_project) do
+          CommandEvents.create_test_cases(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
 
-      if not is_nil(test_summary) and not is_nil(current_project) do
-        CommandEvents.create_test_cases(%{
-          test_summary: test_summary,
-          command_event: command_event
-        })
-
-        CommandEvents.create_test_case_runs(%{
-          test_summary: test_summary,
-          command_event: command_event
-        })
+          CommandEvents.create_test_case_runs(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
+        end
       end
-    end
 
-    conn
-    |> put_status(:no_content)
-    |> json(%{})
+      conn
+      |> put_status(:no_content)
+      |> json(%{})
+    end
   end
 
   defp get_object_key(%{type: type, run_id: run_id, name: name}) do
-    command_event = CommandEvents.get_command_event_by_id(run_id)
+    case CommandEvents.get_command_event_by_id(run_id) do
+      {:ok, command_event} ->
+        object_key =
+          case type do
+            "result_bundle" ->
+              CommandEvents.get_result_bundle_key(command_event)
 
-    case type do
-      "result_bundle" ->
-        CommandEvents.get_result_bundle_key(command_event)
+            "invocation_record" ->
+              CommandEvents.get_result_bundle_invocation_record_key(command_event)
 
-      "invocation_record" ->
-        CommandEvents.get_result_bundle_invocation_record_key(command_event)
+            "result_bundle_object" ->
+              CommandEvents.get_result_bundle_object_key(command_event, name)
+          end
 
-      "result_bundle_object" ->
-        CommandEvents.get_result_bundle_object_key(command_event, name)
+        {:ok, object_key}
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 

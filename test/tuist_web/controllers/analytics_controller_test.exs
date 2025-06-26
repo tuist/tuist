@@ -72,7 +72,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "name" => "generate",
@@ -163,7 +163,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert command_event.ran_at == date
     end
@@ -205,7 +205,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response["name"] == "share"
       assert command_event.preview_id == preview.id
@@ -244,7 +244,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "name" => "generate",
@@ -292,7 +292,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "name" => "generate",
@@ -343,7 +343,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "id" => response["id"],
@@ -411,7 +411,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "name" => "generate",
@@ -512,7 +512,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
                "name" => "generate",
@@ -581,8 +581,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      command_event =
-        response["id"] |> CommandEvents.get_command_event_by_id() |> Repo.preload(:build_run)
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+      command_event = Repo.preload(command_event, :build_run)
 
       assert response == %{
                "name" => "build",
@@ -628,7 +628,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      command_event = CommandEvents.get_command_event_by_id(response["id"])
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
     end

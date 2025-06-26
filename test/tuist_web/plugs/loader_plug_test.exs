@@ -36,7 +36,7 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
                                                                 project: :account
                                                               ]
                                                             ] ->
-        run
+        {:ok, run}
       end)
 
       # When

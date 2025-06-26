@@ -2,21 +2,16 @@ defmodule TuistWeb.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistWeb.Errors.NotFoundError
-  alias TuistWeb.Errors.UnauthorizedError
-  alias TuistWeb.RunsController
 
   describe "download/2" do
     test "redirects to the result bundle download url when user has permission", %{conn: conn} do
       # Given
-      user = Repo.preload(AccountsFixtures.user_fixture(), :account)
-
-      conn = assign(conn, :current_user, user)
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
@@ -24,39 +19,40 @@ defmodule TuistWeb.RunsControllerTest do
 
       # When
       conn =
-        RunsController.download(conn, %{
-          "run_id" => command_event.id
-        })
+        get(conn, ~p"/#{user.account.name}/#{project.name}/runs/#{command_event.id}/download")
 
       # Then
       assert redirected_to(conn) == "https://tuist.io"
     end
 
-    test "raised NotFoundError when command event does not exist", %{conn: conn} do
+    test "returns 404 when command event does not exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      conn = assign(conn, :current_user, user)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = log_in_user(conn, user)
+      non_existent_id = 999_999_999
 
       # When
+      conn =
+        get(conn, ~p"/#{user.account.name}/#{project.name}/runs/#{non_existent_id}/download")
 
-      assert_raise NotFoundError, fn ->
-        RunsController.download(conn, %{
-          "run_id" => unique_integer()
-        })
-      end
+      # Then
+      assert json_response(conn, 404)["message"] == "The resource could not be found."
     end
 
-    test "raises UnauthorizedError when user does not have permission", %{conn: conn} do
+    test "returns 404 when user does not have permission", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture()
-      conn = assign(conn, :current_user, user)
-      command_event = CommandEventsFixtures.command_event_fixture()
+      owner = AccountsFixtures.user_fixture()
+      other_user = AccountsFixtures.user_fixture()
+      project = ProjectsFixtures.project_fixture(account_id: owner.account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      conn = log_in_user(conn, other_user)
 
       # When
-      assert_raise UnauthorizedError, fn ->
-        RunsController.download(conn, %{
-          "run_id" => command_event.id
-        })
+      # The require_user_can_read_project plug returns 404 for security reasons
+      # (to not reveal existence of projects users don't have access to)
+      assert_error_sent 404, fn ->
+        get(conn, ~p"/#{owner.account.name}/#{project.name}/runs/#{command_event.id}/download")
       end
     end
   end

@@ -5,31 +5,18 @@ defmodule TuistWeb.RunsController do
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias TuistWeb.Authentication
-  alias TuistWeb.Errors.NotFoundError
-  alias TuistWeb.Errors.UnauthorizedError
 
   def download(conn, %{"run_id" => command_event_id}) do
     user = Authentication.current_user(conn)
 
-    command_event =
-      command_event_id
-      |> CommandEvents.get_command_event_by_id()
-      |> Repo.preload(:project)
+    with {:ok, command_event} <- CommandEvents.get_command_event_by_id(command_event_id),
+         command_event = Repo.preload(command_event, :project),
+         :ok <- Authorization.authorize(:project_run_read, user, command_event.project) do
+      url = CommandEvents.generate_result_bundle_url(command_event)
 
-    if is_nil(command_event) do
-      raise NotFoundError,
-            "The page you are looking for doesn't exist or has been moved."
+      conn
+      |> redirect(external: url)
+      |> halt()
     end
-
-    if not Authorization.can?(:project_run_read, user, command_event.project) do
-      raise UnauthorizedError,
-            "You don't have permission to access this page."
-    end
-
-    url = CommandEvents.generate_result_bundle_url(command_event)
-
-    conn
-    |> redirect(external: url)
-    |> halt()
   end
 end

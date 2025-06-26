@@ -1188,7 +1188,7 @@ defmodule Tuist.AccountsTest do
              ) == nil
 
       assert Accounts.belongs_to_organization?(user, organization) == false
-      assert CommandEvents.get_command_event_by_id(command_event.id) == nil
+      assert CommandEvents.get_command_event_by_id(command_event.id) == {:error, :not_found}
       assert Accounts.get_device_code(code.code) == nil
     end
   end

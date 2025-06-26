@@ -30,22 +30,6 @@ defmodule TuistWeb.Controller do
     render_error_response(conn, :internal_server_error, "An unexpected error occurred.")
   end
 
-  def handle_error(conn, :unauthorized, resource) do
-    render_error_response(
-      conn,
-      :unauthorized,
-      "You are not authorized to access this #{resource}."
-    )
-  end
-
-  def handle_error(conn, :forbidden, resource) do
-    render_error_response(conn, :forbidden, "You are not authorized to access this #{resource}.")
-  end
-
-  def handle_error(conn, :not_found, resource) do
-    render_error_response(conn, :not_found, "The #{resource} could not be found.")
-  end
-
   defp render_error_response(conn, status, reason) do
     conn
     |> put_status(status)

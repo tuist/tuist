@@ -190,7 +190,7 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert nil == Projects.get_project_by_id(project.id)
-      assert nil == CommandEvents.get_command_event_by_id(command_event.id)
+      assert {:error, :not_found} == CommandEvents.get_command_event_by_id(command_event.id)
     end
   end
 

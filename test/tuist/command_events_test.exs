@@ -109,10 +109,18 @@ defmodule Tuist.CommandEventsTest do
         |> Repo.preload(user: :account)
 
       # When
-      got = CommandEvents.get_command_event_by_id(command_event.id)
+      {:ok, got} = CommandEvents.get_command_event_by_id(command_event.id)
 
       # Then
       assert got == command_event |> Repo.reload() |> Repo.preload(user: :account)
+    end
+
+    test "returns error tuple when command event not found" do
+      # When
+      result = CommandEvents.get_command_event_by_id(999_999)
+
+      # Then
+      assert result == {:error, :not_found}
     end
   end
 

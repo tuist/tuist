@@ -203,14 +203,14 @@ defmodule TuistWeb.LayoutLive do
     if is_nil(params["run_id"]) do
       assign(socket, :selected_run, nil)
     else
-      run = CommandEvents.get_command_event_by_id(params["run_id"])
+      case CommandEvents.get_command_event_by_id(params["run_id"]) do
+        {:ok, run} ->
+          assign(socket, :selected_run, run)
 
-      if is_nil(run) do
-        raise NotFoundError,
-              gettext("The run you are looking for doesn't exist or has been moved.")
+        {:error, :not_found} ->
+          raise NotFoundError,
+                gettext("The run you are looking for doesn't exist or has been moved.")
       end
-
-      assign(socket, :selected_run, run)
     end
   end
 
