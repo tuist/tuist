@@ -1,10 +1,9 @@
 import FileSystem
 import Foundation
 import Path
-import SwiftyJSON
 import TuistSupport
 
-struct MCPSetupClaudeCommandService {
+struct MCPSetupClaudeCodeCommandService {
     private let fileSystem: FileSystem
     private let configurationFileController: MCPClientConfigurationControlling
 
@@ -19,7 +18,7 @@ struct MCPSetupClaudeCommandService {
 
     func run() async throws {
         try await configurationFileController.update(
-            for: .claude,
+            for: .claudeCode,
             at: Environment.current.homeDirectory.appending(components: [
                 "Library",
                 "Application Support",
@@ -27,9 +26,10 @@ struct MCPSetupClaudeCommandService {
                 "claude_desktop_config.json",
             ])
         )
-        AlertController.current.success(.alert("Claude configured to point to the Tuist's MCP server.", takeaways: [
-            "Restart the Claude app if it was opened",
-            "Check out Claude's \(.link(title: "documentation", href: "https://modelcontextprotocol.io/quickstart/user"))",
+        AlertController.current.success(.alert("Claude Code configured to point to Tuist's MCP server.", takeaways: [
+            "Restart Claude Code if it was opened",
+            "Use `/mcp` command to check server status",
+            "Check out the MCP \(.link(title: "documentation", href: "https://docs.anthropic.com/en/docs/claude-code/mcp"))",
         ]))
     }
 }

@@ -10,7 +10,7 @@ description: Learn how to use Tuist's MCP server to have a language-based interf
 You can think of it as the USB-C of LLMs.
 Like shipping containers, which made cargo and transportation more interoperable,
 or protocols like TCP, which decoupled the application layer from the transport layer,
-MCP makes LLM-powered applications such as [Claude](https://claude.ai/) and editors like [Zed](https://zed.dev) or [Cursor](https://www.cursor.com) interoperable with other domains.
+MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with other domains.
 
 Tuist provides a local server through its CLI so that you can interact with your **app development environment**.
 By connecting your client apps to it, you can use language to interact with your projects.
@@ -22,11 +22,71 @@ In this page you'll learn about how to set it up and its capabilities.
 
 ## Set it up
 
+Tuist provides automated setup commands for popular MCP-compatible clients. Simply run the appropriate command for your client:
+
 ### [Claude](https://claude.ai)
 
-If you are using [Claude desktop](https://claude.ai/download), you can run the <LocalizedLink href="/cli/mcp/setup/claude">tuist mcp setup claude</LocalizedLink> command to configure your Claude environment.
+For [Claude desktop](https://claude.ai/download), run:
+```bash
+tuist mcp setup claude
+```
 
-Alternatively, can manually edit the file at `~/Library/Application\ Support/Claude/claude_desktop_config.json`, and add the Tuist MCP server:
+This will configure the file at `~/Library/Application Support/Claude/claude_desktop_config.json`.
+
+### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+
+For Claude Code, run:
+```bash
+tuist mcp setup claude-code
+```
+
+This will configure the same file as Claude desktop.
+
+### [Cursor](https://www.cursor.com)
+
+For Cursor IDE, you can configure it globally or locally:
+```bash
+# Global configuration
+tuist mcp setup cursor --global
+
+# Local configuration (in current project)
+tuist mcp setup cursor
+
+# Custom path configuration
+tuist mcp setup cursor --path /path/to/project
+```
+
+### [Zed](https://zed.dev)
+
+For Zed editor, you can also configure it globally or locally:
+```bash
+# Global configuration
+tuist mcp setup zed --global
+
+# Local configuration (in current project)
+tuist mcp setup zed
+
+# Custom path configuration
+tuist mcp setup zed --path /path/to/project
+```
+
+### [VS Code](https://code.visualstudio.com)
+
+For VS Code with MCP extension, configure it globally or locally:
+```bash
+# Global configuration
+tuist mcp setup vscode --global
+
+# Local configuration (in current project)
+tuist mcp setup vscode
+
+# Custom path configuration
+tuist mcp setup vscode --path /path/to/project
+```
+
+### Manual Configuration
+
+If you prefer to configure manually or are using a different MCP client, add the Tuist MCP server to your client's configuration:
 
 :::code-group
 
