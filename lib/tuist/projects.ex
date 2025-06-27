@@ -289,7 +289,9 @@ defmodule Tuist.Projects do
     end
   end
 
-  def platforms(project) do
+  def platforms(project, opts \\ []) do
+    device_platforms_only? = Keyword.get(opts, :device_platforms_only?, false)
+
     integers =
       Repo.all(
         from(p in Preview,
@@ -304,7 +306,13 @@ defmodule Tuist.Projects do
     mappings_kv = Map.fetch!(enum_opts_map, :mappings)
     int_to_atom_map = Map.new(mappings_kv, fn {atom, int} -> {int, atom} end)
 
-    Enum.map(integers, &Map.get(int_to_atom_map, &1))
+    platforms = Enum.map(integers, &Map.get(int_to_atom_map, &1))
+
+    if device_platforms_only? do
+      Preview.map_simulators_to_devices(platforms)
+    else
+      platforms
+    end
   end
 
   def list_sorted_with_interaction_data(projects, opts \\ []) do

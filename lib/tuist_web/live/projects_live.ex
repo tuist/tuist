@@ -145,11 +145,16 @@ defmodule TuistWeb.ProjectsLive do
             <div data-part="title">
               {project.name}
             </div>
-            <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+            <div
+              :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
+              data-part="platforms"
+            >
               <h3>Supported platforms</h3>
               <div data-part="tags">
                 <.tag
-                  :for={platform <- Enum.sort(Projects.platforms(project))}
+                  :for={
+                    platform <- Enum.sort(Projects.platforms(project, device_platforms_only?: true))
+                  }
                   label={AppBuilds.platform_string(platform)}
                   icon={platform_icon_name(platform)}
                 />
@@ -181,11 +186,16 @@ defmodule TuistWeb.ProjectsLive do
               <div data-part="title">
                 {project.name}
               </div>
-              <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+              <div
+                :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
+                data-part="platforms"
+              >
                 <h3>{gettext("Supported platforms")}</h3>
                 <div data-part="tags">
                   <.tag
-                    :for={platform <- Enum.sort(Projects.platforms(project))}
+                    :for={
+                      platform <- Enum.sort(Projects.platforms(project, device_platforms_only?: true))
+                    }
                     label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />
@@ -241,11 +251,16 @@ defmodule TuistWeb.ProjectsLive do
               <div data-part="title">
                 {project.name}
               </div>
-              <div :if={Enum.any?(Projects.platforms(project))} data-part="platforms">
+              <div
+                :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
+                data-part="platforms"
+              >
                 <h3>Supported platforms</h3>
                 <div data-part="tags">
                   <.tag
-                    :for={platform <- Enum.sort(Projects.platforms(project))}
+                    :for={
+                      platform <- Enum.sort(Projects.platforms(project, device_platforms_only?: true))
+                    }
                     label={AppBuilds.platform_string(platform)}
                     icon={platform_icon_name(platform)}
                   />

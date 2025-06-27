@@ -1471,7 +1471,7 @@ msgstr ""
 #: lib/tuist_web/live/create_organization_live.ex:45
 #: lib/tuist_web/live/create_project_live.ex:63
 #: lib/tuist_web/live/previews_live.html.heex:41
-#: lib/tuist_web/live/projects_live.ex:294
+#: lib/tuist_web/live/projects_live.ex:309
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -2279,7 +2279,7 @@ msgid "Support via community forum"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:102
-#: lib/tuist_web/live/projects_live.ex:185
+#: lib/tuist_web/live/projects_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -3137,26 +3137,26 @@ msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:169
-#: lib/tuist_web/live/projects_live.ex:282
+#: lib/tuist_web/live/projects_live.ex:297
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:164
-#: lib/tuist_web/live/projects_live.ex:200
-#: lib/tuist_web/live/projects_live.ex:260
+#: lib/tuist_web/live/projects_live.ex:169
+#: lib/tuist_web/live/projects_live.ex:210
+#: lib/tuist_web/live/projects_live.ex:275
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:159
-#: lib/tuist_web/live/projects_live.ex:195
-#: lib/tuist_web/live/projects_live.ex:255
+#: lib/tuist_web/live/projects_live.ex:164
+#: lib/tuist_web/live/projects_live.ex:205
+#: lib/tuist_web/live/projects_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:284
+#: lib/tuist_web/live/projects_live.ex:299
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
@@ -3255,7 +3255,7 @@ msgstr ""
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:289
+#: lib/tuist_web/live/projects_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -4110,17 +4110,17 @@ msgstr ""
 msgid "Try updating your search"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:208
+#: lib/tuist_web/live/projects_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:172
+#: lib/tuist_web/live/projects_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:220
+#: lib/tuist_web/live/projects_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr ""

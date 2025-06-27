@@ -73,4 +73,20 @@ defmodule Tuist.AppBuilds.Preview do
     |> validate_required([:project_id])
     |> unique_constraint([:project_id, :bundle_identifier, :version, :git_commit_sha, :created_by_account_id])
   end
+
+  def map_simulators_to_devices(platforms) do
+    platforms
+    |> Enum.map(&simulator_to_device/1)
+    |> Enum.uniq()
+  end
+
+  def simulator_to_device(platform) do
+    case platform do
+      :ios_simulator -> :ios
+      :tvos_simulator -> :tvos
+      :watchos_simulator -> :watchos
+      :visionos_simulator -> :visionos
+      other -> other
+    end
+  end
 end

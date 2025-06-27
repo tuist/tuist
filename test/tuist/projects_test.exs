@@ -500,6 +500,136 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
+  describe "platforms/2" do
+    test "returns all platforms when device_platforms_only? is false (default)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        supported_platforms: [:ios, :ios_simulator, :tvos, :tvos_simulator]
+      )
+
+      # When
+      platforms_with_simulators = Projects.platforms(project, device_platforms_only?: false)
+      platforms_default = Projects.platforms(project)
+
+      # Then
+      assert Enum.sort(platforms_with_simulators) == [:ios, :ios_simulator, :tvos, :tvos_simulator]
+      assert Enum.sort(platforms_default) == [:ios, :ios_simulator, :tvos, :tvos_simulator]
+    end
+
+    test "maps simulators to devices when device_platforms_only? is true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        supported_platforms: [
+          :ios,
+          :ios_simulator,
+          :tvos,
+          :tvos_simulator,
+          :watchos,
+          :watchos_simulator,
+          :visionos,
+          :visionos_simulator,
+          :macos
+        ]
+      )
+
+      # When
+      platforms_device_only = Projects.platforms(project, device_platforms_only?: true)
+
+      # Then
+      assert Enum.sort(platforms_device_only) == [:ios, :macos, :tvos, :visionos, :watchos]
+    end
+
+    test "returns empty list when project has no platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      platforms_with_simulators = Projects.platforms(project, device_platforms_only?: false)
+      platforms_device_only = Projects.platforms(project, device_platforms_only?: true)
+
+      # Then
+      assert platforms_with_simulators == []
+      assert platforms_device_only == []
+    end
+
+    test "maps simulator platforms to device platforms when project has only simulators" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        supported_platforms: [:ios_simulator, :tvos_simulator, :watchos_simulator, :visionos_simulator]
+      )
+
+      # When
+      platforms_with_simulators = Projects.platforms(project, device_platforms_only?: false)
+      platforms_device_only = Projects.platforms(project, device_platforms_only?: true)
+
+      # Then
+      assert Enum.sort(platforms_with_simulators) == [
+               :ios_simulator,
+               :tvos_simulator,
+               :visionos_simulator,
+               :watchos_simulator
+             ]
+
+      assert Enum.sort(platforms_device_only) == [:ios, :tvos, :visionos, :watchos]
+    end
+
+    test "returns device platforms unchanged when project has only device platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        supported_platforms: [:ios, :tvos, :watchos, :visionos, :macos]
+      )
+
+      # When
+      platforms_with_simulators = Projects.platforms(project, device_platforms_only?: false)
+      platforms_device_only = Projects.platforms(project, device_platforms_only?: true)
+
+      # Then
+      assert Enum.sort(platforms_with_simulators) == [:ios, :macos, :tvos, :visionos, :watchos]
+      assert Enum.sort(platforms_device_only) == [:ios, :macos, :tvos, :visionos, :watchos]
+    end
+
+    test "handles multiple previews with different platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App iOS",
+        supported_platforms: [:ios, :ios_simulator]
+      )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        display_name: "App tvOS",
+        supported_platforms: [:tvos, :tvos_simulator]
+      )
+
+      # When
+      platforms_with_simulators = Projects.platforms(project, device_platforms_only?: false)
+      platforms_device_only = Projects.platforms(project, device_platforms_only?: true)
+
+      # Then
+      assert Enum.sort(platforms_with_simulators) == [:ios, :ios_simulator, :tvos, :tvos_simulator]
+      assert Enum.sort(platforms_device_only) == [:ios, :tvos]
+    end
+  end
+
   describe "list_sorted_with_interaction_data/1" do
     test "sorts projects with interactions first, by most recent interaction" do
       organization = AccountsFixtures.organization_fixture()
