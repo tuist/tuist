@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-coding": {
+          "text": "Agentic Coding",
           "items": {
             "mcp": {
               "text": "MCP"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "Continuous integration"
             }

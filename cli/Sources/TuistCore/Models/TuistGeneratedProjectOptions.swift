@@ -2,56 +2,6 @@ import Path
 import XcodeGraph
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
-    public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
-        public var passthroughSwiftPackageManagerArguments: [String]
-
-        public init(
-            passthroughSwiftPackageManagerArguments: [String] = []
-        ) {
-            self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
-        }
-    }
-
-    public struct GenerationOptions: Codable, Hashable, Equatable {
-        public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
-            case all
-            case none
-            case excluding([String])
-        }
-
-        public let resolveDependenciesWithSystemScm: Bool
-        public let disablePackageVersionLocking: Bool
-        public let clonedSourcePackagesDirPath: AbsolutePath?
-        public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
-        public let enforceExplicitDependencies: Bool
-        public let defaultConfiguration: String?
-        public var optionalAuthentication: Bool
-        public let buildInsightsDisabled: Bool
-        public let disableSandbox: Bool
-
-        public init(
-            resolveDependenciesWithSystemScm: Bool,
-            disablePackageVersionLocking: Bool,
-            clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool,
-            disableSandbox: Bool
-        ) {
-            self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
-            self.disablePackageVersionLocking = disablePackageVersionLocking
-            self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
-            self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
-            self.enforceExplicitDependencies = enforceExplicitDependencies
-            self.defaultConfiguration = defaultConfiguration
-            self.optionalAuthentication = optionalAuthentication
-            self.buildInsightsDisabled = buildInsightsDisabled
-            self.disableSandbox = disableSandbox
-        }
-    }
-
     public let compatibleXcodeVersions: CompatibleXcodeVersions
     public let swiftVersion: Version?
     public let plugins: [PluginLocation]
@@ -94,6 +44,58 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
         )
+    }
+}
+
+extension TuistGeneratedProjectOptions {
+    public struct GenerationOptions: Codable, Hashable, Equatable {
+        public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
+            case all
+            case none
+            case excluding([String])
+        }
+
+        public let resolveDependenciesWithSystemScm: Bool
+        public let disablePackageVersionLocking: Bool
+        public let clonedSourcePackagesDirPath: AbsolutePath?
+        public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
+        public let enforceExplicitDependencies: Bool
+        public let defaultConfiguration: String?
+        public var optionalAuthentication: Bool
+        public let buildInsightsDisabled: Bool
+        public let disableSandbox: Bool
+
+        public init(
+            resolveDependenciesWithSystemScm: Bool,
+            disablePackageVersionLocking: Bool,
+            clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool,
+            disableSandbox: Bool
+        ) {
+            self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
+            self.disablePackageVersionLocking = disablePackageVersionLocking
+            self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
+            self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
+            self.enforceExplicitDependencies = enforceExplicitDependencies
+            self.defaultConfiguration = defaultConfiguration
+            self.optionalAuthentication = optionalAuthentication
+            self.buildInsightsDisabled = buildInsightsDisabled
+            self.disableSandbox = disableSandbox
+        }
+    }
+
+    public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
+        public var passthroughSwiftPackageManagerArguments: [String]
+
+        public init(
+            passthroughSwiftPackageManagerArguments: [String] = []
+        ) {
+            self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+        }
     }
 }
 

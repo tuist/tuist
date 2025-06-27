@@ -86,6 +86,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 installOptions: .test()
             )),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -116,6 +117,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 installOptions: .test()
             )),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -161,6 +163,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 installOptions: .test()
             )),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -195,6 +198,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 installOptions: .test()
             )),
             fullHandle: "tuist/tuist",
+            inspectOptions: .test(),
             url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
         ))
     }
@@ -227,6 +231,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 installOptions: .test()
             )),
             fullHandle: "tuist/tuist",
+            inspectOptions: .test(),
             url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
         ))
     }
@@ -245,6 +250,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .xcode(TuistXcodeProjectOptions()),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -263,6 +269,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .xcode(TuistXcodeProjectOptions()),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -281,6 +288,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .swiftPackage(TuistSwiftPackageOptions()),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -300,6 +308,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }
@@ -319,6 +328,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: nil,
+            inspectOptions: .test(),
             url: Constants.URLs.production
         ))
     }

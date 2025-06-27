@@ -1,3 +1,13 @@
+## What's Changed in app@0.12.0
+* feat: add iOS icons by @fortmarek in [#7743](https://github.com/tuist/tuist/pull/7743)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.11.0...app@0.12.0
+
+## What's Changed in app@0.11.0
+* feat: iOS app authentication by @fortmarek in [#7732](https://github.com/tuist/tuist/pull/7732)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.10.1...app@0.11.0
+
 ## What's Changed in app@0.10.1
 * chore: change TuistApp product name in debug by @fortmarek in [#7716](https://github.com/tuist/tuist/pull/7716)
 
