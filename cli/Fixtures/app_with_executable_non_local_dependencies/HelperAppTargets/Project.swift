@@ -7,7 +7,7 @@ let project = Project(
             name: "TestHost",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .default,
             sources: ["Targets/TestHost/**"],
             resources: []
@@ -16,7 +16,7 @@ let project = Project(
             name: "AppExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.app.extension",
+            bundleId: "dev.tuist.app.extension",
             infoPlist: "Targets/AppExtension/Info.plist",
             sources: "Targets/AppExtension/**"
         ),

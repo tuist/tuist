@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -26,7 +26,7 @@ let project = Project(
             name: "MyFramework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.MyFramework",
+            bundleId: "dev.tuist.MyFramework",
             sources: ["MyFramework/Sources/**"],
             dependencies: []
         ),
@@ -34,7 +34,7 @@ let project = Project(
             name: "ThyFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.ThyFramework",
+            bundleId: "dev.tuist.ThyFramework",
             sources: ["ThyFramework/Sources/**"]
         ),
     ]

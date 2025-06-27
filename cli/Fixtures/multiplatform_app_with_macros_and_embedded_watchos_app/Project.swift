@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.iPhone, .appleVision],
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .default,
             sources: [
                 "App/Sources/**",
@@ -24,7 +24,7 @@ let project = Project(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .app,
-            bundleId: "io.tuist.App.watchkitapp",
+            bundleId: "dev.tuist.App.watchkitapp",
             infoPlist: nil,
             sources: "WatchApp/Sources/**",
             resources: "WatchApp/Resources/**",
@@ -40,7 +40,7 @@ let project = Project(
                         "UIInterfaceOrientationPortrait",
                         "UIInterfaceOrientationPortraitUpsideDown",
                     ],
-                    "INFOPLIST_KEY_WKCompanionAppBundleIdentifier": "io.tuist.App",
+                    "INFOPLIST_KEY_WKCompanionAppBundleIdentifier": "dev.tuist.App",
                     "INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp": false,
                 ]
             )
@@ -50,7 +50,7 @@ let project = Project(
             destinations: [.iPhone, .appleVision, .appleWatch],
             product: .framework,
             productName: "ModuleA",
-            bundleId: "io.tuist.modulea",
+            bundleId: "dev.tuist.modulea",
             sources: [
                 "Modules/ModuleA/Sources/**",
             ],
@@ -64,7 +64,7 @@ let project = Project(
             destinations: [.iPhone, .appleVision, .appleWatch],
             product: .unitTests,
             productName: "ModuleATests",
-            bundleId: "io.tuist.moduleatests",
+            bundleId: "dev.tuist.moduleatests",
             sources: [
                 "Modules/ModuleA/Tests/**",
             ],
@@ -79,7 +79,7 @@ let project = Project(
             destinations: .macOS,
             product: .macro,
             productName: "ModuleAMacros",
-            bundleId: "io.tuist.moduleamacros",
+            bundleId: "dev.tuist.moduleamacros",
             deploymentTargets: .macOS("14.0"),
             sources: [
                 "Modules/ModuleA/Macros/Sources/**",
@@ -94,7 +94,7 @@ let project = Project(
             destinations: [.iPhone, .appleVision, .appleWatch], // Must match platform of the test target
             product: .framework, // Must match be a linkable product
             productName: "ModuleAMacros_Testable",
-            bundleId: "io.tuist.moduleamacros.testable",
+            bundleId: "dev.tuist.moduleamacros.testable",
             sources: [
                 "Modules/ModuleA/Macros/Sources/**",
             ],

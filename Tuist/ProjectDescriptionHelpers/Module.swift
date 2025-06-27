@@ -735,7 +735,7 @@ public enum Module: String, CaseIterable {
             name: name,
             destinations: destinations,
             product: product,
-            bundleId: "io.tuist.\(name)",
+            bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],

@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             dependencies: [
@@ -24,7 +24,7 @@ let project = Project(
             name: "AppWithMessagesExtension",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App2",
+            bundleId: "dev.tuist.App2",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             dependencies: [
@@ -36,7 +36,7 @@ let project = Project(
             name: "StickersPackExtension",
             destinations: .iOS,
             product: .stickerPackExtension,
-            bundleId: "io.tuist.App.StickersPackExtension",
+            bundleId: "dev.tuist.App.StickersPackExtension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [
@@ -53,7 +53,7 @@ let project = Project(
             name: "NotificationServiceExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.App.NotificationServiceExtension",
+            bundleId: "dev.tuist.App.NotificationServiceExtension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [
@@ -69,7 +69,7 @@ let project = Project(
             name: "MessageExtension",
             destinations: .iOS,
             product: .messagesExtension,
-            bundleId: "io.tuist.App2.MessageExtension",
+            bundleId: "dev.tuist.App2.MessageExtension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [
@@ -86,7 +86,7 @@ let project = Project(
             name: "WidgetExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.App.WidgetExtension",
+            bundleId: "dev.tuist.App.WidgetExtension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [
@@ -104,7 +104,7 @@ let project = Project(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.App.StaticFramework",
+            bundleId: "dev.tuist.App.StaticFramework",
             infoPlist: .default,
             sources: "StaticFramework/Sources/**"
         ),
@@ -112,7 +112,7 @@ let project = Project(
             name: "AppIntentExtension",
             destinations: .iOS,
             product: .extensionKitExtension,
-            bundleId: "io.tuist.App.AppIntentExtension",
+            bundleId: "dev.tuist.App.AppIntentExtension",
             infoPlist: .extendingDefault(with: [
                 "EXAppExtensionAttributes": [
                     "EXExtensionPointIdentifier": "com.apple.appintents-extension",
@@ -124,7 +124,7 @@ let project = Project(
             name: "Bundle",
             destinations: .iOS,
             product: .bundle,
-            bundleId: "io.tuist.App.Bundle",
+            bundleId: "dev.tuist.App.Bundle",
             resources: "Bundle/**"
         ),
     ]

@@ -7,7 +7,7 @@ let project = Project(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.MainApp",
+            bundleId: "dev.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
             sources: ["MainApp/Sources/**"],
             dependencies: [
@@ -18,7 +18,7 @@ let project = Project(
             name: "SystemExtension",
             destinations: [.mac],
             product: .systemExtension,
-            bundleId: "io.tuist.SystemExtension",
+            bundleId: "dev.tuist.SystemExtension",
             sources: ["SystemExtension/Sources/**"]
         ),
     ]

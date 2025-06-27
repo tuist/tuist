@@ -7,7 +7,7 @@ let project = Project(
             name: "FeatureContracts",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.FeatureContracts",
+            bundleId: "dev.tuist.FeatureContracts",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: [
@@ -25,7 +25,7 @@ let project = Project(
             name: "FeatureContractsTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.FeatureContractsTests",
+            bundleId: "dev.tuist.FeatureContractsTests",
             infoPlist: "Tests.plist",
             sources: "Tests/**",
             dependencies: [

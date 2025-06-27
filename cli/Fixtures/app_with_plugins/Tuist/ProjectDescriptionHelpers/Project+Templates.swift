@@ -13,7 +13,7 @@ extension Project {
             name: name,
             destinations: destinations,
             product: .app,
-            bundleId: "io.tuist.\(name)",
+            bundleId: "dev.tuist.\(name)",
             infoPlist: .default,
             sources: ["Source/**"],
             resources: [

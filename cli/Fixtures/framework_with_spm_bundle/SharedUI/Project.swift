@@ -7,7 +7,7 @@ let project = Project(
             name: "SharedUI",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             deploymentTargets: .iOS("16.0"),
             infoPlist: .default,
             sources: "Sources/**",

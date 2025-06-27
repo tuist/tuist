@@ -10,7 +10,7 @@ public class TestingLogHandler: LogHandler {
         }
     }
 
-    private var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
+    private var collectionQueue = DispatchQueue(label: "dev.tuist.tuistTestingSupport.logging")
     private var collectedLogs: [Logger.Level: [String]] = [:]
     private let standardLogHandler: StandardLogHandler
 

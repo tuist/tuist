@@ -40,7 +40,7 @@ Here's another example but compating how to define unit tests in Bazel and Tuist
 ```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
-    bundle_id = "io.tuist.MyLibraryTests",
+    bundle_id = "dev.tuist.MyLibraryTests",
     minimum_os_version = "16.0",
     test_host = "//MyApp:MyLibrary",
     deps = [":MyLibraryTests.library"],
@@ -55,7 +55,7 @@ let project = Project(
             name: "MyLibraryTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.MyLibraryTests",
+            bundleId: "dev.tuist.MyLibraryTests",
             sources: "Tests/MyLibraryTests/**",
             dependencies: [
                 .target(name: "MyLibrary"),

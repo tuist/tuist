@@ -14,7 +14,7 @@ let project = Project(
             name: "GeneratediOSStaticLibraryWithStringResources",
             destinations: .iOS,
             product: .staticLibrary,
-            bundleId: "io.tuist.GeneratediOSStaticLibraryWithStringResources",
+            bundleId: "dev.tuist.GeneratediOSStaticLibraryWithStringResources",
             sources: ["GeneratediOSStaticLibraryWithStringResources/Sources/**"],
             resources: ["GeneratediOSStaticLibraryWithStringResources/Resources/**"],
             dependencies: []

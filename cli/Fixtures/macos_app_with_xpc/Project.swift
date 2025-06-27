@@ -7,7 +7,7 @@ let project = Project(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.MainApp",
+            bundleId: "dev.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
             sources: ["MainApp/Sources/**"],
             dependencies: [
@@ -18,7 +18,7 @@ let project = Project(
             name: "XPCApp",
             destinations: [.mac],
             product: .xpc,
-            bundleId: "io.tuist.XPCApp",
+            bundleId: "dev.tuist.XPCApp",
             sources: ["XPCApp/Sources/**"],
             dependencies: [
                 .target(name: "DynamicFramework"),
@@ -29,14 +29,14 @@ let project = Project(
             name: "DynamicFramework",
             destinations: [.mac],
             product: .framework,
-            bundleId: "io.tuist.DynamicFramework",
+            bundleId: "dev.tuist.DynamicFramework",
             sources: ["DynamicFramework/Sources/**"]
         ),
         .target(
             name: "StaticFramework",
             destinations: [.mac],
             product: .staticFramework,
-            bundleId: "io.tuist.StaticFramework",
+            bundleId: "dev.tuist.StaticFramework",
             sources: ["StaticFramework/Sources/**"]
         ),
     ]

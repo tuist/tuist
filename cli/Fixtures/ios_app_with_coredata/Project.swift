@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: ["CoreData/Users1_2.xcmappingmodel"],

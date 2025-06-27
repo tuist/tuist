@@ -1775,8 +1775,8 @@ struct GraphLinterTests {
         // Given
         let path: AbsolutePath = "/project"
         let appTarget = Target.test(name: "AppTarget", product: .app)
-        let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "com.tuist.frameworks.test")
-        let frameworkB = Target.test(name: "frameworkB", product: .framework, bundleId: "com.tuist.frameworks.test2")
+        let frameworkA = Target.test(name: "frameworkA", product: .framework, bundleId: "dev.tuist.frameworks.test")
+        let frameworkB = Target.test(name: "frameworkB", product: .framework, bundleId: "dev.tuist.frameworks.test2")
 
         let app = Project.test(path: path, name: "App", targets: [appTarget])
         let frameworks1 = Project.test(
@@ -2119,7 +2119,7 @@ struct GraphLinterTests {
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,
-            bundleId: "io.tuist.iOSApp.WatchApp"
+            bundleId: "dev.tuist.iOSApp.WatchApp"
         )
 
         let project = Project.test(

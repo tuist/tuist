@@ -26,7 +26,7 @@ extension Project {
                     name: name,
                     destinations: destinations,
                     product: product,
-                    bundleId: "io.tuist.\(name)",
+                    bundleId: "dev.tuist.\(name)",
                     infoPlist: .extendingDefault(with: infoPlist),
                     sources: ["Sources/**"],
                     resources: [],
@@ -36,7 +36,7 @@ extension Project {
                     name: "\(name)Tests",
                     destinations: destinations,
                     product: .unitTests,
-                    bundleId: "io.tuist.\(name)Tests",
+                    bundleId: "dev.tuist.\(name)Tests",
                     infoPlist: .default,
                     sources: "Tests/**",
                     dependencies: [

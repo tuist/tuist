@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             infoPlist: .default,
             sources: "Sources/App/**",
             dependencies: [
@@ -19,7 +19,7 @@ let project = Project(
             name: "CrashManager",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.crash-manager",
+            bundleId: "dev.tuist.crash-manager",
             infoPlist: .default,
             sources: "Sources/CrashManager/**",
             dependencies: [
@@ -30,7 +30,7 @@ let project = Project(
             name: "AppKit",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.app.kit",
+            bundleId: "dev.tuist.app.kit",
             infoPlist: .default,
             sources: "Sources/AppKit/**",
             dependencies: [
@@ -43,7 +43,7 @@ let project = Project(
             name: "AppKitTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.app.kit",
+            bundleId: "dev.tuist.app.kit",
             infoPlist: .default,
             sources: "Tests/AppKit/**",
             dependencies: [
@@ -56,10 +56,10 @@ let project = Project(
         //     name: "WatchApp",
         //     destinations: .watchOS,
         //     product: .watch2App,
-        //     bundleId: "io.tuist.app.watchapp",
+        //     bundleId: "dev.tuist.app.watchapp",
         //     infoPlist: .extendingDefault(
         //         with: [
-        //             "WKCompanionAppBundleIdentifier": "io.tuist.app",
+        //             "WKCompanionAppBundleIdentifier": "dev.tuist.app",
         //         ]
         //     ),
         //     sources: ["Sources/Watch/App/**"],
@@ -71,7 +71,7 @@ let project = Project(
         //     name: "WatchExtension",
         //     destinations: .watchOS,
         //     product: .watch2Extension,
-        //     bundleId: "io.tuist.app.watchapp.extension",
+        //     bundleId: "dev.tuist.app.watchapp.extension",
         //     sources: ["Sources/Watch/Extension/**"],
         //     dependencies: [
         //         .external(name: "Alamofire"),

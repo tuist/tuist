@@ -186,7 +186,7 @@ let project = Project(
             name: "TargetX", // [!code ++]
             destinations: .iOS, // [!code ++]
             product: .framework, // [!code ++] // or .staticFramework, .staticLibrary...
-            bundleId: "io.tuist.targetX", // [!code ++]
+            bundleId: "dev.tuist.targetX", // [!code ++]
             sources: ["Sources/TargetX/**"], // [!code ++]
             dependencies: [ // [!code ++]
                 /** Dependencies go here **/ // [!code ++]

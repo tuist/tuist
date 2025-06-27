@@ -25,24 +25,24 @@ let project = Project(
             name: "AppA",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.test.appA",
+            bundleId: "dev.tuist.test.appA",
             infoPlist: "Info.plist",
             sources: "App/**",
             dependencies: [],
             settings: .settings(configurations: [
-                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appA")]),
+                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("dev.tuist.test.appA")]),
             ])
         ),
         .target(
             name: "AppB",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.test.appB",
+            bundleId: "dev.tuist.test.appB",
             infoPlist: "Info.plist",
             sources: "App/**",
             dependencies: [],
             settings: .settings(configurations: [
-                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appB")]),
+                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("dev.tuist.test.appB")]),
             ])
         ),
     ]

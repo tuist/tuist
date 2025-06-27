@@ -7,7 +7,7 @@ let project = Project(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.MainApp",
+            bundleId: "dev.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
             sources: ["MainApp/Sources/**"],
             scripts: [
@@ -22,7 +22,7 @@ let project = Project(
             name: "InnerApp",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.InnerApp",
+            bundleId: "dev.tuist.InnerApp",
             infoPlist: "InnerApp/Info.plist",
             sources: ["InnerApp/Sources/**"]
         ),
@@ -30,7 +30,7 @@ let project = Project(
             name: "InnerCLI",
             destinations: [.mac],
             product: .commandLineTool,
-            bundleId: "io.tuist.InnerCLI",
+            bundleId: "dev.tuist.InnerCLI",
             sources: ["InnerCLI/**"]
         ),
     ]

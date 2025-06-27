@@ -4,7 +4,7 @@ let appTarget: Target = .target(
     name: "App",
     destinations: [.iPhone, .iPad, .appleVision],
     product: .app,
-    bundleId: "io.tuist.App",
+    bundleId: "dev.tuist.App",
     infoPlist: "Support/App-Info.plist",
     sources: "App/Sources/**",
     dependencies: [
@@ -17,7 +17,7 @@ let widgetExtensionTarget: Target = .target(
     name: "WidgetExtension",
     destinations: [.iPhone, .iPad],
     product: .appExtension,
-    bundleId: "io.tuist.App.WidgetExtension",
+    bundleId: "dev.tuist.App.WidgetExtension",
     infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "$(PRODUCT_NAME)",
         "NSExtension": [
@@ -32,7 +32,7 @@ let watchApp: Target = .target(
     name: "WatchApp",
     destinations: [.appleWatch],
     product: .app,
-    bundleId: "io.tuist.App.watchkitapp",
+    bundleId: "dev.tuist.App.watchkitapp",
     infoPlist: nil,
     sources: "WatchApp/Sources/**",
     resources: "WatchApp/Resources/**",
@@ -45,7 +45,7 @@ let watchApp: Target = .target(
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
             ],
-            "INFOPLIST_KEY_WKCompanionAppBundleIdentifier": "io.tuist.App",
+            "INFOPLIST_KEY_WKCompanionAppBundleIdentifier": "dev.tuist.App",
             "INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp": false,
         ]
     )

@@ -21,7 +21,7 @@ let project = Project(
     .target(
         name: "App",
         product: .app,
-        bundleId: "io.tuist.App",
+        bundleId: "dev.tuist.App",
         dependencies: [
             .package(product: "ComposableArchitecture"),
         ]

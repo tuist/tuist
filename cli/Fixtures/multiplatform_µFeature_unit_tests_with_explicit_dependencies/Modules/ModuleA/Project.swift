@@ -10,7 +10,7 @@ let project = Project(
             name: "ModuleAInterface",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
-            bundleId: "io.tuist.ModuleA.interface",
+            bundleId: "dev.tuist.ModuleA.interface",
             deploymentTargets: .deploymentTargets(for: supportedPlatforms),
             sources: [
                 .glob("Interface/Sources/**"),
@@ -20,7 +20,7 @@ let project = Project(
             name: "ModuleAImplementation",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
-            bundleId: "io.tuist.ModuleA.implementation",
+            bundleId: "dev.tuist.ModuleA.implementation",
             deploymentTargets: .deploymentTargets(for: supportedPlatforms),
             sources: [
                 .glob("Implementation/Sources/**"),
@@ -33,7 +33,7 @@ let project = Project(
             name: "ModuleATestSupporting",
             destinations: .destinations(for: supportedPlatforms),
             product: .framework,
-            bundleId: "io.tuist.ModuleA.testSupporting",
+            bundleId: "dev.tuist.ModuleA.testSupporting",
             deploymentTargets: .deploymentTargets(for: supportedPlatforms),
             sources: [
                 .glob("TestSupporting/Sources/**"),
@@ -47,7 +47,7 @@ let project = Project(
             name: "ModuleATests",
             destinations: .destinations(for: supportedPlatforms),
             product: .unitTests,
-            bundleId: "io.tuist.ModuleA.tests",
+            bundleId: "dev.tuist.ModuleA.tests",
             deploymentTargets: .deploymentTargets(for: supportedPlatforms),
             sources: [
                 .glob("Tests/Sources/**"),
@@ -62,7 +62,7 @@ let project = Project(
             name: "ExampleApp",
             destinations: .destinations(for: [.iOS]),
             product: .app,
-            bundleId: "io.tuist.ModuleA.example",
+            bundleId: "dev.tuist.ModuleA.example",
             deploymentTargets: .deploymentTargets(for: [.iOS]),
             infoPlist: "Example/SupportingFiles/App-Info.plist",
             sources: "Example/Sources/**",

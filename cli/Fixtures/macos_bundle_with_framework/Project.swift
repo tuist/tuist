@@ -5,7 +5,7 @@ func bundleTarget(name: String) -> Target {
         name: name,
         destinations: [.mac],
         product: .bundle,
-        bundleId: "io.tuist.\(name)",
+        bundleId: "dev.tuist.\(name)",
         infoPlist: .default,
         sources: .paths([.relativeToManifest("Sources/MyBundle/**")]),
         dependencies: [
@@ -20,7 +20,7 @@ func frameworkTarget(name: String) -> Target {
         name: name,
         destinations: [.mac],
         product: .framework,
-        bundleId: "io.tuist.\(name)",
+        bundleId: "dev.tuist.\(name)",
         infoPlist: .file(path: .relativeToManifest("Info.plist")),
         sources: .paths([.relativeToManifest("Sources/MyFramework/**")]),
         settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])

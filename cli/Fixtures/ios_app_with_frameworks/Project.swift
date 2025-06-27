@@ -12,7 +12,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.MainApp",
+            bundleId: "dev.tuist.MainApp",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: .extendingDefault(
                 with: [
@@ -38,7 +38,7 @@ let project = Project(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppTests",
+            bundleId: "dev.tuist.AppTests",
             infoPlist: .extendingDefault(with: [:]),
             sources: "App/Tests/**",
             dependencies: [
@@ -51,7 +51,7 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             productName: "Framework1",
-            bundleId: "io.tuist.Framework1",
+            bundleId: "dev.tuist.Framework1",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: .dictionary(
                 [
@@ -79,7 +79,7 @@ let project = Project(
             destinations: .iOS,
             product: .unitTests,
             productName: "Framework1Tests",
-            bundleId: "io.tuist.Framework1Tests",
+            bundleId: "dev.tuist.Framework1Tests",
             infoPlist: "Framework1/Config/Framework1Tests-Info.plist",
             sources: "Framework1/Tests/**",
             dependencies: [
@@ -92,7 +92,7 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             productName: "Framework2",
-            bundleId: "io.tuist.Framework2",
+            bundleId: "dev.tuist.Framework2",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: "Framework2/Config/Framework2-Info.plist",
             sources: "Framework2/Sources/**",
@@ -111,7 +111,7 @@ let project = Project(
             destinations: [.mac],
             product: .framework,
             productName: "Framework2",
-            bundleId: "io.tuist.Framework2",
+            bundleId: "dev.tuist.Framework2",
             infoPlist: "Framework2/Config/Framework2-Info.plist",
             sources: "Framework2/Sources/**",
             headers: .headers(
@@ -126,7 +126,7 @@ let project = Project(
             name: "Framework2Tests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.Framework2Tests",
+            bundleId: "dev.tuist.Framework2Tests",
             infoPlist: "Framework2/Config/Framework2Tests-Info.plist",
             sources: "Framework2/Tests/**",
             dependencies: [
@@ -138,7 +138,7 @@ let project = Project(
             name: "Framework3",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework3",
+            bundleId: "dev.tuist.Framework3",
             infoPlist: "Framework3/Config/Framework3-Info.plist",
             sources: "Framework3/Sources/**",
             dependencies: [
@@ -150,7 +150,7 @@ let project = Project(
             name: "Framework4",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework4",
+            bundleId: "dev.tuist.Framework4",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: "Framework4/Config/Framework4-Info.plist",
             sources: "Framework4/Sources/**",
@@ -163,7 +163,7 @@ let project = Project(
             name: "Framework5",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework5",
+            bundleId: "dev.tuist.Framework5",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: "Framework5/Config/Framework5-Info.plist",
             sources: "Framework5/Sources/**",

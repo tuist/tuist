@@ -7,7 +7,7 @@ let project = Project(
             name: "Framework",
             destinations: [.iPhone, .mac],
             product: .staticLibrary,
-            bundleId: "io.tuist.FrameworkWithSwiftMacro",
+            bundleId: "dev.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
                 .external(name: "ComposableArchitecture"),

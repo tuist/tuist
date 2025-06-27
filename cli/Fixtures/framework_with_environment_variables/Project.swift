@@ -7,7 +7,7 @@ let project = Project(
             name: Environment.frameworkName.getString(default: "Framework"),
             destinations: [.mac],
             product: .framework,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .default,
             sources: .paths([.relativeToManifest("Sources/**")])
         ),

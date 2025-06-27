@@ -17,7 +17,7 @@ let project = Project(
             name: "App",
             destinations: [.mac],
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             infoPlist: .default,
             sources: "App/**",
             copyFiles: [
@@ -41,7 +41,7 @@ let project = Project(
             name: "Workflow",
             destinations: [.mac],
             product: .appExtension,
-            bundleId: "io.tuist.app.workflow",
+            bundleId: "dev.tuist.app.workflow",
             infoPlist: .extendingDefault(with: [
                 "NSExtensionPointIdentifier": "com.apple.FinalCut.WorkflowExtension",
                 "ProExtensionPrincipalViewControllerClass": "$(PRODUCT_MODULE_NAME).WorkflowViewController",
@@ -57,10 +57,10 @@ let project = Project(
             name: "ExtensionKitExtension",
             destinations: .macOS,
             product: .extensionKitExtension,
-            bundleId: "io.tuist.app.extensionKitExtension",
+            bundleId: "dev.tuist.app.extensionKitExtension",
             infoPlist: .extendingDefault(with: [
                 "EXAppExtensionAttributes": [
-                    "EXExtensionPointIdentifier": "io.tuist.app.extension-point",
+                    "EXExtensionPointIdentifier": "dev.tuist.app.extension-point",
                 ],
             ]),
             sources: "ExtensionKitExtension/Sources/**",

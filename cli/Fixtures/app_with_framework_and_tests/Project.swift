@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             infoPlist: "Info.plist",
             sources: "App/**",
             dependencies: [
@@ -19,7 +19,7 @@ let project = Project(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.appTests",
+            bundleId: "dev.tuist.appTests",
             infoPlist: "Info.plist",
             sources: "AppTests/**",
             dependencies: [
@@ -30,7 +30,7 @@ let project = Project(
             name: "AppExtension",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "io.tuist.app.extension",
+            bundleId: "dev.tuist.app.extension",
             infoPlist: "AppExtension/Info.plist",
             sources: "AppExtension/**",
             dependencies: [
@@ -41,7 +41,7 @@ let project = Project(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.framework",
+            bundleId: "dev.tuist.framework",
             infoPlist: "Info.plist",
             sources: "Framework/**",
             dependencies: [
@@ -51,7 +51,7 @@ let project = Project(
             name: "FrameworkTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.frameworkTests",
+            bundleId: "dev.tuist.frameworkTests",
             infoPlist: "Info.plist",
             sources: "FrameworkTests/**",
             dependencies: [

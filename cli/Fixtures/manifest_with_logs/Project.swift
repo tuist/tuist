@@ -6,7 +6,7 @@ func target(name: String) -> Target {
         name: name,
         destinations: [.mac],
         product: .app,
-        bundleId: "io.tuist.\(name)",
+        bundleId: "dev.tuist.\(name)",
         infoPlist: .default,
         sources: .paths([.relativeToManifest("Sources/**")]),
         settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])

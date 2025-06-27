@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.iPhone, .iPad, .macCatalyst],
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             deploymentTargets: .iOS("16.0"),
             infoPlist: .extendingDefault(
                 with: [
@@ -28,7 +28,7 @@ let project = Project(
             name: "App-macOS",
             destinations: .macOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             sources: ["App/Sources/**"],
             dependencies: [
                 .target(name: "MacPlugin"),
@@ -40,7 +40,7 @@ let project = Project(
             name: "MacPlugin",
             destinations: .macOS,
             product: .bundle,
-            bundleId: "io.tuist.App.MacPlugin"
+            bundleId: "dev.tuist.App.MacPlugin"
         ),
         .target(
             name: "ProjectResourcesFramework",

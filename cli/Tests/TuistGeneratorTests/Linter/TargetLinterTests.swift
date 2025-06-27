@@ -347,7 +347,7 @@ final class TargetLinterTests: TuistUnitTestCase {
                 destinations: [.appleVision],
                 product: .app,
                 productName: "visionOS",
-                bundleId: "io.tuist.visionOS",
+                bundleId: "dev.tuist.visionOS",
                 deploymentTargets: .visionOS("1.0"),
                 filesGroup: .group(name: "Project")
             ),
@@ -356,7 +356,7 @@ final class TargetLinterTests: TuistUnitTestCase {
                 destinations: [.iPhone, .iPad, .appleVisionWithiPadDesign],
                 product: .app,
                 productName: "visionOS",
-                bundleId: "io.tuist.visionOS",
+                bundleId: "dev.tuist.visionOS",
                 deploymentTargets: .init(iOS: "16.0", visionOS: "1.0"),
                 filesGroup: .group(name: "Project")
             ),

@@ -7,7 +7,7 @@ let project = Project(
             name: "AppWithSpace",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app-with-space",
+            bundleId: "dev.tuist.app-with-space",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             scripts: [

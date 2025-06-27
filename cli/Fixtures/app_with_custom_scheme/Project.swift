@@ -6,7 +6,7 @@ let appTarget: Target = .target(
     name: "App",
     destinations: .iOS,
     product: .app,
-    bundleId: "io.tuist.App",
+    bundleId: "dev.tuist.App",
     sources: ["App/**/*.swift"]
 )
 

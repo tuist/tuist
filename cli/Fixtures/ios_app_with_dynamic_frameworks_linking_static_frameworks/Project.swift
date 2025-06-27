@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -26,7 +26,7 @@ let project = Project(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppTests",
+            bundleId: "dev.tuist.AppTests",
             infoPlist: .default,
             sources: ["App/Tests/**"],
             resources: [],
@@ -36,7 +36,7 @@ let project = Project(
             name: "DynamicFrameworkA",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.DynamicFrameworkA",
+            bundleId: "dev.tuist.DynamicFrameworkA",
             sources: ["DynamicFrameworkA/**"],
             dependencies: [
                 .external(name: "GoogleMobileAds"),
@@ -47,7 +47,7 @@ let project = Project(
             name: "DynamicFrameworkB",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.DynamicFrameworkB",
+            bundleId: "dev.tuist.DynamicFrameworkB",
             sources: ["DynamicFrameworkB/**"],
             dependencies: [
                 .external(name: "CasePaths"),

@@ -27,7 +27,7 @@ let project = Project(
             name: "Framework2",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.Framework2",
+            bundleId: "dev.tuist.Framework2",
             infoPlist: "Support/Framework2-Info.plist",
             sources: "Sources/**",
             dependencies: [],
@@ -37,7 +37,7 @@ let project = Project(
             name: "Framework2Tests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.Framework2Tests",
+            bundleId: "dev.tuist.Framework2Tests",
             infoPlist: "Support/Framework2Tests-Info.plist",
             sources: "Tests/**",
             dependencies: [
