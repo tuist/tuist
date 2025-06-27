@@ -59,11 +59,11 @@ public struct LogInView: View {
                 request.requestedScopes = [.fullName, .email]
             } onCompletion: { result in
                 switch result {
-                case .success(let authorization):
-                    errorHandling.fireAndHandleError { 
-                        try await authenticationService.signInWithApple(authorization: authorization) 
+                case let .success(authorization):
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.signInWithApple(authorization: authorization)
                     }
-                case .failure(let error):
+                case let .failure(error):
                     errorHandling.handle(error: error)
                 }
             }

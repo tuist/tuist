@@ -59,7 +59,7 @@ struct InspectBundleCommandServiceTests {
             .analyzeAppBundle(at: .any)
             .willReturn(
                 AppBundleReport(
-                    bundleId: "com.tuist",
+                    bundleId: "dev.tuist",
                     name: "App",
                     installSize: 10,
                     downloadSize: 10,

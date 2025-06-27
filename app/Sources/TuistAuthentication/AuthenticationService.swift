@@ -120,50 +120,45 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signInWithApple(authorization: ASAuthorization) async throws {
-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            throw AuthenticationError.missingAppleCredentials
-        }
-        
-        guard let identityToken = appleIDCredential.identityToken,
-              let identityTokenString = String(data: identityToken, encoding: .utf8) else {
+        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityToken = appleIDCredential.identityToken,
+              let identityTokenString = String(data: identityToken, encoding: .utf8),
+              let authorizationCode = appleIDCredential.authorizationCode,
+              let authorizationCodeString = String(data: authorizationCode, encoding: .utf8)
+        else {
             throw AuthenticationError.missingAppleCredentials
         }
 
-        guard let authorizationCode = appleIDCredential.authorizationCode,
-              let authorizationCodeString = String(data: authorizationCode, encoding: .utf8) else {
-            throw AuthenticationError.missingAppleCredentials
-        }
-        
         try await exchangeAppleTokenForServerToken(
             identityToken: identityTokenString,
             authorizationCode: authorizationCodeString
         )
     }
-    
+
     private func exchangeAppleTokenForServerToken(
         identityToken: String,
         authorizationCode: String
     ) async throws {
         let url = serverEnvironmentService.url().appending(path: "api/auth/apple")
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         let parameters = [
             "identity_token": identityToken,
-            "authorization_code": authorizationCode
+            "authorization_code": authorizationCode,
         ]
-        
+
         let jsonData = try JSONSerialization.data(withJSONObject: parameters)
         request.httpBody = jsonData
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
         }
-        
+
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
