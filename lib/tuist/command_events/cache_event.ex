@@ -14,7 +14,7 @@ defmodule Tuist.CommandEvents.CacheEvent do
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)
 
-    belongs_to :project, Tuist.Accounts.Project
+    belongs_to :project, Tuist.Projects.Project
   end
 
   def create_changeset(event, attrs) do

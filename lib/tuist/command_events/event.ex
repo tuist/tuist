@@ -8,6 +8,7 @@ defmodule Tuist.CommandEvents.Event do
   import Ecto.Query
 
   alias Tuist.Accounts.User
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Projects.Project
   alias Tuist.Runs.Build
 

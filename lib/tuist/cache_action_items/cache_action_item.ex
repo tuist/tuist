@@ -7,6 +7,8 @@ defmodule Tuist.CacheActionItems.CacheActionItem do
 
   import Ecto.Changeset
 
+  alias Tuist.Projects.Project
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "cache_action_items" do
     belongs_to :project, Project
