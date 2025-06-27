@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -29,13 +30,49 @@ extension XcodeGraph.TestAction {
         let fileSystem = FileSystem()
 
         if let plans = manifest.testPlans {
-            testPlans = try await plans.enumerated()
-                .map { $0 }
-                .concurrentCompactMap { index, path in
-                    let resolvedPath = try generatorPaths.resolve(path: path)
-                    guard try await fileSystem.exists(resolvedPath) else { return nil }
-                    return try await TestPlan.from(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
+            var resolvedTestPlans: [XcodeGraph.TestPlan] = []
+
+            for path in plans {
+                let resolvedPath = try generatorPaths.resolve(path: path)
+                let pathString = resolvedPath.pathString
+
+                // Check if path contains glob patterns
+                if pathString.contains("*") {
+                    let globPathString = String(pathString.dropFirst())
+
+                    do {
+                        let globPaths = try await fileSystem
+                            .throwingGlob(directory: .root, include: [globPathString])
+                            .collect()
+                            .filter { $0.extension == "xctestplan" }
+                            .sorted()
+
+                        for globPath in globPaths {
+                            let testPlan = try await TestPlan.from(
+                                path: globPath,
+                                isDefault: resolvedTestPlans.isEmpty,
+                                generatorPaths: generatorPaths
+                            )
+                            resolvedTestPlans.append(testPlan)
+                        }
+                    } catch GlobError.nonExistentDirectory {
+                        // Skip non-existent glob patterns
+                        continue
+                    }
+                } else {
+                    // Handle as literal path
+                    if try await fileSystem.exists(resolvedPath) && resolvedPath.extension == "xctestplan" {
+                        let testPlan = try await TestPlan.from(
+                            path: resolvedPath,
+                            isDefault: resolvedTestPlans.isEmpty,
+                            generatorPaths: generatorPaths
+                        )
+                        resolvedTestPlans.append(testPlan)
+                    }
                 }
+            }
+
+            testPlans = resolvedTestPlans
 
             // not used when using test plans
             targets = []
