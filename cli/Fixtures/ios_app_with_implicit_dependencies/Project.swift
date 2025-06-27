@@ -35,9 +35,8 @@ let project = Project(
             product: .framework,
             bundleId: "dev.tuist.FrameworkC",
             sources: ["Targets/FrameworkC/Sources/**"],
-            dependencies: [
-                .target(name: "FrameworkB"),
-            ]
+            dependencies: [],
+            metadata: .metadata(tags: ["IgnoreRedundantDependencies"])
         ),
     ]
 )
