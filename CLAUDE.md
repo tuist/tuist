@@ -21,3 +21,8 @@
       // Test implementation
   }
   ```
+- Do not modify CHANGELOG.md as it is auto-generated
+
+# Linting
+- To check for linting issues: `mise run lint`
+- To automatically fix fixable linting issues: `mise run lint --fix`

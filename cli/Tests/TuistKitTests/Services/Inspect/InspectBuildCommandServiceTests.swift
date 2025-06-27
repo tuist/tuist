@@ -25,7 +25,7 @@ struct InspectBuildCommandServiceTests {
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
     private let dateService = MockDateServicing()
-    private let serverURLService = MockServerURLServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController: MockGitControlling
 
     init() throws {
@@ -41,14 +41,14 @@ struct InspectBuildCommandServiceTests {
             xcActivityLogController: xcActivityLogController,
             backgroundProcessRunner: backgroundProcessRunner,
             dateService: dateService,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             gitController: gitController
         )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
 

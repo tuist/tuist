@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-coding": {
+          "text": "エージェンティック・コーディング",
           "items": {
             "mcp": {
               "text": "モデルコンテキストプロトコル(MCP)"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "継続的インテグレーション"
             }

@@ -24,7 +24,7 @@ struct InspectBundleCommandService {
     private let rosalind: Rosalindable
     private let createBundleService: CreateBundleServicing
     private let configLoader: ConfigLoading
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
 
     init(
@@ -32,14 +32,14 @@ struct InspectBundleCommandService {
         rosalind: Rosalindable = Rosalind(),
         createBundleService: CreateBundleServicing = CreateBundleService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController()
     ) {
         self.fileSystem = fileSystem
         self.rosalind = rosalind
         self.createBundleService = createBundleService
         self.configLoader = configLoader
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
     }
 
@@ -77,7 +77,7 @@ struct InspectBundleCommandService {
         let gitBranch = gitInfo.branch
         let gitCommitSHA = gitInfo.sha
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let serverBundle = try await Noora.current.progressStep(
             message: "Analyzing bundle...",
             successMessage: "Bundle analyzed",

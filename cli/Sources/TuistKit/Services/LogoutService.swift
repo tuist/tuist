@@ -15,16 +15,16 @@ protocol LogoutServicing: AnyObject {
 
 final class LogoutService: LogoutServicing {
     private let serverSessionController: ServerSessionControlling
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverSessionController = serverSessionController
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -40,7 +40,7 @@ final class LogoutService: LogoutServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         try await serverSessionController.logout(serverURL: serverURL)
         AlertController.current.success("Successfully logged out")
     }

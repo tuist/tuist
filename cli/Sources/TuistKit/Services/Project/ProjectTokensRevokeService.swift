@@ -14,16 +14,16 @@ protocol ProjectTokensRevokeServicing {
 
 final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
     private let revokeProjectTokenService: RevokeProjectTokenServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         revokeProjectTokenService: RevokeProjectTokenServicing = RevokeProjectTokenService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.revokeProjectTokenService = revokeProjectTokenService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -39,7 +39,7 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         try await revokeProjectTokenService.revokeProjectToken(
             projectTokenId: projectTokenId,

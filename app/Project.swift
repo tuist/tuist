@@ -26,6 +26,19 @@ let inspectBuildPostAction: ExecutionAction = .executionAction(
     """
 )
 
+let oauthClientIdEnvironmentVariable: EnvironmentVariable = switch Environment.env {
+case .string("staging"): "bcb85209-0cef-4acd-8dd4-e0d1c5e5e09a"
+case .string("canary"): "ca49d1d6-acaf-4eaa-b866-774b799044db"
+case .string("development"): "5339abf2-467c-4690-b816-17246ed149d2"
+default: .environmentVariable(value: "", isEnabled: false)
+}
+let serverURLEnvironmentVariable: EnvironmentVariable = switch Environment.env {
+case .string("staging"): "https://staging.tuist.dev"
+case .string("canary"): "https://canary.tuist.dev"
+case .string("development"): "http://localhost:8080"
+default: .environmentVariable(value: "", isEnabled: false)
+}
+
 let project = Project(
     name: "TuistApp",
     settings: .settings(
@@ -58,8 +71,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.10.1",
-                    "CFBundleVersion": "0.10.1",
+                    "CFBundleShortVersionString": "0.12.0",
+                    "CFBundleVersion": "0.12.0",
                     "UILaunchScreen": [
                         "UIColorName": "",
                         "UIImageName": "",
@@ -69,8 +82,11 @@ let project = Project(
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
             dependencies: [
+                .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
+                .target(name: "TuistOnboarding", condition: .when([.ios])),
+                .target(name: "TuistErrorHandling", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -96,7 +112,28 @@ let project = Project(
             sources: ["Sources/TuistPreviews/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistErrorHandling"),
             ]
+        ),
+        .target(
+            name: "TuistOnboarding",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.onboarding",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistOnboarding/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistErrorHandling"),
+            ]
+        ),
+        .target(
+            name: "TuistErrorHandling",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.error-handling",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistErrorHandling/**"],
         ),
         .target(
             name: "TuistMenuBar",
@@ -148,6 +185,8 @@ let project = Project(
                     environmentVariables: [
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                        "TUIST_OAUTH_CLIENT_ID": oauthClientIdEnvironmentVariable,
+                        "TUIST_URL": serverURLEnvironmentVariable,
                     ]
                 )
             )

@@ -12,7 +12,7 @@ import XCTest
 final class ProjectShowServiceTests: TuistUnitTestCase {
     private var opener: MockOpening!
     private var configLoader: MockConfigLoading!
-    private var serverURLService: MockServerURLServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var getProjectService: MockGetProjectServicing!
     private var subject: ProjectShowService!
 
@@ -20,16 +20,16 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         super.setUp()
         opener = MockOpening()
         configLoader = MockConfigLoading()
-        serverURLService = MockServerURLServicing()
+        serverEnvironmentService = MockServerEnvironmentServicing()
         getProjectService = MockGetProjectServicing()
         subject = ProjectShowService(
             opener: opener,
             configLoader: configLoader,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             getProjectService: getProjectService
         )
 
-        given(serverURLService)
+        given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
     }
@@ -37,7 +37,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     override func tearDown() {
         opener = nil
         configLoader = nil
-        serverURLService = nil
+        serverEnvironmentService = nil
         getProjectService = nil
         subject = nil
         super.tearDown()

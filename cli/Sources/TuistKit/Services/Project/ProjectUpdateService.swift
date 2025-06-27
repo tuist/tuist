@@ -26,18 +26,18 @@ enum ProjectUpdateServiceError: Equatable, FatalError {
 struct ProjectUpdateService {
     private let opener: Opening
     private let configLoader: ConfigLoading
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let updateProjectService: UpdateProjectServicing
 
     init(
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         updateProjectService: UpdateProjectServicing = UpdateProjectService()
     ) {
         self.opener = opener
         self.configLoader = configLoader
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.updateProjectService = updateProjectService
     }
 
@@ -55,7 +55,7 @@ struct ProjectUpdateService {
             throw ProjectUpdateServiceError.missingFullHandle
         }
 
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         _ = try await updateProjectService.updateProject(
             fullHandle: fullHandle,

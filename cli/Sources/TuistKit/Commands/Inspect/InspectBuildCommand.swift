@@ -21,15 +21,15 @@ struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
         name: .long,
         help: "The path to the directory containing the project's derived data artifacts.",
         completion: .directory,
-        envKey: .inspectBuildProjectDerivedDataPath
+        envKey: .inspectBuildDerivedDataPath
     )
-    var projectDerivedDataPath: String?
+    var derivedDataPath: String?
 
     func run() async throws {
         try await InspectBuildCommandService()
             .run(
                 path: path,
-                projectDerivedDataPath: projectDerivedDataPath
+                derivedDataPath: derivedDataPath
             )
     }
 }

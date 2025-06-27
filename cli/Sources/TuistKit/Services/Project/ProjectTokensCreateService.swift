@@ -13,24 +13,24 @@ protocol ProjectTokensCreateServicing {
 
 final class ProjectTokensCreateService: ProjectTokensCreateServicing {
     private let createProjectTokenService: CreateProjectTokenServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     convenience init() {
         self.init(
             createProjectTokenService: CreateProjectTokenService(),
-            serverURLService: ServerURLService(),
+            serverEnvironmentService: ServerEnvironmentService(),
             configLoader: ConfigLoader()
         )
     }
 
     init(
         createProjectTokenService: CreateProjectTokenServicing,
-        serverURLService: ServerURLServicing,
+        serverEnvironmentService: ServerEnvironmentServicing,
         configLoader: ConfigLoading
     ) {
         self.createProjectTokenService = createProjectTokenService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -47,7 +47,7 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let token = try await createProjectTokenService.createProjectToken(
             fullHandle: fullHandle,

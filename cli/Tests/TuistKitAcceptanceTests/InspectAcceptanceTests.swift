@@ -40,7 +40,7 @@ struct InspectAcceptanceTests {
         // When: I inspect the bundle
         try await TuistTest.run(
             InspectBuildCommand.self,
-            ["--path", fixtureDirectory.pathString, "--project-derived-data-path", temporaryDirectory.pathString]
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
 
         // Then

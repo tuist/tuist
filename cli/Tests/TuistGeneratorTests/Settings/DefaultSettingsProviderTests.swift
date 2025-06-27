@@ -72,7 +72,7 @@ struct DefaultSettingsProvider_iOSTests {
         "SWIFT_COMPILATION_MODE": "wholemodule",
         "SDKROOT": "iphoneos",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
-        "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_OPTIMIZATION_LEVEL": "-O",
         "SWIFT_VERSION": "5.0",
     ]
 
@@ -97,7 +97,7 @@ struct DefaultSettingsProvider_iOSTests {
     ]
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
-        "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_OPTIMIZATION_LEVEL": "-O",
         "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
         "DEFINES_MODULE": "YES",
         "DYLIB_INSTALL_NAME_BASE": "@rpath",
@@ -1126,7 +1126,7 @@ struct DefaultSettingsProvider_MacosTests {
 
     private let macroTargetEssentialReleaseSettings: [String: SettingValue] = [
         "SKIP_INSTALL": "YES",
-        "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_OPTIMIZATION_LEVEL": "-O",
         "SWIFT_VERSION": "5.0",
         "SDKROOT": "macosx",
         "CODE_SIGN_IDENTITY": "-",

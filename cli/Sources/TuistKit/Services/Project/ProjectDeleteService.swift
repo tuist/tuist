@@ -14,18 +14,18 @@ protocol ProjectDeleteServicing {
 final class ProjectDeleteService: ProjectDeleteServicing {
     private let deleteProjectService: DeleteProjectServicing
     private let getProjectService: GetProjectServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         deleteProjectService: DeleteProjectServicing = DeleteProjectService(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.deleteProjectService = deleteProjectService
         self.getProjectService = getProjectService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -40,7 +40,7 @@ final class ProjectDeleteService: ProjectDeleteServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let project = try await getProjectService.getProject(
             fullHandle: fullHandle,

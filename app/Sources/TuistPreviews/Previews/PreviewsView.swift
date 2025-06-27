@@ -1,6 +1,8 @@
 import SwiftUI
+import TuistErrorHandling
 
 public struct PreviewsView: View {
+    @EnvironmentObject var errorHandling: ErrorHandling
     @State var viewModel = PreviewsViewModel()
 
     public init() {}
@@ -17,7 +19,7 @@ public struct PreviewsView: View {
             }
         }
         .onAppear {
-            Task {
+            errorHandling.fireAndHandleError {
                 try await viewModel.onAppear()
             }
         }

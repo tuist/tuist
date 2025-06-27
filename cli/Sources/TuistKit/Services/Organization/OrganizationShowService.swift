@@ -15,18 +15,18 @@ protocol OrganizationShowServicing {
 final class OrganizationShowService: OrganizationShowServicing {
     private let getOrganizationService: GetOrganizationServicing
     private let getOrganizationUsageService: GetOrganizationUsageServicing
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         getOrganizationService: GetOrganizationServicing = GetOrganizationService(),
         getOrganizationUsageService: GetOrganizationUsageServicing = GetOrganizationUsageService(),
-        serverURLService: ServerURLServicing = ServerURLService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.getOrganizationService = getOrganizationService
         self.getOrganizationUsageService = getOrganizationUsageService
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
@@ -44,7 +44,7 @@ final class OrganizationShowService: OrganizationShowServicing {
             directoryPath = FileHandler.shared.currentPath
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let organization = try await getOrganizationService.getOrganization(
             organizationName: organizationName,

@@ -29,7 +29,7 @@ public struct InitCommandService {
     private let keystrokeListener: KeyStrokeListening
     private let getProjectService: GetProjectServicing
     private let commandRunner: CommandRunning
-    private let serverURLService: ServerURLServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -69,7 +69,7 @@ public struct InitCommandService {
         listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         commandRunner: CommandRunning = CommandRunner(),
-        serverURLService: ServerURLServicing = ServerURLService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
@@ -82,7 +82,7 @@ public struct InitCommandService {
         self.listOrganizationsService = listOrganizationsService
         self.getProjectService = getProjectService
         self.commandRunner = commandRunner
-        self.serverURLService = serverURLService
+        self.serverEnvironmentService = serverEnvironmentService
     }
 
     func run(from directory: AbsolutePath, answers: InitPromptAnswers?) async throws {
@@ -201,7 +201,7 @@ public struct InitCommandService {
         let integrateWithServer =
             answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
-            let serverURL = try serverURLService.url(configServerURL: Constants.URLs.production)
+            let serverURL = try serverEnvironmentService.url(configServerURL: Constants.URLs.production)
             if try await serverSessionController.whoami(serverURL: serverURL) == nil {
                 try await Noora.current.collapsibleStep(
                     title: "Authentication",

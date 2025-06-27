@@ -1433,6 +1433,7 @@ public class GraphTraverser: GraphTraversing {
         let validProducts: [Product] = [
             .app,
             .appExtension,
+            .extensionKitExtension,
             .watch2App,
             .appClip,
             .unitTests,

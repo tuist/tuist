@@ -338,12 +338,17 @@
             }
           }
         },
-        "integrations": {
-          "text": "Integrations",
+        "agentic-coding": {
+          "text": "Агентное Кодирование",
           "items": {
             "mcp": {
               "text": "Протокол контекста модели (MCP)"
-            },
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
             "continuous-integration": {
               "text": "Непрерывная интеграция (CI)"
             }
