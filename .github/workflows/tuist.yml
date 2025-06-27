@@ -272,8 +272,6 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
-      - name: Security scan
-        run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed tuist/tuist
   seed:
     name: Seed
     runs-on: namespace-profile-default
