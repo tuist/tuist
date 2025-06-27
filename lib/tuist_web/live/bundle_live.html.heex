@@ -219,23 +219,22 @@
       <div data-part="breadcrumbs">
         <.breadcrumbs style="arrow">
           <%= for {path_component, index} <- Enum.with_index(@bundle_size_analysis_sunburst_chart_selected_artifact.path |> String.split("/")) do %>
+            <% breadcrumb_path =
+              @bundle_size_analysis_sunburst_chart_selected_artifact.path
+              |> String.split("/")
+              |> Enum.take(index + 1)
+              |> Enum.join("/")
+
+            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
             <.breadcrumb
-              id={"bundle-size-analysis-breadcrumb-#{path_component}"}
+              :if={breadcrumb_artifact}
+              id={"bundle-size-analysis-breadcrumb-#{index}"}
               label={if index == 0, do: @bundle.name, else: path_component}
               phx-click={
                 JS.dispatch(
                   "bundle-size-analysis-breadcrumb-clicked",
                   to: "#bundle-size-analysis-current-contents",
-                  detail: %{
-                    artifact_id:
-                      Map.get(
-                        @artifacts_by_path,
-                        @bundle_size_analysis_sunburst_chart_selected_artifact.path
-                        |> String.split("/")
-                        |> Enum.take(index + 1)
-                        |> Enum.join("/")
-                      ).id
-                  }
+                  detail: %{artifact_id: breadcrumb_artifact.id}
                 )
               }
             >
@@ -277,6 +276,7 @@
                             name: artifact.name,
                             artifact_type: artifact.artifact_type,
                             artifact_id: Map.get(artifact, :artifact_id),
+                            path: Map.get(artifact, :path),
                             current_path:
                               @bundle_size_analysis_sunburst_chart_selected_artifact.path
                           }
@@ -311,7 +311,7 @@
             number_of_pages={@bundle_size_analysis_sunburst_chart_table_page_count}
             page_patch={
               fn page ->
-                "?#{Query.put(@uri.query, "bundle-size-analysis-table-page", page)}"
+                "?#{Query.put(@uri.query, @bundle_size_analysis_sunburst_chart_table_page_param, page)}"
               end
             }
           />
@@ -517,7 +517,7 @@
         <:col :let={artifact} label={gettext("Type")}>
           <.tag_cell
             label={
-              case artifact.artifact_type |> dbg do
+              case artifact.artifact_type do
                 :binary -> gettext("Binary")
                 :localization -> gettext("Localization")
                 :asset -> gettext("Asset")

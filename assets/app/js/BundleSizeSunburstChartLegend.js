@@ -53,7 +53,7 @@ export default {
               name: node.name,
               artifact_type: node.artifact_type,
               artifact_id: node.artifact_id,
-              children: node.children,
+              children: node.children || [],
               path: node.path,
             },
           });
@@ -68,16 +68,19 @@ export default {
     this.handleTableRowClicked = (event) => {
       if (event.target.id == this.el.id && echart) {
         const artifact = event.detail.artifact;
-        const currentPath = artifact.current_path;
 
         if (artifact.artifact_type === "directory" || artifact.artifact_type === "asset") {
           let node;
-          if (artifact.artifact_id) {
-            node = findNode(echart.getOption().series[0].data, (node) => node.artifact_id === artifact.artifact_id);
-          } else {
-            const targetPath = currentPath + "/" + artifact.name;
-            node = findNode(echart.getOption().series[0].data, (node) => node.path === targetPath);
+          const seriesData = echart.getOption().series[0].data;
+
+          if (artifact.path) {
+            node = findNode(seriesData, (node) => node.path === artifact.path);
           }
+
+          if (!node && artifact.artifact_id) {
+            node = findNode(seriesData, (node) => node.artifact_id === artifact.artifact_id);
+          }
+
           if (node) {
             echart.dispatchAction({
               type: "sunburstRootToNode",
@@ -90,7 +93,7 @@ export default {
                 name: node.name,
                 artifact_type: node.artifact_type,
                 artifact_id: node.artifact_id,
-                children: node.children,
+                children: node.children || [],
                 path: node.path,
               },
             });
@@ -98,7 +101,7 @@ export default {
         } else {
           const seriesData = echart.getOption().series[0].data;
           const fileNode = findNode(seriesData, (node) => {
-            return node.name === artifact.name && node.artifact_type !== "directory";
+            return node.path === artifact.path;
           });
 
           if (fileNode) {
@@ -125,7 +128,7 @@ export default {
             artifact_type: el.data.artifact_type,
             name: el.data.name,
             artifact_id: el.data.artifact_id,
-            children: el.data.children,
+            children: el.data.children || [],
             path: el.data.path,
           },
         });
@@ -151,7 +154,7 @@ export default {
             name: params.data.name,
             artifact_type: params.data.artifact_type,
             artifact_id: params.data.artifact_id,
-            children: params.data.children,
+            children: params.data.children || [],
             path: params.data.path,
           },
         });
