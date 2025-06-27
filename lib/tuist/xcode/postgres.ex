@@ -79,6 +79,32 @@ defmodule Tuist.Xcode.Postgres do
     Tuist.Xcode.build_binary_cache_analytics(cacheable_targets)
   end
 
+  def has_selective_testing_data?(run) do
+    Repo.exists?(
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.selective_testing_hash)
+      )
+    )
+  end
+
+  def has_binary_cache_data?(run) do
+    Repo.exists?(
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.binary_cache_hash)
+      )
+    )
+  end
+
   def xcode_targets_for_command_event(command_event_id) do
     Repo.all(
       from(xt in XcodeTarget,

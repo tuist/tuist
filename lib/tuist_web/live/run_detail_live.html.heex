@@ -1,6 +1,6 @@
 <div id="run-detail">
   <.button
-    :if={not Enum.empty?(@selective_testing_analytics.test_modules)}
+    :if={@run.name == "test"}
     label={gettext("Test Runs")}
     data-part="back-button"
     variant="secondary"
@@ -75,14 +75,14 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={not Enum.empty?(@selective_testing_analytics.test_modules)}
+      :if={@has_selective_testing_data}
       label={gettext("Test Optimizations")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={not Enum.empty?(@binary_cache_analytics.cacheable_targets)}
+      :if={@has_binary_cache_data}
       label={gettext("Compilation Optimizations")}
       selected={@selected_tab == "compilation-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}

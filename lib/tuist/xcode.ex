@@ -27,6 +27,14 @@ defmodule Tuist.Xcode do
     storage_module().binary_cache_analytics(run)
   end
 
+  def has_selective_testing_data?(run) do
+    storage_module().has_selective_testing_data?(run)
+  end
+
+  def has_binary_cache_data?(run) do
+    storage_module().has_binary_cache_data?(run)
+  end
+
   def xcode_targets_for_command_event(command_event_id) do
     storage_module().xcode_targets_for_command_event(command_event_id)
   end

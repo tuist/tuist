@@ -147,6 +147,130 @@ defmodule Tuist.XcodeTest do
   end
 
   describe "Tuist.Xcode.Clickhouse analytics" do
+    test "has_selective_testing_data?/1 returns true when selective testing data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Clickhouse.has_selective_testing_data?(command_event)
+
+      # Then
+      assert result == true
+    end
+
+    test "has_selective_testing_data?/1 returns false when no selective testing data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Clickhouse.has_selective_testing_data?(command_event)
+
+      # Then
+      assert result == false
+    end
+
+    test "has_binary_cache_data?/1 returns true when binary cache data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Clickhouse.has_binary_cache_data?(command_event)
+
+      # Then
+      assert result == true
+    end
+
+    test "has_binary_cache_data?/1 returns false when no binary cache data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Clickhouse.has_binary_cache_data?(command_event)
+
+      # Then
+      assert result == false
+    end
+
     test "selective_testing_analytics/1 returns analytics from ClickHouse data" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
@@ -243,6 +367,130 @@ defmodule Tuist.XcodeTest do
   end
 
   describe "Tuist.Xcode.Postgres analytics" do
+    test "has_selective_testing_data?/1 returns true when selective testing data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Postgres.has_selective_testing_data?(command_event)
+
+      # Then
+      assert result == true
+    end
+
+    test "has_selective_testing_data?/1 returns false when no selective testing data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Postgres.has_selective_testing_data?(command_event)
+
+      # Then
+      assert result == false
+    end
+
+    test "has_binary_cache_data?/1 returns true when binary cache data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Postgres.has_binary_cache_data?(command_event)
+
+      # Then
+      assert result == true
+    end
+
+    test "has_binary_cache_data?/1 returns false when no binary cache data exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      result = Postgres.has_binary_cache_data?(command_event)
+
+      # Then
+      assert result == false
+    end
+
     test "selective_testing_analytics/1 returns analytics from Postgres data" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()

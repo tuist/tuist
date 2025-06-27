@@ -1959,7 +1959,7 @@ msgid "Reset your password"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:89
-#: lib/tuist_web/live/run_detail_live.ex:38
+#: lib/tuist_web/live/run_detail_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr ""
