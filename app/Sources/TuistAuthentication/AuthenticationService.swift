@@ -11,6 +11,8 @@ public enum AuthenticationError: LocalizedError {
     case invalidTokenResponse
     case tokenExchangeFailed(statusCode: Int)
     case missingTokens
+    case appleSignInFailed
+    case missingAppleCredentials
 
     public var errorDescription: String? {
         switch self {
@@ -24,6 +26,10 @@ public enum AuthenticationError: LocalizedError {
             return "Token exchange failed with status code: \(statusCode)"
         case .missingTokens:
             return "Access token or refresh token missing from response"
+        case .appleSignInFailed:
+            return "Apple Sign In failed"
+        case .missingAppleCredentials:
+            return "Missing Apple credentials from authorization"
         }
     }
 }
@@ -111,6 +117,58 @@ public final class AuthenticationService: ObservableObject {
 
     public func signInWithGoogle() async throws {
         try await startOAuth2Flow(with: "/oauth2/google")
+    }
+
+    public func signInWithApple(authorization: ASAuthorization) async throws {
+        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            throw AuthenticationError.missingAppleCredentials
+        }
+        
+        guard let identityToken = appleIDCredential.identityToken,
+              let identityTokenString = String(data: identityToken, encoding: .utf8) else {
+            throw AuthenticationError.missingAppleCredentials
+        }
+
+        guard let authorizationCode = appleIDCredential.authorizationCode,
+              let authorizationCodeString = String(data: authorizationCode, encoding: .utf8) else {
+            throw AuthenticationError.missingAppleCredentials
+        }
+        
+        try await exchangeAppleTokenForServerToken(
+            identityToken: identityTokenString,
+            authorizationCode: authorizationCodeString
+        )
+    }
+    
+    private func exchangeAppleTokenForServerToken(
+        identityToken: String,
+        authorizationCode: String
+    ) async throws {
+        let url = serverEnvironmentService.url().appending(path: "api/auth/apple")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let parameters = [
+            "identity_token": identityToken,
+            "authorization_code": authorizationCode
+        ]
+        
+        let jsonData = try JSONSerialization.data(withJSONObject: parameters)
+        request.httpBody = jsonData
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthenticationError.invalidTokenResponse
+        }
+        
+        if httpResponse.statusCode == 200 {
+            try await handleTokenResponse(data)
+        } else {
+            throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
+        }
     }
 
     private func startOAuth2Flow(with path: String) async throws {

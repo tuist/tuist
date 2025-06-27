@@ -88,6 +88,7 @@ let project = Project(
             ),
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
+            entitlements: "Resources/TuistApp/TuistApp.entitlements",
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
