@@ -126,8 +126,8 @@ final class GraphImportsLinter: GraphImportsLinting {
                     case .app:
                         return false
                     case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                            .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
-                            .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
+                         .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                         .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
                         return true
                     }
                 case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .bundle,
