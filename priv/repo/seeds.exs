@@ -1,5 +1,6 @@
 import Ecto.Query, only: [from: 2]
 
+alias Boruta.Ecto.Client
 alias Tuist.Accounts
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription

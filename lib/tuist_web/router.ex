@@ -329,6 +329,20 @@ defmodule TuistWeb.Router do
     post "/auth", AuthController, :authenticate
   end
 
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through [:browser_app, :fetch_current_user]
+
+    get "/authorize", AuthorizeController, :authorize
+    get "/github", AuthorizeController, :authorize_with_github
+    get "/google", AuthorizeController, :authorize_with_google
+  end
+
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through :non_authenticated_api
+
+    post "/token", TokenController, :token
+  end
+
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]

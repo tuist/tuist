@@ -41,6 +41,7 @@ defmodule Tuist.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.0.0"},
+      {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
@@ -129,7 +130,8 @@ defmodule Tuist.MixProject do
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../Noora/web"}) ||
         {:noora, "== 0.5.0"},
-      {:zstream, "~> 0.6"}
+      {:zstream, "~> 0.6"},
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
     ]
   end
 

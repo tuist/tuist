@@ -5,6 +5,7 @@
 "npm:prettier" = "3.4.2"
 "pnpm" = "10.5.2"
 "clickhouse" = "25.5.1"
+sops = "3.9.3"
 "ubi:aquasecurity/trivy" = "0.63.0"
 
 [hooks]

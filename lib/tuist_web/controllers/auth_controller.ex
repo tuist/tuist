@@ -31,9 +31,19 @@ defmodule TuistWeb.AuthController do
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
     user = Accounts.find_or_create_user_from_oauth2(auth)
 
-    conn
-    |> put_flash(:info, "Successfully authenticated.")
-    |> Authentication.log_in_user(user)
+    oauth_return_url = get_session(conn, :oauth_return_to)
+
+    if oauth_return_url do
+      conn
+      |> put_flash(:info, "Successfully authenticated.")
+      |> put_session(:user_return_to, oauth_return_url)
+      |> delete_session(:oauth_return_to)
+      |> Authentication.log_in_user(user)
+    else
+      conn
+      |> put_flash(:info, "Successfully authenticated.")
+      |> Authentication.log_in_user(user)
+    end
   end
 
   def authenticate_cli_deprecated(conn, params) do

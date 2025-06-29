@@ -1,5 +1,7 @@
 Mimic.copy(Base)
 Mimic.copy(Bcrypt)
+Mimic.copy(Boruta.Oauth)
+Mimic.copy(Boruta.Openid)
 Mimic.copy(DateTime)
 Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)

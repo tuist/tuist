@@ -444,6 +444,34 @@ defmodule Tuist.Environment do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
 
+  def oauth_client_id(secrets \\ secrets()) do
+    get([:oauth, :client_id], secrets)
+  end
+
+  def oauth_client_secret(secrets \\ secrets()) do
+    get([:oauth, :client_secret], secrets)
+  end
+
+  def oauth_client_name(secrets \\ secrets()) do
+    get([:oauth, :client_name], secrets)
+  end
+
+  def oauth_jwt_public_key(secrets \\ secrets()) do
+    get([:oauth, :jwt_public_key], secrets)
+  end
+
+  def oauth_private_key(secrets \\ secrets()) do
+    get([:oauth, :private_key], secrets)
+  end
+
+  def oauth_configured?(secrets \\ secrets()) do
+    oauth_client_id(secrets) != nil and 
+    oauth_client_secret(secrets) != nil and
+    oauth_client_name(secrets) != nil and
+    oauth_jwt_public_key(secrets) != nil and
+    oauth_private_key(secrets) != nil
+  end
+
   def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join("_", &String.upcase/1)}"

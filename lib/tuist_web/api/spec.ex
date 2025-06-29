@@ -30,7 +30,20 @@ defmodule TuistWeb.API.Spec do
       components: %Components{
         securitySchemes: %{
           "authorization" => %SecurityScheme{type: "http", scheme: "bearer"},
-          "cookie" => %SecurityScheme{type: "apiKey", in: "cookie", name: "_tuist_cloud_key"}
+          "cookie" => %SecurityScheme{type: "apiKey", in: "cookie", name: "_tuist_cloud_key"},
+          "oauth2" => %SecurityScheme{
+            type: "oauth2",
+            flows: %{
+              authorizationCode: %{
+                authorizationUrl: "/oauth2/authorize",
+                tokenUrl: "/oauth2/token",
+                scopes: %{
+                  "read" => "Read access to resources",
+                  "write" => "Write access to resources"
+                }
+              }
+            }
+          }
         }
       },
       security: [%{"authorization" => []}, %{"cookie" => []}],

@@ -1,5 +1,5 @@
 defmodule Tuist.ProjectsTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: false
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 

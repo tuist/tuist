@@ -7,6 +7,11 @@
 # General application configuration
 import Config
 
+config :boruta, Boruta.Oauth,
+  repo: Tuist.Repo,
+  contexts: [resource_owners: Tuist.OAuth.ResourceOwners, clients: Tuist.OAuth.Clients],
+  token_generator: Tuist.OAuth.TokenGenerator
+
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
@@ -61,7 +66,7 @@ config :fun_with_flags, :persistence,
 
 config :guardian, Guardian.DB,
   repo: Tuist.Repo,
-  schema_name: "tokens",
+  schema_name: "guardian_tokens",
   token_types: ["refresh"]
 
 # Configures Elixir's Logger

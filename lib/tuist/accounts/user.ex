@@ -21,6 +21,7 @@ defmodule Tuist.Accounts.User do
     field :password, :string, virtual: true
     field :encrypted_password, :string, default: ""
     field :confirmed_at, :naive_datetime
+    field :last_sign_in_at, :naive_datetime
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
 
     has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)

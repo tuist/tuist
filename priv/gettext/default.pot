@@ -1684,7 +1684,7 @@ msgstr ""
 msgid "Password reset successfully."
 msgstr ""
 
-#: lib/tuist/accounts/user.ex:87
+#: lib/tuist/accounts/user.ex:88
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr ""
