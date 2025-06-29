@@ -67,7 +67,7 @@ public struct JWT: Equatable {
         return "\(unsignedToken)."
     }
 
-    static func parse(_ jwt: String) throws -> JWT {
+    public static func parse(_ jwt: String) throws -> JWT {
         let components = jwt.components(separatedBy: ".")
         guard components.count == 3
         else {

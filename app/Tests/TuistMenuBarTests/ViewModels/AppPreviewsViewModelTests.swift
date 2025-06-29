@@ -1,7 +1,8 @@
 import Foundation
 import Mockable
 import Testing
-import class TuistMenuBar.MockServerURLServicing
+import TuistAppStorage
+import TuistAuthentication
 import TuistServer
 import TuistTesting
 
@@ -9,26 +10,24 @@ import TuistTesting
 
 @Suite struct AppPreviewsViewModelTests {
     private let subject: AppPreviewsViewModel
-    private let appCredentialsService: MockAppCredentialsServicing
     private let deviceService: MockDeviceServicing
     private let appStorage: MockAppStoring
     private let listPreviewsService: MockListPreviewsServicing
     private let listProjectsService: MockListProjectsServicing
-    private let serverURLService: MockServerURLServicing
+    private let serverEnvironmentService: MockServerEnvironmentServicing
 
     init() {
-        appCredentialsService = MockAppCredentialsServicing()
+        appStorage = MockAppStoring()
         deviceService = MockDeviceServicing()
         listPreviewsService = MockListPreviewsServicing()
         listProjectsService = MockListProjectsServicing()
-        serverURLService = MockServerURLServicing()
-        appStorage = MockAppStoring()
+        serverEnvironmentService = MockServerEnvironmentServicing()
+
         subject = AppPreviewsViewModel(
-            appCredentialsService: appCredentialsService,
             deviceService: deviceService,
             listProjectsService: listProjectsService,
             listPreviewsService: listPreviewsService,
-            serverURLService: serverURLService,
+            serverEnvironmentService: serverEnvironmentService,
             appStorage: appStorage
         )
 
@@ -42,8 +41,8 @@ import TuistTesting
                 )
             )
 
-        given(serverURLService)
-            .serverURL()
+        given(serverEnvironmentService)
+            .url()
             .willReturn(.test())
     }
 
@@ -64,7 +63,7 @@ import TuistTesting
         #expect(subject.appPreviews == [.test()])
     }
 
-    @Test func on_appear_updates_app_previews_when_logged_in() async throws {
+    @Test func on_appear_updates_app_previews() async throws {
         // Given
         given(listProjectsService)
             .listProjects(serverURL: .any)
@@ -102,10 +101,6 @@ import TuistTesting
             .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
             .willReturn()
 
-        given(appCredentialsService)
-            .authenticationState
-            .willReturn(.loggedIn(accountHandle: "tuistrocks"))
-
         // When
         try await subject.onAppear()
 
@@ -124,26 +119,6 @@ import TuistTesting
         verify(appStorage)
             .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
             .called(1)
-    }
-
-    @Test func update_app_previews_is_skipped_when_logged_out() async throws {
-        // Given
-        given(appStorage)
-            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
-            .willReturn()
-
-        given(appCredentialsService)
-            .authenticationState
-            .willReturn(.loggedOut)
-
-        // When
-        try await subject.onAppear()
-
-        // Then
-        verify(listProjectsService)
-            .listProjects(serverURL: .any)
-            .called(0)
-        #expect(subject.appPreviews == [])
     }
 
     @Test func launch_preview_when_no_preview_found() async throws {

@@ -2,6 +2,8 @@ import ProjectDescription
 
 func tuistMenuBarDependencies() -> [TargetDependency] {
     [
+        .target(name: "TuistAuthentication"),
+        .target(name: "TuistAppStorage"),
         .external(name: "Path", condition: .when([.macos])),
         .project(target: "TuistSupport", path: "../", condition: .when([.macos])),
         .project(target: "TuistCore", path: "../", condition: .when([.macos])),
@@ -83,6 +85,7 @@ let project = Project(
             resources: ["Resources/TuistApp/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistAuthentication"),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
@@ -125,6 +128,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
+                .target(name: "TuistAuthentication"),
             ]
         ),
         .target(
@@ -134,6 +138,29 @@ let project = Project(
             bundleId: "io.tuist.error-handling",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
+        ),
+        .target(
+            name: "TuistAppStorage",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "io.tuist.app-storage",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            sources: ["Sources/TuistAppStorage/**"],
+            dependencies: [
+                .external(name: "Mockable"),
+            ]
+        ),
+        .target(
+            name: "TuistAuthentication",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "io.tuist.authentication",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "14.0.0"),
+            sources: ["Sources/TuistAuthentication/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+                .target(name: "TuistAppStorage"),
+            ]
         ),
         .target(
             name: "TuistMenuBar",

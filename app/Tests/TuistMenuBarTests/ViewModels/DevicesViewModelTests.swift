@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistAppStorage
 import TuistAutomation
 import TuistCore
 import TuistTesting

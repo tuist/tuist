@@ -21,6 +21,7 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
+            backend: .fileSystem,
             fileSystem: fileSystem,
             configDirectory: temporaryDirectory
         )
@@ -42,6 +43,7 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
+            backend: .fileSystem,
             fileSystem: fileSystem,
             configDirectory: temporaryDirectory
         )

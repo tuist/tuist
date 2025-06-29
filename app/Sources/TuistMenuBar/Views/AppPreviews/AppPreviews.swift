@@ -4,7 +4,6 @@ struct AppPreviews: View {
     private let columns = Array(repeating: GridItem(.fixed(44), spacing: 14), count: 5)
     @State var viewModel: AppPreviewsViewModel
     @EnvironmentObject var errorHandling: ErrorHandling
-    @EnvironmentObject var appCredentialsService: AppCredentialsService
 
     init(
         viewModel: AppPreviewsViewModel
@@ -39,11 +38,6 @@ struct AppPreviews: View {
         .onAppear {
             viewModel.loadAppPreviewsFromCache()
             errorHandling.fireAndHandleError(viewModel.onAppear)
-        }
-        .onChange(
-            of: appCredentialsService.authenticationState
-        ) {
-            errorHandling.fireAndHandleError(viewModel.onAuthenticationStateChanged)
         }
     }
 }

@@ -47,28 +47,11 @@ public enum AuthenticationToken: CustomStringConvertible, Equatable {
 }
 
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
-    private let credentialsStore: ServerCredentialsStoring
-    private let cachedValueStore: CachedValueStoring
     private let refreshAuthTokenService: RefreshAuthTokenServicing
 
     public init(
-        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
         refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService()
     ) {
-        self.init(
-            credentialsStore: ServerCredentialsStore(),
-            cachedValueStore: CachedValueStore.shared,
-            refreshAuthTokenService: RefreshAuthTokenService()
-        )
-    }
-
-    init(
-        credentialsStore: ServerCredentialsStoring,
-        cachedValueStore: CachedValueStoring,
-        refreshAuthTokenService: RefreshAuthTokenServicing
-    ) {
-        self.credentialsStore = credentialsStore
-        self.cachedValueStore = cachedValueStore
         self.refreshAuthTokenService = refreshAuthTokenService
     }
 
@@ -103,7 +86,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         -> AuthenticationToken?
     {
         return
-            try await cachedValueStore
+            try await CachedValueStore.current
                 .getValue(key: "token_\(serverURL.absoluteString)") {
                     () -> (value: AuthenticationToken, expiresAt: Date?)? in
                     guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
@@ -161,7 +144,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                                 expiresAt = accessToken.expiryDate
                             }
                         } else {
-                            try await credentialsStore.delete(serverURL: serverURL)
+                            try await ServerCredentialsStore.current.delete(serverURL: serverURL)
                             throw ServerClientAuthenticationError.notAuthenticated
                         }
                     }
@@ -170,7 +153,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
-        let credentials: ServerCredentials? = try await credentialsStore.read(
+        let credentials: ServerCredentials? = try await ServerCredentialsStore.current.read(
             serverURL: serverURL
         )
         return try credentials.map {
@@ -237,7 +220,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         refreshToken: refreshToken.token
                     )
                 }
-            try await credentialsStore
+            try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(
                         token: nil,

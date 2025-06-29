@@ -2,14 +2,15 @@ import Combine
 import Foundation
 import Sparkle
 import SwiftUI
+import TuistAuthentication
 
 public struct MenuBarView: View {
     @State var isExpanded = false
     @State var canCheckForUpdates = false
     private let errorHandling: ErrorHandling
     private let deviceService: DeviceService
-    @EnvironmentObject
-    private var appCredentialsService: AppCredentialsService
+    @StateObject
+    private var authenticationService = AuthenticationService()
     @State var viewModel: MenuBarViewModel
     private var cancellables = Set<AnyCancellable>()
     private let taskStatusReporter: TaskStatusReporter
@@ -66,66 +67,64 @@ public struct MenuBarView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MenuHeader(
-                accountHandle: appCredentialsService.accountHandle
-            )
-
-            AppPreviews(
-                viewModel: AppPreviewsViewModel(
-                    appCredentialsService: appCredentialsService,
-                    deviceService: deviceService
+            switch authenticationService.authenticationState {
+            case let .loggedIn(accountHandle):
+                MenuHeader(
+                    accountHandle: accountHandle
                 )
-            )
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
-            .padding(.bottom, 12)
 
-            DevicesView(
-                viewModel: DevicesViewModel(deviceService: deviceService)
-            )
+                AppPreviews(
+                    viewModel: AppPreviewsViewModel(
+                        deviceService: deviceService
+                    )
+                )
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+
+                DevicesView(
+                    viewModel: DevicesViewModel(deviceService: deviceService)
+                )
+            case .loggedOut:
+                MenuBarLoginView()
+            }
 
             Divider()
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
 
             Group {
-                switch appCredentialsService.authenticationState {
-                case .loggedIn:
+                if authenticationService.authenticationState != .loggedOut {
                     Button("Log out") {
-                        errorHandling.fireAndHandleError(appCredentialsService.logout)
+                        errorHandling.fireAndHandleError {
+                            await authenticationService.signOut()
+                        }
                     }
-                case .loggedOut:
-                    Button("Log in") {
-                        errorHandling.fireAndHandleError(appCredentialsService.login)
-                    }
+                    .padding(.vertical, 2)
+                    .menuItemStyle()
+                    .padding(.horizontal, 8)
                 }
-            }
-            .padding(.vertical, 2)
-            .menuItemStyle()
-            .padding(.horizontal, 8)
 
-            Button("Check for updates", action: {
-                updater.checkForUpdates()
-            })
-            .disabled(!viewModel.canCheckForUpdates)
-            .padding(.vertical, 2)
-            .menuItemStyle()
-            .padding(.horizontal, 8)
+                Button("Check for updates", action: {
+                    updater.checkForUpdates()
+                })
+                .disabled(!viewModel.canCheckForUpdates)
+                .padding(.vertical, 2)
+                .menuItemStyle()
+                .padding(.horizontal, 8)
 
-            Button("Quit Tuist") {
-                NSApplication.shared.terminate(nil)
+                Button("Quit Tuist") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .padding(.vertical, 2)
+                .menuItemStyle()
+                .padding(.horizontal, 8)
             }
-            .padding(.vertical, 2)
-            .menuItemStyle()
-            .padding(.horizontal, 8)
         }
         .padding(.vertical, 8)
         .environmentObject(errorHandling)
         .environmentObject(deviceService)
         .environmentObject(taskStatusReporter)
-        .onAppear {
-            appCredentialsService.loadCredentials()
-            errorHandling.fireAndHandleError(appCredentialsService.updateAuthenticationState)
-        }
+        .environmentObject(authenticationService)
     }
 }
