@@ -30,6 +30,7 @@ defmodule Tuist.CommandEvents.Event do
   }
 
   schema "command_events" do
+    field :uuid, :binary_id
     field :name, :string
     field :duration, :integer
     field :subcommand, :string
