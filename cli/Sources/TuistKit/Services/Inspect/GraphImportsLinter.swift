@@ -103,16 +103,36 @@ final class GraphImportsLinter: GraphImportsLinting {
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
             }
             .filter { dependency in
-                !(target.target.product == .uiTests && dependency.target.product == .app)
-            }
-            .filter { dependency in
-                // App targets depending on extensions are not redundant imports
-                guard target.target.product == .app || target.target.product == .watch2App else { return true }
-                switch dependency.target.product {
-                case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
-                    return false
-                case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                     .commandLineTool, .watch2Extension, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro:
+                switch target.target.product {
+                case .app:
+                    switch dependency.target.product {
+                    case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
+                        return false
+                    case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                         .commandLineTool, .watch2Extension, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro:
+                        return true
+                    }
+                case .watch2App:
+                    switch dependency.target.product {
+                    case .watch2Extension:
+                        return false
+                    case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                         .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                         .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
+                        return true
+                    }
+                case .uiTests:
+                    switch dependency.target.product {
+                    case .app:
+                        return false
+                    case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
+                            .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                            .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
+                        return true
+                    }
+                case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .bundle,
+                     .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
+                     .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2Extension:
                     return true
                 }
             }
