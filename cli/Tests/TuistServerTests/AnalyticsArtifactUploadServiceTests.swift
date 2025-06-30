@@ -65,6 +65,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         try FileHandler.shared.touch(resultBundle)
 
         let serverURL: URL = .test()
+        let commandEventID = UUID()
 
         let fileArchiver = MockFileArchiving()
         given(fileArchiverFactory)
@@ -80,7 +81,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .resultBundle)),
-                commandEventId: .value(1),
+                commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
             .willReturn("upload-id")
@@ -100,7 +101,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadCompleteAnalyticsService)
             .uploadAnalyticsArtifact(
                 .any,
-                commandEventId: .value(1),
+                commandEventId: .value(commandEventID),
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.map(\.etag) == ["etag"] && parts.map(\.partNumber) == [1]
@@ -112,7 +113,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .invocationRecord)),
-                commandEventId: .value(1),
+                commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
             .willReturn("upload-id")
@@ -139,7 +140,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
                 .value(.init(type: .resultBundleObject, name: testResultBundleObjectId)),
-                commandEventId: .value(1),
+                commandEventId: .value(commandEventID),
                 serverURL: .value(serverURL)
             )
             .willReturn("upload-id")
@@ -166,7 +167,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
                         type: .resultBundle
                     )
                 ),
-                commandEventId: .value(1),
+                commandEventId: .value(commandEventID),
                 partNumber: .value(1),
                 uploadId: .value("upload-id"),
                 serverURL: .value(serverURL),
@@ -177,7 +178,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // When / Then
         try await subject.uploadResultBundle(
             resultBundle,
-            commandEventId: 1,
+            commandEventId: commandEventID,
             serverURL: serverURL
         )
 

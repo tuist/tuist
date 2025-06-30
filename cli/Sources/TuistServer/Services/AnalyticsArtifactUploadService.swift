@@ -10,7 +10,7 @@
     public protocol AnalyticsArtifactUploadServicing {
         func uploadResultBundle(
             _ resultBundle: AbsolutePath,
-            commandEventId: Int,
+            commandEventId: UUID,
             serverURL: URL
         ) async throws
     }
@@ -67,7 +67,7 @@
 
         public func uploadResultBundle(
             _ resultBundle: AbsolutePath,
-            commandEventId: Int,
+            commandEventId: UUID,
             serverURL: URL
         ) async throws {
             try await uploadAnalyticsArtifact(
@@ -132,7 +132,7 @@
             _ artifact: ServerCommandEvent.Artifact,
             artifactPath: AbsolutePath,
             name: String? = nil,
-            commandEventId: Int,
+            commandEventId: UUID,
             serverURL: URL
         ) async throws {
             let passedArtifactPath = artifactPath

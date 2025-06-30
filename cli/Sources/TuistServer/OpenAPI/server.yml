@@ -234,25 +234,44 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
       x-validate:
     CommandEvent:
-      description: The schema for the command analytics event.
+      description: A command event
+      example:
+        id: 964
+        name: build
+        project_id: 123
+        url: https://tuist.io/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
+        uuid: 123e4567-e89b-12d3-a456-426614174000
       properties:
         id:
-          description: ID of the command event
-          type: number
+          deprecated: true
+          description: The integer identifier of the command event (for backward compatibility)
+          type: integer
           x-struct:
           x-validate:
         name:
-          description: Name of the command
+          description: The name of the command
           type: string
           x-struct:
           x-validate:
+        project_id:
+          description: The project identifier
+          type: integer
+          x-struct:
+          x-validate:
         url:
-          description: URL to the command event
+          description: The URL to the command event
+          type: string
+          x-struct:
+          x-validate:
+        uuid:
+          description: The unique identifier of the command event
           type: string
           x-struct:
           x-validate:
       required:
         - id
+        - uuid
+        - project_id
         - name
         - url
       title: CommandEvent
@@ -1898,7 +1917,7 @@ components:
           scopes:
             read: Read access to resources
             write: Write access to resources
-          tokenUrl: /oauth/token
+          tokenUrl: /oauth2/token
       type: oauth2
 info:
   title: Tuist
@@ -2784,12 +2803,12 @@ paths:
       description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
       operationId: startAnalyticsArtifactMultipartUpload
       parameters:
-        - description: The id of the command event.
+        - description: The id of the command event (integer or UUID).
           in: path
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -3788,7 +3807,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -4200,7 +4219,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -5518,7 +5537,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:

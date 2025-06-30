@@ -51,7 +51,7 @@ struct TuistAnalyticsServerBackendTests {
                 )
                 .willReturn(
                     .test(
-                        id: 10,
+                        id: UUID(),
                         url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                     )
                 )
@@ -74,7 +74,7 @@ struct TuistAnalyticsServerBackendTests {
             mockEnvironment.variables = ["CI": "1"]
 
             let event = CommandEvent.test()
-            let serverCommandEvent: ServerCommandEvent = .test(id: 10)
+            let serverCommandEvent: ServerCommandEvent = .test(id: UUID())
             given(createCommandEventService)
                 .createCommandEvent(
                     commandEvent: .value(event),
@@ -98,7 +98,8 @@ struct TuistAnalyticsServerBackendTests {
             let mockEnvironment = try #require(Environment.mocked)
             mockEnvironment.variables = ["CI": "1"]
             let event = CommandEvent.test()
-            let serverCommandEvent: ServerCommandEvent = .test(id: 11)
+            let eventID = UUID()
+            let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
             given(createCommandEventService)
                 .createCommandEvent(
                     commandEvent: .value(event),
@@ -120,7 +121,7 @@ struct TuistAnalyticsServerBackendTests {
             given(analyticsArtifactUploadService)
                 .uploadResultBundle(
                     .value(resultBundle),
-                    commandEventId: .value(11),
+                    commandEventId: .value(eventID),
                     serverURL: .value(Constants.URLs.production)
                 )
                 .willReturn(())
