@@ -318,7 +318,7 @@ defmodule Tuist.MauticTest do
       result = Mautic.create_contacts(contacts)
 
       # Then
-      assert result == {:ok, %{"contacts" => [%{id: 1}, %{id: 2}]}}
+      assert result == :ok
     end
   end
 

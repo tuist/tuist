@@ -117,25 +117,44 @@ defmodule Tuist.Mautic do
   end
 
   def remove_contacts(contact_ids) do
-    case Req.delete!("#{@base_url}/contacts/batch/delete",
-           headers: %{"content-type" => ["application/json"]},
-           json: contact_ids,
-           auth: auth(),
-           retry: retry()
-         ) do
-      %{status: status} when status in 200..299 -> :ok
-    end
+    contact_ids
+    |> Enum.chunk_every(200)
+    |> Enum.reduce_while(:ok, fn batch, _acc ->
+      batch
+      |> remove_contacts_batch()
+      |> case do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp remove_contacts_batch(batch) do
+    %{status: status} =
+      Req.delete!(
+        "#{@base_url}/contacts/batch/delete",
+        headers: %{"content-type" => ["application/json"]},
+        json: batch,
+        auth: auth(),
+        retry: retry()
+      )
+
+    if status in 200..299, do: :ok, else: {:error, %{status: status}}
   end
 
   def create_contacts(contacts) do
-    case Req.post!("#{@base_url}/contacts/batch/new",
-           headers: %{"content-type" => ["application/json"]},
-           json: contacts,
-           auth: auth(),
-           retry: retry()
-         ) do
-      %{status: status, body: body} when status in 200..299 -> {:ok, body}
-    end
+    contacts
+    |> Enum.chunk_every(200)
+    |> Enum.each(fn batch ->
+      case Req.post!("#{@base_url}/contacts/batch/new",
+             headers: %{"content-type" => ["application/json"]},
+             json: batch,
+             auth: auth(),
+             retry: retry()
+           ) do
+        %{status: status} when status in 200..299 -> :ok
+      end
+    end)
   end
 
   defp paginated(url, parser, opts \\ []) do
