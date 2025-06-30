@@ -65,6 +65,7 @@ defmodule Tuist.MixProject do
       {:ex_aws_s3, "~> 2.5.5"},
       {:number, "~> 1.0"},
       {:mimic, "~> 1.12.0", only: :test},
+      {:ymlr, "~> 2.0"},
       {:open_api_spex, "~> 3.18"},
       {:oban, "~> 2.19"},
       {:oban_web, "~> 2.11"},
@@ -80,9 +81,7 @@ defmodule Tuist.MixProject do
       {:sweet_xml, "~> 0.7.4"},
       {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.26.0"},
-      # TODO: Use official release once > 3.7.11 is released.
-      {:timex,
-       git: "https://github.com/bitwalker/timex.git", ref: "5ad1b8206977ebffb3bf72f88c18d490c36151c8", override: true},
+      {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
