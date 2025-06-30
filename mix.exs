@@ -106,7 +106,7 @@ defmodule Tuist.MixProject do
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
-      {:image, "~> 0.59.0"},
+      {:image, "~> 0.60.0"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
