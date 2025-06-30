@@ -111,7 +111,7 @@ let project = Project(
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
-                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist Ad hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad hoc",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )
