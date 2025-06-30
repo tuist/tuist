@@ -281,6 +281,14 @@ defmodule Tuist.Environment do
     end
   end
 
+  def mautic_username(secrets \\ secrets()) do
+    get([:mautic, :username], secrets)
+  end
+
+  def mautic_password(secrets \\ secrets()) do
+    get([:mautic, :password], secrets)
+  end
+
   def github_token_update_packages(secrets \\ secrets()) do
     get([:github, :token, :update_packages], secrets)
   end

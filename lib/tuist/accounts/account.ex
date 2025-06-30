@@ -6,6 +6,7 @@ defmodule Tuist.Accounts.Account do
 
   import Ecto.Changeset
 
+  alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
 
   @derive {
@@ -23,6 +24,7 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
 
     has_many(:projects, Project, on_delete: :delete_all)
+    has_many(:subscriptions, Subscription, on_delete: :delete_all)
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)

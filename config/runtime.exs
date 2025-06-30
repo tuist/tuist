@@ -284,7 +284,8 @@ config :tuist, Oban,
            {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
            {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker},
            {"@daily", Tuist.Billing.UpdateAllCustomersRemoteCacheHitsCountWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+           {"@daily", Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker}
          ],
          else: []
        )}
