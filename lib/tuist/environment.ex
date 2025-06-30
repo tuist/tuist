@@ -309,12 +309,12 @@ defmodule Tuist.Environment do
     get([:github, :app_private_key], secrets)
   end
 
-  def github_auth_configured?(secrets \\ secrets()) do
+  def github_oauth_configured?(secrets \\ secrets()) do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
   end
 
   def github_app_configured?(secrets \\ secrets()) do
-    github_auth_configured?(secrets) and github_app_private_key(secrets) != nil
+    github_oauth_configured?(secrets) and github_app_private_key(secrets) != nil
   end
 
   def google_oauth_client_id(secrets \\ secrets()) do
@@ -353,9 +353,34 @@ defmodule Tuist.Environment do
     get([:okta, :user_info_url], secrets)
   end
 
-  def okta_configured?(secrets \\ secrets()) do
+  def okta_oauth_configured?(secrets \\ secrets()) do
     okta_site(secrets) != nil and okta_client_id(secrets) != nil and
       okta_client_secret(secrets) != nil
+  end
+
+  def apple_service_client_id(secrets \\ secrets()) do
+    get([:apple, :service_client_id], secrets)
+  end
+
+  def apple_app_client_id(secrets \\ secrets()) do
+    get([:apple, :app_client_id], secrets)
+  end
+
+  def apple_team_id(secrets \\ secrets()) do
+    get([:apple, :team_id], secrets)
+  end
+
+  def apple_private_key_id(secrets \\ secrets()) do
+    get([:apple, :private_key_id], secrets)
+  end
+
+  def apple_private_key(secrets \\ secrets()) do
+    get([:apple, :private_key], secrets)
+  end
+
+  def apple_oauth_configured?(secrets \\ secrets()) do
+    apple_service_client_id(secrets) != nil and apple_team_id(secrets) != nil and
+      apple_private_key_id(secrets) != nil and apple_private_key(secrets) != nil
   end
 
   def mailgun_api_key(secrets \\ secrets()) do

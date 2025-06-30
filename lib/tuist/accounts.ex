@@ -362,6 +362,9 @@ defmodule Tuist.Accounts do
         :github ->
           nil
 
+        :apple ->
+          nil
+
         :okta ->
           auth.extra.raw_info.token.other_params["id_token"]
           |> JOSE.JWT.peek_payload()

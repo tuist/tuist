@@ -86,6 +86,7 @@ defmodule Tuist do
       Time,
       Utilities.DateFormatter,
       VCS,
-      UUIDv7
+      UUIDv7,
+      OAuth.Apple
     ]
 end

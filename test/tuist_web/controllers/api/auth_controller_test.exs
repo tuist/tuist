@@ -321,4 +321,43 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert second_response == %{"message" => "You've exceeded the rate limit. Try again later."}
     end
   end
+
+  describe "POST /api/auth/apple" do
+    test "returns access and refresh tokens when Apple authentication succeeds", %{conn: conn} do
+      # Given
+      identity_token = "identity-token"
+      authorization_code = "authorization-code"
+      email = "my-apple@example.com"
+      user = AccountsFixtures.user_fixture(email: email)
+
+      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
+        {:ok, user}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/apple", %{
+          identity_token: identity_token,
+          authorization_code: authorization_code
+        })
+
+      # Then
+      response = json_response(conn, :ok)
+
+      {:ok, _access_token_claims} =
+        Tuist.Authentication.decode_and_verify(response["access_token"], %{
+          "typ" => "access"
+        })
+
+      {:ok, _refresh_token_claims} =
+        Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
+          "typ" => "refresh"
+        })
+
+      fetched_user = Tuist.Accounts.get_user_by_email(email)
+      assert fetched_user.email == email
+    end
+  end
 end

@@ -75,6 +75,7 @@ defmodule Tuist.MixProject do
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
       {:ueberauth_okta, "~> 1.0"},
+      {:ueberauth_apple, "~> 0.6"},
       {:req, "~> 0.5.6"},
       {:req_telemetry, "~> 0.1.1"},
       {:telemetry_test, "~> 0.1.2"},

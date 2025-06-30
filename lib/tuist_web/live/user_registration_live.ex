@@ -63,9 +63,17 @@ defmodule TuistWeb.UserRegistrationLive do
               <h1 data-part="title">{gettext("Sign up for Tuist")}</h1>
               <span data-part="subtitle">{gettext("Welcome! Create an account to continue")}</span>
             </div>
-            <div :if={oauth_configured?()} data-part="oauth">
+            <div
+              :if={oauth_configured?()}
+              data-part="oauth"
+              data-compact={
+                @github_configured? and @apple_configured? and
+                  @google_configured? and
+                  @okta_configured?
+              }
+            >
               <.button
-                :if={@github_auth_configured}
+                :if={@github_configured?}
                 href={~p"/users/auth/github"}
                 variant="secondary"
                 size="medium"
@@ -76,7 +84,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 </:icon_left>
               </.button>
               <.button
-                :if={@google_configured}
+                :if={@google_configured?}
                 href={~p"/users/auth/google"}
                 variant="secondary"
                 size="medium"
@@ -87,7 +95,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 </:icon_left>
               </.button>
               <.button
-                :if={@okta_configured}
+                :if={@okta_configured?}
                 href={~p"/users/auth/okta"}
                 variant="secondary"
                 size="medium"
@@ -95,6 +103,17 @@ defmodule TuistWeb.UserRegistrationLive do
               >
                 <:icon_left>
                   <.brand_okta />
+                </:icon_left>
+              </.button>
+              <.button
+                :if={@apple_configured?}
+                href={~p"/users/auth/apple"}
+                variant="secondary"
+                size="medium"
+                label="Apple"
+              >
+                <:icon_left>
+                  <.brand_apple />
                 </:icon_left>
               </.button>
             </div>
@@ -198,24 +217,28 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   defp oauth_configured? do
-    Environment.github_auth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_configured?()
+    Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
+      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
   end
 
   def mount(_params, _session, socket) do
     form =
       to_form(%{}, as: "user")
 
-    {
-      :ok,
+    socket =
       socket
       |> assign(:head_title, "#{gettext("Sign up")} · Tuist")
       |> assign(:form, form)
       |> assign(:success, false)
       |> assign(:errors, %{})
-      |> assign(:github_auth_configured, Environment.github_auth_configured?())
-      |> assign(:google_configured, Environment.google_oauth_configured?())
-      |> assign(:okta_configured, Environment.okta_configured?()),
+      |> assign(:github_configured?, Environment.github_oauth_configured?())
+      |> assign(:google_configured?, Environment.google_oauth_configured?())
+      |> assign(:okta_configured?, Environment.okta_oauth_configured?())
+      |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+
+    {
+      :ok,
+      socket,
       temporary_assigns: [form: nil]
     }
   end

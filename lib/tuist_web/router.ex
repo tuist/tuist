@@ -48,6 +48,20 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
   end
 
+  # Some endpoints must be accessible without the :protect_from_forgery plug.
+  # For example, the POST request Apple makes as part of OAuth 2.0 is not compatible with the CSRF protection.
+  pipeline :unprotected_browser_app do
+    plug :accepts, ["html"]
+    plug :disable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Layouts, :app}
+    plug :put_secure_browser_headers
+    plug Ueberauth
+    plug :fetch_current_user
+    plug :content_security_policy
+  end
+
   pipeline :browser_marketing do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
@@ -327,6 +341,7 @@ defmodule TuistWeb.Router do
     post "/auth/refresh_token", AuthController, :refresh_token
 
     post "/auth", AuthController, :authenticate
+    post "/auth/apple", AuthController, :authenticate_apple
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -433,6 +448,11 @@ defmodule TuistWeb.Router do
     pipe_through :browser_app
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
+  end
+
+  scope "/users/auth", TuistWeb do
+    pipe_through :unprotected_browser_app
+    post "/:provider/callback", AuthController, :callback
   end
 
   scope "/auth", TuistWeb do

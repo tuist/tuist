@@ -241,6 +241,10 @@ if Tuist.Environment.stripe_configured?(secrets) do
     signing_secret: Tuist.Environment.stripe_endpoint_secret(secrets)
 end
 
+config :ueberauth, Ueberauth.Strategy.Apple.OAuth,
+  client_id: Tuist.Environment.apple_service_client_id(secrets),
+  client_secret: {Tuist.OAuth.Apple, :client_secret}
+
 # Omniauth
 config :ueberauth, Ueberauth.Strategy.Github.OAuth,
   client_id: Tuist.Environment.github_app_client_id(secrets),

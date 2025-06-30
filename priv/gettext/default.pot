@@ -212,7 +212,7 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:238
+#: lib/tuist_web/live/user_registration_live.ex:261
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr ""
@@ -261,7 +261,7 @@ msgstr ""
 msgid "All systems are normal"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:156
+#: lib/tuist_web/live/user_registration_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Already have an account?"
 msgstr ""
@@ -550,7 +550,7 @@ msgstr ""
 msgid "Check your email"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:184
+#: lib/tuist_web/live/user_registration_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
@@ -633,7 +633,7 @@ msgstr ""
 msgid "Confirm password"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:182
+#: lib/tuist_web/live/user_registration_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
 msgstr ""
@@ -871,7 +871,7 @@ msgstr ""
 msgid "Don't have the Tuist app installed?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:138
+#: lib/tuist_web/live/user_login_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "Don’t have an account?"
 msgstr ""
@@ -929,13 +929,13 @@ msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:178
 #: lib/tuist_web/live/user_forgot_password_live.ex:47
-#: lib/tuist_web/live/user_login_live.ex:103
-#: lib/tuist_web/live/user_registration_live.ex:114
+#: lib/tuist_web/live/user_login_live.ex:125
+#: lib/tuist_web/live/user_registration_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:241
+#: lib/tuist_web/live/user_registration_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr ""
@@ -1061,7 +1061,7 @@ msgstr ""
 msgid "Features"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:131
+#: lib/tuist_web/live/user_login_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
@@ -1321,7 +1321,7 @@ msgstr ""
 msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:125
+#: lib/tuist_web/live/user_login_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
@@ -1381,15 +1381,15 @@ msgstr ""
 msgid "Local targets and dependencies"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:16
-#: lib/tuist_web/live/user_login_live.ex:134
-#: lib/tuist_web/live/user_registration_live.ex:161
+#: lib/tuist_web/live/user_login_live.ex:15
+#: lib/tuist_web/live/user_login_live.ex:156
+#: lib/tuist_web/live/user_registration_live.ex:180
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:37
+#: lib/tuist_web/live/user_login_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
@@ -1673,8 +1673,8 @@ msgstr ""
 msgid "Passed runs"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:113
-#: lib/tuist_web/live/user_registration_live.ex:135
+#: lib/tuist_web/live/user_login_live.ex:135
+#: lib/tuist_web/live/user_registration_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr ""
@@ -2110,9 +2110,9 @@ msgstr ""
 msgid "Shortcuts to latest previews"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:143
-#: lib/tuist_web/live/user_registration_live.ex:152
-#: lib/tuist_web/live/user_registration_live.ex:212
+#: lib/tuist_web/live/user_login_live.ex:165
+#: lib/tuist_web/live/user_registration_live.ex:171
+#: lib/tuist_web/live/user_registration_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -2552,9 +2552,9 @@ msgstr ""
 #: lib/tuist_web/live/device_codes_success_live.ex:24
 #: lib/tuist_web/live/user_confirmation_live.ex:14
 #: lib/tuist_web/live/user_forgot_password_live.ex:19
-#: lib/tuist_web/live/user_login_live.ex:31
+#: lib/tuist_web/live/user_login_live.ex:35
 #: lib/tuist_web/live/user_registration_live.ex:57
-#: lib/tuist_web/live/user_registration_live.ex:176
+#: lib/tuist_web/live/user_registration_live.ex:195
 #: lib/tuist_web/live/user_reset_password_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
@@ -2769,12 +2769,12 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:172
 #: lib/tuist_web/live/account_settings_live.html.heex:239
-#: lib/tuist_web/live/user_registration_live.ex:144
+#: lib/tuist_web/live/user_registration_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:147
+#: lib/tuist_web/live/user_registration_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
 msgstr ""
@@ -2885,7 +2885,7 @@ msgstr ""
 msgid "We'll send a password reset link to your inbox"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:38
+#: lib/tuist_web/live/user_login_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
 msgstr ""

@@ -116,6 +116,14 @@
     grid-auto-flow: column;
     gap: var(--noora-spacing-4);
     width: 100%;
+
+    &[data-compact] {
+      grid-auto-columns: minmax(76px, 1fr);
+    }
+
+    &[data-compact] span {
+      display: none;
+    }
   }
 
   & [data-part="form"] {

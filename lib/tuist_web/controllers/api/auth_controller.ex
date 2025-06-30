@@ -5,6 +5,7 @@ defmodule TuistWeb.API.AuthController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authentication
+  alias Tuist.OAuth.Apple
   alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
@@ -203,6 +204,38 @@ defmodule TuistWeb.API.AuthController do
     }
   )
 
+  operation(:authenticate_apple,
+    summary: "Authenticate with Apple identity token.",
+    description:
+      "This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.",
+    operation_id: "authenticateApple",
+    request_body:
+      {"Apple authentication params.", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           identity_token: %Schema{
+             type: :string,
+             description: "The Apple identity token."
+           },
+           authorization_code: %Schema{
+             type: :string,
+             description: "The Apple authorization code."
+           }
+         },
+         required: [:identity_token, :authorization_code]
+       }},
+    responses: %{
+      ok: {
+        "Successfully authenticated and returned new API tokens.",
+        "application/json",
+        AuthenticationTokens
+      },
+      unauthorized: {"Invalid Apple identity token or authorization code.", "application/json", Error},
+      bad_request: {"Invalid request parameters.", "application/json", Error}
+    }
+  )
+
   def authenticate(conn, params) do
     case TuistWeb.RateLimit.Auth.hit(conn) do
       {:allow, _count} ->
@@ -250,6 +283,37 @@ defmodule TuistWeb.API.AuthController do
           access_token: access_token,
           refresh_token: refresh_token
         })
+    end
+  end
+
+  def authenticate_apple(
+        %{body_params: %{identity_token: identity_token, authorization_code: authorization_code}} = conn,
+        _params
+      ) do
+    with {:ok, user} <-
+           Apple.verify_apple_identity_token_and_create_user(identity_token, authorization_code),
+         {:ok, access_token, _} <-
+           Authentication.encode_and_sign(
+             user,
+             %{email: user.email, preferred_username: user.account.name},
+             token_type: :access,
+             ttl: @access_token_ttl
+           ),
+         {:ok, refresh_token, _} <-
+           Authentication.encode_and_sign(
+             user,
+             %{email: user.email, preferred_username: user.account.name},
+             token_type: :refresh,
+             ttl: @refresh_token_ttl
+           ) do
+      conn
+      |> put_status(:ok)
+      |> json(%{access_token: access_token, refresh_token: refresh_token})
+    else
+      {:error, reason} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Apple authentication failed: #{reason}"})
     end
   end
 end
