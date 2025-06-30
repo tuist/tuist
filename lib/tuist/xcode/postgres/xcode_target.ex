@@ -5,6 +5,17 @@ defmodule Tuist.Xcode.Postgres.XcodeTarget do
   use Ecto.Schema
 
   @primary_key {:id, UUIDv7, autogenerate: true}
+
+  @derive {
+    Flop.Schema,
+    filterable: [:name],
+    sortable: [:name, :binary_cache_hit, :selective_testing_hit],
+    default_order: %{
+      order_by: [:name],
+      order_directions: [:asc]
+    }
+  }
+
   schema "xcode_targets" do
     field :name, :string
     field :binary_cache_hash, :string

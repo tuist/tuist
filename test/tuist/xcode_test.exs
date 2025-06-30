@@ -304,16 +304,19 @@ defmodule Tuist.XcodeTest do
         })
 
       # When
-      analytics = Clickhouse.selective_testing_analytics(command_event)
+      {analytics, _meta} = Clickhouse.selective_testing_analytics(command_event)
 
       # Then
-      assert analytics.selective_testing_local_hits_count == 1
-      assert analytics.selective_testing_remote_hits_count == 1
-      assert analytics.selective_testing_misses_count == 1
       assert length(analytics.test_modules) == 3
 
       target_names = analytics.test_modules |> Enum.map(& &1.name) |> Enum.sort()
       assert target_names == ["TestTarget1", "TestTarget2", "TestTarget3"]
+
+      # Verify hit types
+      hits_by_name = Map.new(analytics.test_modules, &{&1.name, &1.selective_testing_hit})
+      assert hits_by_name["TestTarget1"] == :local
+      assert hits_by_name["TestTarget2"] == :remote
+      assert hits_by_name["TestTarget3"] == :miss
     end
 
     test "binary_cache_analytics/1 returns analytics from ClickHouse data" do
@@ -353,16 +356,20 @@ defmodule Tuist.XcodeTest do
         })
 
       # When
-      analytics = Clickhouse.binary_cache_analytics(command_event)
+      {analytics, _meta} = Clickhouse.binary_cache_analytics(command_event)
 
       # Then
-      assert analytics.binary_cache_local_hits_count == 2
-      assert analytics.binary_cache_remote_hits_count == 1
-      assert analytics.binary_cache_misses_count == 1
       assert length(analytics.cacheable_targets) == 4
 
       target_names = analytics.cacheable_targets |> Enum.map(& &1.name) |> Enum.sort()
       assert target_names == ["CacheTarget1", "CacheTarget2", "CacheTarget3", "CacheTarget4"]
+
+      # Verify hit types
+      hits_by_name = Map.new(analytics.cacheable_targets, &{&1.name, &1.binary_cache_hit})
+      assert hits_by_name["CacheTarget1"] == :local
+      assert hits_by_name["CacheTarget2"] == :remote
+      assert hits_by_name["CacheTarget3"] == :miss
+      assert hits_by_name["CacheTarget4"] == :local
     end
   end
 
@@ -524,16 +531,19 @@ defmodule Tuist.XcodeTest do
         })
 
       # When
-      analytics = Postgres.selective_testing_analytics(command_event)
+      {analytics, _meta} = Postgres.selective_testing_analytics(command_event)
 
       # Then
-      assert analytics.selective_testing_local_hits_count == 1
-      assert analytics.selective_testing_remote_hits_count == 1
-      assert analytics.selective_testing_misses_count == 1
       assert length(analytics.test_modules) == 3
 
       target_names = analytics.test_modules |> Enum.map(& &1.name) |> Enum.sort()
       assert target_names == ["TestTarget1", "TestTarget2", "TestTarget3"]
+
+      # Verify hit types
+      hits_by_name = Map.new(analytics.test_modules, &{&1.name, &1.selective_testing_hit})
+      assert hits_by_name["TestTarget1"] == :local
+      assert hits_by_name["TestTarget2"] == :remote
+      assert hits_by_name["TestTarget3"] == :miss
     end
 
     test "binary_cache_analytics/1 returns analytics from Postgres data" do
@@ -573,16 +583,716 @@ defmodule Tuist.XcodeTest do
         })
 
       # When
-      analytics = Postgres.binary_cache_analytics(command_event)
+      {analytics, _meta} = Postgres.binary_cache_analytics(command_event)
 
       # Then
-      assert analytics.binary_cache_local_hits_count == 2
-      assert analytics.binary_cache_remote_hits_count == 1
-      assert analytics.binary_cache_misses_count == 1
       assert length(analytics.cacheable_targets) == 4
 
       target_names = analytics.cacheable_targets |> Enum.map(& &1.name) |> Enum.sort()
       assert target_names == ["CacheTarget1", "CacheTarget2", "CacheTarget3", "CacheTarget4"]
+
+      # Verify hit types
+      hits_by_name = Map.new(analytics.cacheable_targets, &{&1.name, &1.binary_cache_hit})
+      assert hits_by_name["CacheTarget1"] == :local
+      assert hits_by_name["CacheTarget2"] == :remote
+      assert hits_by_name["CacheTarget3"] == :miss
+      assert hits_by_name["CacheTarget4"] == :local
+    end
+  end
+
+  describe "Tuist.Xcode paginated analytics" do
+    test "selective_testing_analytics/2 with pagination for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # Create 25 targets to test pagination
+      targets =
+        for i <- 1..25 do
+          %{
+            "name" => "TestTarget#{i}",
+            "selective_testing_metadata" => %{
+              "hash" => "hash-#{i}",
+              "hit" => Enum.random(["local", "remote", "miss"])
+            }
+          }
+        end
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => targets
+              }
+            ]
+          }
+        })
+
+      # When - First page
+      {result, meta} = Postgres.selective_testing_analytics(command_event, %{page_size: 10})
+
+      # Then
+      assert length(result.test_modules) == 10
+      assert meta.total_count == 25
+      assert meta.total_pages == 3
+      assert meta.current_page == 1
+      assert meta.has_next_page? == true
+      assert meta.has_previous_page? == false
+
+      # When - Second page
+      {result2, meta2} = Postgres.selective_testing_analytics(command_event, %{page: 2, page_size: 10})
+
+      # Then
+      assert length(result2.test_modules) == 10
+      assert meta2.current_page == 2
+      assert meta2.has_next_page? == true
+      assert meta2.has_previous_page? == true
+
+      # When - Last page
+      {result3, meta3} = Postgres.selective_testing_analytics(command_event, %{page: 3, page_size: 10})
+
+      # Then
+      assert length(result3.test_modules) == 5
+      assert meta3.current_page == 3
+      assert meta3.has_next_page? == false
+      assert meta3.has_previous_page? == true
+    end
+
+    test "selective_testing_analytics/2 with filtering for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "AppTarget",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "AppTests",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "FrameworkTarget",
+                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When - Filter by name
+      {result, meta} =
+        Postgres.selective_testing_analytics(command_event, %{
+          filters: [%{field: :name, op: :ilike_and, value: "App"}]
+        })
+
+      # Then
+      assert length(result.test_modules) == 2
+      assert meta.total_count == 2
+      target_names = result.test_modules |> Enum.map(& &1.name) |> Enum.sort()
+      assert target_names == ["AppTarget", "AppTests"]
+    end
+
+    test "selective_testing_analytics/2 with sorting for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "CTarget",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "ATarget",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "BTarget",
+                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When - Sort by name ascending
+      {result, _meta} =
+        Postgres.selective_testing_analytics(command_event, %{
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      # Then
+      target_names = Enum.map(result.test_modules, & &1.name)
+      assert target_names == ["ATarget", "BTarget", "CTarget"]
+
+      # When - Sort by hit type
+      {result2, _meta2} =
+        Postgres.selective_testing_analytics(command_event, %{
+          order_by: [:selective_testing_hit],
+          order_directions: [:asc]
+        })
+
+      # Then
+      hit_types = Enum.map(result2.test_modules, & &1.selective_testing_hit)
+      assert hit_types == [:miss, :local, :remote]
+    end
+
+    test "binary_cache_analytics/2 with pagination for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # Create 15 targets to test pagination
+      targets =
+        for i <- 1..15 do
+          %{
+            "name" => "CacheTarget#{i}",
+            "binary_cache_metadata" => %{
+              "hash" => "cache-hash-#{i}",
+              "hit" => Enum.random(["local", "remote", "miss"])
+            }
+          }
+        end
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "CacheGraph",
+            projects: [
+              %{
+                "name" => "CacheProject",
+                "path" => "CacheApp",
+                "targets" => targets
+              }
+            ]
+          }
+        })
+
+      # When - First page
+      {result, meta} = Postgres.binary_cache_analytics(command_event, %{page_size: 10})
+
+      # Then
+      assert length(result.cacheable_targets) == 10
+      assert meta.total_count == 15
+      assert meta.total_pages == 2
+      assert meta.current_page == 1
+
+      # When - Second page
+      {result2, meta2} = Postgres.binary_cache_analytics(command_event, %{page: 2, page_size: 10})
+
+      # Then
+      assert length(result2.cacheable_targets) == 5
+      assert meta2.current_page == 2
+    end
+
+    test "selective_testing_analytics/2 with pagination for ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # Create 25 targets to test pagination
+      targets =
+        for i <- 1..25 do
+          %{
+            "name" => "TestTarget#{i}",
+            "selective_testing_metadata" => %{
+              "hash" => "hash-#{i}",
+              "hit" => Enum.random(["local", "remote", "miss"])
+            }
+          }
+        end
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => targets
+              }
+            ]
+          }
+        })
+
+      # When - First page
+      {result, meta} = Clickhouse.selective_testing_analytics(command_event, %{page_size: 10})
+
+      # Then
+      assert length(result.test_modules) == 10
+      assert meta.total_count == 25
+      assert meta.total_pages == 3
+      assert meta.current_page == 1
+    end
+
+    test "binary_cache_analytics/2 with pagination for ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # Create 15 targets to test pagination
+      targets =
+        for i <- 1..15 do
+          %{
+            "name" => "CacheTarget#{i}",
+            "binary_cache_metadata" => %{
+              "hash" => "cache-hash-#{i}",
+              "hit" => Enum.random(["local", "remote", "miss"])
+            }
+          }
+        end
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "CacheGraph",
+            projects: [
+              %{
+                "name" => "CacheProject",
+                "path" => "CacheApp",
+                "targets" => targets
+              }
+            ]
+          }
+        })
+
+      # When - First page
+      {result, meta} = Clickhouse.binary_cache_analytics(command_event, %{page_size: 10})
+
+      # Then
+      assert length(result.cacheable_targets) == 10
+      assert meta.total_count == 15
+      assert meta.total_pages == 2
+    end
+
+    test "selective_testing_counts/1 returns aggregate counts for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget3",
+                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "TestTarget4",
+                    "selective_testing_metadata" => %{"hash" => "hash-4", "hit" => "miss"}
+                  },
+                  %{
+                    "name" => "TestTarget5",
+                    "binary_cache_metadata" => %{"hash" => "cache-5", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Postgres.selective_testing_counts(command_event)
+
+      # Then
+      assert counts.selective_testing_local_hits_count == 2
+      assert counts.selective_testing_remote_hits_count == 1
+      assert counts.selective_testing_misses_count == 1
+      assert counts.total_count == 4
+    end
+
+    test "binary_cache_counts/1 returns aggregate counts for Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "CacheGraph",
+            projects: [
+              %{
+                "name" => "CacheProject",
+                "path" => "CacheApp",
+                "targets" => [
+                  %{
+                    "name" => "CacheTarget1",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "CacheTarget2",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "CacheTarget3",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "CacheTarget4",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "CacheTarget5",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-5", "hit" => "miss"}
+                  },
+                  %{
+                    "name" => "TestTarget6",
+                    "selective_testing_metadata" => %{"hash" => "test-6", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Postgres.binary_cache_counts(command_event)
+
+      # Then
+      assert counts.binary_cache_local_hits_count == 3
+      assert counts.binary_cache_remote_hits_count == 1
+      assert counts.binary_cache_misses_count == 1
+      assert counts.total_count == 5
+    end
+
+    test "selective_testing_counts/1 returns aggregate counts for ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "TestTarget3",
+                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Clickhouse.selective_testing_counts(command_event)
+
+      # Then
+      assert counts.selective_testing_local_hits_count == 1
+      assert counts.selective_testing_remote_hits_count == 1
+      assert counts.selective_testing_misses_count == 1
+      assert counts.total_count == 3
+    end
+
+    test "binary_cache_counts/1 returns aggregate counts for ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "CacheGraph",
+            projects: [
+              %{
+                "name" => "CacheProject",
+                "path" => "CacheApp",
+                "targets" => [
+                  %{
+                    "name" => "CacheTarget1",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "CacheTarget2",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-2", "hit" => "remote"}
+                  },
+                  %{
+                    "name" => "CacheTarget3",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-3", "hit" => "miss"}
+                  },
+                  %{
+                    "name" => "CacheTarget4",
+                    "binary_cache_metadata" => %{"hash" => "cache-hash-4", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Clickhouse.binary_cache_counts(command_event)
+
+      # Then
+      assert counts.binary_cache_local_hits_count == 1
+      assert counts.binary_cache_remote_hits_count == 1
+      assert counts.binary_cache_misses_count == 2
+      assert counts.total_count == 4
+    end
+  end
+
+  describe "Edge cases and empty results" do
+    test "selective_testing_counts/1 returns zeros for empty data - Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "EmptyGraph",
+            projects: [
+              %{
+                "name" => "EmptyProject",
+                "path" => "EmptyApp",
+                "targets" => []
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Postgres.selective_testing_counts(command_event)
+
+      # Then
+      assert counts.selective_testing_local_hits_count == 0
+      assert counts.selective_testing_remote_hits_count == 0
+      assert counts.selective_testing_misses_count == 0
+      assert counts.total_count == 0
+    end
+
+    test "selective_testing_counts/1 returns zeros for empty data - ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "EmptyGraph",
+            projects: [
+              %{
+                "name" => "EmptyProject",
+                "path" => "EmptyApp",
+                "targets" => []
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Clickhouse.selective_testing_counts(command_event)
+
+      # Then
+      assert counts.selective_testing_local_hits_count == 0
+      assert counts.selective_testing_remote_hits_count == 0
+      assert counts.selective_testing_misses_count == 0
+      assert counts.total_count == 0
+    end
+
+    test "analytics with empty flop params returns all data - Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When - Call without flop params
+      {result, meta} = Postgres.selective_testing_analytics(command_event)
+
+      # Then
+      assert length(result.test_modules) == 2
+      assert meta.total_count == 2
+    end
+
+    test "analytics with empty flop params returns all data - ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "remote"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When - Call without flop params
+      {result, meta} = Clickhouse.selective_testing_analytics(command_event)
+
+      # Then
+      assert length(result.test_modules) == 2
+      assert meta.total_count == 2
+    end
+
+    test "counts handle targets with only one hit type - Postgres" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Postgres.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "selective_testing_metadata" => %{"hash" => "hash-1", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "selective_testing_metadata" => %{"hash" => "hash-2", "hit" => "local"}
+                  },
+                  %{
+                    "name" => "TestTarget3",
+                    "selective_testing_metadata" => %{"hash" => "hash-3", "hit" => "local"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Postgres.selective_testing_counts(command_event)
+
+      # Then
+      assert counts.selective_testing_local_hits_count == 3
+      assert counts.selective_testing_remote_hits_count == 0
+      assert counts.selective_testing_misses_count == 0
+      assert counts.total_count == 3
+    end
+
+    test "counts handle targets with only one hit type - ClickHouse" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      {:ok, _xcode_graph} =
+        Clickhouse.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "TestGraph",
+            projects: [
+              %{
+                "name" => "TestProject",
+                "path" => "TestApp",
+                "targets" => [
+                  %{
+                    "name" => "TestTarget1",
+                    "binary_cache_metadata" => %{"hash" => "hash-1", "hit" => "miss"}
+                  },
+                  %{
+                    "name" => "TestTarget2",
+                    "binary_cache_metadata" => %{"hash" => "hash-2", "hit" => "miss"}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+      # When
+      counts = Clickhouse.binary_cache_counts(command_event)
+
+      # Then
+      assert counts.binary_cache_local_hits_count == 0
+      assert counts.binary_cache_remote_hits_count == 0
+      assert counts.binary_cache_misses_count == 2
+      assert counts.total_count == 2
     end
   end
 end

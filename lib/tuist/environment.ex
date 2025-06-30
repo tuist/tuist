@@ -465,11 +465,11 @@ defmodule Tuist.Environment do
   end
 
   def oauth_configured?(secrets \\ secrets()) do
-    oauth_client_id(secrets) != nil and 
-    oauth_client_secret(secrets) != nil and
-    oauth_client_name(secrets) != nil and
-    oauth_jwt_public_key(secrets) != nil and
-    oauth_private_key(secrets) != nil
+    oauth_client_id(secrets) != nil and
+      oauth_client_secret(secrets) != nil and
+      oauth_client_name(secrets) != nil and
+      oauth_jwt_public_key(secrets) != nil and
+      oauth_private_key(secrets) != nil
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

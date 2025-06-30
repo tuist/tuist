@@ -46,7 +46,7 @@ defmodule TuistWeb.RunDetailLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{Query.put(socket.assigns.uri.query, "selective-testing-filter", search)}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> Query.put("selective-testing-filter", search) |> Query.put("selective-testing-page", "1")}"
       )
 
     {:noreply, socket}
@@ -57,50 +57,10 @@ defmodule TuistWeb.RunDetailLive do
       push_patch(
         socket,
         to:
-          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{Query.put(socket.assigns.uri.query, "binary-cache-filter", search)}"
+          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/runs/#{socket.assigns.run.id}?#{socket.assigns.uri.query |> Query.put("binary-cache-filter", search) |> Query.put("binary-cache-page", "1")}"
       )
 
     {:noreply, socket}
-  end
-
-  defp sort_test_modules(modules, "module", "asc") do
-    Enum.sort_by(modules, & &1.name)
-  end
-
-  defp sort_test_modules(modules, "module", "desc") do
-    Enum.sort_by(modules, & &1.name, :desc)
-  end
-
-  defp sort_test_modules(modules, "hash", "asc") do
-    Enum.sort_by(modules, & &1.selective_testing_hit)
-  end
-
-  defp sort_test_modules(modules, "hash", "desc") do
-    Enum.sort_by(modules, & &1.selective_testing_hit, :desc)
-  end
-
-  defp sort_test_modules(modules, _, _) do
-    modules
-  end
-
-  defp sort_binary_cache_modules(modules, "module", "asc") do
-    Enum.sort_by(modules, & &1.name)
-  end
-
-  defp sort_binary_cache_modules(modules, "module", "desc") do
-    Enum.sort_by(modules, & &1.name, :desc)
-  end
-
-  defp sort_binary_cache_modules(modules, "hash", "asc") do
-    Enum.sort_by(modules, & &1.selective_testing_hit)
-  end
-
-  defp sort_binary_cache_modules(modules, "hash", "desc") do
-    Enum.sort_by(modules, & &1.selective_testing_hit, :desc)
-  end
-
-  defp sort_binary_cache_modules(modules, _, _) do
-    modules
   end
 
   def sort_icon("desc") do
@@ -147,25 +107,26 @@ defmodule TuistWeb.RunDetailLive do
       "selective-testing-page",
       "selective-testing-sort-by",
       "selective-testing-sort-order",
+      "selective-testing-filter",
       "binary-cache-page",
       "binary-cache-sort-by",
-      "binary-cache-sort-order"
+      "binary-cache-sort-order",
+      "binary-cache-filter"
     ]
 
     URI.new!("?" <> URI.encode_query(Map.take(params, query_params)))
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
-    {analytics, page_count, current_modules} =
-      load_selective_testing_data(socket.assigns.run, params)
+    {analytics, meta} = load_selective_testing_data(socket.assigns.run, params)
 
-    assign_selective_testing_data(socket, analytics, page_count, current_modules, params)
+    assign_selective_testing_data(socket, analytics, meta, params)
   end
 
   defp assign_tab_data(socket, "compilation-optimizations", params) do
-    {analytics, page_count, current_modules} = load_binary_cache_data(socket.assigns.run, params)
+    {analytics, meta} = load_binary_cache_data(socket.assigns.run, params)
 
-    assign_binary_cache_data(socket, analytics, page_count, current_modules, params)
+    assign_binary_cache_data(socket, analytics, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do
@@ -175,40 +136,38 @@ defmodule TuistWeb.RunDetailLive do
     |> assign_param_defaults(params)
   end
 
-  defp assign_selective_testing_data(socket, analytics, page_count, current_modules, params) do
+  defp assign_selective_testing_data(socket, analytics, meta, params) do
     socket
     |> assign(:selective_testing_analytics, analytics)
-    |> assign(:selective_testing_page_count, page_count)
-    |> assign(:selective_testing_current_page_modules, current_modules)
+    |> assign(:selective_testing_meta, meta)
+    |> assign(:selective_testing_page_count, meta.total_pages)
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
-    |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "module")
-    |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
+    |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
+    |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
   end
 
-  defp assign_binary_cache_data(socket, analytics, page_count, current_modules, params) do
+  defp assign_binary_cache_data(socket, analytics, meta, params) do
     socket
     |> assign(:binary_cache_analytics, analytics)
-    |> assign(:binary_cache_page_count, page_count)
-    |> assign(:binary_cache_current_page_modules, current_modules)
+    |> assign(:binary_cache_meta, meta)
+    |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
-    |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "module")
-    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
+    |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
+    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
   end
 
   defp assign_selective_testing_defaults(socket) do
     socket
     |> assign(:selective_testing_analytics, socket.assigns.selective_testing_analytics)
     |> assign(:selective_testing_page_count, socket.assigns.selective_testing_page_count)
-    |> assign(:selective_testing_current_page_modules, [])
   end
 
   defp assign_binary_cache_defaults(socket) do
     socket
     |> assign(:binary_cache_analytics, socket.assigns.binary_cache_analytics)
     |> assign(:binary_cache_page_count, socket.assigns.binary_cache_page_count)
-    |> assign(:binary_cache_current_page_modules, [])
   end
 
   defp assign_param_defaults(socket, params) do
@@ -224,48 +183,45 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   defp load_selective_testing_data(run, params) do
-    analytics = Xcode.selective_testing_analytics(run)
-    filter = params["selective-testing-filter"] || ""
-    page = String.to_integer(params["selective-testing-page"] || "1")
-    sort_by = params["selective-testing-sort-by"] || "module"
-    sort_order = params["selective-testing-sort-order"] || "desc"
+    counts = Xcode.selective_testing_counts(run)
 
-    filtered_modules = filter_modules_by_name(analytics.test_modules, filter)
-    page_count = calculate_page_count(filtered_modules)
+    flop_params = %{
+      filters: build_flop_filters(params["selective-testing-filter"]),
+      page: String.to_integer(params["selective-testing-page"] || "1"),
+      page_size: @table_page_size,
+      order_by: [String.to_atom(params["selective-testing-sort-by"] || "name")],
+      order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
+    }
 
-    current_modules =
-      paginate_modules(filtered_modules, page, sort_by, sort_order, &sort_test_modules/3)
+    {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
 
-    {analytics, page_count, current_modules}
+    analytics = Map.merge(filtered_analytics, counts)
+
+    {analytics, meta}
   end
 
   defp load_binary_cache_data(run, params) do
-    analytics = Xcode.binary_cache_analytics(run)
-    filter = params["binary-cache-filter"] || ""
-    page = String.to_integer(params["binary-cache-page"] || "1")
-    sort_by = params["binary-cache-sort-by"] || "module"
-    sort_order = params["binary-cache-sort-order"] || "desc"
+    counts = Xcode.binary_cache_counts(run)
 
-    filtered_modules = filter_modules_by_name(analytics.cacheable_targets, filter)
-    page_count = calculate_page_count(filtered_modules)
+    flop_params = %{
+      filters: build_flop_filters(params["binary-cache-filter"]),
+      page: String.to_integer(params["binary-cache-page"] || "1"),
+      page_size: @table_page_size,
+      order_by: [String.to_atom(params["binary-cache-sort-by"] || "name")],
+      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
+    }
 
-    current_modules =
-      paginate_modules(filtered_modules, page, sort_by, sort_order, &sort_binary_cache_modules/3)
+    {filtered_analytics, meta} = Xcode.binary_cache_analytics(run, flop_params)
 
-    {analytics, page_count, current_modules}
+    analytics = Map.merge(filtered_analytics, counts)
+
+    {analytics, meta}
   end
 
-  defp filter_modules_by_name(modules, filter) do
-    Enum.filter(modules, &String.contains?(String.downcase(&1.name), String.downcase(filter)))
-  end
+  defp build_flop_filters(nil), do: []
+  defp build_flop_filters(""), do: []
 
-  defp calculate_page_count(modules) do
-    max(div(length(modules), @table_page_size), 1)
-  end
-
-  defp paginate_modules(modules, page, sort_by, sort_order, sort_function) do
-    modules
-    |> sort_function.(sort_by, sort_order)
-    |> Enum.slice((page - 1) * @table_page_size, @table_page_size)
+  defp build_flop_filters(filter_text) do
+    [%{field: :name, op: :=~, value: filter_text}]
   end
 end

@@ -19,12 +19,22 @@ defmodule Tuist.Xcode do
     storage_module().create_xcode_graph(attrs)
   end
 
-  def selective_testing_analytics(run) do
-    storage_module().selective_testing_analytics(run)
+  def selective_testing_analytics(run, flop_params \\ %{}) do
+    storage_module().selective_testing_analytics(run, flop_params)
   end
 
-  def binary_cache_analytics(run) do
-    storage_module().binary_cache_analytics(run)
+  def binary_cache_analytics(run, flop_params \\ %{}) do
+    storage_module().binary_cache_analytics(run, flop_params)
+  end
+
+  def selective_testing_counts(run) do
+    counts = storage_module().selective_testing_counts(run)
+    Map.put(counts, :total_modules_count, counts.total_count)
+  end
+
+  def binary_cache_counts(run) do
+    counts = storage_module().binary_cache_counts(run)
+    Map.put(counts, :total_targets_count, counts.total_count)
   end
 
   def has_selective_testing_data?(run) do
@@ -37,45 +47,6 @@ defmodule Tuist.Xcode do
 
   def xcode_targets_for_command_event(command_event_id) do
     storage_module().xcode_targets_for_command_event(command_event_id)
-  end
-
-  @doc """
-  Shared logic for counting analytics results by hit type.
-  """
-  def count_by_hit_type(items, hit_field) do
-    %{
-      local_hits_count: Enum.count(items, &(Map.get(&1, hit_field) == :local)),
-      remote_hits_count: Enum.count(items, &(Map.get(&1, hit_field) == :remote)),
-      misses_count: Enum.count(items, &(Map.get(&1, hit_field) == :miss))
-    }
-  end
-
-  @doc """
-  Shared logic for building analytics response structure.
-  """
-  def build_selective_testing_analytics(test_modules) do
-    counts = count_by_hit_type(test_modules, :selective_testing_hit)
-
-    %{
-      test_modules: test_modules,
-      selective_testing_local_hits_count: counts.local_hits_count,
-      selective_testing_remote_hits_count: counts.remote_hits_count,
-      selective_testing_misses_count: counts.misses_count
-    }
-  end
-
-  @doc """
-  Shared logic for building binary cache analytics response structure.
-  """
-  def build_binary_cache_analytics(cacheable_targets) do
-    counts = count_by_hit_type(cacheable_targets, :binary_cache_hit)
-
-    %{
-      cacheable_targets: cacheable_targets,
-      binary_cache_local_hits_count: counts.local_hits_count,
-      binary_cache_remote_hits_count: counts.remote_hits_count,
-      binary_cache_misses_count: counts.misses_count
-    }
   end
 
   @doc """

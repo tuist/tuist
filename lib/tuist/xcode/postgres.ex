@@ -37,46 +37,114 @@ defmodule Tuist.Xcode.Postgres do
     {:ok, xcode_graph}
   end
 
-  def selective_testing_analytics(run) do
-    test_modules =
-      Repo.all(
-        from(xt in XcodeTarget,
-          join: xp in XcodeProject,
-          on: xt.xcode_project_id == xp.id,
-          join: xg in XcodeGraph,
-          on: xp.xcode_graph_id == xg.id,
-          where: xg.command_event_id == ^run.id,
-          where: not is_nil(xt.selective_testing_hash),
-          select: %{
-            name: xt.name,
-            selective_testing_hit: xt.selective_testing_hit,
-            selective_testing_hash: xt.selective_testing_hash
-          }
-        )
+  def selective_testing_analytics(run, flop_params \\ %{}) do
+    base_query =
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.selective_testing_hash)
       )
 
-    Tuist.Xcode.build_selective_testing_analytics(test_modules)
+    {targets, meta} = Flop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
+
+    test_modules =
+      Enum.map(targets, fn target ->
+        %{
+          name: target.name,
+          selective_testing_hit: target.selective_testing_hit,
+          selective_testing_hash: target.selective_testing_hash
+        }
+      end)
+
+    analytics = %{test_modules: test_modules}
+    {analytics, meta}
   end
 
-  def binary_cache_analytics(run) do
-    cacheable_targets =
-      Repo.all(
-        from(xt in XcodeTarget,
-          join: xp in XcodeProject,
-          on: xt.xcode_project_id == xp.id,
-          join: xg in XcodeGraph,
-          on: xp.xcode_graph_id == xg.id,
-          where: xg.command_event_id == ^run.id,
-          where: not is_nil(xt.binary_cache_hash),
-          select: %{
-            name: xt.name,
-            binary_cache_hit: xt.binary_cache_hit,
-            binary_cache_hash: xt.binary_cache_hash
-          }
-        )
+  def binary_cache_analytics(run, flop_params \\ %{}) do
+    base_query =
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.binary_cache_hash)
       )
 
-    Tuist.Xcode.build_binary_cache_analytics(cacheable_targets)
+    {targets, meta} = Flop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
+
+    cacheable_targets =
+      Enum.map(targets, fn target ->
+        %{
+          name: target.name,
+          binary_cache_hit: target.binary_cache_hit,
+          binary_cache_hash: target.binary_cache_hash
+        }
+      end)
+
+    analytics = %{cacheable_targets: cacheable_targets}
+    {analytics, meta}
+  end
+
+  def selective_testing_counts(run) do
+    base_query =
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.selective_testing_hash)
+      )
+
+    counts =
+      from(xt in subquery(base_query),
+        group_by: xt.selective_testing_hit,
+        select: {xt.selective_testing_hit, count(xt.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    total_count = counts |> Map.values() |> Enum.sum()
+
+    %{
+      selective_testing_local_hits_count: Map.get(counts, :local, 0),
+      selective_testing_remote_hits_count: Map.get(counts, :remote, 0),
+      selective_testing_misses_count: Map.get(counts, :miss, 0),
+      total_count: total_count
+    }
+  end
+
+  def binary_cache_counts(run) do
+    base_query =
+      from(xt in XcodeTarget,
+        join: xp in XcodeProject,
+        on: xt.xcode_project_id == xp.id,
+        join: xg in XcodeGraph,
+        on: xp.xcode_graph_id == xg.id,
+        where: xg.command_event_id == ^run.id,
+        where: not is_nil(xt.binary_cache_hash)
+      )
+
+    counts =
+      from(xt in subquery(base_query),
+        group_by: xt.binary_cache_hit,
+        select: {xt.binary_cache_hit, count(xt.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    total_count = counts |> Map.values() |> Enum.sum()
+
+    %{
+      binary_cache_local_hits_count: Map.get(counts, :local, 0),
+      binary_cache_remote_hits_count: Map.get(counts, :remote, 0),
+      binary_cache_misses_count: Map.get(counts, :miss, 0),
+      total_count: total_count
+    }
   end
 
   def has_selective_testing_data?(run) do

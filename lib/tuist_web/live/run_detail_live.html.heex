@@ -176,7 +176,7 @@
         <.widget
           title={gettext("Total modules")}
           description={gettext("Total modules represents the total number of testable modules.")}
-          value={@selective_testing_analytics.test_modules |> Enum.count()}
+          value={@selective_testing_analytics.total_modules_count}
           id="widget-optimization-summary-total-modules"
         />
         <.widget
@@ -221,18 +221,18 @@
             value={@selective_testing_filter}
           />
         </.form>
-        <.table id="selective-testing-table" rows={@selective_testing_current_page_modules}>
+        <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
           <:col
             :let={test_module}
             label={gettext("Module")}
             patch={
               "?#{@uri.query
-              |> Query.put("selective-testing-sort-by", "module")
-              |> Query.put("selective-testing-sort-order", sort_order_patch_value("module", @selective_testing_sort_by, @selective_testing_sort_order))
+              |> Query.put("selective-testing-sort-by", "name")
+              |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
               |> Query.drop("selective-testing-page")}"
             }
             icon={
-              @selective_testing_sort_by == "module" &&
+              @selective_testing_sort_by == "name" &&
                 sort_icon(@selective_testing_sort_order)
             }
           >
@@ -315,18 +315,18 @@
             value={@binary_cache_filter}
           />
         </.form>
-        <.table id="binary-cache-table" rows={@binary_cache_current_page_modules}>
+        <.table id="binary-cache-table" rows={@binary_cache_analytics.cacheable_targets}>
           <:col
             :let={binary_cache_module}
             label={gettext("Module")}
             patch={
               "?#{@uri.query
-              |> Query.put("binary-cache-sort-by", "module")
-              |> Query.put("binary-cache-sort-order", sort_order_patch_value("module", @binary_cache_sort_by, @binary_cache_sort_order))
+              |> Query.put("binary-cache-sort-by", "name")
+              |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
               |> Query.drop("binary-cache-page")}"
             }
             icon={
-              @binary_cache_sort_by == "module" &&
+              @binary_cache_sort_by == "name" &&
                 sort_icon(@binary_cache_sort_order)
             }
           >
