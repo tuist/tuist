@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.55.0 - 2025-06-29
+
+### CLI
+
+#### Changed
+
+- Rename projectDerivedDataPath to derivedDataPath [#7751](https://github.com/tuist/tuist/pull/7751) by [@danieleformichelli](https://github.com/danieleformichelli)
+
+#### Added
+
+- feat: Add MCP support for Claude Code, Cursor, VS Code, and Zed [#7733](https://github.com/tuist/tuist/pull/7733) by [@pepicrft](https://github.com/pepicrft)
+- Add .extensionKitExtension to canEmbedBundles valid products list [#7749](https://github.com/tuist/tuist/pull/7749) by [@softspheredev](https://github.com/softspheredev)
+- feat: add inspect option to allow to ignore targets with given tag during redundant dependencies inspection [#7739](https://github.com/tuist/tuist/pull/7739) by [@danieleformichelli](https://github.com/danieleformichelli)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.54.3 - 2025-06-20
 
 ### CLI
