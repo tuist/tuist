@@ -25,7 +25,11 @@ public protocol CachedValueStoring: Sendable {
 }
 
 public actor CachedValueStore: CachedValueStoring {
-    @TaskLocal public static var current: CachedValueStoring = CachedValueStore()
+    #if os(macOS) || os(Linux) || os(Windows)
+        @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .fileSystem)
+    #else
+        @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .inSystemProcess)
+    #endif
 
     private let backend: CachedValueStoreBackend
 
