@@ -292,7 +292,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_install_size: 0},
+               %{date: ~D[2024-04-28], bundle_install_size: 1500},
                %{date: ~D[2024-04-29], bundle_install_size: 3000},
                %{date: ~D[2024-04-30], bundle_install_size: 4000}
              ]
@@ -343,6 +343,65 @@ defmodule Tuist.BundlesTest do
                %{bundle_install_size: 0, date: ~D[2024-02-01]},
                %{bundle_install_size: 3000, date: ~D[2024-03-01]},
                %{bundle_install_size: 4000, date: ~D[2024-04-01]}
+             ]
+    end
+
+    test "fills gaps with previous 7 days data and updates when new data arrives" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-05-10 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create bundles with gaps to test fallback behavior
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 1000,
+        # Friday
+        inserted_at: ~U[2024-05-03 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 2000,
+        inserted_at: ~U[2024-05-02 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 3500,
+        # Monday - new data
+        inserted_at: ~U[2024-05-06 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 4200,
+        inserted_at: ~U[2024-05-09 04:00:00Z]
+      )
+
+      # When
+      got =
+        Bundles.project_bundle_install_size_analytics(
+          project,
+          start_date: Date.add(DateTime.utc_now(), -9),
+          git_branch: "main"
+        )
+
+      # Then
+      assert got == [
+               %{date: ~D[2024-05-01], bundle_install_size: 0},
+               %{date: ~D[2024-05-02], bundle_install_size: 2000},
+               %{date: ~D[2024-05-03], bundle_install_size: 1000},
+               %{date: ~D[2024-05-04], bundle_install_size: 1000},
+               %{date: ~D[2024-05-05], bundle_install_size: 1000},
+               %{date: ~D[2024-05-06], bundle_install_size: 3500},
+               %{date: ~D[2024-05-07], bundle_install_size: 3500},
+               %{date: ~D[2024-05-08], bundle_install_size: 3500},
+               %{date: ~D[2024-05-09], bundle_install_size: 4200},
+               %{date: ~D[2024-05-10], bundle_install_size: 4200}
              ]
     end
   end
@@ -397,7 +456,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_download_size: 0},
+               %{date: ~D[2024-04-28], bundle_download_size: 1024},
                %{date: ~D[2024-04-29], bundle_download_size: 3000},
                %{date: ~D[2024-04-30], bundle_download_size: 4000}
              ]
@@ -448,6 +507,63 @@ defmodule Tuist.BundlesTest do
                %{bundle_download_size: 0, date: ~D[2024-02-01]},
                %{bundle_download_size: 3000, date: ~D[2024-03-01]},
                %{bundle_download_size: 4000, date: ~D[2024-04-01]}
+             ]
+    end
+
+    test "fills gaps with previous 7 days data and updates when new data arrives for download size" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-05-10 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 1000,
+        # Friday
+        inserted_at: ~U[2024-05-03 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 2000,
+        inserted_at: ~U[2024-05-02 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 3500,
+        inserted_at: ~U[2024-05-06 04:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 4200,
+        inserted_at: ~U[2024-05-09 04:00:00Z]
+      )
+
+      # When - get analytics for the period
+      got =
+        Bundles.bundle_download_size_analytics(
+          project,
+          start_date: Date.add(DateTime.utc_now(), -9),
+          git_branch: "main"
+        )
+
+      # Then
+      assert got == [
+               %{date: ~D[2024-05-01], bundle_download_size: 0},
+               %{date: ~D[2024-05-02], bundle_download_size: 2000},
+               %{date: ~D[2024-05-03], bundle_download_size: 1000},
+               %{date: ~D[2024-05-04], bundle_download_size: 1000},
+               %{date: ~D[2024-05-05], bundle_download_size: 1000},
+               %{date: ~D[2024-05-06], bundle_download_size: 3500},
+               %{date: ~D[2024-05-07], bundle_download_size: 3500},
+               %{date: ~D[2024-05-08], bundle_download_size: 3500},
+               %{date: ~D[2024-05-09], bundle_download_size: 4200},
+               %{date: ~D[2024-05-10], bundle_download_size: 4200}
              ]
     end
   end

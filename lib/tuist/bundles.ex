@@ -285,12 +285,22 @@ defmodule Tuist.Bundles do
         date: date,
         bundle_install_size:
           if is_nil(average) do
-            0
+            find_fallback_size(bundle_install_sizes, date)
           else
             average
           end
       }
     end)
+  end
+
+  defp find_fallback_size(bundle_sizes, date) do
+    1..7
+    |> Enum.map(fn days_back ->
+      previous_date = Date.add(date, -days_back)
+      Map.get(bundle_sizes, previous_date)
+    end)
+    |> Enum.filter(&(not is_nil(&1)))
+    |> List.first() || 0
   end
 
   def bundle_download_size_analytics(%Project{} = project, opts \\ []) do
@@ -327,7 +337,7 @@ defmodule Tuist.Bundles do
         date: date,
         bundle_download_size:
           if is_nil(average) do
-            0
+            find_fallback_size(bundle_download_sizes, date)
           else
             average
           end
