@@ -174,11 +174,11 @@ defmodule TuistWeb.RunDetailLive do
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
-    |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "module")
+    |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
-    |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "module")
+    |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
   end
 
@@ -189,7 +189,7 @@ defmodule TuistWeb.RunDetailLive do
       filters: build_flop_filters(params["selective-testing-filter"]),
       page: String.to_integer(params["selective-testing-page"] || "1"),
       page_size: @table_page_size,
-      order_by: [String.to_atom(params["selective-testing-sort-by"] || "name")],
+      order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
       order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
     }
 
@@ -207,7 +207,7 @@ defmodule TuistWeb.RunDetailLive do
       filters: build_flop_filters(params["binary-cache-filter"]),
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
-      order_by: [String.to_atom(params["binary-cache-sort-by"] || "name")],
+      order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
       order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
     }
 
@@ -217,6 +217,16 @@ defmodule TuistWeb.RunDetailLive do
 
     {analytics, meta}
   end
+
+  defp ensure_allowed_params("binary-cache-sort-by", %{"binary-cache-sort-by" => value}) when value in ["name"],
+    do: String.to_existing_atom(value)
+
+  defp ensure_allowed_params("binary-cache-sort-by", _value), do: :name
+
+  defp ensure_allowed_params("selective-testing-sort-by", %{"selective-testing-sort-by" => value}) when value in ["name"],
+    do: String.to_existing_atom(value)
+
+  defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
   defp build_flop_filters(nil), do: []
   defp build_flop_filters(""), do: []
