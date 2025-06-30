@@ -2119,7 +2119,7 @@ struct GraphLinterTests {
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,
-            bundleId: "dev.tuist.iOSApp.WatchApp"
+            bundleId: "io.tuist.iOSApp.WatchApp"
         )
 
         let project = Project.test(

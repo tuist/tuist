@@ -948,9 +948,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectPathOne: .test(
                         path: projectPathOne,
                         targets: [
-                            .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
-                            .test(name: "TargetB", bundleId: "dev.tuist.TargetB"),
-                            .test(name: "TargetC", bundleId: "dev.tuist.TargetC"),
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
                         ],
                         schemes: [
                             .test(

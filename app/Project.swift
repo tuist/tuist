@@ -90,8 +90,8 @@ let project = Project(
             resources: ["Resources/TuistApp/**"],
             entitlements: .dictionary([
                 "com.apple.developer.applesignin": [
-                    "Default"
-                ]
+                    "Default",
+                ],
             ]),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),

@@ -68,7 +68,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 infoPlist: AppBundle.InfoPlist(
                     version: "0.9.0",
                     name: "Tuist",
-                    bundleId: "dev.tuist.app",
+                    bundleId: "io.tuist.app",
                     minimumOSVersion: Version("18.4"),
                     supportedPlatforms: [.device(.iOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
@@ -97,7 +97,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
                     name: "App",
-                    bundleId: "dev.tuist.MainApp",
+                    bundleId: "io.tuist.MainApp",
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.simulator(.iOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
@@ -128,7 +128,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
                     name: "App",
-                    bundleId: "dev.tuist.App",
+                    bundleId: "io.tuist.App",
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.device(.iOS)],
                     bundleIcons: nil
@@ -152,7 +152,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 <string>App Icon</string>
             </dict>
             <key>CFBundleIdentifier</key>
-            <string>dev.tuist.TVApp</string>
+            <string>io.tuist.TVApp</string>
             <key>CFBundleName</key>
             <string>App</string>
             <key>CFBundleShortVersionString</key>
@@ -178,7 +178,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
                     name: "App",
-                    bundleId: "dev.tuist.TVApp",
+                    bundleId: "io.tuist.TVApp",
                     minimumOSVersion: Version("18.2"),
                     supportedPlatforms: [.device(.tvOS)],
                     bundleIcons: AppBundle.InfoPlist.BundleIcons(
