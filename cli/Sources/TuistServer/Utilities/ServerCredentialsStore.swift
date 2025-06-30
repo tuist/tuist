@@ -91,7 +91,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
 }
 
 public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
-    @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
+    #if os(macOS) || os(Linux) || os(Windows)
+        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
+    #else
+        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
+    #endif
 
     private let backend: ServerCredentialsStoreBackend
     private let fileSystem: FileSysteming
