@@ -1,9 +1,11 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import SwiftUI
+import TuistAppStorage
 import TuistServer
 
-public enum LogInViewModelError: LocalizedError {
+public enum AuthenticationError: LocalizedError {
     case invalidCallbackURL
     case missingAuthorizationCode
     case invalidTokenResponse
@@ -26,38 +28,94 @@ public enum LogInViewModelError: LocalizedError {
     }
 }
 
-public final class LoginViewModel: ObservableObject {
-    private let serverEnvironmentService: ServerEnvironmentServicing
-    private let serverCredentialsStore: ServerCredentialsStoring
+public final class AuthenticationService: ObservableObject {
+    @Published public var authenticationState: AuthenticationState
 
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let appStorage: AppStoring
+    private var credentialsListenerTask: Task<Void, Never>?
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let redirectURI = "tuist://oauth-callback"
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
+        appStorage: AppStoring = AppStorage()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
-        self.serverCredentialsStore = serverCredentialsStore
+        self.appStorage = appStorage
+
+        authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
+
+        startCredentialsListener()
     }
 
-    func signIn() async throws {
+    deinit {
+        credentialsListenerTask?.cancel()
+    }
+
+    private func startCredentialsListener() {
+        credentialsListenerTask = Task {
+            for await credentials in ServerCredentialsStore.current.credentialsChanged {
+                await MainActor.run {
+                    do {
+                        try updateAuthenticationState(with: credentials)
+                    } catch {
+                        authenticationState = .loggedOut
+                        try? appStorage.set(AuthenticationStateKey.self, value: .loggedOut)
+                    }
+                }
+            }
+        }
+    }
+
+    private func updateAuthenticationState(with credentials: ServerCredentials?) throws {
+        if let credentials,
+           credentials.refreshToken != nil,
+           let accessToken = credentials.accessToken
+        {
+            let accountHandle = try extractAccountHandle(from: accessToken)
+            authenticationState = .loggedIn(accountHandle: accountHandle)
+        } else {
+            authenticationState = .loggedOut
+        }
+
+        try? appStorage.set(AuthenticationStateKey.self, value: authenticationState)
+    }
+
+    private func extractAccountHandle(from accessToken: String) throws -> String {
+        let jwt = try JWT.parse(accessToken)
+
+        if let email = jwt.email {
+            return email
+        } else if let preferredUsername = jwt.preferredUsername {
+            return preferredUsername
+        } else {
+            throw AuthenticationError.missingTokens
+        }
+    }
+
+    public func signOut() async {
+        try! await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+        await MainActor.run {
+            try? updateAuthenticationState(with: nil)
+        }
+    }
+
+    public func signIn() async throws {
         try await startOAuth2Flow(with: "/oauth2/authorize")
     }
 
-    func signInWithGitHub() async throws {
+    public func signInWithGitHub() async throws {
         try await startOAuth2Flow(with: "/oauth2/github")
     }
 
-    func signInWithGoogle() async throws {
+    public func signInWithGoogle() async throws {
         try await startOAuth2Flow(with: "/oauth2/google")
     }
 
     private func startOAuth2Flow(with path: String) async throws {
         var urlComponents = URLComponents(
-            url: serverEnvironmentService.url().appending(
-                path: path
-            ),
+            url: serverEnvironmentService.url().appending(path: path),
             resolvingAgainstBaseURL: false
         )!
 
@@ -104,7 +162,7 @@ public final class LoginViewModel: ObservableObject {
                 }
 
                 guard let callbackURL else {
-                    continuation.resume(throwing: LogInViewModelError.invalidCallbackURL)
+                    continuation.resume(throwing: AuthenticationError.invalidCallbackURL)
                     return
                 }
 
@@ -112,7 +170,7 @@ public final class LoginViewModel: ObservableObject {
                     .queryItems?
                     .first(where: { $0.name == "code" })?.value
                 else {
-                    continuation.resume(throwing: LogInViewModelError.missingAuthorizationCode)
+                    continuation.resume(throwing: AuthenticationError.missingAuthorizationCode)
                     return
                 }
 
@@ -135,9 +193,7 @@ public final class LoginViewModel: ObservableObject {
         _ code: String,
         codeVerifier: String
     ) async throws {
-        let url = serverEnvironmentService.url().appending(
-            path: "oauth2/token"
-        )
+        let url = serverEnvironmentService.url().appending(path: "oauth2/token")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -151,40 +207,37 @@ public final class LoginViewModel: ObservableObject {
             "code_verifier": codeVerifier,
         ]
 
-        let body =
-            parameters
-                .map {
-                    "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-                }
-                .joined(separator: "&")
+        let body = parameters
+            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }
+            .joined(separator: "&")
 
         request.httpBody = body.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw LogInViewModelError.invalidTokenResponse
+            throw AuthenticationError.invalidTokenResponse
         }
 
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
-            throw LogInViewModelError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
+            throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
 
     private func handleTokenResponse(_ data: Data) async throws {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw LogInViewModelError.invalidTokenResponse
+            throw AuthenticationError.invalidTokenResponse
         }
 
         guard let accessToken = json["access_token"] as? String,
               let refreshToken = json["refresh_token"] as? String
         else {
-            throw LogInViewModelError.missingTokens
+            throw AuthenticationError.missingTokens
         }
 
-        try await serverCredentialsStore.store(
+        try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(
                 token: nil,
                 accessToken: accessToken,

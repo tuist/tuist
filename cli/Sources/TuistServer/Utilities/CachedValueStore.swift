@@ -8,17 +8,34 @@ import Mockable
     import TuistSupport
 #endif
 
+public enum CachedValueStoreBackend: Sendable {
+    #if os(macOS) || os(Linux) || os(Windows)
+        case fileSystem
+    #endif
+    case inSystemProcess
+}
+
 @Mockable
 /// Actor that caches a piece of work asynchronously in a thread-safe manner.
-protocol CachedValueStoring: Sendable {
+public protocol CachedValueStoring: Sendable {
     func getValue<Value>(
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value?
 }
 
-actor CachedValueStore: CachedValueStoring {
-    static let shared = CachedValueStore()
+public actor CachedValueStore: CachedValueStoring {
+    #if os(macOS) || os(Linux) || os(Windows)
+        @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .fileSystem)
+    #else
+        @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .inSystemProcess)
+    #endif
+
+    private let backend: CachedValueStoreBackend
+
+    public init(backend: CachedValueStoreBackend = .inSystemProcess) {
+        self.backend = backend
+    }
 
     private struct CacheEntry<T> {
         let value: T
@@ -51,7 +68,7 @@ actor CachedValueStore: CachedValueStoring {
         }
     #endif
 
-    func getValue<Value>(
+    public func getValue<Value>(
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value? {
@@ -65,42 +82,45 @@ actor CachedValueStore: CachedValueStoring {
             tasks[key] = Task {
                 defer { tasks[key] = nil }
 
-                #if canImport(TuistSupport) && !os(iOS)
-                    /// Use file-based lock for cross-process synchronization on non-iOS platforms
-                    let lockPath = lockFilePath(for: key)
+                switch backend {
+                #if os(macOS) || os(Linux) || os(Windows)
+                    case .fileSystem:
+                        // Use file-based lock for cross-process synchronization
+                        let lockPath = lockFilePath(for: key)
 
-                    /// Ensure the directory exists
-                    let lockDirectory = lockPath.parentDirectory
-                    if !(try await fileSystem.exists(lockPath.parentDirectory)) {
-                        try await fileSystem.makeDirectory(at: lockDirectory)
-                    }
-
-                    let fileLock = FileLock(
-                        at: try TSCBasic.AbsolutePath(validating: lockPath.pathString)
-                    )
-
-                    return try await fileLock.withLock(type: .exclusive) {
-                        // Double-check cache after acquiring lock
-                        // Another process might have computed the value
-                        if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-                            return cacheEntry.value
+                        // Ensure the directory exists
+                        let lockDirectory = lockPath.parentDirectory
+                        if !(try await fileSystem.exists(lockPath.parentDirectory)) {
+                            try await fileSystem.makeDirectory(at: lockDirectory)
                         }
 
-                        if let result = try await computeIfNeeded() {
-                            let value = result.value
-                            let expirationDate = result.expiresAt
+                        let fileLock = FileLock(
+                            at: try TSCBasic.AbsolutePath(validating: lockPath.pathString)
+                        )
 
-                            // Store in cache
-                            let entry = CacheEntry(value: value, expirationDate: expirationDate)
-                            cache[key] = entry
+                        return try await fileLock.withLock(type: .exclusive) {
+                            // Double-check cache after acquiring lock
+                            // Another process might have computed the value
+                            if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
+                                return cacheEntry.value
+                            }
 
-                            return value
-                        } else {
-                            return nil
+                            if let result = try await computeIfNeeded() {
+                                let value = result.value
+                                let expirationDate = result.expiresAt
+
+                                // Store in cache
+                                let entry = CacheEntry(value: value, expirationDate: expirationDate)
+                                cache[key] = entry
+
+                                return value
+                            } else {
+                                return nil
+                            }
                         }
-                    }
-                #else
-                    // On iOS, use actor isolation for synchronization
+                #endif
+                case .inSystemProcess:
+                    // Use actor isolation for in-system-process synchronization
                     if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
                         return cacheEntry.value
                     }
@@ -118,7 +138,7 @@ actor CachedValueStore: CachedValueStoring {
                     } else {
                         return nil
                     }
-                #endif
+                }
             }
         }
 
@@ -127,3 +147,9 @@ actor CachedValueStore: CachedValueStoring {
         return try await tasks[key]!.value as? Value
     }
 }
+
+#if DEBUG
+    extension CachedValueStore {
+        public static var mocked: MockCachedValueStoring? { current as? MockCachedValueStoring }
+    }
+#endif

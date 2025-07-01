@@ -1,6 +1,8 @@
 import SwiftUI
+import TuistAuthentication
+import TuistServer
 
-#if canImport(TuistMenuBar)
+#if os(macOS)
     import Sparkle
     import TuistMenuBar
 
@@ -9,7 +11,6 @@ import SwiftUI
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
         private let updaterController: SPUStandardUpdaterController
-        private let appCredentialsService = AppCredentialsService()
 
         init() {
             updaterController = SPUStandardUpdaterController(
@@ -21,11 +22,16 @@ import SwiftUI
 
         var body: some Scene {
             MenuBarExtra("Tuist", image: "MenuBarIcon") {
-                MenuBarView(
-                    appDelegate: appDelegate,
-                    updaterController: updaterController
-                )
-                .environmentObject(appCredentialsService)
+                ServerCredentialsStore.$current.withValue(
+                    ServerCredentialsStore(backend: .keychain)
+                ) {
+                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                        MenuBarView(
+                            appDelegate: appDelegate,
+                            updaterController: updaterController
+                        )
+                    }
+                }
             }
             .menuBarExtraStyle(.window)
         }
@@ -41,27 +47,28 @@ import SwiftUI
 
         var body: some Scene {
             WindowGroup {
-                Group {
-                    if authenticationService.isAuthenticated {
-                        NavigationView {
-                            PreviewsView()
-                                .navigationBarItems(
-                                    trailing:
-                                    Button("Log Out") {
-                                        Task {
-                                            await authenticationService.signOut()
-                                        }
-                                    }
-                                )
+                ServerCredentialsStore.$current.withValue(
+                    ServerCredentialsStore(backend: .keychain)
+                ) {
+                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                        Group {
+                            if case .loggedIn = authenticationService.authenticationState {
+                                NavigationView {
+                                    PreviewsView()
+                                        .navigationBarItems(
+                                            trailing:
+                                            Button("Log Out") {
+                                                Task {
+                                                    await authenticationService.signOut()
+                                                }
+                                            }
+                                        )
+                                }
+                            } else {
+                                LogInView()
+                            }
                         }
-                    } else {
-                        LogInView()
-                    }
-                }
-                .withErrorHandling()
-                .onAppear {
-                    Task {
-                        await authenticationService.loadCredentials()
+                        .withErrorHandling()
                     }
                 }
             }

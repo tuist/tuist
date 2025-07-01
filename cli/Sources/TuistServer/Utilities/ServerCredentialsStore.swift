@@ -7,7 +7,7 @@ import Path
     import TuistSupport
 #endif
 
-public struct ServerCredentials: Codable, Equatable {
+public struct ServerCredentials: Sendable, Codable, Equatable {
     /// Deprecated authentication token.
     public let token: String?
 
@@ -64,6 +64,9 @@ public protocol ServerCredentialsStoring: Sendable {
     /// Deletes the credentials for the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
     func delete(serverURL: URL) async throws
+
+    /// Stream of server credentials triggered whenever the credentials change.
+    var credentialsChanged: AsyncStream<ServerCredentials?> { get }
 }
 
 enum ServerCredentialsStoreError: LocalizedError {
@@ -80,19 +83,35 @@ enum ServerCredentialsStoreError: LocalizedError {
     }
 }
 
+public enum ServerCredentialsStoreBackend: Sendable {
+    #if os(macOS) || os(Linux) || os(Windows)
+        case fileSystem
+    #endif
+    case keychain
+}
+
 public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
+    #if os(macOS) || os(Linux) || os(Windows)
+        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
+    #else
+        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
+    #endif
+
+    private let backend: ServerCredentialsStoreBackend
     private let fileSystem: FileSysteming
     private let configDirectory: AbsolutePath?
-    private static let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
+    private let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
 
-    public static var credentialsChanged: AsyncStream<ServerCredentials?> {
+    public var credentialsChanged: AsyncStream<ServerCredentials?> {
         credentialsChangedContinuation.stream
     }
 
     public init(
+        backend: ServerCredentialsStoreBackend,
         fileSystem: FileSysteming = FileSystem(),
         configDirectory: AbsolutePath? = nil
     ) {
+        self.backend = backend
         self.configDirectory = configDirectory
         self.fileSystem = fileSystem
     }
@@ -100,14 +119,8 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     // MARK: - CredentialsStoring
 
     public func store(credentials: ServerCredentials, serverURL: URL) async throws {
-        #if canImport(TuistSupport)
-            let path = try credentialsFilePath(serverURL: serverURL)
-            let data = try JSONEncoder().encode(credentials)
-            if try await !fileSystem.exists(path.parentDirectory) {
-                try await fileSystem.makeDirectory(at: path.parentDirectory)
-            }
-            try data.write(to: path.url, options: .atomic)
-        #else
+        switch backend {
+        case .keychain:
             if let refreshToken = credentials.refreshToken, let accessToken = credentials.accessToken {
                 try keychain(serverURL: serverURL)
                     .comment("Refresh token against \(serverURL.absoluteString)")
@@ -116,22 +129,23 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
                     .comment("Refresh token against \(serverURL.absoluteString)")
                     .set(accessToken, key: serverURL.absoluteString + "_access_token")
             }
+        #if os(macOS) || os(Linux) || os(Windows)
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                let data = try JSONEncoder().encode(credentials)
+                if try await !fileSystem.exists(path.parentDirectory) {
+                    try await fileSystem.makeDirectory(at: path.parentDirectory)
+                }
+                try data.write(to: path.url, options: .atomic)
         #endif
+        }
 
-        Self.credentialsChangedContinuation.continuation.yield(credentials)
+        credentialsChangedContinuation.continuation.yield(credentials)
     }
 
     public func read(serverURL: URL) async throws -> ServerCredentials? {
-        #if canImport(TuistSupport)
-            let path = try credentialsFilePath(serverURL: serverURL)
-            guard try await fileSystem.exists(path) else { return nil }
-            let data = try await fileSystem.readFile(at: path)
-
-            // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-            // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-            // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
-            return try? JSONDecoder().decode(ServerCredentials.self, from: data)
-        #else
+        switch backend {
+        case .keychain:
             let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
             let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
             return ServerCredentials(
@@ -139,7 +153,18 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
                 accessToken: accessToken,
                 refreshToken: refreshToken
             )
+        #if os(macOS) || os(Linux) || os(Windows)
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                guard try await fileSystem.exists(path) else { return nil }
+                let data = try await fileSystem.readFile(at: path)
+
+                // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+                // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+                // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
+                return try? JSONDecoder().decode(ServerCredentials.self, from: data)
         #endif
+        }
     }
 
     public func get(serverURL: URL) async throws -> ServerCredentials {
@@ -152,18 +177,21 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     }
 
     public func delete(serverURL: URL) async throws {
-        #if canImport(TuistSupport)
-            let path = try credentialsFilePath(serverURL: serverURL)
-            if try await fileSystem.exists(path) {
-                try await fileSystem.remove(path)
-            }
-        #else
+        switch backend {
+        case .keychain:
             let keychain = keychain(serverURL: serverURL)
             try keychain.remove(serverURL.absoluteString + "_refresh_token")
             try keychain.remove(serverURL.absoluteString + "_access_token")
+        #if os(macOS) || os(Linux) || os(Windows)
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                if try await fileSystem.exists(path) {
+                    try await fileSystem.remove(path)
+                }
         #endif
+        }
 
-        Self.credentialsChangedContinuation.continuation.yield(nil)
+        credentialsChangedContinuation.continuation.yield(nil)
     }
 
     fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
@@ -173,7 +201,7 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
         let directory = if let configDirectory {
             configDirectory
         } else {
-            #if canImport(TuistSupport)
+            #if os(macOS) || os(Linux) || os(Windows)
                 Environment.current.configDirectory
             #else
                 fatalError("Can't obtain the configuration directory for the current destination.")
@@ -189,3 +217,9 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
             .label("\(serverURL.absoluteString)")
     }
 }
+
+#if DEBUG
+    extension ServerCredentialsStore {
+        public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
+    }
+#endif
