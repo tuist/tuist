@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             deploymentTargets: .iOS("16.0"),
             infoPlist: .default,
             sources: "App/Sources/**",

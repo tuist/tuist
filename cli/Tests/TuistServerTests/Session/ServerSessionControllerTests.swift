@@ -24,7 +24,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         serverAuthenticationController = MockServerAuthenticationControlling()
         opener = MockOpening()
         subject = ServerSessionController(
-            credentialsStore: credentialsStore,
             opener: opener,
             getAuthTokenService: getAuthTokenService,
             uniqueIDGenerator: uniqueIDGenerator,
@@ -177,6 +176,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_logout_deletesLegacyCredentials() async throws {
         try await withMockedDependencies {
             // Given
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .delete(serverURL: .any)
+                .willReturn()
             let credentials = ServerCredentials(
                 token: "token",
                 accessToken: nil,
@@ -199,6 +202,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     func test_logout_deletesCredentials() async throws {
         try await withMockedDependencies {
             // Given
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .delete(serverURL: .any)
+                .willReturn()
             let credentials = ServerCredentials(
                 token: nil,
                 accessToken: "access-token",

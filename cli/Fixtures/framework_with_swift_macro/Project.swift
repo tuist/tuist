@@ -11,7 +11,7 @@ let project = Project(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.FrameworkWithSwiftMacro",
+            bundleId: "dev.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
                 .package(product: "ComposableArchitecture", type: .macro),

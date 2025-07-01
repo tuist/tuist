@@ -8,7 +8,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: .default,
             sources: [
                 "App/Sources/**",

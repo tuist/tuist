@@ -1,3 +1,3 @@
 import TuistSupport
 
-let logger = Logger(label: "io.tuist.app")
+let logger = Logger(label: "dev.tuist.app")

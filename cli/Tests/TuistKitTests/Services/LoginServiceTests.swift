@@ -14,7 +14,6 @@ final class LoginServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var serverURL: URL!
     private var authenticateService: MockAuthenticateServicing!
-    private var serverCredentialsStore: MockServerCredentialsStoring!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var userInputReader: MockUserInputReading!
     private var subject: LoginService!
@@ -25,7 +24,6 @@ final class LoginServiceTests: TuistUnitTestCase {
         configLoader = MockConfigLoading()
         serverURL = URL(string: "https://test.tuist.dev")!
         authenticateService = .init()
-        serverCredentialsStore = .init()
         serverEnvironmentService = .init()
         userInputReader = .init()
         given(configLoader)
@@ -41,8 +39,7 @@ final class LoginServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader,
             userInputReader: userInputReader,
-            authenticateService: authenticateService,
-            serverCredentialsStore: serverCredentialsStore
+            authenticateService: authenticateService
         )
     }
 
@@ -51,7 +48,6 @@ final class LoginServiceTests: TuistUnitTestCase {
         configLoader = nil
         serverURL = nil
         authenticateService = nil
-        serverCredentialsStore = nil
         serverEnvironmentService = nil
         userInputReader = nil
         subject = nil
@@ -83,6 +79,7 @@ final class LoginServiceTests: TuistUnitTestCase {
             given(userInputReader)
                 .readString(asking: .value("Email:"))
                 .willReturn("email@tuist.dev")
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
 
             given(serverCredentialsStore)
                 .store(
@@ -135,6 +132,8 @@ final class LoginServiceTests: TuistUnitTestCase {
                 .readString(asking: .value("Password:"))
                 .willReturn("password")
 
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+
             given(serverCredentialsStore)
                 .store(
                     credentials: .value(
@@ -182,6 +181,7 @@ final class LoginServiceTests: TuistUnitTestCase {
     func test_authenticate_when_email_and_password_are_provided() async throws {
         try await withMockedDependencies {
             // Given
+            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
             given(serverCredentialsStore)
                 .store(
                     credentials: .value(

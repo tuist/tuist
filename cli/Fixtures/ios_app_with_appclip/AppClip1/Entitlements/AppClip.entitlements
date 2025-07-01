@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.developer.parent-application-identifiers</key>
 	<array>
-		<string>$(AppIdentifierPrefix)io.tuist.App</string>
+		<string>$(AppIdentifierPrefix)dev.tuist.App</string>
 	</array>
 </dict>
 </plist>

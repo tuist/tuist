@@ -46,7 +46,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             DYLIB_INSTALL_NAME_BASE=@rpath
             INFOPLIST_FILE=iOS/Info.plist
             INSTALL_PATH=$(LOCAL_LIBRARY_DIR)/Frameworks
-            PRODUCT_BUNDLE_IDENTIFIER=io.tuist.iOS
+            PRODUCT_BUNDLE_IDENTIFIER=dev.tuist.iOS
             PRODUCT_NAME=$(TARGET_NAME:c99extidentifier)
             SKIP_INSTALL=NO
             SWIFT_VERSION=5.0

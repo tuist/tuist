@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import Foundation
 import SwiftUI
+import TuistAppStorage
 import TuistAutomation
 import TuistCore
 import TuistServer

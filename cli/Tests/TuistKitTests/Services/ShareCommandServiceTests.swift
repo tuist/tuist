@@ -409,7 +409,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     .test(
                         infoPlist: .test(
                             version: "1.0.0",
-                            bundleId: "com.tuist.app",
+                            bundleId: "dev.tuist.app",
                             supportedPlatforms: [.simulator(.iOS)]
                         )
                     )
@@ -516,7 +516,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
 
             XCTAssertStandardOutput(
                 pattern: """
-                  "bundleIdentifier": "com.tuist.app",
+                  "bundleIdentifier": "dev.tuist.app",
                   "displayName": "App",
                   "iconURL": "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png",
                   "id": "preview-id",
@@ -939,7 +939,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                         infoPlist: .test(
                             version: "1.0.0",
                             name: "App",
-                            bundleId: "com.tuist.app",
+                            bundleId: "dev.tuist.app",
                             bundleIcons: .test(
                                 primaryIcon: .test(
                                     iconFiles: [

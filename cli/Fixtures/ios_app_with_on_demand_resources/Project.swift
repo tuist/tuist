@@ -7,7 +7,7 @@ let project = Project(
             name: "AppWithOnDemandResources",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.AppWithOnDemandResources",
+            bundleId: "dev.tuist.AppWithOnDemandResources",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
@@ -29,7 +29,7 @@ let project = Project(
             name: "AppWithOnDemandResourcesTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppWithOnDemandResourcesTests",
+            bundleId: "dev.tuist.AppWithOnDemandResourcesTests",
             infoPlist: .default,
             sources: ["AppWithOnDemandResources/Tests/**"],
             resources: [],

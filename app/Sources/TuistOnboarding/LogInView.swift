@@ -1,10 +1,11 @@
 import AuthenticationServices
 import SwiftUI
+import TuistAuthentication
 import TuistErrorHandling
 
 public struct LogInView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
-    @StateObject private var viewModel = LoginViewModel()
+    @StateObject private var authenticationService = AuthenticationService()
 
     public init() {}
 
@@ -18,7 +19,7 @@ public struct LogInView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
 
-            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signIn() } }) {
+            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signIn() } }) {
                 HStack {
                     Image(systemName: "person.crop.circle")
                     Text("Sign in with Tuist")
@@ -30,7 +31,7 @@ public struct LogInView: View {
                 .cornerRadius(10)
             }
 
-            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signInWithGitHub() } }) {
+            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() } }) {
                 HStack {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                     Text("Sign in with GitHub")
@@ -42,7 +43,7 @@ public struct LogInView: View {
                 .cornerRadius(10)
             }
 
-            Button(action: { errorHandling.fireAndHandleError { try await viewModel.signInWithGoogle() } }) {
+            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() } }) {
                 HStack {
                     Image(systemName: "globe")
                     Text("Sign in with Google")
@@ -53,6 +54,21 @@ public struct LogInView: View {
                 .foregroundColor(.white)
                 .cornerRadius(10)
             }
+
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.fullName, .email]
+            } onCompletion: { result in
+                switch result {
+                case let .success(authorization):
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.signInWithApple(authorization: authorization)
+                    }
+                case let .failure(error):
+                    errorHandling.handle(error: error)
+                }
+            }
+            .frame(height: 50)
+            .cornerRadius(10)
         }
         .padding()
     }

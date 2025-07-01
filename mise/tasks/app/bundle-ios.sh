@@ -33,8 +33,8 @@ cat << EOF > "$EXPORT_OPTIONS_PLIST_PATH"
 	<string>release-testing</string>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>io.tuist.app</key>
-		<string>Tuist Ad hoc</string>
+		<key>dev.tuist.app</key>
+		<string>Tuist App Ad hoc</string>
 	</dict>
 	<key>signingCertificate</key>
 	<string>Apple Distribution: Tuist GmbH (U6LC622NKF)</string>

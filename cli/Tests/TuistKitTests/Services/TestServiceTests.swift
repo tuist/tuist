@@ -544,7 +544,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectPathOne: .test(
                     path: projectPathOne,
                     targets: [
-                        .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                        .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
                     ],
                     schemes: [
                         .test(
@@ -1101,11 +1101,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "FrameworkATests",
-                            bundleId: "io.tuist.FrameworkATests"
+                            bundleId: "dev.tuist.FrameworkATests"
                         ),
                         .test(
                             name: "FrameworkBTests",
-                            bundleId: "io.tuist.FrameworkBTests"
+                            bundleId: "dev.tuist.FrameworkBTests"
                         ),
                     ]
                 ),
@@ -1246,10 +1246,10 @@ final class TestServiceTests: TuistUnitTestCase {
                     projectPathOne: .test(
                         path: projectPathOne,
                         targets: [
-                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
-                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
-                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
-                            .test(name: "TargetD", bundleId: "io.tuist.TargetD"),
+                            .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "dev.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "dev.tuist.TargetC"),
+                            .test(name: "TargetD", bundleId: "dev.tuist.TargetD"),
                         ],
                         schemes: [
                             .test(
@@ -1914,11 +1914,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "TargetA",
-                            bundleId: "io.tuist.TargetA"
+                            bundleId: "dev.tuist.TargetA"
                         ),
                         .test(
                             name: "TargetB",
-                            bundleId: "io.tuist.TargetB"
+                            bundleId: "dev.tuist.TargetB"
                         ),
                     ],
                     schemes: projectTestableSchemes
@@ -2056,11 +2056,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "TargetA",
-                            bundleId: "io.tuist.TargetA"
+                            bundleId: "dev.tuist.TargetA"
                         ),
                         .test(
                             name: "TargetB",
-                            bundleId: "io.tuist.TargetB"
+                            bundleId: "dev.tuist.TargetB"
                         ),
                     ],
                     schemes: projectTestableSchemes
@@ -2201,11 +2201,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "TargetA",
-                            bundleId: "io.tuist.TargetA"
+                            bundleId: "dev.tuist.TargetA"
                         ),
                         .test(
                             name: "TargetB",
-                            bundleId: "io.tuist.TargetB"
+                            bundleId: "dev.tuist.TargetB"
                         ),
                     ],
                     schemes: projectTestableSchemes

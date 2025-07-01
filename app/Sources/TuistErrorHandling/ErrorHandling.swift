@@ -9,7 +9,7 @@ struct ErrorAlert: Identifiable {
 public final class ErrorHandling: ObservableObject {
     @Published var currentAlert: ErrorAlert?
 
-    func handle(error: Error) {
+    public func handle(error: Error) {
         currentAlert = ErrorAlert(message: error.localizedDescription)
     }
 }

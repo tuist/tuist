@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             deploymentTargets: .iOS("17.0.0"),
             infoPlist: .extendingDefault(
                 with: [

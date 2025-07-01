@@ -8,7 +8,7 @@ let project = Project(
             name: "App",
             destinations: [.iPhone],
             product: .app,
-            bundleId: "io.tuist.app",
+            bundleId: "dev.tuist.app",
             deploymentTargets: .iOS("13.0"),
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
@@ -17,7 +17,7 @@ let project = Project(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.AppTests",
+            bundleId: "dev.tuist.AppTests",
             infoPlist: .default,
             sources: ["Targets/App/Tests/**"],
             dependencies: [
@@ -28,7 +28,7 @@ let project = Project(
             name: "MacFramework",
             destinations: [.mac],
             product: .framework,
-            bundleId: "io.tuist.MacFramework",
+            bundleId: "dev.tuist.MacFramework",
             deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
@@ -43,7 +43,7 @@ let project = Project(
             name: "MacFrameworkTests",
             destinations: [.mac],
             product: .unitTests,
-            bundleId: "io.tuist.MacFrameworkTests",
+            bundleId: "dev.tuist.MacFrameworkTests",
             deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
@@ -62,7 +62,7 @@ let project = Project(
         .scheme(
             name: "App",
             buildAction: .buildAction(targets: ["App"]),
-            testAction: .testPlans([.relativeToManifest("All.xctestplan")]),
+            testAction: .testPlans([.relativeToManifest("*.xctestplan")]),
             runAction: .runAction(
                 configuration: .debug,
                 executable: "App"

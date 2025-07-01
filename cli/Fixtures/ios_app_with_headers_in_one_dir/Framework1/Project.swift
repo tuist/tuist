@@ -8,7 +8,7 @@ let project = Project(
             destinations: .iOS,
             product: .framework,
             productName: "Framework1",
-            bundleId: "io.tuist.Framework1",
+            bundleId: "dev.tuist.Framework1",
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
             headers: .allHeaders(
@@ -23,7 +23,7 @@ let project = Project(
             destinations: [.mac],
             product: .framework,
             productName: "Framework1",
-            bundleId: "io.tuist.Framework1",
+            bundleId: "dev.tuist.Framework1",
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
             headers: .allHeaders(
@@ -37,7 +37,7 @@ let project = Project(
             name: "Framework1Tests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.Framework1Tests",
+            bundleId: "dev.tuist.Framework1Tests",
             infoPlist: "Config/Framework1Tests-Info.plist",
             sources: "Tests/**",
             dependencies: [

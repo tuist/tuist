@@ -184,7 +184,7 @@ public struct AppBundle: Equatable {
         public static func test(
             version: String = "1.0",
             name: String = "App",
-            bundleId: String = "io.tuist.App",
+            bundleId: String = "dev.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
             supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
             bundleIcons: BundleIcons = .test()

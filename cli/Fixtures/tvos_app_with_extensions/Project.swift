@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.appleTv],
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             dependencies: [
@@ -18,7 +18,7 @@ let project = Project(
             name: "TopShelfExtension",
             destinations: [.appleTv],
             product: .tvTopShelfExtension,
-            bundleId: "io.tuist.App.TopShelfExtension",
+            bundleId: "dev.tuist.App.TopShelfExtension",
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "$(PRODUCT_NAME)",
                 "NSExtension": [
@@ -34,7 +34,7 @@ let project = Project(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.App.StaticFramework",
+            bundleId: "dev.tuist.App.StaticFramework",
             infoPlist: .default,
             sources: "StaticFramework/Sources/**"
         ),

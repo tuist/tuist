@@ -70,7 +70,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
 > To download Previews, you need to first authenticate with the `tuist auth login` command.
 > In the future, you will be able to authenticate directly in the app.
 >
-> Additionally, you need to have Xcode locally installed.
+> Additionally, you need to have Xcode locally installed and be on macOS 14 or later.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 

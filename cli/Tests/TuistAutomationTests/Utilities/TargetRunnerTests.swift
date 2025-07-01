@@ -175,7 +175,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let minVersion = Version("14.0.0")
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
-        let bundleId = "com.tuist.bundleid"
+        let bundleId = "dev.tuist.bundleid"
 
         try await fileSystem.makeDirectory(at: outputPath)
         try await fileSystem.touch(outputPath.appending(component: "Target.app"))

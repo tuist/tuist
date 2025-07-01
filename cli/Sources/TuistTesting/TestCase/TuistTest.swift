@@ -6,6 +6,7 @@ import Logging
 import Noora
 import Path
 import Testing
+import TuistServer
 import TuistSupport
 import XcodeProj
 
@@ -26,7 +27,11 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
             try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
                 try await RecentPathsStore.$current.withValue(MockRecentPathsStoring()) {
                     try await AlertController.$current.withValue(AlertController()) {
-                        try await closure()
+                        try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
+                            try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
+                                try await closure()
+                            }
+                        }
                     }
                 }
             }

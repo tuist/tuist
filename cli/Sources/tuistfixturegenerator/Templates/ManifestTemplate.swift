@@ -31,7 +31,7 @@ class ManifestTemplate {
                 name: "{TargetName}",
                 destinations: .iOS,
                 product: .framework,
-                bundleId: "io.tuist.{TargetName}",
+                bundleId: "dev.tuist.{TargetName}",
                 infoPlist: .default,
                 sources: [
                     "{TargetName}/Sources/**"
