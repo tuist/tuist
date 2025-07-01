@@ -322,51 +322,68 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
     }
 
-    func test_run_doesntThrowAnyErrorsWithAppWatchExtensionsSetWithStickerPackExtension_when_thereAreNoIssues() async throws {
+    func test_run_doesntThrowAnyErrorsWithAppWithAppWatch_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Tuist.test()
 
-        let appExtension = Target.test(
-            name: "AppExtension",
-            product: .appExtension
-        )
-
-        let stickerPackExtension = Target.test(
-            name: "StickerPackExtension",
-            product: .stickerPackExtension
-        )
-
-        let appIntentExtension = Target.test(
-            name: "AppIntentExtension",
-            product: .extensionKitExtension
+        let watch2App = Target.test(
+            name: "Watch2App",
+            product: .watch2App
         )
 
         let app = Target.test(
             name: "App",
-            product: .watch2App,
+            product: .app,
             dependencies: [
-                TargetDependency.target(name: "AppExtension"),
-                TargetDependency.target(name: "StickerPackExtension"),
-                TargetDependency.target(name: "AppIntentExtension"),
+                TargetDependency.target(name: "Watch2App"),
             ]
         )
-        let project = Project.test(path: path, targets: [appExtension, app])
+        let project = Project.test(path: path, targets: [watch2App, app])
         let graph = Graph.test(path: path, projects: [path: project], dependencies: [
             .target(name: app.name, path: project.path): [
-                .target(name: appExtension.name, path: project.path),
-                .target(name: stickerPackExtension.name, path: project.path),
-                .target(name: appIntentExtension.name, path: project.path),
+                .target(name: watch2App.name, path: project.path),
             ],
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(appIntentExtension)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2App)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_doesntThrowAnyErrorsWithWatchAppWithWatchExtension_when_thereAreNoIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watch2Extension = Target.test(
+            name: "Watch2Extension",
+            product: .watch2Extension
+        )
+
+        let app = Target.test(
+            name: "App",
+            product: .watch2App,
+            dependencies: [
+                TargetDependency.target(name: watch2Extension.name),
+            ]
+        )
+        let project = Project.test(path: path, targets: [app, watch2Extension])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: watch2Extension.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2Extension)).willReturn(Set([]))
 
         try await subject.run(path: path.pathString)
     }

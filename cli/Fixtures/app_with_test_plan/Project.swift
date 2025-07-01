@@ -62,7 +62,7 @@ let project = Project(
         .scheme(
             name: "App",
             buildAction: .buildAction(targets: ["App"]),
-            testAction: .testPlans([.relativeToManifest("All.xctestplan")]),
+            testAction: .testPlans([.relativeToManifest("*.xctestplan")]),
             runAction: .runAction(
                 configuration: .debug,
                 executable: "App"

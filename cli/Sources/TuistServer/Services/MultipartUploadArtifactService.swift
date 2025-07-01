@@ -13,7 +13,7 @@
     enum MultipartUploadArtifactServiceError: LocalizedError {
         case cannotCreateInputStream(AbsolutePath)
         case noURLResponse(URL?)
-        case missingEtag(URL?)
+        case missingEtag(URL?, statusCode: Int, body: String)
         case invalidMultipartUploadURL(String)
 
         var errorDescription: String? {
@@ -26,11 +26,21 @@
                 } else {
                     return "Received a response that doesn't have the expected type HTTPURLResponse"
                 }
-            case let .missingEtag(url):
+            case let .missingEtag(url, statusCode, body):
                 if let url {
-                    return "The response from request to URL \(url.absoluteString) lacks the etag HTTP header"
+                    return """
+                    The response from request to URL \(
+                        url
+                            .absoluteString
+                    ) failed with status code \(statusCode) and lacks the etag HTTP header:
+                    - Body: \(body)
+                    """
                 } else {
-                    return "Received a response lacking the etag HTTP header"
+                    return """
+                    Received a response with status code \(statusCode) lacking the etag HTTP header:
+                    - Body: \(body)
+
+                    """
                 }
             case let .invalidMultipartUploadURL(url):
                 return "Received an invalid URL for a multi-part upload: \(url)"
@@ -114,12 +124,13 @@
         }
 
         private func upload(for request: URLRequest) async throws -> String {
-            let (_, response) = try await urlSession.data(for: request)
+            let (data, response) = try await urlSession.data(for: request)
             guard let urlResponse = response as? HTTPURLResponse else {
                 throw MultipartUploadArtifactServiceError.noURLResponse(request.url)
             }
             guard let etag = urlResponse.value(forHTTPHeaderField: "Etag") else {
-                throw MultipartUploadArtifactServiceError.missingEtag(request.url)
+                let body = String(data: data, encoding: .utf8) ?? ""
+                throw MultipartUploadArtifactServiceError.missingEtag(request.url, statusCode: urlResponse.statusCode, body: body)
             }
             return etag.spm_chomp()
         }

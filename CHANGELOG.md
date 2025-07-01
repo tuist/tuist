@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.55.2 - 2025-06-30
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.55.1 - 2025-06-30
+
+### CLI
+
+#### Changed
+
+- Improve error messages when our storage vendor fails requests [#7758](https://github.com/tuist/tuist/pull/7758) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.55.0 - 2025-06-29
 
 ### CLI
