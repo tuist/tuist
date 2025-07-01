@@ -7,7 +7,7 @@ let project = Project(
             name: "{{ name }}",
             destinations: .{{ platform }},
             product: .app,
-            bundleId: "io.tuist.{{ bundle_identifier }}",
+            bundleId: "dev.tuist.{{ bundle_identifier }}",
 {% if platform == "iOS" or platform == "tvOS" %}
             infoPlist: .extendingDefault(
                 with: [
@@ -28,7 +28,7 @@ let project = Project(
             name: "{{ name }}Tests",
             destinations: .{{ platform }},
             product: .unitTests,
-            bundleId: "io.tuist.{{ bundle_identifier }}Tests",
+            bundleId: "dev.tuist.{{ bundle_identifier }}Tests",
             infoPlist: .default,
             sources: ["{{ name }}/Tests/**"],
             resources: [],

@@ -29,7 +29,7 @@ enum Alert: Equatable, Hashable {
 public final class AlertController: @unchecked Sendable {
     @TaskLocal public static var current: AlertController = .init()
 
-    private let alertQueue = DispatchQueue(label: "io.tuist.TuistSupport.AlertController")
+    private let alertQueue = DispatchQueue(label: "dev.tuist.TuistSupport.AlertController")
     private var alerts: ThreadSafe<OrderedSet<Alert>> = ThreadSafe([])
     private var _takeaways: ThreadSafe<OrderedSet<TerminalText>> = ThreadSafe([])
 

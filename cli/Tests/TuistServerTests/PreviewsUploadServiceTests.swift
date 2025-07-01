@@ -368,7 +368,7 @@ struct PreviewsUploadServiceTests {
                     type: .value(.ipa),
                     displayName: .value("App"),
                     version: .value("1.0"),
-                    bundleIdentifier: .value("io.tuist.App"),
+                    bundleIdentifier: .value("dev.tuist.App"),
                     supportedPlatforms: .value([.device(.iOS)]),
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),

@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             sources: "App/Sources/**",
             dependencies: [
                 .target(name: "PreviewsFramework"),
@@ -17,7 +17,7 @@ let project = Project(
             name: "PreviewsFramework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.previewsframework",
+            bundleId: "dev.tuist.previewsframework",
             sources: "PreviewsFramework/Sources/**",
             dependencies: [
                 .external(name: "ResourcesFramework"),

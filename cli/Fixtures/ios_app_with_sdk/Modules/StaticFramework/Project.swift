@@ -7,7 +7,7 @@ let project = Project(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.StaticFramework",
+            bundleId: "dev.tuist.StaticFramework",
             infoPlist: "Support/Info.plist",
             sources: ["Sources/**"],
             headers: .headers(public: "Sources/**/*.h"),
@@ -19,7 +19,7 @@ let project = Project(
             name: "StaticFrameworkTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.StaticFrameworkTests",
+            bundleId: "dev.tuist.StaticFrameworkTests",
             infoPlist: "Support/Tests.plist",
             sources: "Tests/**",
             dependencies: [

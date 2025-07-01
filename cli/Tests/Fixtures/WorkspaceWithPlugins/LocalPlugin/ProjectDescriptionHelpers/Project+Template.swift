@@ -34,6 +34,6 @@ extension String {
     /// - parameter target: the name of the target
     /// - returns: the bundle id for the given target
     public static func bundleId(for target: String) -> String {
-        "io.tuist.\(target)"
+        "dev.tuist.\(target)"
     }
 }

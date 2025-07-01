@@ -15,7 +15,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.app"
+            bundleId: "dev.tuist.app"
         ),
     ]
 )

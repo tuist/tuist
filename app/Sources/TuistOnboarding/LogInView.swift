@@ -54,6 +54,21 @@ public struct LogInView: View {
                 .foregroundColor(.white)
                 .cornerRadius(10)
             }
+
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.fullName, .email]
+            } onCompletion: { result in
+                switch result {
+                case let .success(authorization):
+                    errorHandling.fireAndHandleError {
+                        try await authenticationService.signInWithApple(authorization: authorization)
+                    }
+                case let .failure(error):
+                    errorHandling.handle(error: error)
+                }
+            }
+            .frame(height: 50)
+            .cornerRadius(10)
         }
         .padding()
     }

@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.App",
+            bundleId: "dev.tuist.App",
             sources: ["App/Sources/**"],
             dependencies: [
                 .target(name: "DynamicFramework"),
@@ -17,7 +17,7 @@ let project = Project(
             name: "DynamicFramework",
             destinations: .iOS,
             product: .framework,
-            bundleId: "io.tuist.DynamicFramework",
+            bundleId: "dev.tuist.DynamicFramework",
             sources: ["DynamicFramework/Sources/**"],
             dependencies: [
                 .external(name: "GoogleMaps"),

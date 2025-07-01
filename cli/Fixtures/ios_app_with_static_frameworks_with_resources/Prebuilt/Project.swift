@@ -7,7 +7,7 @@ let project = Project(
             name: "PrebuiltStaticFramework",
             destinations: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.PrebuiltStaticFramework",
+            bundleId: "dev.tuist.PrebuiltStaticFramework",
             infoPlist: "Config/Info.plist",
             sources: "Sources/**",
             dependencies: [],

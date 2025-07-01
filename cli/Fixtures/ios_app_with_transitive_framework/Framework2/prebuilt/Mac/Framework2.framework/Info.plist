@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>Framework2</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.tuist.Framework2</string>
+	<string>dev.tuist.Framework2</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

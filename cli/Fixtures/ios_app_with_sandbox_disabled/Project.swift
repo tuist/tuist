@@ -12,7 +12,7 @@ let project = {
                 name: "App",
                 destinations: .iOS,
                 product: .app,
-                bundleId: "io.tuist.App",
+                bundleId: "dev.tuist.App",
                 sources: ["App/Sources/**"]
             ),
         ]
