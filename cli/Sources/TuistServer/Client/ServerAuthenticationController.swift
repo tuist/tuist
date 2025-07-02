@@ -85,6 +85,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     ) async throws
         -> AuthenticationToken?
     {
+        Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         return
             try await CachedValueStore.current
                 .getValue(key: "token_\(serverURL.absoluteString)") {
