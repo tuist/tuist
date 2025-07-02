@@ -10,12 +10,14 @@ defmodule Tuist.Xcode.Clickhouse do
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias Tuist.Xcode.Clickhouse.XcodeProject
   alias Tuist.Xcode.Clickhouse.XcodeTarget
+  alias Tuist.Xcode.Clickhouse.XcodeTargetDenormalized
 
   def create_xcode_graph(%{
         command_event: %Event{id: command_event_id},
         xcode_graph: %{name: name, projects: projects} = xcode_graph
       }) do
     xcode_graph_id = UUIDv7.generate()
+    inserted_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
     xcode_graph_data = [
       %{
@@ -23,39 +25,47 @@ defmodule Tuist.Xcode.Clickhouse do
         name: name,
         command_event_id: command_event_id,
         binary_build_duration: Map.get(xcode_graph, :binary_build_duration),
-        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+        inserted_at: inserted_at
       }
     ]
 
-    projects_data = build_xcode_projects(projects, xcode_graph_id)
-    targets_data = build_xcode_targets(projects, projects_data)
+    projects_data = build_xcode_projects(projects, xcode_graph_id, inserted_at)
+    targets_data = build_xcode_targets(projects, projects_data, inserted_at)
 
     ClickHouseRepo.insert_all(XcodeGraph, xcode_graph_data)
     ClickHouseRepo.insert_all(XcodeProject, projects_data)
-    ClickHouseRepo.insert_all(XcodeTarget, targets_data)
+
+    targets_data
+    |> Enum.chunk_every(1000)
+    |> Enum.each(&ClickHouseRepo.insert_all(XcodeTarget, &1))
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
   end
 
   def selective_testing_analytics(run, flop_params \\ %{}) do
+    command_event_id = to_string(run.id)
+
     base_query =
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
-        where: not is_nil(xt.selective_testing_hash)
+      from(xt in XcodeTargetDenormalized,
+        where: xt.command_event_id == ^command_event_id,
+        where: not is_nil(xt.selective_testing_hash),
+        select: %{
+          id: xt.id,
+          name: xt.name,
+          selective_testing_hit: xt.selective_testing_hit,
+          selective_testing_hash: xt.selective_testing_hash
+        }
       )
 
-    {targets, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
+    {targets, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
 
     test_modules =
       Enum.map(targets, fn target ->
         %{
           name: target.name,
-          selective_testing_hit: String.to_atom(target.selective_testing_hit),
+          selective_testing_hit: hit_string_to_atom(target.selective_testing_hit),
           selective_testing_hash: target.selective_testing_hash
         }
       end)
@@ -65,23 +75,28 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def binary_cache_analytics(run, flop_params \\ %{}) do
+    command_event_id = to_string(run.id)
+
     base_query =
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
-        where: not is_nil(xt.binary_cache_hash)
+      from(xt in XcodeTargetDenormalized,
+        where: xt.command_event_id == ^command_event_id,
+        where: not is_nil(xt.binary_cache_hash),
+        select: %{
+          id: xt.id,
+          name: xt.name,
+          binary_cache_hit: xt.binary_cache_hit,
+          binary_cache_hash: xt.binary_cache_hash
+        }
       )
 
-    {targets, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
+    {targets, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
 
     cacheable_targets =
       Enum.map(targets, fn target ->
         %{
           name: target.name,
-          binary_cache_hit: String.to_atom(target.binary_cache_hit),
+          binary_cache_hit: hit_string_to_atom(target.binary_cache_hit),
           binary_cache_hash: target.binary_cache_hash
         }
       end)
@@ -91,132 +106,115 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def selective_testing_counts(run) do
-    base_query =
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
-        where: not is_nil(xt.selective_testing_hash)
-      )
+    command_event_id = to_string(run.id)
 
-    counts =
-      from(xt in subquery(base_query),
-        group_by: xt.selective_testing_hit,
-        select: {xt.selective_testing_hit, count(xt.id)}
+    result =
+      ClickHouseRepo.one(
+        from(xt in XcodeTargetDenormalized,
+          where: xt.command_event_id == ^command_event_id,
+          where: not is_nil(xt.selective_testing_hash),
+          select: %{
+            local: fragment("countIf(selective_testing_hit = 'local')"),
+            remote: fragment("countIf(selective_testing_hit = 'remote')"),
+            miss: fragment("countIf(selective_testing_hit = 'miss')"),
+            total: count(xt.id)
+          }
+        )
       )
-      |> ClickHouseRepo.all()
-      |> Map.new()
-
-    total_count = counts |> Map.values() |> Enum.sum()
 
     %{
-      selective_testing_local_hits_count: Map.get(counts, "local", 0),
-      selective_testing_remote_hits_count: Map.get(counts, "remote", 0),
-      selective_testing_misses_count: Map.get(counts, "miss", 0),
-      total_count: total_count
+      selective_testing_local_hits_count: result.local || 0,
+      selective_testing_remote_hits_count: result.remote || 0,
+      selective_testing_misses_count: result.miss || 0,
+      total_count: result.total || 0
     }
   end
 
   def binary_cache_counts(run) do
-    base_query =
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
-        where: not is_nil(xt.binary_cache_hash)
-      )
+    command_event_id = to_string(run.id)
 
-    counts =
-      from(xt in subquery(base_query),
-        group_by: xt.binary_cache_hit,
-        select: {xt.binary_cache_hit, count(xt.id)}
+    result =
+      ClickHouseRepo.one(
+        from(xt in XcodeTargetDenormalized,
+          where: xt.command_event_id == ^command_event_id,
+          where: not is_nil(xt.binary_cache_hash),
+          select: %{
+            local: fragment("countIf(binary_cache_hit = 'local')"),
+            remote: fragment("countIf(binary_cache_hit = 'remote')"),
+            miss: fragment("countIf(binary_cache_hit = 'miss')"),
+            total: count(xt.id)
+          }
+        )
       )
-      |> ClickHouseRepo.all()
-      |> Map.new()
-
-    total_count = counts |> Map.values() |> Enum.sum()
 
     %{
-      binary_cache_local_hits_count: Map.get(counts, "local", 0),
-      binary_cache_remote_hits_count: Map.get(counts, "remote", 0),
-      binary_cache_misses_count: Map.get(counts, "miss", 0),
-      total_count: total_count
+      binary_cache_local_hits_count: result.local || 0,
+      binary_cache_remote_hits_count: result.remote || 0,
+      binary_cache_misses_count: result.miss || 0,
+      total_count: result.total || 0
     }
   end
 
   def has_selective_testing_data?(run) do
+    command_event_id = to_string(run.id)
+
     ClickHouseRepo.exists?(
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
+      from(xt in XcodeTargetDenormalized,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.selective_testing_hash)
       )
     )
   end
 
   def has_binary_cache_data?(run) do
+    command_event_id = to_string(run.id)
+
     ClickHouseRepo.exists?(
-      from(xt in XcodeTarget,
-        join: xp in XcodeProject,
-        on: xt.xcode_project_id == xp.id,
-        join: xg in XcodeGraph,
-        on: xp.xcode_graph_id == xg.id,
-        where: xg.command_event_id == ^run.id,
+      from(xt in XcodeTargetDenormalized,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.binary_cache_hash)
       )
     )
   end
 
-  def xcode_targets_for_command_event(command_event_id) do
-    from(xt in XcodeTarget,
-      join: xp in XcodeProject,
-      on: xt.xcode_project_id == xp.id,
-      join: xg in XcodeGraph,
-      on: xp.xcode_graph_id == xg.id,
-      where: xg.command_event_id == ^command_event_id,
-      order_by: xt.name
+  def xcode_targets_for_command_event(command_event_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 1000)
+    offset = Keyword.get(opts, :offset, 0)
+    command_event_id_str = to_string(command_event_id)
+
+    from(xt in XcodeTargetDenormalized,
+      where: xt.command_event_id == ^command_event_id_str,
+      order_by: xt.name,
+      limit: ^limit,
+      offset: ^offset,
+      select: %{
+        id: xt.id,
+        name: xt.name,
+        binary_cache_hash: xt.binary_cache_hash,
+        binary_cache_hit: xt.binary_cache_hit,
+        binary_build_duration: xt.binary_build_duration,
+        selective_testing_hash: xt.selective_testing_hash,
+        selective_testing_hit: xt.selective_testing_hit,
+        xcode_project_id: xt.xcode_project_id
+      }
     )
     |> ClickHouseRepo.all()
-    |> Enum.map(&XcodeTarget.normalize_enums/1)
+    |> Enum.map(&XcodeTargetDenormalized.normalize_enums/1)
   end
 
-  def get_xcode_targets_grouped_by_project(command_event_id) do
-    from(xt in XcodeTarget,
-      join: xp in XcodeProject,
-      on: xt.xcode_project_id == xp.id,
-      join: xg in XcodeGraph,
-      on: xp.xcode_graph_id == xg.id,
-      where: xg.command_event_id == ^command_event_id,
-      order_by: [xp.id, xt.name],
-      select: {xp.id, xt}
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.map(fn {project_id, target} -> {project_id, XcodeTarget.normalize_enums(target)} end)
-    |> Enum.group_by(fn {project_id, _target} -> project_id end, fn {_project_id, target} ->
-      target
-    end)
-  end
-
-  defp build_xcode_projects(projects, xcode_graph_id) do
+  defp build_xcode_projects(projects, xcode_graph_id, inserted_at) do
     Enum.map(projects, fn project ->
       %{
         id: UUIDv7.generate(),
         xcode_graph_id: xcode_graph_id,
         name: project["name"],
         path: project["path"],
-        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+        inserted_at: inserted_at
       }
     end)
   end
 
-  defp build_xcode_targets(projects, projects_data) do
+  defp build_xcode_targets(projects, projects_data, inserted_at) do
     projects
     |> Enum.map(fn project ->
       %{
@@ -225,7 +223,16 @@ defmodule Tuist.Xcode.Clickhouse do
       }
     end)
     |> Enum.flat_map(fn xcode_project ->
-      Enum.map(xcode_project.targets, &XcodeTarget.changeset(xcode_project.project.id, &1))
+      Enum.map(
+        xcode_project.targets,
+        &XcodeTarget.changeset(xcode_project.project.id, &1, inserted_at)
+      )
     end)
   end
+
+  # Helper function to convert hit string values to atoms
+  defp hit_string_to_atom("miss"), do: :miss
+  defp hit_string_to_atom("local"), do: :local
+  defp hit_string_to_atom("remote"), do: :remote
+  defp hit_string_to_atom(_), do: :miss
 end

@@ -1,8 +1,5 @@
 import Config
 
-config :ecto_ch,
-  default_table_engine: "TinyLog"
-
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
 

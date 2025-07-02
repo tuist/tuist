@@ -32,7 +32,7 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
     timestamps(updated_at: false)
   end
 
-  def changeset(xcode_project_id, xcode_target) do
+  def changeset(xcode_project_id, xcode_target, inserted_at \\ nil) do
     changeset = %{
       id: UUIDv7.generate(),
       name: xcode_target["name"],
@@ -42,7 +42,7 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
       binary_build_duration: nil,
       selective_testing_hash: nil,
       selective_testing_hit: hit_enum_to_int(:miss),
-      inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      inserted_at: inserted_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
 
     changeset =
