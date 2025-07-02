@@ -56,7 +56,7 @@ defmodule TuistWeb.AccountSettingsLive do
   def handle_event("delete_organization", %{"name" => name} = _params, %{assigns: %{selected_account: account}} = socket) do
     socket =
       if name == account.name do
-        organization = Accounts.get_organization_by_id(account.organization_id)
+        {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
 
         Accounts.delete_organization!(organization)
 

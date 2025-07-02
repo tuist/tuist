@@ -6,6 +6,8 @@ defmodule Tuist.Accounts.Account do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
 
@@ -17,11 +19,12 @@ defmodule Tuist.Accounts.Account do
   schema "accounts" do
     field :name, :string
     field :billing_email, :string
-    field :user_id, :integer
-    field :organization_id, :integer
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+
+    belongs_to :organization, Organization
+    belongs_to :user, User
 
     has_many(:projects, Project, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)

@@ -225,7 +225,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # Then
       response = json_response(conn, :no_content)
       assert response == %{}
-      assert Accounts.get_organization_by_id(organization.id) == nil
+      assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
     end
 
     test "returns :forbidden when a user is not an admin of an organization", %{

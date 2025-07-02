@@ -43,9 +43,18 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug Ueberauth
     plug :fetch_current_user
     plug :content_security_policy
+  end
+
+  pipeline :ueberauth do
+    plug :accepts, ["html"]
+    plug :disable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug Ueberauth
   end
 
   # Some endpoints must be accessible without the :protect_from_forgery plug.
@@ -412,6 +421,7 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
+      live "/users/log_in/okta", UserOktaLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
     end
@@ -446,6 +456,12 @@ defmodule TuistWeb.Router do
 
   scope "/users/auth", TuistWeb do
     pipe_through :browser_app
+    get "/okta", AuthController, :okta_request
+    get "/okta/callback", AuthController, :okta_callback
+  end
+
+  scope "/users/auth", TuistWeb do
+    pipe_through :ueberauth
     get "/:provider", AuthController, :request
     get "/:provider/callback", AuthController, :callback
   end

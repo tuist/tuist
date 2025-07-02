@@ -296,7 +296,7 @@ defmodule TuistWeb.MembersLive do
       }
     )
 
-    organization =
+    {:ok, organization} =
       Accounts.get_organization_by_id(socket.assigns.organization.id,
         preload: [:invitations]
       )
@@ -317,7 +317,7 @@ defmodule TuistWeb.MembersLive do
   end
 
   defp assign_organization(socket) do
-    organization =
+    {:ok, organization} =
       Accounts.get_organization_by_id(socket.assigns.selected_account.organization_id,
         preload: [:invitations]
       )

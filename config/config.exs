@@ -254,7 +254,6 @@ config :ueberauth, Ueberauth,
   providers: [
     github: {Ueberauth.Strategy.Github, []},
     google: {Ueberauth.Strategy.Google, []},
-    okta: {Ueberauth.Strategy.Okta, []},
     apple: {Ueberauth.Strategy.Apple, [callback_methods: ["POST"], default_scope: "email"]}
   ]
 

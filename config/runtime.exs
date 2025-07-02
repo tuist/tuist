@@ -254,11 +254,6 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: Tuist.Environment.google_oauth_client_id(secrets),
   client_secret: Tuist.Environment.google_oauth_client_secret(secrets)
 
-config :ueberauth, Ueberauth.Strategy.Okta.OAuth,
-  site: Tuist.Environment.okta_site(secrets),
-  client_id: Tuist.Environment.okta_client_id(secrets),
-  client_secret: Tuist.Environment.okta_client_secret(secrets)
-
 # Mailgun configuration
 if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:prod, :can, :stag] do
   base_uri =

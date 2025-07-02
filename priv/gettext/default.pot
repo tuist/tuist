@@ -930,6 +930,7 @@ msgstr ""
 #: lib/tuist_web/live/members_live.ex:178
 #: lib/tuist_web/live/user_forgot_password_live.ex:47
 #: lib/tuist_web/live/user_login_live.ex:125
+#: lib/tuist_web/live/user_okta_login_live.ex:66
 #: lib/tuist_web/live/user_registration_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -1383,6 +1384,7 @@ msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:15
 #: lib/tuist_web/live/user_login_live.ex:156
+#: lib/tuist_web/live/user_okta_login_live.ex:74
 #: lib/tuist_web/live/user_registration_live.ex:180
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:93
 #, elixir-autogen, elixir-format
@@ -1390,6 +1392,7 @@ msgid "Log in"
 msgstr ""
 
 #: lib/tuist_web/live/user_login_live.ex:41
+#: lib/tuist_web/live/user_okta_login_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
@@ -2386,7 +2389,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:13
+#: lib/tuist_web/controllers/auth_controller.ex:15
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -2553,6 +2556,7 @@ msgstr ""
 #: lib/tuist_web/live/user_confirmation_live.ex:14
 #: lib/tuist_web/live/user_forgot_password_live.ex:19
 #: lib/tuist_web/live/user_login_live.ex:35
+#: lib/tuist_web/live/user_okta_login_live.ex:43
 #: lib/tuist_web/live/user_registration_live.ex:57
 #: lib/tuist_web/live/user_registration_live.ex:195
 #: lib/tuist_web/live/user_reset_password_live.ex:20
@@ -4189,4 +4193,29 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Delete preview"
+msgstr ""
+
+#: lib/tuist_web/live/user_okta_login_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "Contact us"
+msgstr ""
+
+#: lib/tuist_web/live/user_okta_login_live.ex:78
+#, elixir-autogen, elixir-format
+msgid "Interested in SSO?"
+msgstr ""
+
+#: lib/tuist_web/live/user_okta_login_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Log in to your enterprise account via Okta"
+msgstr ""
+
+#: lib/tuist_web/live/user_okta_login_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Logging in via Okta failed"
+msgstr ""
+
+#: lib/tuist_web/live/user_okta_login_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "Okta log in"
 msgstr ""

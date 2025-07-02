@@ -75,7 +75,11 @@ defmodule Tuist.Accounts do
   """
   def get_organization_by_id(id, attrs \\ []) do
     preload = Keyword.get(attrs, :preload, [:account])
-    Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload)
+
+    case Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload) do
+      nil -> {:error, :not_found}
+      %Organization{} = organization -> {:ok, organization}
+    end
   end
 
   def get_organization_by_handle(handle) do
@@ -687,14 +691,6 @@ defmodule Tuist.Accounts do
 
   def assign_existing_sso_users_to_organization(_organization, _provider, _provider_organization_id), do: 0
 
-  def organization_from_account(%Account{} = account) do
-    if is_nil(account.organization_id) do
-      nil
-    else
-      get_organization_by_id(account.organization_id)
-    end
-  end
-
   def get_account_from_customer_id(customer_id) do
     query =
       from a in Account,
@@ -722,34 +718,29 @@ defmodule Tuist.Accounts do
   end
 
   def owns_account_or_belongs_to_account_organization?(user, %{id: account_id}) do
-    with {:account, %Account{} = account} <- {:account, get_account_by_id(account_id)},
-         {:organization, organization} <- {:organization, organization_from_account(account)} do
-      belongs_to_account_organization =
-        if organization == nil do
-          false
-        else
-          organization_admin?(user, organization) or organization_user?(user, organization)
-        end
+    case account_id |> get_account_by_id() |> Repo.preload(:organization) do
+      %Account{organization: nil} = account ->
+        owns_account?(user, account)
 
-      owns_account?(user, account) or belongs_to_account_organization
-    else
-      {:account, nil} -> false
+      %Account{organization: organization} = account ->
+        owns_account?(user, account) or organization_admin?(user, organization) or
+          organization_user?(user, organization)
+
+      _ ->
+        false
     end
   end
 
   def owns_account_or_is_admin_to_account_organization?(user, %{id: account_id}) do
-    with {:account, %Account{} = account} <- {:account, get_account_by_id(account_id)},
-         {:organization, organization} <- {:organization, organization_from_account(account)} do
-      is_admin_to_account_organization =
-        if organization == nil do
-          false
-        else
-          organization_admin?(user, organization)
-        end
+    case account_id |> get_account_by_id() |> Repo.preload(:organization) do
+      %Account{organization: nil} = account ->
+        owns_account?(user, account)
 
-      owns_account?(user, account) or is_admin_to_account_organization
-    else
-      {:account, nil} -> false
+      %Account{organization: organization} = account ->
+        owns_account?(user, account) or organization_admin?(user, organization)
+
+      _ ->
+        false
     end
   end
 
@@ -1354,6 +1345,25 @@ defmodule Tuist.Accounts do
 
   defp available_avatar_colors do
     ~w(gray red orange yellow azure blue purple pink)
+  end
+
+  def okta_organization_for_user_email(email) do
+    with user when not is_nil(user) <- get_user_by_email(email),
+         organization when not is_nil(organization) <- user_okta_organization(user) do
+      {:ok, organization}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp user_okta_organization(user) do
+    user_organizations = get_user_organization_accounts(user)
+
+    Enum.find_value(user_organizations, fn %{organization: organization} ->
+      if organization.sso_provider == :okta && organization.sso_organization_id do
+        organization
+      end
+    end)
   end
 
   def organization?(account), do: !is_nil(account.organization_id)

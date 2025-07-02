@@ -333,29 +333,17 @@ defmodule Tuist.Environment do
     get([:okta, :site], secrets)
   end
 
-  def okta_client_id(secrets \\ secrets()) do
-    get([:okta, :client_id], secrets)
+  def okta_client_id_for_organization_id(organization_id, secrets \\ secrets()) do
+    get([:okta, organization_id, :client_id], secrets)
   end
 
-  def okta_client_secret(secrets \\ secrets()) do
-    get([:okta, :client_secret], secrets)
-  end
-
-  def okta_authorize_url(secrets \\ secrets()) do
-    get([:okta, :authorize_url], secrets)
-  end
-
-  def okta_token_url(secrets \\ secrets()) do
-    get([:okta, :token_url], secrets)
-  end
-
-  def okta_user_info_url(secrets \\ secrets()) do
-    get([:okta, :user_info_url], secrets)
+  def okta_client_secret_for_organization_id(organization_id, secrets \\ secrets()) do
+    get([:okta, organization_id, :client_secret], secrets)
   end
 
   def okta_oauth_configured?(secrets \\ secrets()) do
-    okta_site(secrets) != nil and okta_client_id(secrets) != nil and
-      okta_client_secret(secrets) != nil
+    get([:okta], secrets) != nil or
+      Enum.any?(System.get_env(), fn {key, _value} -> String.starts_with?(key, "TUIST_OKTA_") end)
   end
 
   def apple_service_client_id(secrets \\ secrets()) do
@@ -507,7 +495,7 @@ defmodule Tuist.Environment do
 
   def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
-      "TUIST_#{keys |> Enum.map(&Atom.to_string/1) |> Enum.map_join("_", &String.upcase/1)}"
+      "TUIST_#{keys |> Enum.map(&to_string/1) |> Enum.map_join("_", &String.upcase/1)}"
 
     default_value = Keyword.get(opts, :default_value)
 

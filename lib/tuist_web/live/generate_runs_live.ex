@@ -280,7 +280,7 @@ defmodule TuistWeb.GenerateRunsLive do
 
     organization =
       if Accounts.organization?(project.account) do
-        organization = Accounts.get_organization_by_id(project.account.organization_id)
+        {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
         users = Accounts.get_organization_members(organization)
 
         [

@@ -73,7 +73,7 @@ defmodule TuistWeb.UserLoginLive do
             </.button>
             <.button
               :if={@okta_configured?}
-              href={~p"/users/auth/okta"}
+              href={~p"/users/log_in/okta"}
               variant="secondary"
               size="medium"
               label="Okta"

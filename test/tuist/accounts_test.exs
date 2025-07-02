@@ -863,7 +863,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert {:ok, organization} == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -876,7 +876,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert {:ok, organization} == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -890,7 +890,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert {:ok, organization} == Accounts.get_organization_by_id(organization.id)
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -911,7 +911,9 @@ defmodule Tuist.AccountsTest do
         )
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id, preload: [:account])
+      assert {:ok, organization} ==
+               Accounts.get_organization_by_id(organization.id, preload: [:account])
+
       assert organization.sso_provider == :google
       assert organization.sso_organization_id == "tuist.io"
       assert Accounts.organization_admin?(user, organization) == true
@@ -926,7 +928,7 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert {:ok, organization} == Accounts.get_organization_by_id(organization.id)
       assert Accounts.get_account_from_organization(organization).customer_id != ""
       assert Accounts.organization_admin?(user, organization) == true
     end
@@ -944,8 +946,26 @@ defmodule Tuist.AccountsTest do
       Accounts.delete_organization!(organization)
 
       # Then
-      assert Accounts.get_organization_by_id(organization.id) == nil
+      assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == nil
+    end
+  end
+
+  describe "get_organization_by_id/1" do
+    test "returns organization when organization exists" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org", creator: user})
+
+      # Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(organization.id)
+    end
+
+    test "returns not found error when organization does not exist" do
+      # When / Then
+      assert {:error, :not_found} == Accounts.get_organization_by_id(999)
     end
   end
 
@@ -1647,7 +1667,9 @@ defmodule Tuist.AccountsTest do
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
-      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name == "user"
+
+      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name ==
+               "user"
     end
 
     test "assigns existing SSO users when enabling Okta SSO" do
@@ -1690,7 +1712,9 @@ defmodule Tuist.AccountsTest do
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
-      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name == "user"
+
+      assert Accounts.get_user_role_in_organization(existing_user, updated_organization).name ==
+               "user"
     end
 
     test "does not assign users when SSO is updated but not newly enabled" do
@@ -2466,7 +2490,8 @@ defmodule Tuist.AccountsTest do
       refute Accounts.belongs_to_organization?(user2, organization)
 
       # When
-      count = Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+      count =
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
 
       # Then
       assert count == 2
@@ -2481,10 +2506,69 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture()
 
       # When
-      count = Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+      count =
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
 
       # Then
       assert count == 0
+    end
+  end
+
+  describe "okta_organization_for_user_email/1" do
+    test "returns organization when user exists and has okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com"
+        )
+
+      # When
+      {:ok, got_organization} = Accounts.okta_organization_for_user_email(user.email)
+
+      # Then
+      assert got_organization.id == organization.id
+      assert got_organization.sso_provider == :okta
+    end
+
+    test "returns error when user does not exist" do
+      # When / Then
+      assert {:error, :not_found} ==
+               Accounts.okta_organization_for_user_email("nonexistent@example.com")
+    end
+
+    test "returns error when user exists but has no okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When / Then
+      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+    end
+
+    test "returns error when user has organization but no sso configured" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      AccountsFixtures.organization_fixture(creator: user)
+
+      # When / Then
+      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+    end
+
+    test "returns error when user has google sso instead of okta" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      AccountsFixtures.organization_fixture(
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: "company.com"
+      )
+
+      # When / Then
+      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
     end
   end
 end

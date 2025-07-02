@@ -6,11 +6,40 @@ defmodule TuistWeb.AuthController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Organization
+  alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
 
   def request(_conn, _params) do
     raise TuistWeb.Errors.NotFoundError,
           gettext("The authentication URL is not supported")
+  end
+
+  def okta_request(conn, params) do
+    with %{"organization_id" => organization_id} <- params,
+         {:ok, %Organization{} = organization} <-
+           Accounts.get_organization_by_id(organization_id),
+         {:ok, config} <- Okta.config_for_organization(organization) do
+      conn
+      |> put_session(:okta_organization_id, organization_id)
+      |> Ueberauth.run_request(
+        "okta",
+        {
+          Ueberauth.Strategy.Okta,
+          [
+            client_id: config.client_id,
+            client_secret: config.client_secret,
+            site: "https://#{config.domain}"
+          ]
+        }
+      )
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Failed to authenticate with Okta.")
+        |> redirect(to: ~p"/")
+        |> halt()
+    end
   end
 
   def delete(conn, _params) do
@@ -43,6 +72,33 @@ defmodule TuistWeb.AuthController do
       conn
       |> put_flash(:info, "Successfully authenticated.")
       |> Authentication.log_in_user(user)
+    end
+  end
+
+  def okta_callback(conn, params) do
+    with %{"okta_organization_id" => organization_id} <- get_session(conn),
+         {:ok, %Organization{} = organization} <-
+           Accounts.get_organization_by_id(organization_id),
+         {:ok, config} <- Okta.config_for_organization(organization) do
+      conn
+      |> Ueberauth.run_callback(
+        :okta,
+        {
+          Ueberauth.Strategy.Okta,
+          [
+            client_id: config.client_id,
+            client_secret: config.client_secret,
+            site: "https://#{config.domain}"
+          ]
+        }
+      )
+      |> callback(params)
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Failed to authenticate with Okta.")
+        |> redirect(to: ~p"/")
+        |> halt()
     end
   end
 

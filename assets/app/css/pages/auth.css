@@ -1,5 +1,6 @@
 #accept-invitation,
 #login,
+#okta-login,
 #signup,
 #signup-success,
 #confirmation,
@@ -202,7 +203,8 @@
 
 #login,
 #signup,
-#forgot-password {
+#forgot-password,
+#okta-login {
   & .noora-alert {
     width: 100%;
   }

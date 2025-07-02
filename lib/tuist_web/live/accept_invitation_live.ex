@@ -14,7 +14,7 @@ defmodule TuistWeb.AcceptInvitationLive do
 
     case Accounts.get_invitation_by_token(token, user) do
       {:ok, invitation} ->
-        organization = Accounts.get_organization_by_id(invitation.organization_id)
+        {:ok, organization} = Accounts.get_organization_by_id(invitation.organization_id)
         account = Accounts.get_account_from_organization(organization)
 
         socket =
