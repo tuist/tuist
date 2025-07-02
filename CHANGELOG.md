@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.55.5 - 2025-07-02
+
+### CLI
+
+#### Fixed
+
+- Fix inspect build causing Tuist session to be unstable [#7769](https://github.com/tuist/tuist/pull/7769) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.55.4 - 2025-07-02
 
 ### CLI
