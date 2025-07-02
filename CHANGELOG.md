@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.55.3 - 2025-07-02
+
+### CLI
+
+#### Changed
+
+- Add logs to help debug issue with unstable session [#7765](https://github.com/tuist/tuist/pull/7765) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- feat: add Sign in with Apple [#7756](https://github.com/tuist/tuist/pull/7756) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix `tuist inspect redundant-import` check when `watchApp` depends on `watchAppExtension` [#7757](https://github.com/tuist/tuist/pull/7757) by [@danieleformichelli](https://github.com/danieleformichelli)
+- ci: fix mise version when releasing app [#7762](https://github.com/tuist/tuist/pull/7762) by [@fortmarek](https://github.com/fortmarek)
+- Fix missing Noora output in log files [#7764](https://github.com/tuist/tuist/pull/7764) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.55.2 - 2025-06-30
 
 ### CLI
