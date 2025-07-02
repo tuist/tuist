@@ -83,10 +83,7 @@ let project = Project(
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
                     "CFBundleShortVersionString": "0.13.1",
                     "CFBundleVersion": "0.13.1",
-                    "UILaunchScreen": [
-                        "UIColorName": "",
-                        "UIImageName": "",
-                    ],
+                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
