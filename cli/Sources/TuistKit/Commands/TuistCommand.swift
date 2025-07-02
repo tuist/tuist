@@ -85,21 +85,6 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let config = try await ConfigLoader().loadConfig(path: path)
-        let url = try ServerEnvironmentService().url(configServerURL: config.url)
-        let backend: TuistAnalyticsServerBackend?
-        if let fullHandle = config.fullHandle {
-            let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
-                fullHandle: fullHandle,
-                url: url
-            )
-            let dispatcher = TuistAnalyticsDispatcher(backend: tuistAnalyticsServerBackend)
-            try TuistAnalytics.bootstrap(dispatcher: dispatcher)
-            backend = tuistAnalyticsServerBackend
-        } else {
-            backend = nil
-        }
-
         try await CacheDirectoriesProvider.bootstrap()
 
         let executeCommand: () async throws -> Void
@@ -110,6 +95,20 @@ public struct TuistCommand: AsyncParsableCommand {
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
+            }
+            let config = try await ConfigLoader().loadConfig(path: path)
+            let url = try ServerEnvironmentService().url(configServerURL: config.url)
+            let backend: TuistAnalyticsServerBackend?
+            if let fullHandle = config.fullHandle, processedArguments.prefix(2) != ["inspect", "build"] {
+                let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
+                    fullHandle: fullHandle,
+                    url: url
+                )
+                let dispatcher = TuistAnalyticsDispatcher(backend: tuistAnalyticsServerBackend)
+                try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+                backend = tuistAnalyticsServerBackend
+            } else {
+                backend = nil
             }
             let command = try parseAsRoot(processedArguments)
 
