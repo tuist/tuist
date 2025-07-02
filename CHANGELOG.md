@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.55.4 - 2025-07-02
+
+### CLI
+
+#### Fixed
+
+- Fix building iOS app [#7766](https://github.com/tuist/tuist/pull/7766) by [@fortmarek](https://github.com/fortmarek)
+- Fix missing logs of sending command event analytics [#7768](https://github.com/tuist/tuist/pull/7768) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.55.3 - 2025-07-02
 
 ### CLI
