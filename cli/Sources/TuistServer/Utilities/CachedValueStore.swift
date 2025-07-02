@@ -72,17 +72,23 @@ public actor CachedValueStore: CachedValueStoring {
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value? {
-        Logger.current.debug("Getting cached value for \(key)")
+        #if canImport(TuistSupport)
+            Logger.current.debug("Getting cached value for \(key)")
+        #endif
         // Check if we have a cached value that isn't expired
         if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-            Logger.current.debug("\(key) is cached and not expired")
+            #if canImport(TuistSupport)
+                Logger.current.debug("\(key) is cached and not expired")
+            #endif
             return cacheEntry.value
         }
 
         // If there's no valid cache entry, create or reuse a task
         if tasks[key] == nil {
             tasks[key] = Task {
-                Logger.current.debug("Triggered a new task to compute value for \(key)")
+                #if canImport(TuistSupport)
+                    Logger.current.debug("Triggered a new task to compute value for \(key)")
+                #endif
                 defer { tasks[key] = nil }
 
                 switch backend {
@@ -151,14 +157,18 @@ public actor CachedValueStore: CachedValueStoring {
                 }
             }
         } else {
-            Logger.current
-                .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
+            #if canImport(TuistSupport)
+                Logger.current
+                    .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
+            #endif
         }
 
         // Wait for the task to complete and return its value
         // swiftlint:disable:next force_unwrapping, force_cast
         let value = try await tasks[key]!.value as? Value
-        Logger.current.debug("Returning value for \(key)")
+        #if canImport(TuistSupport)
+            Logger.current.debug("Returning value for \(key)")
+        #endif
         return value
     }
 }
