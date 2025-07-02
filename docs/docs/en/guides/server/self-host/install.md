@@ -129,20 +129,16 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these instructions</LocalizedLink>.
 
-- **App integration name:** `Tuist`
-- **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
-- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
-- **Assignments:** This configuration will depend on your security team requirements.
-
-Once the app is created you'll need to set the following environment variables:
+You will need to set the following environment variables once you obtain the client id and secret during the set up of the Okta application:
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_OKTA_SITE` | The URL of your Okta organization | Yes | | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID` | The client ID to authenticate against Okta | Yes | | |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes | | |
+| `TUIST_OKTA_1_CLIENT_ID` | The client ID to authenticate against Okta. The number should be your organization ID | Yes | | |
+| `TUIST_OKTA_1_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes | | |
+
+The number `1` needs to be replaced with your organization ID. This will typically be 1, but check in your database.
 
 ### Storage environment configuration {#storage-environment-configuration}
 
