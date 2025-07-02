@@ -61,7 +61,8 @@ extension Logger {
         let fileLogger = try FileLogging(to: logFilePath.url)
 
         let baseLoggers = { (label: String) -> [any LogHandler] in
-            let fileLogHandler = FileLogHandler(label: label, fileLogger: fileLogger)
+            var fileLogHandler = FileLogHandler(label: label, fileLogger: fileLogger)
+            fileLogHandler.logLevel = .debug
 
             var loggers: [any LogHandler] = [fileLogHandler]
             // OSLog is not needed in development.

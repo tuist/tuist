@@ -115,9 +115,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                             let refresh = expiresIn < 30 || forceRefresh
 
                             #if canImport(TuistSupport)
-                                Logger.current.debug(
-                                    "Access token expires in less than \(expiresIn) seconds. Renewing..."
-                                )
+                                if refresh {
+                                    Logger.current.debug(
+                                        "Access token expires in less than \(expiresIn) seconds. Renewing..."
+                                    )
+                                } else {
+                                    Logger.current.debug(
+                                        "Access token expires in \(expiresIn) seconds and it is still valid"
+                                    )
+                                }
                             #endif
                             if refresh {
                                 guard let refreshToken else {
