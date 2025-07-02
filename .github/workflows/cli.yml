@@ -45,7 +45,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Lint
         run: mise run cli:lint
@@ -72,7 +72,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Build
         run: swift build --configuration debug
@@ -100,7 +100,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Cache
         run: mise x -- tuist cache
@@ -127,7 +127,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Run tests
         run: mise x -- tuist test TuistUnitTests
@@ -154,7 +154,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -185,7 +185,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -225,7 +225,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -256,7 +256,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES

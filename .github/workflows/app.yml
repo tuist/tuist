@@ -46,7 +46,7 @@ jobs:
           restore-keys: .build
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
@@ -82,7 +82,7 @@ jobs:
           restore-keys: .build
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Test TuistApp
         run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
@@ -116,7 +116,7 @@ jobs:
         run: cp .optional.env.json .env.json
       - uses: jdx/mise-action@v2
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
