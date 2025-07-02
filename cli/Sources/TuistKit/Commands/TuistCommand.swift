@@ -128,9 +128,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 )
                 if command is NooraReadyCommand {
                     try await withLoggerForNoora(logFilePath: logFilePath) {
-                        try await trackableCommand.run(
-                            backend: backend
-                        )
+                        try await Noora.$current.withValue(initNoora()) {
+                            try await trackableCommand.run(
+                                backend: backend
+                            )
+                        }
                     }
                 } else {
                     try await trackableCommand.run(
@@ -147,14 +149,24 @@ public struct TuistCommand: AsyncParsableCommand {
 
         do {
             try await executeCommand()
-            outputCompletion(
-                logFilePath: logFilePath,
-                shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
-            )
+            // We need to reinitialize Noora as by default, the logger is the legacy one until we migrate all commands to be
+            // `NooraReadyCommand` and the subsequent Noora messages would be missing from the verbose logs.
+            try await withLoggerForNoora(logFilePath: logFilePath) {
+                Noora.$current.withValue(initNoora()) {
+                    outputCompletion(
+                        logFilePath: logFilePath,
+                        shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
+                    )
+                }
+            }
         } catch {
-            onError(
-                parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
-            )
+            try await withLoggerForNoora(logFilePath: logFilePath) {
+                Noora.$current.withValue(initNoora()) {
+                    onError(
+                        parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
+                    )
+                }
+            }
         }
     }
 
