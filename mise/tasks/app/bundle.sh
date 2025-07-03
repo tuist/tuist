@@ -62,7 +62,8 @@ xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --apple-id "$APPLE_ID" \
     --team-id "$TEAM_ID" \
     --password "$APP_SPECIFIC_PASSWORD" \
-    --output-format json | jq -r '.id')
+    --output-format json | jq -r '.id'
+xcrun stapler staple "${BUILD_DMG_PATH}"
 
 # Generating shasums
 print_status "Generating shasums..."

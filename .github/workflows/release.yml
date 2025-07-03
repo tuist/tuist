@@ -131,6 +131,12 @@ jobs:
             app/build/artifacts/Tuist.dmg
             app/build/artifacts/SHASUMS256.txt
             app/build/artifacts/SHASUMS512.txt
+      - name: Get DMG SHA256
+        id: sha256
+        if: env.should-release == 'true'
+        run: |
+          SHA256=$(grep "Tuist.dmg" app/build/artifacts/SHASUMS256.txt | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
       - name: Release Homebrew cask
         if: env.should-release == 'true'
-        run: mise run cli:release:homebrew-cask --version ${{ steps.semvers.outputs.version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+        run: mise run cli:release:homebrew-cask --version ${{ steps.next-version.outputs.NEXT_VERSION }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
