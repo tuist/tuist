@@ -72,14 +72,23 @@ public actor CachedValueStore: CachedValueStoring {
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value? {
+        #if canImport(TuistSupport)
+            Logger.current.debug("Getting cached value for \(key)")
+        #endif
         // Check if we have a cached value that isn't expired
         if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
+            #if canImport(TuistSupport)
+                Logger.current.debug("\(key) is cached and not expired")
+            #endif
             return cacheEntry.value
         }
 
         // If there's no valid cache entry, create or reuse a task
         if tasks[key] == nil {
             tasks[key] = Task {
+                #if canImport(TuistSupport)
+                    Logger.current.debug("Triggered a new task to compute value for \(key)")
+                #endif
                 defer { tasks[key] = nil }
 
                 switch backend {
@@ -102,9 +111,14 @@ public actor CachedValueStore: CachedValueStoring {
                             // Double-check cache after acquiring lock
                             // Another process might have computed the value
                             if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
+                                Logger.current
+                                    .debug(
+                                        "The value for \(key) has been computed from a different process, returning its value early"
+                                    )
                                 return cacheEntry.value
                             }
 
+                            Logger.current.debug("Computing the value for \(key) if needed")
                             if let result = try await computeIfNeeded() {
                                 let value = result.value
                                 let expirationDate = result.expiresAt
@@ -113,8 +127,10 @@ public actor CachedValueStore: CachedValueStoring {
                                 let entry = CacheEntry(value: value, expirationDate: expirationDate)
                                 cache[key] = entry
 
+                                Logger.current.debug("Computed value for \(key)")
                                 return value
                             } else {
+                                Logger.current.debug("Computed value for \(key) is nil")
                                 return nil
                             }
                         }
@@ -140,11 +156,20 @@ public actor CachedValueStore: CachedValueStoring {
                     }
                 }
             }
+        } else {
+            #if canImport(TuistSupport)
+                Logger.current
+                    .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
+            #endif
         }
 
         // Wait for the task to complete and return its value
         // swiftlint:disable:next force_unwrapping, force_cast
-        return try await tasks[key]!.value as? Value
+        let value = try await tasks[key]!.value as? Value
+        #if canImport(TuistSupport)
+            Logger.current.debug("Returning value for \(key)")
+        #endif
+        return value
     }
 }
 

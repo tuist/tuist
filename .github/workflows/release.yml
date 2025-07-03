@@ -36,9 +36,9 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Activate .env.json
         run: cp .optional.env.json .env.json
-      - uses: jdx/mise-action@v2
+      - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
         with:
-          version: 2025.1.5
+          version: 2025.7.0
           experimental: true
       - name: Check if there are releasable changes
         id: is-releasable

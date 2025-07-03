@@ -28,23 +28,26 @@ let inspectBuildPostAction: ExecutionAction = .executionAction(
     """
 )
 
-let oauthClientIdEnvironmentVariable: EnvironmentVariable = switch Environment.env {
-case .string("staging"): "bcb85209-0cef-4acd-8dd4-e0d1c5e5e09a"
-case .string("canary"): "ca49d1d6-acaf-4eaa-b866-774b799044db"
-case .string("development"): "5339abf2-467c-4690-b816-17246ed149d2"
-default: .environmentVariable(value: "", isEnabled: false)
-}
-let serverURLEnvironmentVariable: EnvironmentVariable = switch Environment.env {
-case .string("staging"): "https://staging.tuist.dev"
-case .string("canary"): "https://canary.tuist.dev"
-case .string("development"): "http://localhost:8080"
-default: .environmentVariable(value: "", isEnabled: false)
-}
-let bundleId = switch Environment.env {
-case .string("staging"): "dev.tuist.app.staging"
-case .string("canary"): "dev.tuist.app.canary"
-default: "dev.tuist.app"
-}
+let oauthClientIdEnvironmentVariable: EnvironmentVariable =
+    switch Environment.env {
+    case .string("staging"): "bcb85209-0cef-4acd-8dd4-e0d1c5e5e09a"
+    case .string("canary"): "ca49d1d6-acaf-4eaa-b866-774b799044db"
+    case .string("development"): "5339abf2-467c-4690-b816-17246ed149d2"
+    default: .environmentVariable(value: "", isEnabled: false)
+    }
+let serverURLEnvironmentVariable: EnvironmentVariable =
+    switch Environment.env {
+    case .string("staging"): "https://staging.tuist.dev"
+    case .string("canary"): "https://canary.tuist.dev"
+    case .string("development"): "http://localhost:8080"
+    default: .environmentVariable(value: "", isEnabled: false)
+    }
+let bundleId =
+    switch Environment.env {
+    case .string("staging"): "dev.tuist.app.staging"
+    case .string("canary"): "dev.tuist.app.canary"
+    default: "dev.tuist.app"
+    }
 
 let project = Project(
     name: "TuistApp",
@@ -78,8 +81,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.12.0",
-                    "CFBundleVersion": "0.12.0",
+                    "CFBundleShortVersionString": "0.13.0",
+                    "CFBundleVersion": "0.13.0",
                     "UILaunchScreen": [
                         "UIColorName": "",
                         "UIImageName": "",
@@ -88,11 +91,6 @@ let project = Project(
             ),
             sources: ["Sources/TuistApp/**"],
             resources: ["Resources/TuistApp/**"],
-            entitlements: .dictionary([
-                "com.apple.developer.applesignin": [
-                    "Default",
-                ],
-            ]),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
@@ -106,6 +104,7 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
+                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": "Resources/TuistApp/TuistApp.entitlements",
                 ],
                 release: [
                     // Needed for the app notarization

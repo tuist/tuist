@@ -73,14 +73,17 @@ private func initLogger() async throws -> (Logger, Path.AbsolutePath) {
     return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
 }
 
-private func initNoora() -> Noora {
+func initNoora() -> Noora {
     if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
         Noora(
             standardPipelines: StandardPipelines(
                 output: IgnoreOutputPipeline()
-            )
+            ),
+            logger: Logger.current
         )
     } else {
-        Noora()
+        Noora(
+            logger: Logger.current
+        )
     }
 }
