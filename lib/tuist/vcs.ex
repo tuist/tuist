@@ -148,7 +148,14 @@ defmodule Tuist.VCS do
   def connected?(%{repository_full_handle: repository_full_handle, project: project}) do
     Environment.github_app_configured?() and
       not is_nil(project.vcs_repository_full_handle) and
-      String.downcase(project.vcs_repository_full_handle) == String.downcase(repository_full_handle)
+      String.downcase(project.vcs_repository_full_handle) ==
+        String.downcase(repository_full_handle)
+  end
+
+  def enqueue_vcs_pull_request_comment(args) do
+    args
+    |> VCS.Workers.CommentWorker.new()
+    |> Oban.insert()
   end
 
   def post_vcs_pull_request_comment(%{
@@ -313,12 +320,14 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and is_nil(builds_body) do
+    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and
+         is_nil(builds_body) do
       nil
     else
       """
       ### 🛠️ Tuist Run Report 🛠️
-      """ <> (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
+      """ <>
+        (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
     end
   end
 
@@ -378,9 +387,14 @@ defmodule Tuist.VCS do
     absolute_delta = abs(size - last_size)
 
     cond do
-      size < last_size -> "<br/>`Δ -#{Bundles.format_bytes(absolute_delta)} (#{deviation_percentage}%)`"
-      size > last_size -> "<br/>`Δ +#{Bundles.format_bytes(absolute_delta)} (+#{deviation_percentage}%)`"
-      true -> ""
+      size < last_size ->
+        "<br/>`Δ -#{Bundles.format_bytes(absolute_delta)} (#{deviation_percentage}%)`"
+
+      size > last_size ->
+        "<br/>`Δ +#{Bundles.format_bytes(absolute_delta)} (+#{deviation_percentage}%)`"
+
+      true ->
+        ""
     end
   end
 
@@ -470,9 +484,14 @@ defmodule Tuist.VCS do
          preview_qr_code_url: preview_qr_code_url
        }) do
     case {AppBuilds.latest_ipa_app_build_for_preview(preview), contains_ipas} do
-      {nil, true} -> " |"
-      {nil, false} -> ""
-      {_, _} -> " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
+      {nil, true} ->
+        " |"
+
+      {nil, false} ->
+        ""
+
+      {_, _} ->
+        " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
     end
   end
 

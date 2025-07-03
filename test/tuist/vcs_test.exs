@@ -1117,4 +1117,43 @@ defmodule Tuist.VCSTest do
       })
     end
   end
+
+  describe "enqueue_vcs_pull_request_comment/1" do
+    test "enqueues VCS comment job with correct parameters" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+      job_params = %{
+        build_id: build.id,
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://github.com/tuist/tuist",
+        project_id: project.id,
+        preview_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
+        preview_qr_code_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
+        command_run_url_template: "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
+        bundle_url_template: "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
+        build_url_template: "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+      }
+
+      # When / Then
+      Oban.Testing.with_testing_mode(:manual, fn ->
+        result = VCS.enqueue_vcs_pull_request_comment(job_params)
+
+        assert {:ok, %Oban.Job{}} = result
+
+        assert_enqueued(
+          worker: VCS.Workers.CommentWorker,
+          args: %{
+            "build_id" => build.id,
+            "git_commit_sha" => "abc123",
+            "git_ref" => "refs/pull/123/head",
+            "git_remote_url_origin" => "https://github.com/tuist/tuist",
+            "project_id" => project.id
+          }
+        )
+      end)
+    end
+  end
 end

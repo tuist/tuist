@@ -2638,7 +2638,7 @@ msgstr ""
 msgid "Unauthorized"
 msgstr ""
 
-#: lib/tuist/vcs.ex:387
+#: lib/tuist/vcs.ex:401
 #: lib/tuist_web/components/runs/ran_by_badge.ex:28
 #: lib/tuist_web/live/build_runs_live.html.heex:98
 #: lib/tuist_web/live/build_runs_live.html.heex:115
