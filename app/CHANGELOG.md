@@ -1,3 +1,9 @@
+## What's Changed in app@0.13.1
+* fix: don't show error when cancelling authentication by @fortmarek in [#7776](https://github.com/tuist/tuist/pull/7776)
+* fix: clear credentials on authentication failure by @fortmarek in [#7775](https://github.com/tuist/tuist/pull/7775)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.13.0...app@0.13.1
+
 ## What's Changed in app@0.13.0
 * fix: macOS app release by making Sign in with Apple entitlements iOS-only by @fortmarek in [#7773](https://github.com/tuist/tuist/pull/7773)
 * feat: add Sign in with Apple by @fortmarek in [#7756](https://github.com/tuist/tuist/pull/7756)
