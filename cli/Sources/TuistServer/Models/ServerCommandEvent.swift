@@ -2,12 +2,12 @@ import Foundation
 
 /// Server command event
 public struct ServerCommandEvent: Codable, Equatable {
-    public let id: UUID
+    public let id: String
     public let name: String
     public let url: URL
 
     public init(
-        id: UUID,
+        id: String,
         name: String,
         url: URL
     ) {
@@ -36,7 +36,7 @@ public struct ServerCommandEvent: Codable, Equatable {
 
 extension ServerCommandEvent {
     init(_ commandEvent: Components.Schemas.CommandEvent) {
-        id = UUID(uuidString: commandEvent.uuid)!
+        id = commandEvent.id
         name = commandEvent.name
         url = URL(string: commandEvent.url)!
     }
@@ -64,7 +64,7 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
 #if MOCKING
     extension ServerCommandEvent {
         public static func test(
-            id: UUID = UUID(),
+            id: String = UUID().uuidString,
             name: String = "generate",
             url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
         ) -> Self {

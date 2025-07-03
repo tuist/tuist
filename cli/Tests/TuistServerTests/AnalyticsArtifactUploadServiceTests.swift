@@ -65,7 +65,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         try FileHandler.shared.touch(resultBundle)
 
         let serverURL: URL = .test()
-        let commandEventID = UUID()
+        let commandEventID = UUID().uuidString
 
         let fileArchiver = MockFileArchiving()
         given(fileArchiverFactory)

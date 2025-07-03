@@ -5,7 +5,7 @@ import Mockable
 public protocol MultipartUploadGenerateURLAnalyticsServicing {
     func uploadAnalytics(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: UUID,
+        commandEventId: String,
         partNumber: Int,
         uploadId: String,
         serverURL: URL,
@@ -34,7 +34,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
 
     public func uploadAnalytics(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: UUID,
+        commandEventId: String,
         partNumber: Int,
         uploadId: String,
         serverURL: URL,
@@ -43,7 +43,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateAnalyticsArtifactMultipartUploadURL(
             .init(
-                path: .init(run_id: commandEventId.uuidString),
+                path: .init(run_id: commandEventId),
                 body: .json(
                     .init(
                         command_event_artifact: .init(artifact),

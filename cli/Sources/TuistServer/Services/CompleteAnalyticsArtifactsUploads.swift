@@ -5,7 +5,7 @@ import OpenAPIRuntime
 @Mockable
 public protocol CompleteAnalyticsArtifactsUploadsServicing {
     func completeAnalyticsArtifactsUploads(
-        commandEventId: UUID,
+        commandEventId: String,
         serverURL: URL
     ) async throws
 }
@@ -30,13 +30,13 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
     public init() {}
 
     public func completeAnalyticsArtifactsUploads(
-        commandEventId: UUID,
+        commandEventId: String,
         serverURL: URL
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.completeAnalyticsArtifactsUploads(
             .init(
-                path: .init(run_id: commandEventId.uuidString)
+                path: .init(run_id: commandEventId)
             )
         )
         switch response {

@@ -115,6 +115,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
     /// It uploads a given cache action item.
     ///
     /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
@@ -552,6 +559,21 @@ extension APIProtocol {
         try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
             query: query,
             headers: headers
+        ))
+    }
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    internal func authenticateApple(
+        headers: Operations.authenticateApple.Input.Headers = .init(),
+        body: Operations.authenticateApple.Input.Body? = nil
+    ) async throws -> Operations.authenticateApple.Output {
+        try await authenticateApple(Operations.authenticateApple.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// It uploads a given cache action item.
@@ -1367,15 +1389,14 @@ internal enum Components {
                 case upload_id
             }
         }
-        /// A command event
+        /// A command event.
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
         internal struct CommandEvent: Codable, Hashable, Sendable {
-            /// The integer identifier of the command event (for backward compatibility)
+            /// The unique identifier of the command event.
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/id`.
-            @available(*, deprecated)
-            internal var id: Swift.Int
+            internal var id: Swift.String
             /// The name of the command
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/name`.
@@ -1388,37 +1409,29 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/url`.
             internal var url: Swift.String
-            /// The unique identifier of the command event
-            ///
-            /// - Remark: Generated from `#/components/schemas/CommandEvent/uuid`.
-            internal var uuid: Swift.String
             /// Creates a new `CommandEvent`.
             ///
             /// - Parameters:
-            ///   - id: The integer identifier of the command event (for backward compatibility)
+            ///   - id: The unique identifier of the command event.
             ///   - name: The name of the command
             ///   - project_id: The project identifier
             ///   - url: The URL to the command event
-            ///   - uuid: The unique identifier of the command event
             internal init(
-                id: Swift.Int,
+                id: Swift.String,
                 name: Swift.String,
                 project_id: Swift.Int,
-                url: Swift.String,
-                uuid: Swift.String
+                url: Swift.String
             ) {
                 self.id = id
                 self.name = name
                 self.project_id = project_id
                 self.url = url
-                self.uuid = uuid
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case project_id
                 case url
-                case uuid
             }
         }
         /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
@@ -6564,14 +6577,14 @@ internal enum Operations {
         internal struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path`.
             internal struct Path: Sendable, Hashable {
-                /// The id of the command event (integer or UUID).
+                /// The id of the command event UUID.
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path/run_id`.
                 internal var run_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - run_id: The id of the command event (integer or UUID).
+                ///   - run_id: The id of the command event UUID.
                 internal init(run_id: Swift.String) {
                     self.run_id = run_id
                 }
@@ -9298,6 +9311,258 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    internal enum authenticateApple {
+        internal static let id: Swift.String = "authenticateApple"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/apple/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.authenticateApple.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.authenticateApple.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.authenticateApple.Input.Headers
+            /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The Apple authorization code.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json/authorization_code`.
+                    internal var authorization_code: Swift.String
+                    /// The Apple identity token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json/identity_token`.
+                    internal var identity_token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - authorization_code: The Apple authorization code.
+                    ///   - identity_token: The Apple identity token.
+                    internal init(
+                        authorization_code: Swift.String,
+                        identity_token: Swift.String
+                    ) {
+                        self.authorization_code = authorization_code
+                        self.identity_token = identity_token
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case authorization_code
+                        case identity_token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/content/application\/json`.
+                case json(Operations.authenticateApple.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.authenticateApple.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.authenticateApple.Input.Headers = .init(),
+                body: Operations.authenticateApple.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AuthenticationTokens)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.AuthenticationTokens {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Successfully authenticated and returned new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.authenticateApple.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.authenticateApple.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid request parameters.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.authenticateApple.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.authenticateApple.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid Apple identity token or authorization code.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.authenticateApple.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.authenticateApple.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }
