@@ -9,7 +9,11 @@ import Config
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
-  contexts: [resource_owners: Tuist.OAuth.ResourceOwners, clients: Tuist.OAuth.Clients],
+  contexts: [
+    resource_owners: Tuist.OAuth.ResourceOwners,
+    clients: Tuist.OAuth.Clients,
+    access_tokens: Tuist.OAuth.AccessTokens
+  ],
   token_generator: Tuist.OAuth.TokenGenerator
 
 config :ecto_ch,

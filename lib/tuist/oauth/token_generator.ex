@@ -8,6 +8,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.User
   alias Tuist.Guardian
+  alias Tuist.OAuth.Clients
   alias Tuist.Repo
 
   @impl TokenGenerator
@@ -15,7 +16,7 @@ defmodule Tuist.OAuth.TokenGenerator do
     user_id = String.to_integer(sub)
 
     with user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
-         client when not is_nil(client) <- Repo.get(Boruta.Ecto.Client, client_id) do
+         client when not is_nil(client) <- Clients.get_client(client_id) do
       ttl =
         case token_type do
           :access_token -> client.access_token_ttl

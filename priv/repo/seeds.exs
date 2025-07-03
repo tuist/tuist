@@ -1,6 +1,5 @@
 import Ecto.Query, only: [from: 2]
 
-alias Boruta.Ecto.Client
 alias Tuist.Accounts
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription
@@ -12,7 +11,7 @@ alias Tuist.Runs.Build
 alias Tuist.Xcode
 
 # Stubs
-email = "tuistrocks@tuist.io"
+email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
 _account =
