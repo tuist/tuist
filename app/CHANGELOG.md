@@ -1,3 +1,10 @@
+## What's Changed in app@0.13.0
+* fix: macOS app release by making Sign in with Apple entitlements iOS-only by @fortmarek in [#7773](https://github.com/tuist/tuist/pull/7773)
+* feat: add Sign in with Apple by @fortmarek in [#7756](https://github.com/tuist/tuist/pull/7756)
+* feat: decouple CLI credentials from the menu bar credentials by @fortmarek in [#7740](https://github.com/tuist/tuist/pull/7740)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.12.0...app@0.13.0
+
 ## What's Changed in app@0.12.0
 * feat: add iOS icons by @fortmarek in [#7743](https://github.com/tuist/tuist/pull/7743)
 
