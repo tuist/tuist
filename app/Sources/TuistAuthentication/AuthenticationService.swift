@@ -209,8 +209,9 @@ public final class AuthenticationService: ObservableObject {
                 url: authURL,
                 callbackURLScheme: "tuist"
             ) { callbackURL, error in
-                if let error {
-                    // The error often happens here when the user just cancels the authentication. Additionally, the errors coming from the callback are cryptic.
+                if error != nil {
+                    // The error often happens here when the user just cancels the authentication. Additionally, the errors coming
+                    // from the callback are cryptic.
                     // The best thing here to do UX-wise is not to show any errors.
                     continuation.resume(returning: nil)
                     return
