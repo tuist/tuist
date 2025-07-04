@@ -83,14 +83,14 @@ let project = Project(
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
                     "CFBundleShortVersionString": "0.13.1",
                     "CFBundleVersion": "0.13.1",
-                    "UILaunchScreen": [
-                        "UIColorName": "",
-                        "UIImageName": "",
-                    ],
+                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
-            resources: ["Resources/TuistApp/**"],
+            resources: [
+                .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
+                .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
+            ],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
