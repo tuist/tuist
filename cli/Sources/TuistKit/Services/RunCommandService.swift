@@ -185,7 +185,7 @@ struct RunCommandService {
                 distinctField: nil,
                 fullHandle: fullHandle,
                 serverURL: config.url
-            ).first else { throw RunCommandServiceError.previewNotFound(displayName: displayName, specifier: specifier) }
+            ).previews.first else { throw RunCommandServiceError.previewNotFound(displayName: displayName, specifier: specifier) }
             try await runPreviewLink(
                 preview.url,
                 device: device,
@@ -259,7 +259,7 @@ struct RunCommandService {
     }
 
     private func simulators(
-        for preview: Preview
+        for preview: ServerPreview
     ) async throws -> [SimulatorDeviceAndRuntime] {
         try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
             try preview.supportedPlatforms.contains { supportedPlatform in
@@ -286,7 +286,7 @@ struct RunCommandService {
 
     private func appBundle(
         for destination: DestinationType,
-        preview: Preview,
+        preview: ServerPreview,
         previewLink: URL
     ) async throws -> AppBundle {
         guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url else {
@@ -404,7 +404,7 @@ struct RunCommandService {
 
     private func runApp(
         on destinationDevice: DestinationDevice,
-        preview: Preview,
+        preview: ServerPreview,
         previewLink: URL
     ) async throws {
         let destination: DestinationType

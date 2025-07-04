@@ -2,7 +2,7 @@ import Foundation
 import TuistSimulator
 import XcodeGraph
 
-public struct Preview: Equatable, Codable, Identifiable {
+public struct ServerPreview: Sendable, Equatable, Codable, Identifiable {
     public let id: String
     public let url: URL
     public let qrCodeURL: URL
@@ -13,14 +13,18 @@ public struct Preview: Equatable, Codable, Identifiable {
     public let gitBranch: String?
     public let appBuilds: [AppBuild]
     public let supportedPlatforms: [DestinationType]
+    public let insertedAt: Date
 }
 
-extension Preview {
+extension ServerPreview {
+    private static let dateFormatter = ISO8601DateFormatter()
+
     init?(_ preview: Components.Schemas.Preview) {
         id = preview.id
         guard let url = URL(string: preview.url),
               let qrCodeURL = URL(string: preview.qr_code_url),
-              let iconURL = URL(string: preview.icon_url)
+              let iconURL = URL(string: preview.icon_url),
+              let insertedAt = Self.dateFormatter.date(from: preview.inserted_at)
         else { return nil }
         self.url = url
         self.qrCodeURL = qrCodeURL
@@ -31,11 +35,12 @@ extension Preview {
         gitBranch = preview.git_branch
         appBuilds = preview.builds.compactMap(AppBuild.init)
         supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
+        self.insertedAt = insertedAt
     }
 }
 
 #if DEBUG
-    extension Preview {
+    extension ServerPreview {
         public static func test(
             id: String = "preview-id",
             url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!,
@@ -56,7 +61,8 @@ extension Preview {
             supportedPlatforms: [DestinationType] = [
                 .device(.iOS),
                 .simulator(.iOS),
-            ]
+            ],
+            insertedAt: Date = Date(timeIntervalSince1970: 0)
         ) -> Self {
             .init(
                 id: id,
@@ -68,7 +74,8 @@ extension Preview {
                 gitCommitSHA: gitCommitSHA,
                 gitBranch: gitBranch,
                 appBuilds: appBuilds,
-                supportedPlatforms: supportedPlatforms
+                supportedPlatforms: supportedPlatforms,
+                insertedAt: insertedAt
             )
         }
     }

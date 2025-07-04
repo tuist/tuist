@@ -186,6 +186,8 @@ public enum Noora {
         public static let buttonPrimaryLabel = Color(light: neutralLight50, dark: neutralLight50)
         public static let buttonSecondaryBackground = Color(light: neutralLight50, dark: neutralDark1100)
         public static let buttonSecondaryLabel = Color(light: neutralLight1200, dark: neutralLight50)
+        public static let buttonEnabledLabel = Color(light: purple500, dark: purple400)
+        public static let buttonEnabledBackground = Color(light: purple500.opacity(0.15), dark: purple500.opacity(0.20))
     }
 
     public enum Spacing {
@@ -223,7 +225,7 @@ public enum Noora {
 // MARK: - Color Extension
 
 extension Color {
-    init(hex: Int, alpha: Double = 1.0) {
+    public init(hex: Int, alpha: Double = 1.0) {
         self.init(
             red: Double((hex >> 16) & 0xFF) / 255.0,
             green: Double((hex >> 8) & 0xFF) / 255.0,
@@ -232,7 +234,7 @@ extension Color {
         )
     }
 
-    init(
+    public init(
         light: Color,
         dark: Color
     ) {

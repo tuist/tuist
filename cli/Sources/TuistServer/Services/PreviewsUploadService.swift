@@ -23,7 +23,7 @@
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> Preview
+        ) async throws -> ServerPreview
     }
 
     public struct PreviewsUploadService: PreviewsUploadServicing {
@@ -86,7 +86,7 @@
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> Preview {
+        ) async throws -> ServerPreview {
             let gitInfo = try gitController.gitInfo(workingDirectory: path)
 
             switch previewUploadType {
@@ -107,7 +107,7 @@
                 return preview
 
             case let .appBundles(bundles):
-                var preview: Preview!
+                var preview: ServerPreview!
 
                 for (index, bundle) in bundles.enumerated() {
                     let progressOffset = Double(index) / Double(bundles.count)
@@ -149,7 +149,7 @@
             fullHandle: String,
             serverURL: URL,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> Preview {
+        ) async throws -> ServerPreview {
             updateProgress(0.1)
 
             let preview = try await retryProvider.runWithRetries {

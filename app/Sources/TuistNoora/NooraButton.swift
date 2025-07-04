@@ -1,139 +1,68 @@
 import SwiftUI
 
 public struct NooraButton: View {
-    public enum Style {
-        case primary
-        case secondary
-    }
-
     private let title: String
-    private let style: Style
-    private let icon: String?
+    private let isLoading: Bool
     private let action: () -> Void
+    @State private var rotation: Double = 0
+    @State private var timer: Timer?
 
     public init(
         title: String,
-        style: Style = .primary,
-        icon: String? = nil,
+        isLoading: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title
-        self.style = style
-        self.icon = icon
+        self.isLoading = isLoading
         self.action = action
     }
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: Noora.Spacing.spacing1) {
-                if let icon {
-                    Image(icon)
-                        .renderingMode(.template)
-                        .foregroundColor(foregroundColor)
-                        .frame(width: 20, height: 20)
+            Text(title)
+                .font(.headline)
+                .foregroundColor(Noora.Colors.buttonEnabledLabel)
+                .opacity(isLoading ? 0 : 1)
+                .padding(.horizontal, Noora.Spacing.spacing5)
+                .padding(.vertical, Noora.Spacing.spacing2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Noora.CornerRadius.max)
+                        .trim(from: isLoading ? 0.2 : 0, to: isLoading ? 0.9 : 1)
+                        .fill(Noora.Colors.buttonEnabledBackground.opacity(isLoading ? 0.0 : 1.0))
+                        .stroke(
+                            Noora.Colors.buttonEnabledBackground.opacity(isLoading ? 1.0 : 0.0),
+                            lineWidth: 2
+                        )
+                        .rotationEffect(.degrees(rotation))
+                        .frame(width: isLoading ? 24 : nil, height: isLoading ? 24 : nil)
+                )
+                .animation(.easeInOut(duration: 0.1), value: isLoading)
+                .onChange(of: isLoading) { _, newValue in
+                    if newValue {
+                        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
+                            withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                                rotation = 360
+                            }
+                        }
+                    } else {
+                        timer?.invalidate()
+                        withAnimation(.linear(duration: 0)) {
+                            rotation = 0
+                        }
+                    }
                 }
-                Text(title)
-                    .font(.body.weight(.medium))
-                    .padding(.horizontal, Noora.Spacing.spacing2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Noora.Spacing.spacing5)
-            .background(backgroundView)
-            .foregroundColor(foregroundColor)
-            .cornerRadius(Noora.CornerRadius.large)
-            .shadow(color: .black.opacity(0.05), radius: 0.5, x: 0, y: 1)
-            .shadow(color: .black.opacity(0.16), radius: 1.5, x: 0, y: 1)
-            .overlay(
-                RoundedRectangle(cornerRadius: Noora.CornerRadius.large)
-                    .stroke(borderColor, lineWidth: 1)
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var backgroundView: some View {
-        switch style {
-        case .primary:
-            ZStack {
-                Noora.Colors.buttonPrimaryBackground
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.16),
-                        Color.clear,
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-        case .secondary:
-            ZStack {
-                Noora.Colors.buttonSecondaryBackground
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color.gray.opacity(0.06),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-        }
-    }
-
-    private var borderColor: Color {
-        switch style {
-        case .primary:
-            return Color(hex: 0x5F01E5, alpha: 0.898)
-        case .secondary:
-            return Color.black.opacity(0.08)
-        }
-    }
-
-    private var foregroundColor: Color {
-        switch style {
-        case .primary:
-            return Noora.Colors.buttonPrimaryLabel
-        case .secondary:
-            return Noora.Colors.buttonSecondaryLabel
         }
     }
 }
 
-#Preview("Primary Button") {
+#Preview("NooraButton") {
     VStack(spacing: 16) {
-        NooraButton(
-            title: "Sign in with Tuist",
-            style: .primary,
-            icon: "brand-tuist"
-        ) {
-            print("Primary button tapped")
+        NooraButton(title: "Run") {
+            print("Run button tapped")
         }
 
-        NooraButton(
-            title: "Primary without icon",
-            style: .primary
-        ) {
-            print("Primary button without icon tapped")
-        }
-    }
-    .padding()
-}
-
-#Preview("Secondary Button") {
-    VStack(spacing: 16) {
-        NooraButton(
-            title: "Sign in with Google",
-            style: .secondary,
-            icon: "brand-google"
-        ) {
-            print("Secondary button tapped")
-        }
-
-        NooraButton(
-            title: "Secondary without icon",
-            style: .secondary
-        ) {
-            print("Secondary button without icon tapped")
+        NooraButton(title: "Run", isLoading: true) {
+            print("Loading button tapped")
         }
     }
     .padding()

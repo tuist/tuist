@@ -185,7 +185,7 @@ final class DeviceService: DeviceServicing {
     }
 
     private func downloadApp(
-        for preview: Preview,
+        for preview: ServerPreview,
         selectedDevice: Device
     ) async throws -> AppBundle {
         let destination: DestinationType

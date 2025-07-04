@@ -439,11 +439,7 @@ struct RunCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn(
-                [
-                    .test(),
-                ]
-            )
+            .willReturn(.test())
 
         // When
         try await subject.run(
@@ -495,7 +491,7 @@ struct RunCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn([])
+            .willReturn(.test(previews: []))
 
         // When / Then
         await #expect(

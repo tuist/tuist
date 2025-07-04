@@ -34,7 +34,7 @@ public struct LogInView: View {
             Spacer()
 
             VStack(spacing: Noora.Spacing.spacing5) {
-                NooraButton(
+                SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
                     icon: "brand-tuist"
@@ -61,7 +61,7 @@ public struct LogInView: View {
                 .shadow(color: .black.opacity(0.16), radius: 1.5, x: 0, y: 1)
                 .id(colorScheme)
 
-                NooraButton(
+                SocialButton(
                     title: "Sign in with Google",
                     style: .secondary,
                     icon: "brand-google"
@@ -69,7 +69,7 @@ public struct LogInView: View {
                     errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
-                NooraButton(
+                SocialButton(
                     title: "Sign in with Okta",
                     style: .secondary,
                     icon: "brand-okta"
