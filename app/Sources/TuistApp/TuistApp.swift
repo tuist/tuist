@@ -1,5 +1,6 @@
 import SwiftUI
 import TuistAuthentication
+import TuistNoora
 import TuistServer
 
 #if os(macOS)
@@ -53,17 +54,29 @@ import TuistServer
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
                             if case .loggedIn = authenticationService.authenticationState {
-                                NavigationView {
-                                    PreviewsView()
-                                        .navigationBarItems(
-                                            trailing:
-                                            Button("Log Out") {
-                                                Task {
-                                                    await authenticationService.signOut()
-                                                }
-                                            }
-                                        )
+                                TabView {
+                                    NavigationView {
+                                        PreviewsView()
+                                    }
+                                    .tabItem {
+                                        Image(systemName: "iphone")
+                                            .font(.system(size: 24))
+                                        Text("Previews")
+                                            .font(.system(size: 10, weight: .medium))
+                                    }
+                                    .tag(0)
+
+                                    ProfileView()
+                                        .environmentObject(authenticationService)
+                                        .tabItem {
+                                            Image(systemName: "person.crop.circle")
+                                                .font(.system(size: 24))
+                                            Text("Profile")
+                                                .font(.system(size: 10, weight: .medium))
+                                        }
+                                        .tag(1)
                                 }
+                                .accentColor(Noora.Colors.purple500)
                             } else {
                                 LogInView()
                             }

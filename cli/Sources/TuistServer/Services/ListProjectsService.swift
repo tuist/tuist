@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 @Mockable
-public protocol ListProjectsServicing {
+public protocol ListProjectsServicing: Sendable {
     func listProjects(
         serverURL: URL
     ) async throws -> [ServerProject]
