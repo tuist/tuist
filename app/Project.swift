@@ -84,7 +84,6 @@ let project = Project(
                     "CFBundleShortVersionString": "0.13.1",
                     "CFBundleVersion": "0.13.1",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
-//                    "UILaunchStoryboardName": "$(LAUNCH_STORYBOARD_NAME)",
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
@@ -106,7 +105,6 @@ let project = Project(
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
                     "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": "Resources/TuistApp/TuistApp.entitlements",
-                    "LAUNCH_STORYBOARD_NAME[sdk=iphone*]": "LaunchScreen.storyboard",
                 ],
                 release: [
                     // Needed for the app notarization
