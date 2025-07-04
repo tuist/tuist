@@ -1,3 +1,8 @@
+## What's Changed in app@0.14.0
+* feat: iOS app launch screen by @fortmarek in [#7781](https://github.com/tuist/tuist/pull/7781)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.13.1...app@0.14.0
+
 ## What's Changed in app@0.13.1
 * fix: don't show error when cancelling authentication by @fortmarek in [#7776](https://github.com/tuist/tuist/pull/7776)
 * fix: clear credentials on authentication failure by @fortmarek in [#7775](https://github.com/tuist/tuist/pull/7775)

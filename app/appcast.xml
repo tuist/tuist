@@ -3,6 +3,15 @@
     <channel>
         <title>Tuist</title>
         <item>
+            <title>0.14.0</title>
+            <pubDate>Fri, 04 Jul 2025 10:07:30 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.14.0</sparkle:version>
+            <sparkle:shortVersionString>0.14.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.14.0/Tuist.dmg" length="23591374" type="application/octet-stream" sparkle:edSignature="qaQthfvWNxtGN0J8sExW1waO+rDa4g04ki1EYD4ojWEYKB+3Mcw831V71EjDmjrpH9RLJzHRhlMD4zH776wHBQ=="/>
+        </item>
+        <item>
             <title>0.13.1</title>
             <pubDate>Thu, 03 Jul 2025 15:11:05 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
@@ -19,15 +28,6 @@
             <sparkle:shortVersionString>0.13.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.13.0/Tuist.dmg" length="23349394" type="application/octet-stream" sparkle:edSignature="UQwe//7IUtIyM1fHNHbIEwgK++mlRrc6038zlvblAet1nGwLhP//1lEtVqg9HBchn/nhOitj97vOOVOUwhG0Bw=="/>
-        </item>
-        <item>
-            <title>0.12.0</title>
-            <pubDate>Thu, 26 Jun 2025 13:57:34 +0000</pubDate>
-            <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>0.12.0</sparkle:version>
-            <sparkle:shortVersionString>0.12.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.12.0/Tuist.dmg" length="22944057" type="application/octet-stream" sparkle:edSignature="Av38JBbbeJ6h72hct9mS85KUH7udvZXnfH4Kx9yhGEGZPDfojdLVKbGnVGo4yQdZWaMLzyntuwgrk8W8ZlIXAg=="/>
         </item>
     </channel>
 </rss>
