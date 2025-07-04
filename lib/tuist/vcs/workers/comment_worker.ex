@@ -38,16 +38,18 @@ defmodule Tuist.VCS.Workers.CommentWorker do
       bundle_url: &build_url(bundle_url_template, &1),
       build_url: &build_url(build_url_template, &1)
     })
+
+    :ok
   end
 
   defp build_url(template, data) do
     template
-    |> String.replace("{{account_name}}", data.project.account.name)
-    |> String.replace("{{project_name}}", data.project.name)
-    |> replace_if_present(data, :preview, "{{preview_id}}")
-    |> replace_if_present(data, :command_event, "{{command_event_id}}")
-    |> replace_if_present(data, :bundle, "{{bundle_id}}")
-    |> replace_if_present(data, :build, "{{build_id}}")
+    |> String.replace(":account_name", data.project.account.name)
+    |> String.replace(":project_name", data.project.name)
+    |> replace_if_present(data, :preview, ":preview_id")
+    |> replace_if_present(data, :command_event, ":command_event_id")
+    |> replace_if_present(data, :bundle, ":bundle_id")
+    |> replace_if_present(data, :build, ":build_id")
   end
 
   defp replace_if_present(template, data, key, placeholder) do

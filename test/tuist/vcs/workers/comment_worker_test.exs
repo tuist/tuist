@@ -15,7 +15,10 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
   end
 
   describe "perform/1" do
-    test "calls VCS.post_vcs_pull_request_comment with correct parameters", %{project: project, build: build} do
+    test "calls VCS.post_vcs_pull_request_comment with correct parameters", %{
+      project: project,
+      build: build
+    } do
       # Given
       expect(VCS, :post_vcs_pull_request_comment, fn args ->
         assert args.git_commit_sha == "abc123"
@@ -36,11 +39,11 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
         "project_id" => project.id,
-        "preview_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
-        "preview_qr_code_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
-        "command_run_url_template" => "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
-        "bundle_url_template" => "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
-        "build_url_template" => "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
+        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
+        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
+        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
 
       # When
@@ -86,11 +89,11 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
         "project_id" => project.id,
-        "preview_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
-        "preview_qr_code_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
-        "command_run_url_template" => "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
-        "bundle_url_template" => "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
-        "build_url_template" => "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
+        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
+        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
+        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
 
       # When
@@ -126,11 +129,11 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
         "project_id" => project.id,
-        "preview_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
-        "preview_qr_code_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
-        "command_run_url_template" => "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
-        "bundle_url_template" => "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
-        "build_url_template" => "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
+        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
+        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
+        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
 
       # When / Then - This should work without raising an error

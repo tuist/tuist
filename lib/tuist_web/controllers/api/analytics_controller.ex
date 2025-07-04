@@ -333,11 +333,11 @@ defmodule TuistWeb.API.AnalyticsController do
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
         project_id: selected_project.id,
-        preview_url_template: url(~p"/{{account_name}}/{{project_name}}/previews/{{preview_id}}"),
-        preview_qr_code_url_template: url(~p"/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png"),
-        command_run_url_template: url(~p"/{{account_name}}/{{project_name}}/runs/{{command_event_id}}"),
-        bundle_url_template: url(~p"/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}"),
-        build_url_template: url(~p"/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}")
+        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
       })
     end
 
