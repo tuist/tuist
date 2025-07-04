@@ -4,6 +4,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
 
   alias Tuist.VCS
   alias Tuist.VCS.Workers.CommentWorker
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -96,6 +97,44 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       result = CommentWorker.perform(%Oban.Job{args: job_args})
 
       # Then
+      assert result == :ok
+    end
+
+    test "handles missing keys gracefully when URL functions are called with partial data", %{
+      project: project,
+      build: build
+    } do
+      # Given - Create a preview to test URL generation with missing keys
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      # Mock VCS.post_vcs_pull_request_comment to test URL functions with different data types
+      expect(VCS, :post_vcs_pull_request_comment, fn args ->
+        # Test preview URL with only project and preview data (no command_event, bundle, build)
+        preview_url = args.preview_url.(%{project: project, preview: preview})
+        assert preview_url =~ "/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+
+        # Test command_run_url template with missing command_event - should remove placeholder
+        command_url = args.command_run_url.(%{project: project, preview: preview})
+        assert command_url == "/#{project.account.name}/#{project.name}/runs/"
+
+        :ok
+      end)
+
+      job_args = %{
+        "build_id" => build.id,
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/123/head",
+        "git_remote_url_origin" => "https://github.com/tuist/tuist",
+        "project_id" => project.id,
+        "preview_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
+        "preview_qr_code_url_template" => "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
+        "command_run_url_template" => "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
+        "bundle_url_template" => "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
+        "build_url_template" => "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+      }
+
+      # When / Then - This should work without raising an error
+      result = CommentWorker.perform(%Oban.Job{args: job_args})
       assert result == :ok
     end
   end

@@ -44,9 +44,16 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     template
     |> String.replace("{{account_name}}", data.project.account.name)
     |> String.replace("{{project_name}}", data.project.name)
-    |> String.replace("{{preview_id}}", to_string(data.preview.id))
-    |> String.replace("{{command_event_id}}", to_string(data.command_event.id))
-    |> String.replace("{{bundle_id}}", to_string(data.bundle.id))
-    |> String.replace("{{build_id}}", to_string(data.build.id))
+    |> replace_if_present(data, :preview, "{{preview_id}}")
+    |> replace_if_present(data, :command_event, "{{command_event_id}}")
+    |> replace_if_present(data, :bundle, "{{bundle_id}}")
+    |> replace_if_present(data, :build, "{{build_id}}")
+  end
+
+  defp replace_if_present(template, data, key, placeholder) do
+    case Map.get(data, key) do
+      nil -> String.replace(template, placeholder, "")
+      value -> String.replace(template, placeholder, to_string(Map.get(value, :id)))
+    end
   end
 end
