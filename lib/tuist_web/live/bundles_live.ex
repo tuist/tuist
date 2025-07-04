@@ -73,7 +73,7 @@ defmodule TuistWeb.BundlesLive do
         :bundle_size_last_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          git_branch: bundle_size_branch
+          git_branch: bundle_size_git_branch(bundle_size_branch, project)
         )
       )
       |> assign(
@@ -81,7 +81,7 @@ defmodule TuistWeb.BundlesLive do
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
           inserted_before: start_date(bundle_size_date_range),
-          git_branch: bundle_size_branch
+          git_branch: bundle_size_git_branch(bundle_size_branch, project)
         )
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
@@ -89,6 +89,14 @@ defmodule TuistWeb.BundlesLive do
       |> assign_bundle_size_analytics()
       |> assign_bundles(params)
     }
+  end
+
+  # Returns actual git branch based on the branch dropdown value.
+  defp bundle_size_git_branch(bundle_size_branch, project) do
+    case bundle_size_branch do
+      "default-branch" -> project.default_branch
+      value -> value
+    end
   end
 
   defp assign_bundles(

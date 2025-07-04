@@ -104,12 +104,19 @@ defmodule Tuist.BundlesTest do
         inserted_at: ~U[2024-01-01 02:00:00Z]
       )
 
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "feat/new-feature",
+        install_size: 1500,
+        inserted_at: ~U[2024-01-01 03:00:00Z]
+      )
+
       bundle =
         BundlesFixtures.bundle_fixture(
           project: project,
           git_branch: "feat/new-feature",
           install_size: 1024,
-          inserted_at: ~U[2024-01-01 03:00:00Z]
+          inserted_at: ~U[2024-01-01 04:00:00Z]
         )
 
       # When

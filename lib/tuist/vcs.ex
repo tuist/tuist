@@ -364,7 +364,7 @@ defmodule Tuist.VCS do
   end
 
   defp project_bundle_size_deviations(project, bundle) do
-    last_bundle = Bundles.last_project_bundle(project, bundle: bundle)
+    last_bundle = Bundles.last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
 
     if is_nil(last_bundle) do
       {"", ""}

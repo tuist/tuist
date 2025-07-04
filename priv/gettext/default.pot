@@ -3097,7 +3097,7 @@ msgid "read more"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:255
-#: lib/tuist_web/live/bundles_live.ex:192
+#: lib/tuist_web/live/bundles_live.ex:200
 #: lib/tuist_web/live/overview_live.ex:278
 #: lib/tuist_web/live/test_runs_live.ex:258
 #, elixir-autogen, elixir-format
@@ -3105,7 +3105,7 @@ msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:257
-#: lib/tuist_web/live/bundles_live.ex:194
+#: lib/tuist_web/live/bundles_live.ex:202
 #: lib/tuist_web/live/overview_live.ex:280
 #: lib/tuist_web/live/test_runs_live.ex:260
 #, elixir-autogen, elixir-format
@@ -3113,7 +3113,7 @@ msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.ex:256
-#: lib/tuist_web/live/bundles_live.ex:193
+#: lib/tuist_web/live/bundles_live.ex:201
 #: lib/tuist_web/live/overview_live.ex:279
 #: lib/tuist_web/live/test_runs_live.ex:259
 #, elixir-autogen, elixir-format
@@ -3373,12 +3373,12 @@ msgstr ""
 msgid "%{savings} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:761
+#: lib/tuist_web/live/bundle_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:759
+#: lib/tuist_web/live/bundle_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
 msgstr ""
@@ -3423,7 +3423,7 @@ msgstr ""
 msgid "Bundle install size"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:736
+#: lib/tuist_web/live/bundle_live.ex:739
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
 msgstr ""

@@ -114,7 +114,10 @@ defmodule TuistWeb.BundleLive do
       |> assign_module_breakdown(params)
       |> assign_file_breakdown(params)
       |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle))
-      |> assign(:last_bundle, Bundles.last_project_bundle(selected_project, bundle: bundle))
+      |> assign(
+        :last_bundle,
+        Bundles.last_project_bundle(selected_project, git_branch: selected_project.default_branch, bundle: bundle)
+      )
       |> assign_table_artifact(selected_artifact, params)
       |> assign(:bundle_size_analysis_sunburst_chart_selected_artifact, selected_artifact)
 

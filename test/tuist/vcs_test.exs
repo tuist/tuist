@@ -870,6 +870,14 @@ defmodule Tuist.VCSTest do
         inserted_at: ~U[2024-01-01 03:00:00Z]
       )
 
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        download_size: 3000,
+        git_branch: "feat/my-feature",
+        inserted_at: ~U[2024-01-01 04:00:00Z]
+      )
+
       bundle_ios_app =
         BundlesFixtures.bundle_fixture(
           project: project,
@@ -877,7 +885,7 @@ defmodule Tuist.VCSTest do
           download_size: 3000,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
-          inserted_at: ~U[2024-01-01 04:00:00Z]
+          inserted_at: ~U[2024-01-01 05:00:00Z]
         )
 
       stub(Req, :get, fn [
