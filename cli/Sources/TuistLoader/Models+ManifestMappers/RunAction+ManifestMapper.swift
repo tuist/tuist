@@ -58,6 +58,15 @@ extension XcodeGraph.RunAction {
 
         let launchStyle = XcodeGraph.LaunchStyle.from(manifest: manifest.launchStyle)
 
+        var appClipInvocationURL: URL?
+        if let appClipInvocationURLString = manifest.appClipInvocationURLString {
+            if let url = URL(string: appClipInvocationURLString) {
+                appClipInvocationURL = url
+            } else {
+                throw URLError(.badURL)
+            }
+        }
+
         return XcodeGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
@@ -71,7 +80,8 @@ extension XcodeGraph.RunAction {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariablesFromTarget,
-            launchStyle: launchStyle
+            launchStyle: launchStyle,
+            appClipInvocationURL: appClipInvocationURL
         )
     }
 }

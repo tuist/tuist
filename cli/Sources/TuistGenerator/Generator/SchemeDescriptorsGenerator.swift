@@ -614,6 +614,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         } ?? []
 
+        let appClipInvocationURLString = scheme.runAction?.appClipInvocationURL?.absoluteString
+
         return XCScheme.LaunchAction(
             runnable: pathRunnable ?? buildableProductRunnable,
             buildConfiguration: buildConfiguration,
@@ -641,7 +643,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: scheme.runAction?.options.region,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference,
-            customLLDBInitFile: customLLDBInitFilePath.map { "$(SRCROOT)/\($0.pathString)" }
+            customLLDBInitFile: customLLDBInitFilePath.map { "$(SRCROOT)/\($0.pathString)" },
+            appClipInvocationURLString: appClipInvocationURLString
         )
     } // swiftlint:enable function_body_length
 
