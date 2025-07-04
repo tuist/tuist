@@ -97,6 +97,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),

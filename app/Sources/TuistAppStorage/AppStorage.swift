@@ -8,7 +8,7 @@ public protocol AppStorageKey<Value>: Hashable {
 }
 
 @Mockable
-public protocol AppStoring {
+public protocol AppStoring: Sendable {
     func get<Key: AppStorageKey>(_ key: Key.Type) throws -> Key.Value
     func set<Key: AppStorageKey>(_ key: Key.Type, value: Key.Value) throws
 }
