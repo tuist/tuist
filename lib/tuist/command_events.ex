@@ -421,8 +421,7 @@ defmodule Tuist.CommandEvents do
         build_run_id: build_run_id
       })
       |> Repo.insert!()
-      |> Repo.preload(Keyword.get(opts, :preload, []))
-      |> Repo.preload(project: :account)
+      |> Repo.preload(Keyword.merge([project: :account], Keyword.get(opts, :preload, [])))
 
     Tuist.PubSub.broadcast(
       command_event,

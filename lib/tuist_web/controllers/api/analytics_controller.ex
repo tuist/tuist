@@ -327,17 +327,17 @@ defmodule TuistWeb.API.AnalyticsController do
     end
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
-      VCS.post_vcs_pull_request_comment(%{
+      VCS.enqueue_vcs_pull_request_comment(%{
+        build_id: build_run_id,
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
-        project: selected_project,
-        preview_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
-        preview_qr_code_url:
-          &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.png"),
-        command_run_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}"),
-        bundle_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/bundles/#{&1.bundle.id}"),
-        build_url: &url(~p"/#{&1.project.account.name}/#{&1.project.name}/builds/build-runs/#{&1.build.id}")
+        project_id: selected_project.id,
+        preview_url_template: url(~p"/{{account_name}}/{{project_name}}/previews/{{preview_id}}"),
+        preview_qr_code_url_template: url(~p"/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png"),
+        command_run_url_template: url(~p"/{{account_name}}/{{project_name}}/runs/{{command_event_id}}"),
+        bundle_url_template: url(~p"/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}"),
+        build_url_template: url(~p"/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}")
       })
     end
 
