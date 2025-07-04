@@ -6,7 +6,7 @@ import OpenAPIRuntime
 public protocol MultipartUploadCompleteAnalyticsServicing {
     func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: Int,
+        commandEventId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         serverURL: URL
@@ -35,7 +35,7 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
 
     public func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: Int,
+        commandEventId: String,
         uploadId: String,
         parts: [(etag: String, partNumber: Int)],
         serverURL: URL

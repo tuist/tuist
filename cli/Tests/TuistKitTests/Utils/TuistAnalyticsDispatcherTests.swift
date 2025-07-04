@@ -26,6 +26,7 @@ struct TuistAnalyticsDispatcherTests {
     @Test(.withMockedEnvironment(), .inTemporaryDirectory) mutating func testDispatch_sendsToServer() async throws {
         // Given
         let fullHandle = "project"
+        let commandEventID = UUID().uuidString
         let url = URL.test()
         let backend = TuistAnalyticsServerBackend(
             fullHandle: fullHandle,
@@ -49,12 +50,12 @@ struct TuistAnalyticsDispatcherTests {
                 projectId: .value(fullHandle),
                 serverURL: .value(url)
             )
-            .willReturn(.test(id: 10))
+            .willReturn(.test(id: commandEventID))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .any,
-                commandEventId: .value(10),
+                commandEventId: .value(commandEventID),
                 serverURL: .value(url)
             )
             .willReturn(())
