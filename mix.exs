@@ -131,7 +131,7 @@ defmodule Tuist.MixProject do
          {:noora, path: "../Noora/web"}) ||
         {:noora, "== 0.5.0"},
       {:zstream, "~> 0.6"},
-      {:boruta, git: "https://github.com/tuist/boruta_auth", branch: "fix/client-mismatch"}
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
     ]
   end
 
