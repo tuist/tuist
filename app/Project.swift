@@ -84,6 +84,9 @@ let project = Project(
                     "CFBundleShortVersionString": "0.13.1",
                     "CFBundleVersion": "0.13.1",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "UISupportedInterfaceOrientations": [
+                        "UIInterfaceOrientationPortrait",
+                    ],
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
@@ -128,6 +131,15 @@ let project = Project(
             ]
         ),
         .target(
+            name: "TuistNoora",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.noora",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistNoora/**"],
+            dependencies: []
+        ),
+        .target(
             name: "TuistOnboarding",
             destinations: .iOS,
             product: .staticFramework,
@@ -138,6 +150,7 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora"),
             ]
         ),
         .target(
