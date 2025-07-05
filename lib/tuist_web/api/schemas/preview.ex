@@ -8,7 +8,7 @@ defmodule TuistWeb.API.Schemas.Preview do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :url, :qr_code_url, :icon_url, :builds, :supported_platforms],
+    required: [:id, :url, :qr_code_url, :icon_url, :builds, :supported_platforms, :inserted_at],
     properties: %{
       id: %Schema{
         type: :string,
@@ -46,6 +46,11 @@ defmodule TuistWeb.API.Schemas.Preview do
       supported_platforms: %Schema{
         type: :array,
         items: TuistWeb.API.Schemas.PreviewSupportedPlatform
+      },
+      inserted_at: %Schema{
+        type: :string,
+        format: :date_time,
+        description: "The date and time when the preview was inserted"
       }
     }
   })

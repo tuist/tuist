@@ -417,7 +417,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
                "builds" => [],
-               "supported_platforms" => []
+               "supported_platforms" => [],
+               "inserted_at" => DateTime.to_iso8601(preview.inserted_at)
              }
     end
 
@@ -544,6 +545,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["url"] == "https://url.com"
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "preview-commit-sha"
+      assert response["inserted_at"] == DateTime.to_iso8601(preview.inserted_at)
 
       assert Enum.map(response["builds"], &Map.take(&1, ["id", "url", "type", "supported_platforms"])) == [
                %{
@@ -687,7 +689,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
                  "builds" => [],
-                 "supported_platforms" => []
+                 "supported_platforms" => [],
+                 "inserted_at" => DateTime.to_iso8601(preview_two.inserted_at)
                }
              ]
     end

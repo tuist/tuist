@@ -349,6 +349,7 @@ defmodule TuistWeb.API.PreviewsController do
           git_commit_sha: app_build.preview.git_commit_sha,
           git_branch: app_build.preview.git_branch,
           supported_platforms: app_build.preview.supported_platforms,
+          inserted_at: app_build.preview.inserted_at,
           builds: []
         })
 
@@ -446,7 +447,8 @@ defmodule TuistWeb.API.PreviewsController do
           git_commit_sha: preview.git_commit_sha,
           git_branch: preview.git_branch,
           builds: Enum.sort_by(app_builds, & &1.inserted_at, {:desc, DateTime}),
-          supported_platforms: preview.supported_platforms
+          supported_platforms: preview.supported_platforms,
+          inserted_at: preview.inserted_at
         }
 
         json(conn, response)
@@ -591,7 +593,8 @@ defmodule TuistWeb.API.PreviewsController do
             git_commit_sha: &1.git_commit_sha,
             git_branch: &1.git_branch,
             builds: [],
-            supported_platforms: &1.supported_platforms
+            supported_platforms: &1.supported_platforms,
+            inserted_at: &1.inserted_at
           }
         )
     })
