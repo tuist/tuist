@@ -54,6 +54,12 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
+    <HomeCard
+        icon="🤖"
+        title="Agentic Coding"
+        details="Bridge the gap between Apple development and AI-powered coding. Our tools integrate seamlessly with AI assistants and coding agents."
+        linkText="Explore AI integration"
+        link="/guides/integrations/mcp"/>
 </HomeCards>
 
 ## Ready to transform your development?
@@ -95,8 +101,6 @@ We provide insights into your project's dynamics and expert guidance for informe
 ### Break down development silos 💜
 
 Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
-
----
 
 ## Solving the platform team problem
 

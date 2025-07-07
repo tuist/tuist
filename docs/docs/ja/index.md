@@ -54,6 +54,12 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         details="Find out how to make and keep your app's memory footprint as small as possible."
         linkText="Analyze your app bundle"
         link="/guides/features/bundle-size"/>
+    <HomeCard
+        icon="🤖"
+        title="Agentic Coding"
+        details="Bridge the gap between Apple development and AI-powered coding. Our tools integrate seamlessly with AI assistants and coding agents."
+        linkText="Explore AI integration"
+        link="/guides/features/agentic-coding/mcp"/>
 </HomeCards>
 
 ## インストール方法
