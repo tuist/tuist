@@ -130,6 +130,8 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistAppStorage"),
                 .external(name: "NukeUI"),
             ]
         ),
