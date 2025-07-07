@@ -139,7 +139,7 @@ Tuist を少し試してみて、Tuist を最大限に活用する方法を学�
 
 Tuistのこれまでの発表内容をご覧ください。 最新情報をキャッチし、専門知識を身につけましょう。
 
-<HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
+<HomeVideos/>
 
 ## コミュニティに参加する
 
