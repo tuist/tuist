@@ -109,7 +109,7 @@ export function navBar(locale) {
         locale,
         "navbar.guides.text",
       )} ${bookOpen01Icon()}</span>`,
-      link: `/${locale}/guides/tuist/about`,
+      link: `/${locale}/`,
     },
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
@@ -226,19 +226,6 @@ export function contributorsSidebar(locale) {
 
 export function guidesSidebar(locale) {
   return [
-    {
-      text: "Tuist",
-      link: `/${locale}/`,
-      items: [
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.tuist.items.about.text",
-          ),
-          link: `/${locale}/guides/tuist/about`,
-        },
-      ],
-    },
     {
       text: localizedString(
         locale,

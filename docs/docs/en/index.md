@@ -59,7 +59,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         title="Agentic Coding"
         details="Bridge the gap between Apple development and AI-powered coding. Our tools integrate seamlessly with AI assistants and coding agents."
         linkText="Explore AI integration"
-        link="/guides/integrations/mcp"/>
+        link="/guides/features/agentic-coding/mcp"/>
 </HomeCards>
 
 ## Ready to transform your development?
