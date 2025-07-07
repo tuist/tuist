@@ -37,44 +37,43 @@ public struct LogInView: View {
                 SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
-                    icon: "brand-tuist"
+                    icon: "TuistLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signIn() }
                 }
 
-                SignInWithAppleButton(.signIn) { request in
+                SocialButton(
+                    title: "Sign in with Apple",
+                    style: .secondary,
+                    icon: "AppleLogo"
+                ) {
+                    let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    switch result {
-                    case let .success(authorization):
-                        errorHandling.fireAndHandleError {
-                            try await authenticationService.signInWithApple(authorization: authorization)
-                        }
-                    case let .failure(error):
-                        errorHandling.handle(error: error)
-                    }
+                    
+                    let controller = ASAuthorizationController(authorizationRequests: [request])
+                    let delegate = AppleSignInDelegate(
+                        authenticationService: authenticationService,
+                        errorHandling: errorHandling
+                    )
+                    controller.delegate = delegate
+                    controller.presentationContextProvider = delegate
+                    controller.performRequests()
                 }
-                .frame(height: 50)
-                .cornerRadius(Noora.CornerRadius.large)
-                .signInWithAppleButtonStyle(colorScheme == .light ? .white : .black)
-                .shadow(color: .black.opacity(0.05), radius: 0.5, x: 0, y: 1)
-                .shadow(color: .black.opacity(0.16), radius: 1.5, x: 0, y: 1)
-                .id(colorScheme)
 
                 SocialButton(
                     title: "Sign in with Google",
                     style: .secondary,
-                    icon: "brand-google"
+                    icon: "GoogleLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
                 SocialButton(
-                    title: "Sign in with Okta",
+                    title: "Sign in with GitHub",
                     style: .secondary,
-                    icon: "brand-okta"
+                    icon: "GitHubLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithOkta() }
+                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
             .padding(.horizontal, Noora.Spacing.spacing8)
