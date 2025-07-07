@@ -4,6 +4,30 @@ import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
 
+private final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private let authenticationService: AuthenticationService
+    private let errorHandling: ErrorHandling
+    
+    init(authenticationService: AuthenticationService, errorHandling: ErrorHandling) {
+        self.authenticationService = authenticationService
+        self.errorHandling = errorHandling
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        errorHandling.fireAndHandleError {
+            try await self.authenticationService.signInWithApple(authorization: authorization)
+        }
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        errorHandling.handle(error: error)
+    }
+    
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        return ASPresentationAnchor()
+    }
+}
+
 public struct LogInView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
@@ -42,24 +66,23 @@ public struct LogInView: View {
                     errorHandling.fireAndHandleError { try await authenticationService.signIn() }
                 }
 
-                SignInWithAppleButton(.signIn) { request in
+                SocialButton(
+                    title: "Sign in with Apple",
+                    style: .secondary,
+                    icon: "AppleLogo"
+                ) {
+                    let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    switch result {
-                    case let .success(authorization):
-                        errorHandling.fireAndHandleError {
-                            try await authenticationService.signInWithApple(authorization: authorization)
-                        }
-                    case let .failure(error):
-                        errorHandling.handle(error: error)
-                    }
+                    
+                    let controller = ASAuthorizationController(authorizationRequests: [request])
+                    let delegate = AppleSignInDelegate(
+                        authenticationService: authenticationService,
+                        errorHandling: errorHandling
+                    )
+                    controller.delegate = delegate
+                    controller.presentationContextProvider = delegate
+                    controller.performRequests()
                 }
-                .frame(height: 50)
-                .cornerRadius(Noora.CornerRadius.large)
-                .signInWithAppleButtonStyle(colorScheme == .light ? .white : .black)
-                .shadow(color: .black.opacity(0.05), radius: 0.5, x: 0, y: 1)
-                .shadow(color: .black.opacity(0.16), radius: 1.5, x: 0, y: 1)
-                .id(colorScheme)
 
                 SocialButton(
                     title: "Sign in with Google",
