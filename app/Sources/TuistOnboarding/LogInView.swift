@@ -8,6 +8,7 @@ public struct LogInView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
     @Environment(\.colorScheme) private var colorScheme
+    @State private var appleSignInDelegate: AppleSignInDelegate?
 
     public init() {}
 
@@ -49,14 +50,14 @@ public struct LogInView: View {
                 ) {
                     let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
-                    
+
                     let controller = ASAuthorizationController(authorizationRequests: [request])
-                    let delegate = AppleSignInDelegate(
+                    appleSignInDelegate = AppleSignInDelegate(
                         authenticationService: authenticationService,
                         errorHandling: errorHandling
                     )
-                    controller.delegate = delegate
-                    controller.presentationContextProvider = delegate
+                    controller.delegate = appleSignInDelegate
+                    controller.presentationContextProvider = appleSignInDelegate
                     controller.performRequests()
                 }
 
