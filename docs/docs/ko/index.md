@@ -76,6 +76,34 @@ mise x tuist@latest -- tuist init
 
 더 자세한 내용은 <LocalizedLink href="/guides/quick-start/install-tuist">설치 가이드</LocalizedLink> 를 확인하세요.
 
+## Why Tuist? Four compelling reasons
+
+### Simplify complex projects 🌱
+
+As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
+
+### Optimize your workflows 🚀
+
+Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds - cutting build times by up to 65%.
+
+### Foster healthy project evolution 📈
+
+We provide insights into your project's dynamics and expert guidance for informed decision-making. This prevents the frustration and productivity loss associated with unhealthy projects, which can lead to developer attrition and missed business goals.
+
+### Break down development silos 💜
+
+Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
+
+---
+
+## Solving the platform team problem
+
+In Apple platform development, organizations often encounter **productivity roadblocks** - sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
+
+**Tuist serves as your virtual platform team.** We integrate seamlessly with official Apple tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the developer experience.
+
+Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services.
+
 ## 더 알아보기
 
 몇 분 안에 Tuist를 사용해 보고, Tuist를 최대한 활용하는 방법을 배워봅니다.
