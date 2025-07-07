@@ -1,6 +1,6 @@
 ---
 title: Create a new project
-titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Adoption · Projects · Features · Guides · Tuist
 description: Learn how to create a new project with Tuist.
 ---
 

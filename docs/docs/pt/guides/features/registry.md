@@ -1,6 +1,6 @@
 ---
 title: Registry
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Optimize your Swift package resolution times by leveraging the Tuist Registry.
 ---
 

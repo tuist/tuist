@@ -1,6 +1,6 @@
 ---
 title: Selective testing
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: 마지막 성공한 테스트 수행 이후에 변경된 테스트만 수행하기 위해 선택적 테스트를 사용합니다.
 ---
 

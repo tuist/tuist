@@ -1,6 +1,6 @@
 ---
 title: Generated project with the Xcode package integration
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: 생성된 Xcode 프로젝트에서 Xcode 패키지 통합을 사용하여 Tuist Registry를 사용하는 방법을 배워봅니다.
 ---
 

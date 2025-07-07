@@ -1,6 +1,6 @@
 ---
 title: 기존 Xcode 프로젝트를 Tuist로 전환하기
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Migrate · Adoption · Projects · Features · Guides · Tuist
 description: Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법을 알아봅니다.
 ---
 

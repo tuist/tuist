@@ -1,6 +1,6 @@
 ---
 title: Model Context Protocol (MCP)
-titleTemplate: :title · AI · Guides · Tuist
+titleTemplate: :title · Agentic coding · Features · Guides · Tuist
 description: Learn how to use Tuist's MCP server to have a language-based interface for your app development environment.
 ---
 

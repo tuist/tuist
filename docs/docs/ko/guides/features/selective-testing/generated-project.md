@@ -1,6 +1,6 @@
 ---
 title: Generated project
-titleTemplate: :title · Selective testing · Develop · Guides · Tuist
+titleTemplate: :title · Selective testing · Features · Guides · Tuist
 description: 생성된 프로젝트에서 선택적 테스트를 활용하는 방법을 배워봅니다.
 ---
 

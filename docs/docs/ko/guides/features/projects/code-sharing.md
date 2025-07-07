@@ -1,6 +1,6 @@
 ---
 title: Code sharing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: manifest 파일 간의 코드 공유를 통해 중복을 줄이고 일관성을 유지하는 방법을 알아보세요
 ---
 

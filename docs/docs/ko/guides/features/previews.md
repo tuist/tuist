@@ -1,6 +1,6 @@
 ---
 title: Previews
-titleTemplate: :title · Share · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방법을 알아보세요.
 ---
 

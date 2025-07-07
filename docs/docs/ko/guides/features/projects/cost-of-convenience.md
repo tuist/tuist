@@ -1,6 +1,6 @@
 ---
 title: The cost of convenience
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Xcode에서 편의성의 비용에 대해 알아보고 Tuist는 이 문제를 어떻게 예방하는지 배워봅니다.
 ---
 

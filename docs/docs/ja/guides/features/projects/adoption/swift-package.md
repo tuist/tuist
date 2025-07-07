@@ -1,6 +1,6 @@
 ---
 title: TuistをSwiftパッケージと使用する
-titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Adoption · Projects · Features · Guides · Tuist
 description: TuistをSwiftパッケージと使用する方法を学びます。
 ---
 

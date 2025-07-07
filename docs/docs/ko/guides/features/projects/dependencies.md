@@ -1,6 +1,6 @@
 ---
 title: Dependencies
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Tuist 프로젝트에서 의존성을 선언하는 방법을 알아보세요.
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: XcodeProj 기반으로 패키지를 구성한 프로젝트
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: Tuist Registry를 XcodeProj 방식으로 구성된 Xcode 프로젝트에서 활용하는 방법을 학습합니다.
 ---
 

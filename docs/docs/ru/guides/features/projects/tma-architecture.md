@@ -1,6 +1,6 @@
 ---
 title: The Modular Architecture (TMA)
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn about The Modular Architecture (TMA) and how to structure your projects using it.
 ---
 

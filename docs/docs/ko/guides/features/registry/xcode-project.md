@@ -1,6 +1,6 @@
 ---
 title: Xcode project
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: Xcode 프로젝트에서 Tuist Registry를 사용하는 방법을 배워봅니다.
 ---
 

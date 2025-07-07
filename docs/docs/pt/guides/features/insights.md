@@ -1,6 +1,6 @@
 ---
 title: Insights
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Get insights into your projects to maintain a product developer environment.
 ---
 

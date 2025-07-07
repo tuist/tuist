@@ -1,6 +1,6 @@
 ---
 title: Hashing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: 바이너리 캐싱과 선택적 테스트 기능의 기반이 되는 Tuist의 해싱 로직에 대해 배워봅니다.
 ---
 

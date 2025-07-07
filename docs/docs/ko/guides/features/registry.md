@@ -1,6 +1,6 @@
 ---
 title: Registry
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최적화 합니다.
 ---
 

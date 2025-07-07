@@ -1,6 +1,6 @@
 ---
 title: Directory structure
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn about the structure of Tuist projects and how to organize them.
 ---
 

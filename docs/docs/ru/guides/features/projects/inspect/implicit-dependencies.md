@@ -1,6 +1,6 @@
 ---
 title: Неявные импорты
-titleTemplate: :title · Inspect · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Inspect · Projects · Features · Guides · Tuist
 description: Узнайте, как использовать Tuist для обнаружения неявных импортов.
 ---
 

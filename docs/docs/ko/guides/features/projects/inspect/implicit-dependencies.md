@@ -1,6 +1,6 @@
 ---
 title: Implicit imports
-titleTemplate: :title · Inspect · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Inspect · Projects · Features · Guides · Tuist
 description: Learn how to use Tuist to find implicit dependencies.
 ---
 

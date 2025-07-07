@@ -1,6 +1,6 @@
 ---
 title: 継続的インテグレーション
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: Learn how to use the Tuist Registry in continuous integration.
 ---
 

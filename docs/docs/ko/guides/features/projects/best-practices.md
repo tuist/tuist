@@ -1,6 +1,6 @@
 ---
 title: Best practices
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 알아보세요.
 ---
 

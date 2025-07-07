@@ -1,6 +1,6 @@
 ---
 title: Plugins
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Tuist에서 Plugin을 생성하고 사용하여 기능을 확장하는 방법을 알아보세요.
 ---
 

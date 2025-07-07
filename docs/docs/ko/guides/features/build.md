@@ -1,6 +1,6 @@
 ---
 title: Build
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: 프로젝트를 효율적으로 빌드하기 위해 Tuist를 어떻게 사용하는지 배워봅니다.
 ---
 

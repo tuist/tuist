@@ -1,6 +1,6 @@
 ---
 title: Migrate a Swift Package
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Migrate · Adoption · Projects · Features · Guides · Tuist
 description: Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects.
 ---
 

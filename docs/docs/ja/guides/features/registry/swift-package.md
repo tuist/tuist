@@ -1,6 +1,6 @@
 ---
 title: Swift package
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: Learn how to use the Tuist Registry in a Swift package.
 ---
 

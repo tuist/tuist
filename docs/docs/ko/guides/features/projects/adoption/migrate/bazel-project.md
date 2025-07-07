@@ -1,6 +1,6 @@
 ---
 title: Migrate a Bazel project
-titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Migrate · Adoption · Projects · Features · Guides · Tuist
 description: Bazel에서 Tuist로 프로젝트를 마이그레이션 하는 방법을 배웁니다.
 ---
 

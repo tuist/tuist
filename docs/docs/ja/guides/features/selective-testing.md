@@ -1,6 +1,6 @@
 ---
 title: 選択的テスト
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Use selective testing to run only the tests that have changed since the last successful test run.
 ---
 
