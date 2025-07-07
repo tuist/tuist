@@ -8,7 +8,7 @@ description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방�
 
 > [!IMPORTANT] 요구사항
 >
-> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
 전통적으로, 팀들은 앱을 빌드하고 서명한 후 Apple의 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 업로드하여 이 작업을 수행해왔습니다.
@@ -80,7 +80,7 @@ Preview 페이지에서 "Run"을 클릭하면, macOS 앱이 현재 선택된 디
 ## Pull/merge request 코멘트 {#pullmerge-request-comments}
 
 > [!IMPORTANT] Git 플랫폼 연동 필요
-> 자동으로 pull/merge request에 대한 코멘트를 받으려면, <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>를 <LocalizedLink href="/server/introduction/integrations#git-platforms"> Git 플랫폼</LocalizedLink>과 연동해야 합니다.
+> 자동으로 pull/merge request에 대한 코멘트를 받으려면, <LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication"> Git 플랫폼</LocalizedLink>과 연동해야 합니다.
 
 새로운 기능에 대한 테스트는 모든 코드 리뷰에서 필수 과정이어야 합니다. 그러나 앱을 로컬에서 빌드하는 과정은 번거로워 개발자들이 실기기에서 기능을 전혀 테스트하지 않게 되는 경우가 많습니다. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 

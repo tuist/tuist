@@ -10,7 +10,7 @@ description: 마지막 성공한 테스트 수행 이후에 변경된 테스트�
 
 CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 테스트를 다시 실행할 가능성이 높습니다. Tuist의 선택적 테스트는 우리의 <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>을 기반으로 마지막 성공적인 테스트 이후에 변경된 테스트만 실행하여 테스트 자체의 실행 속도를 크게 높일 수 있도록 도와줍니다.
 
-선택적 테스트는 모든 Xcode 프로젝트를 지원하는 `xcodebuild` 에서 작동합니다. 또한, Tuist를 사용하여 프로젝트를 만들었을 경우 <LocalizedLink href="/guides/features/build/cache">binary cache</LocalizedLink>와 같은 추가 편의성을 제공하는 `tuist test` 명령어를 대신 사용할 수도 있습니다. 선택적 테스트를 시작하려면, 프로젝트 설정에 따른 지침을 따르세요:
+선택적 테스트는 모든 Xcode 프로젝트를 지원하는 `xcodebuild` 에서 작동합니다. 또한, Tuist를 사용하여 프로젝트를 만들었을 경우 <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>와 같은 추가 편의성을 제공하는 `tuist test` 명령어를 대신 사용할 수도 있습니다. 선택적 테스트를 시작하려면, 프로젝트 설정에 따른 지침을 따르세요:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">생성된 프로젝트</LocalizedLink>

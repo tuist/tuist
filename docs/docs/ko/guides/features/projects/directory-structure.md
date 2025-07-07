@@ -43,4 +43,4 @@ Workspace.swift
 
 Tuist는 SPM 패키지 프로젝트도 지원합니다. SPM 패키지를 작업하고 있다면 아무런 업데이트가 필요하지 않습니다. Tuist는 자동으로 루트 `Package.swift`를 선택하고 Tuist의 모든 기능은 `Project.swift` 매니페스트인 것처럼 동작합니다.
 
-시작하려면, SPM 패키지에서 `tuist install`과 `tuist generate`를 수행합니다. 이제 프로젝트는 Xcode SPM에서 볼 수 있는 동일한 스킴과 파일을 가져야 합니다. 이제 <LocalizedLink href="/guides/features/build/cache">`tuist cache`</LocalizedLink>도 수행할 수 있으며 대부분의 SPM 의존성과 모듈을 미리 컴파일 되어 후속 빌드가 매우 빠르게 진행됩니다.
+시작하려면, SPM 패키지에서 `tuist install`과 `tuist generate`를 수행합니다. 이제 프로젝트는 Xcode SPM에서 볼 수 있는 동일한 스킴과 파일을 가져야 합니다. 이제 <LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink>도 수행할 수 있으며 대부분의 SPM 의존성과 모듈을 미리 컴파일 되어 후속 빌드가 매우 빠르게 진행됩니다.

@@ -9,7 +9,7 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 > [!IMPORTANT] 요구사항
 >
 > - <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>
-> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를 제공하여 일반적인 상황에서 효율을 높입니다. 하지만 이 기능은 증분 빌드에 필요한 데이터가 서로 다른 빌드에서 공유되지 않으므로, [Continuous Integration (CI) 환경](https://en.wikipedia.org/wiki/Continuous_integration)에서는 적절하지 않습니다. 게다가 **개발자는 복잡한 컴파일 문제를 해결하기 위해 로컬에서 이 데이터를 초기화 하므로**, 클린 빌드가 자주 발생하게 됩니다. 팀은 이것으로 인해 로컬 빌드가 완료되거나 Continuous Integration 파이프라인이 Pull Request에 대한 피드백을 제공할 때까지 과도한 시간을 기다려야 합니다. 더욱이 이러한 환경에서 빈번한 컨텍스트 전환은 생산성을 더욱 악화시킵니다.
 
@@ -99,4 +99,4 @@ tuist test
 
 같은 환경과 프로젝트 실행에서 <LocalizedLink href="/guides/features/projects/hashing#debugging">해시는 항상 동일해야</LocalizedLink> 합니다. 예를 들어, 절대 경로를 사용하는 것과 같이 프로젝트가 환경에 대한 참조를 포함하고 있을 때 발생할 수 있습니다. `diff` 명령어를 사용하여 두 번의 `tuist generate`를 통해 생성된 프로젝트나 환경 또는 프로젝트 실행 차이를 비교할 수 있습니다.
 
-또한 타겟이 직접적으로나 간접적으로 <LocalizedLink href="/guides/features/cache.html#supported-products">캐시가 불가능한 타겟</LocalizedLink>에 의존하지 않도록 확인해야 합니다.
+또한 타겟이 직접적으로나 간접적으로 <LocalizedLink href="/guides/features/cache#supported-products">캐시가 불가능한 타겟</LocalizedLink>에 의존하지 않도록 확인해야 합니다.

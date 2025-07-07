@@ -125,7 +125,7 @@ We recommend using `mise use --pin` in your Tuist projects to pin the version of
 
 ## Authentication {#authentication}
 
-When using server-side features such as <LocalizedLink href="/guides/features/build/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+When using server-side features such as <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
 
 ```bash
 tuist project tokens create my-handle/MyApp

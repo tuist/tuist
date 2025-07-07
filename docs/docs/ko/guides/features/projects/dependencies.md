@@ -61,7 +61,7 @@ Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반
 
 Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
 이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 target을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
-덕분에, 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/features/build/cache">캐싱</LocalizedLink> 및 <LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
+덕분에, 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/features/cache">캐싱</LocalizedLink> 및 <LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj target 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 

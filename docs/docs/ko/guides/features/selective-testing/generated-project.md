@@ -9,9 +9,9 @@ description: 생성된 프로젝트에서 선택적 테스트를 활용하는 �
 > [!IMPORTANT] 요구 사항
 >
 > - <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>
-> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
-생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령어를 사용하세요. 이 명령어는 <LocalizedLink href="/guides/features/build/cache#cache-warming">캐시 워밍</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를 <LocalizedLink href="/guides/features/projects/hashing">해시</LocalizedLink>하며, 성공적으로 실행되면 다음 실행 시 변경 사항을 파악하기 위해 해시 값을 저장합니다.
+생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령어를 사용하세요. 이 명령어는 <LocalizedLink href="/guides/features/cache#cache-warming">캐시 워밍</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를 <LocalizedLink href="/guides/features/projects/hashing">해시</LocalizedLink>하며, 성공적으로 실행되면 다음 실행 시 변경 사항을 파악하기 위해 해시 값을 저장합니다.
 
 다음에 실행하면 `tuist test`는 해시를 사용하여 마지막으로 성공적으로 실행된 테스트 이후 변경된 테스트만 선별합니다.
 

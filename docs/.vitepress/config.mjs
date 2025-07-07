@@ -10,6 +10,7 @@ import {
 import { cliSidebar } from "./data/cli";
 import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
+import { LocalizedLinkValidator } from "./linkValidator.mjs";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -353,6 +354,14 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
 })}
     `;
     fs.writeFile(redirectsPath, redirects);
+    
+    // Validate LocalizedLink components
+    console.log('🔍 Validating LocalizedLink components...');
+    const srcDir = path.join(path.dirname(outDir), 'docs');
+    const validator = new LocalizedLinkValidator(srcDir);
+    
+    await validator.scanFiles();
+    await validator.validateLinks();
   },
   themeConfig: {
     logo: "/logo.png",
