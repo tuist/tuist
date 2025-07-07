@@ -37,7 +37,7 @@ public struct LogInView: View {
                 SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
-                    icon: "brand-tuist"
+                    icon: "TuistLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signIn() }
                 }
@@ -64,17 +64,17 @@ public struct LogInView: View {
                 SocialButton(
                     title: "Sign in with Google",
                     style: .secondary,
-                    icon: "brand-google"
+                    icon: "GoogleLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
                 SocialButton(
-                    title: "Sign in with Okta",
+                    title: "Sign in with GitHub",
                     style: .secondary,
-                    icon: "brand-okta"
+                    icon: "GitHubLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithOkta() }
+                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
             .padding(.horizontal, Noora.Spacing.spacing8)
