@@ -29,6 +29,8 @@ struct SocialButton: View {
             HStack(spacing: Noora.Spacing.spacing1) {
                 if let icon {
                     Image(icon)
+                        .renderingMode(.template)
+                        .foregroundColor(foregroundColor)
                         .frame(width: 20, height: 20)
                 }
                 Text(title)
