@@ -4,30 +4,6 @@ import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
 
-private final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-    private let authenticationService: AuthenticationService
-    private let errorHandling: ErrorHandling
-    
-    init(authenticationService: AuthenticationService, errorHandling: ErrorHandling) {
-        self.authenticationService = authenticationService
-        self.errorHandling = errorHandling
-    }
-    
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        errorHandling.fireAndHandleError {
-            try await self.authenticationService.signInWithApple(authorization: authorization)
-        }
-    }
-    
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        errorHandling.handle(error: error)
-    }
-    
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return ASPresentationAnchor()
-    }
-}
-
 public struct LogInView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
@@ -61,7 +37,7 @@ public struct LogInView: View {
                 SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
-                    icon: "brand-tuist"
+                    icon: "TuistLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signIn() }
                 }
@@ -87,17 +63,17 @@ public struct LogInView: View {
                 SocialButton(
                     title: "Sign in with Google",
                     style: .secondary,
-                    icon: "brand-google"
+                    icon: "GoogleLogo"
                 ) {
                     errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
                 SocialButton(
-                    title: "Sign in with Okta",
+                    title: "Sign in with GitHub",
                     style: .secondary,
-                    icon: "brand-okta"
+                    icon: "GitHubLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithOkta() }
+                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
             .padding(.horizontal, Noora.Spacing.spacing8)

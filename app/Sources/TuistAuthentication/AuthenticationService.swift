@@ -119,10 +119,6 @@ public final class AuthenticationService: ObservableObject {
         try await startOAuth2Flow(with: "/oauth2/google")
     }
 
-    public func signInWithOkta() async throws {
-        try await startOAuth2Flow(with: "/oauth2/okta")
-    }
-
     public func signInWithApple(authorization: ASAuthorization) async throws {
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let identityToken = appleIDCredential.identityToken,
