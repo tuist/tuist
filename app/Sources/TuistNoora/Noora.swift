@@ -188,6 +188,14 @@ public enum Noora {
         public static let buttonSecondaryLabel = Color(light: neutralLight1200, dark: neutralLight50)
         public static let buttonEnabledLabel = Color(light: purple500, dark: purple400)
         public static let buttonEnabledBackground = Color(light: purple500.opacity(0.15), dark: purple500.opacity(0.20))
+        public static let buttonDisabledLabel = Color(
+            light: Color(hex: 0x3C3C_434D, alpha: 0.3),
+            dark: Color(hex: 0x3C3C43, alpha: 0.3)
+        )
+        public static let buttonDisabledBackground = Color(
+            light: Color(hex: 0x787880, alpha: 0.12),
+            dark: Color(hex: 0x787880, alpha: 0.24)
+        )
     }
 
     public enum Spacing {

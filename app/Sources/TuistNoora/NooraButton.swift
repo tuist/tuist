@@ -3,34 +3,45 @@ import SwiftUI
 public struct NooraButton: View {
     private let title: String
     private let isLoading: Bool
+    private let isDisabled: Bool
     private let action: () -> Void
     @State private var rotation: Double = 0
     @State private var timer: Timer?
 
+    private var labelColor: Color {
+        isDisabled ? Noora.Colors.buttonDisabledLabel : Noora.Colors.buttonEnabledLabel
+    }
+
+    private var backgroundColor: Color {
+        isDisabled ? Noora.Colors.buttonDisabledBackground : Noora.Colors.buttonEnabledBackground
+    }
+
     public init(
         title: String,
         isLoading: Bool = false,
+        isDisabled: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.isLoading = isLoading
+        self.isDisabled = isDisabled
         self.action = action
     }
 
     public var body: some View {
-        Button(action: action) {
+        Button(action: isDisabled ? {} : action) {
             Text(title)
                 .font(.headline)
-                .foregroundColor(Noora.Colors.buttonEnabledLabel)
+                .foregroundColor(labelColor)
                 .opacity(isLoading ? 0 : 1)
                 .padding(.horizontal, Noora.Spacing.spacing5)
                 .padding(.vertical, Noora.Spacing.spacing2)
                 .overlay(
                     RoundedRectangle(cornerRadius: Noora.CornerRadius.max)
                         .trim(from: isLoading ? 0.2 : 0, to: isLoading ? 0.9 : 1)
-                        .fill(Noora.Colors.buttonEnabledBackground.opacity(isLoading ? 0.0 : 1.0))
+                        .fill(backgroundColor.opacity(isLoading ? 0.0 : 1.0))
                         .stroke(
-                            Noora.Colors.buttonEnabledBackground.opacity(isLoading ? 1.0 : 0.0),
+                            backgroundColor.opacity(isLoading ? 1.0 : 0.0),
                             lineWidth: 2
                         )
                         .rotationEffect(.degrees(rotation))
@@ -63,6 +74,10 @@ public struct NooraButton: View {
 
         NooraButton(title: "Run", isLoading: true) {
             print("Loading button tapped")
+        }
+
+        NooraButton(title: "Run", isDisabled: true) {
+            print("Disabled button tapped")
         }
     }
     .padding()

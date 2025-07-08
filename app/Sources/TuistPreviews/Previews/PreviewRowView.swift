@@ -77,7 +77,9 @@ struct PreviewRowView: View {
 
                 NooraButton(
                     title: "Run",
-                    isLoading: isLoading
+                    isLoading: isLoading,
+                    isDisabled: !preview.appBuilds
+                        .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
                 ) {
                     isLoading = true
                     let url =
