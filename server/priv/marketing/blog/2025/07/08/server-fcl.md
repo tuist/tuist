@@ -1,5 +1,5 @@
 ---
-title: "Tuist Server Source Code Is Now Public"
+title: "Tuist Server is Now Source Available"
 category: "product"
 tags: ["product"] 
 excerpt: "We're thrilled to announce that the Tuist Server is now source available. After years of building open source tools for the mobile development community, we're taking a significant step toward greater transparency while ensuring sustainable development."
