@@ -1,0 +1,79 @@
+version: '3.8'
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - db1:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgweb:
+    container_name: pgweb
+    restart: always
+    image: sosedoff/pgweb
+    ports:
+      - "8081:8081"
+    links:
+      - db:db
+    environment:
+      PGWEB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+    depends_on:
+      - db
+
+  tuist:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tuist
+    depends_on:
+      - db
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "443:443"
+    expose:
+      - "80"
+      - "8080"
+      - "443:443"
+    environment:
+      TUIST_USE_SSL_FOR_DATABASE: "0"
+      TUIST_LICENSE:  ""
+      DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+      TUIST_APP_URL: https://localhost:8080
+      TUIST_SECRET_KEY_BASE: # ...
+      WEB_CONCURRENCY: 80
+
+      # Auth - one method
+      TUIST_GITHUB_OAUTH_ID:
+      TUIST_GITHUB_OAUTH_SECRET:
+
+      # Okta Auth
+      TUIST_OKTA_SITE:
+      TUIST_OKTA_CLIENT_ID:
+      TUIST_OKTA_CLIENT_SECRET:
+      TUIST_OKTA_AUTHORIZE_URL: # Optional
+      TUIST_OKTA_TOKEN_URL: # Optional
+      TUIST_OKTA_USER_INFO_URL: # Optional
+      TUIST_OKTA_EVENT_HOOK_SECRET: # Optional
+
+      # Storage
+      TUIST_S3_ACCESS_KEY_ID: # ...
+      TUIST_S3_SECRET_ACCESS_KEY: # ...
+      TUIST_S3_BUCKET_NAME: # ...
+      TUIST_S3_REGION: # ...
+      TUIST_S3_ENDPOINT: # https://amazonaws.com
+
+      # Other
+
+volumes:
+  db1:
+    driver: local

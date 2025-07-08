@@ -1,0 +1,125 @@
+<main class="marketing__blog_post" aria-label={gettext("Blog post main content")}>
+  <div class="marketing__blog_post__gradient" />
+
+  <header class="marketing__blog_post__header" aria-label={gettext("Blog post header")}>
+    <div class="marketing__blog_post__header__category font-m-strong">
+      {@post.category}
+    </div>
+    <h1 class="marketing__blog_post__header__title font-xxxl-strong">
+      {@post.title}
+    </h1>
+    <p class="marketing__blog_post__header__excerpt font-l">
+      {@post.excerpt}
+    </p>
+  </header>
+
+  <div class="marketing__blog_post__body">
+    <section class="marketing__blog_post__body__content">
+      <%= if not is_nil(@post.image_url) do %>
+        <div class="marketing__blog_post__body__content__image-wrapper">
+          <img
+            class="marketing__blog_post__body__content__image"
+            src={@post.image_url}
+            alt={"'#{@post.title}' featured image"}
+          />
+        </div>
+      <% end %>
+      <div class="marketing_content">
+        {raw(@post.body)}
+      </div>
+    </section>
+    <aside
+      class="marketing__blog_post__body__side"
+      role="complementary"
+      aria-label={gettext("Post details")}
+    >
+      <div
+        class="marketing__blog_post__body__side__date font-xs"
+        aria-label={gettext("Post date")}
+      >
+        {Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}
+      </div>
+      <div
+        class="marketing__blog_post__body__side__reading_time font-xs"
+        aria-label={gettext("Reading time")}
+      >
+        {ngettext("%{count} minute", "%{count} minutes", ReadingTime.time(@post.body))}
+      </div>
+      <div class="marketing__blog_post__body__side__written_by font-xs">
+        <%= cond do %>
+          <% not is_nil(@author) -> %>
+            {gettext("Written by")}
+          <% @post.type == "interview" -> %>
+            {gettext("Interviewee")}
+          <% true -> %>
+            <span></span>
+        <% end %>
+      </div>
+      <address class="marketing__blog_post__body__side__person" aria-labelledby="author-info">
+        <% avatar_src =
+          cond do
+            not is_nil(@author) and not is_nil(@author["github_handle"]) ->
+              "https://github.com/#{@author["github_handle"]}.png"
+
+            not is_nil(@author) and not is_nil(@author["image_href"]) ->
+              @author["image_href"]
+
+            @post.type == "interview" ->
+              @post.interviewee_avatar
+
+            true ->
+              nil
+          end %>
+        <img
+          class="marketing__blog_post__body__side__person__avatar"
+          src={avatar_src}
+          alt={gettext("Interviewee or author's avatar")}
+        />
+        <div id="author-info" class="marketing__blog_post__body__side__person__data">
+          <div class="marketing__blog_post__body__side__person__data__name font-m-strong">
+            <%= cond do %>
+              <% not is_nil(@author) -> %>
+                {@author["name"]}
+              <% @post.type == "interview" -> %>
+                {@post.interviewee_name}
+              <% true -> %>
+                <span></span>
+            <% end %>
+          </div>
+          <div class="marketing__blog_post__body__side__person__data__role font-xs">
+            <%= cond do %>
+              <% not is_nil(@author) -> %>
+                {@author["role"]}
+              <% @post.type == "interview" -> %>
+                {@post.interviewee_role}
+              <% true -> %>
+                <span></span>
+            <% end %>
+          </div>
+          <div class="marketing__blog_post__body__side__person__data__role"></div>
+        </div>
+      </address>
+      <div class="marketing__blog_post__body__side__person__share font-xs"></div>
+    </aside>
+  </div>
+
+  <.cta />
+
+  <section class="marketing__blog_post__related" aria-labelledby="related-posts-title">
+    <h2 id="related-posts-title" class="marketing__blog_post__related__title font-xxxl-strong">
+      {gettext("You might also like")}
+    </h2>
+    <div class="marketing__blog_post__related__body">
+      <div class="marketing__blog_post__related__body__cards">
+        <.more_card
+          :for={post <- @related_posts}
+          category={post.category}
+          title={post.title}
+          description={post.excerpt}
+          href={post.slug}
+          class="marketing__blog_post__related__body__cards__card"
+        />
+      </div>
+    </div>
+  </section>
+</main>

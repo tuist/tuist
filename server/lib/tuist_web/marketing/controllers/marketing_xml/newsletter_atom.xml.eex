@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Swift Stories Newsletter</title>
+  <subtitle><%= Tuist.Marketing.Newsletter.description() %></subtitle>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/newsletter") %>"/>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/newsletter/atom.xml") %>" rel="self"/>
+  <id><%= Tuist.Environment.app_url(path: ~p"/newsletter") %></id>
+  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
+
+  <%= for issue <- @issues do %>
+    <entry>
+      <title><![CDATA[<%= issue.full_title %>]]></title>
+      <author>
+        <name>Tuist</name>
+      </author>
+      <link href="<%= Tuist.Environment.app_url(path: "#{~p"/newsletter/issues/#{issue.number}"}") %>>"/>
+      <id><%= Tuist.Environment.app_url(path: "#{~p"/newsletter/issues/#{issue.number}"}") %></id>
+      <updated><%= issue.date |> Timex.format!("{RFC1123}") %></updated>
+      <content type="html"><![CDATA[ <%= issue.plain_html %> ]]></content>
+    </entry>
+  <% end %>
+</feed>

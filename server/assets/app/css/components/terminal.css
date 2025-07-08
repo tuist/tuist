@@ -1,0 +1,34 @@
+.tuist-terminal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-3);
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-xlarge);
+  padding: var(--noora-spacing-2);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+
+    & > [data-part="title"] {
+      flex-grow: 1;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="body"] {
+    box-shadow: var(--noora-border-section);
+    border-radius: var(--noora-radius-large);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-6) var(--noora-spacing-5);
+    line-break: anywhere;
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    }
+  }
+}

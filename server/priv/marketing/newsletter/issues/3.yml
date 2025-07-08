@@ -1,0 +1,98 @@
+date: 2025-02-07
+hero:
+  image: /marketing/images/newsletter/issues/3/artwork.jpeg
+  alt: "Fons Mans UI design of a keys widget"
+  subtitle: "Featured work: [Fons Mans](https://www.linkedin.com/posts/fonsmans_keys-ios-widget-activity-7225456532883148801-1eGf/)"
+title: "Optimizing for joy"
+body: |
+  We, as software crafters, often like to quantify things: downloads, sign-ups, average response time, app bundle size. Metrics give us confidence in certain aspects of our work, but they come at a cost—we often overlook other equally important factors in crafting great apps.
+
+  **One of those factors is joy.** We believe there is an unquantifiable relationship between the joy a developer experiences while building an app and the quality of the final product. When people enjoy what they do, they feel inspired to push the limits of what’s possible and explore new ideas.
+
+  Discussions about joy and happiness in software development are rare, but some frameworks, like Ruby on Rails, have made it a core principle. [DHH](https://dhh.dk) describes how he drew inspiration from [Ruby](https://www.ruby-lang.org/en/):
+
+  > Ruby is full of optical illusions where that which seems simple, clear, and beautiful to our mind’s eye actually is an acrobatic mess of wires under the hood.
+
+  We believe that **ideas have energy, and that energy can be eroded by the absence of joy.** Picture this scenario: You’re a software crafter, and one day, you wake up with an exciting idea that you’d love to build into your app or your company’s product. You open your laptop, start working on it, and then—your project takes minutes to compile, only to fail. You just wanted to bring your idea to life, but instead, you spend hours debugging and wrestling with roadblocks. After all that frustration, your passion for the idea fades. Who knows? That idea might never see the light of day.
+
+  As an industry, we should embrace optimizing for joy as one of our guiding principles. Doing so requires an ongoing dialogue with ourselves. If you pause for a moment, you can probably think of aspects of app development that aren’t enjoyable. Is it slow build times? Struggling to debug an obscure signing issue? Wrestling with a new programming language’s mental models? Debugging data races, for example, was far from enjoyable—until Apple introduced a better [concurrency model](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/). However, in doing so, they may have slightly reduced the joy of writing Swift by pushing the limits of our cognitive capacity. And that’s okay! The pursuit of joy is an infinite game. You improve in one area, compromise in another, and then shift focus again until you find a balance that works for everyone.
+
+  Optimizing for joy might sound idealistic, but it could lead us to a better world. At first, it might feel frustrating because we’ll often rely on "gut feelings" rather than hard data. But many great ideas were born out of people having fun. And if you don’t believe me, read the [book](https://en.wikipedia.org/wiki/Linus_Torvalds#Bibliography) by Linus Torvalds.
+
+  So, the next time you encounter something that diminishes your joy in development, think about all the great ideas that have faded because of similar frustrations. And take a moment to act as a champion for happiness in software crafting.
+interview:
+  interviewee: "Matt Massicotte"
+  interviewee_role: "Apple platforms developer"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/3/matt.jpeg
+  interviewee_intro: |
+    [Matt Massicotte](github.com/mattmassicotte) has been developing for Apple platforms for longer than he likes to admit. He spends time working on open source projects [ChimeHQ](github.com/ChimeHQ), [writing](https://massicotte.org), and consulting/training specifically for Swift concurrency.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        I am constantly amazed at how much excellent Swift stuff I learn/discover from Mastodon. I've experimented with many clients, and I find [Mona](https://mastodon.social/@MonaApp) to be indispensable.
+    - question: "An open-source project worth checking out"
+      answer: |
+        I've only had a few small opportunities to try out Swift on the server. But, I think [Meridian](github.com/khanlou/Meridian) is a really interesting option and something that more people should know about.
+    - question: "A developer tool worth using"
+      answer: |
+        I had a hard time coming up with a choice here, but ultimately I settled on [fish](https://fishshell.com). I spend a fair bit of time at the command line, and I have found fish to be indispensable.
+    - question: "A developer worth following"
+      answer: |
+        There are so many wonderful people in the Swift world, but [Alexandra Jusino](https://mastodon.social/@Alexjusino) stands out. She shares her own real problems and frustrations, and also is consistently supportive when others do the same. I find that to be an excellent aspect if the Swift community and I'd love to see more.
+    - question: "A book worth reading"
+      answer: |
+        I'm embarrassed to say I don't read less than I'd like. But, I got a great deal out of ["Grit: The Power of Passion and Perseverance"](https://angeladuckworth.com/grit-book/) by Angela Duckworth, both personally and professionally. Definitely worth checking out.
+
+tools:
+  - title: Bagels
+    subtitle: A terminal-based expense tracker
+    link: https://terminaltrove.com/bagels/
+    description: |
+      Do you need a expense tracker and don't want to leave the terminal? Bagels is the answer. The quality of the UI is impressive, and it's a great way to keep track of your expenses.
+  - title: depermaid
+    subtitle: Visualize your package dependencies
+    link: https://github.com/daikimat/depermaid
+    description: |
+      Modularization is key to keeping your codebase maintainable, but at certain points, it can be hard to visualize the dependencies between your modules. Depermaid is a tool that generates a graph of your package dependencies, making it easier to understand the relationships between them. If you are using Tuist, this is akin to the `tuist graph` command.
+  - title: uscope
+    subtitle: A visual lldb debugger
+    link: https://www.calabro.io/uscope
+    description: |
+      Many people are excited about the idea of developing Swift apps outside of Xcode, but that requires decoupling experiences from Xcode. One of them is debugging, which is powered by [lldb](https://lldb.llvm.org). [Jim Calabro](https://www.calabro.io/uscope) has been working on a visual debugger that runs on the terminal, making it easier to debug with LLDB. It doesn't work with Swift and macOS yet, but it's a promising start.
+  - title: Expensaro UI
+    subtitle: A SwiftUI design system
+    link: https://expensaro-ui.vercel.app
+    description: |
+      Thanks to SwiftUI, design systems are less necessary in the Apple ecosystem. However, if you're looking for a design system for your SwiftUI apps, you might want to check out Expensaro UI. It's a collection of components that you can use to build your apps faster.
+  - title: Tapestry
+    subtitle: A feeds aggregator
+    link: https://apps.apple.com/us/app/tapestry-by-iconfactory/id6448078074
+    description: |
+      [IconFactory](https://iconfactory.com), released a new app, Tapestry, which acts as an aggregator for your feeds. And the best part? They designed it to be [extensible](https://github.com/TheIconfactory/Tapestry), a topic we discussed in our second issue. They leveraged Node for extensibility and already have plugins to aggregate content from platforms like [Reddit](https://github.com/TheIconfactory/Tapestry/tree/main/Plugins/com.reddit) or [YouTube](https://github.com/TheIconfactory/Tapestry/tree/main/Plugins/com.youtube).
+
+food_for_thought:
+  - title: "Bringing Swift Packages to Android"
+    subtitle: "Read"
+    link: "https://skip.tools/blog/android-native-swift-packages/"
+    description: |
+      Swift continues to expand its reach, and now you can use Swift packages in Android projects. [Skip](https://skip.tools) has a blog post that explains how to do it. You can check [here](https://swift-everywhere.org) which packages compile for Android.
+  - title: "Javascript Temporal"
+    subtitle: "Read"
+    link: "https://developer.mozilla.org/en-US/blog/javascript-temporal-is-coming/"
+    description: |
+      If you write JavaScript in your Swift server apps, and miss having a proper date and time API, you might want to check out the upcoming Temporal API.
+  - title: "Swift Concurrency Glossary"
+    subtitle: Consult
+    link: https://www.massicotte.org/concurrency-glossary
+    description: |
+      Matt has been supportive in the ecosystem to help people understand the new concurrency model in Swift and decided to capture his knowledge in a glossary. If you're struggling with the new model, you might want to check it out.
+  - title: "An interview with Chris Lattner"
+    subtitle: Read
+    link: https://pldb.io/blog/chrisLattner.html
+    description: |
+      Did you know that Chris found it useful to work on Swift secretly to avoid many strong opinions about superficial things? In this interview he shares more about his career building Swift and LLVM, as well as his current work with Mojo.
+  - title: macOS UI guidelines
+    subtitle: Check out
+    link: https://mastodon.social/@lukaskubanek/113935569192369675
+    description: |
+      [Mario Guzman](https://marioaguzman.github.io) has created some UI guidelines for building macOS apps that fill some gaps in Apple's Human Interface Guidelines. If you're building a macOS app, you might want to check them out.

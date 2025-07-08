@@ -1,0 +1,123 @@
+name: Server Release
+
+on:
+  schedule:
+    # Every Monday at 11:00
+    - cron: "0 10 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+env:
+  MISE_EXPERIMENTAL: 1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  release:
+    name: Release
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(../mise/tasks/server/generate-version.sh)
+          echo "::set-output name=version::$version"
+      - id: last-release
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          owner: tuist
+          repo: server
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: "Generate Changelog"
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          owner: "tuist"
+          repo: "server"
+          configuration: ".github/changelog-configuration.json"
+          fromTag: ${{ steps.last-release.outputs.release }}
+          toTag: "main"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/tuist/tuist
+          flavor: |
+            latest=true
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Tuist
+            org.opencontainers.image.vendor=Tuist GmbH
+            org.opencontainers.image.source=https://github.com/tuist/registry
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=${{ steps.version.outputs.version }}
+            MIX_ENV=prod
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          github-token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        id: commit
+        with:
+          tagging_message: ${{ steps.version.outputs.version }}
+          commit_options: "--allow-empty"
+          commit_message: Release ${{ steps.version.outputs.version }}
+      - name: Create GitHub Release on tuist/server
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          repository: tuist/server
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          target_commitish: ${{ steps.commit.outputs.commit_hash }}
