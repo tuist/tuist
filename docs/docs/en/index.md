@@ -134,7 +134,7 @@ Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main
     <HomeCard
         icon="🏢"
         title="Inside Tuist"
-        details="Learn about our open company culture and how we're building the future of iOS development."
+        details="Learn about our open company culture and how we're building the future of app development."
         linkText="Read our handbook"
         link="https://handbook.tuist.dev"/>
 </HomeCards>
