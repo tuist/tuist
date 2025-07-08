@@ -1,0 +1,54 @@
+#account-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="rename-card-section"],
+  & > [data-part="delete-organization-card-section"],
+  & > [data-part="delete-user-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-radius: var(--noora-radius-2xlarge);
+
+    & {
+      box-shadow: var(--noora-border-light-error);
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & .noora-modal {
+      & [data-part="body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+        min-width: 392px;
+
+        @media (max-width: 768px) {
+          & {
+            min-width: 80vw;
+          }
+        }
+      }
+    }
+  }
+}

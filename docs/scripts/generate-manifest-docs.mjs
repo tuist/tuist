@@ -19,8 +19,12 @@ await execa("tuist", ["generate", "--no-open", "--no-binary-cache"], {
 });
 
 await execa(
-  "sourcedocs",
+  "mise",
   [
+    "x",
+    "spm:tuist/sourcedocs@2.0.2",
+    "--",
+    "sourcedocs",
     "generate",
     "-o",
     path.join(docsDirectory, "docs/generated/manifest"),
@@ -34,12 +38,14 @@ await execa(
     "-workspace",
     path.join(rootDirectory, "Tuist.xcworkspace"),
   ],
-  { cwd: rootDirectory, stdio: "inherit" }
+  { cwd: rootDirectory, stdio: "inherit" },
 );
 
 fs.rmSync(path.join(docsDirectory, "docs/generated/manifest/README.md"));
 
-fg.sync(path.join(docsDirectory, "docs/generated/manifest/**/*.md")).forEach((file) => {
-  const renamedPath = file.replace(/\[(.*?)\]/g, "Array<$1>");
-  fs.renameSync(file, renamedPath);
-});
+fg.sync(path.join(docsDirectory, "docs/generated/manifest/**/*.md")).forEach(
+  (file) => {
+    const renamedPath = file.replace(/\[(.*?)\]/g, "Array<$1>");
+    fs.renameSync(file, renamedPath);
+  },
+);

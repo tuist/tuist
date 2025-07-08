@@ -1,0 +1,266 @@
+<div id="test-runs">
+  <.card title={gettext("Analytics")} icon="chart_arcs" data-part="analytics">
+    <:actions>
+      <.dropdown
+        id="test-runs-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={gettext("Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label="Any"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label="Local"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label="CI"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.button_group size="large">
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_7_days")}"}
+          label={gettext("7 days")}
+          data-selected={@analytics_date_range == "last_7_days"}
+        />
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_30_days")}"}
+          label={gettext("30 days")}
+          data-selected={@analytics_date_range == "last_30_days"}
+        />
+        <.button_group_item
+          patch={"?#{Query.put(@uri.query, "analytics_date_range", "last_12_months")}"}
+          label={gettext("12 months")}
+          data-selected={@analytics_date_range == "last_12_months"}
+        />
+      </.button_group>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        title={gettext("Test run count")}
+        description={
+          gettext(
+            "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+          )
+        }
+        value={@test_runs_analytics.count}
+        id="widget-test-run-count"
+        trend_value={@test_runs_analytics.trend}
+        trend_label={@analytics_trend_label}
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_count")}"}
+        replace={true}
+        selected={@analytics_selected_widget == "test_run_count"}
+        empty={@test_runs_analytics.count == 0}
+      />
+      <.widget
+        title={gettext("Failed run count")}
+        description={
+          gettext(
+            "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+          )
+        }
+        value={@failed_test_runs_analytics.count}
+        id="widget-failed-test-run-count"
+        trend_value={@failed_test_runs_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_inverse
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "failed_test_run_count")}"}
+        replace={true}
+        selected={@analytics_selected_widget == "failed_test_run_count"}
+        empty={@test_runs_analytics.count == 0}
+      />
+      <.widget
+        title={gettext("Avg. test run duration")}
+        description={
+          gettext(
+            "Average test run duration represents the average time it took to run a test during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+          )
+        }
+        value={
+          gettext("%{test_runs_average_duration}s",
+            test_runs_average_duration:
+              (@test_runs_duration_analytics.total_average_duration / 1000)
+              |> Decimal.from_float()
+              |> Decimal.round(1)
+          )
+        }
+        id="widget-test-run-duration"
+        trend_value={@test_runs_duration_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_inverse
+        patch={"?#{Query.put(@uri.query, "analytics_selected_widget", "test_run_duration")}"}
+        replace={true}
+        selected={@analytics_selected_widget == "test_run_duration"}
+        empty={@test_runs_analytics.count == 0}
+      />
+    </div>
+    <.card_section :if={@test_runs_analytics.count != 0}>
+      <div data-part="analytics-chart">
+        <.chart
+          id="test-runs-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @analytics_chart_data.dates |> List.first(),
+                    @analytics_chart_data.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: @analytics_chart_data.value_formatter
+                }
+              },
+              tooltip: %{
+                valueFormat: @analytics_chart_data.value_formatter
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @analytics_chart_data.dates,
+                  @analytics_chart_data.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: @analytics_chart_data.name,
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section :if={@test_runs_analytics.count == 0} title={gettext("No data yet")}>
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card title={gettext("Test Runs")} icon="dashboard" data-part="test-runs">
+    <.card_section data-part="test-runs-section">
+      <div data-part="filters">
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={gettext("Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+      </div>
+
+      <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
+        <.table
+          id="test-runs-table"
+          rows={@test_runs}
+          row_navigate={
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{test_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={test_run} label={gettext("Command")}>
+            <.text_and_description_cell label={
+              if test_run.command_arguments,
+                do:
+                  "tuist " <>
+                    (test_run.command_arguments
+                     |> String.split(" ")
+                     |> Enum.take(2)
+                     |> Enum.join(" ")),
+                else: "tuist #{test_run.name}"
+            } />
+          </:col>
+          <:col :let={test_run} label="Status">
+            <%= if test_run.status == :success do %>
+              <.status_badge_cell label={gettext("Passed")} status="success" />
+            <% else %>
+              <.status_badge_cell label={gettext("Failed")} status="error" />
+            <% end %>
+          </:col>
+          <:col :let={test_run} label={gettext("Branch")}>
+            <.text_cell icon="git_branch" label={test_run.git_branch || "None"} />
+          </:col>
+          <:col :let={test_run} label={gettext("Commit SHA")}>
+            <.text_cell label={
+              (test_run.git_commit_sha || "None")
+              |> String.slice(0, 7)
+            } />
+          </:col>
+          <:col :let={test_run} label={gettext("Ran by")}>
+            <.run_ran_by_badge_cell run={test_run} />
+          </:col>
+          <:col :let={test_run} label={gettext("Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@test_runs_meta.has_previous_page?}
+          has_next_page={@test_runs_meta.has_next_page?}
+          start_cursor={@test_runs_meta.start_cursor}
+          end_cursor={@test_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
+        <.empty_card_section
+          title={gettext("No data yet")}
+          get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+          data-part="empty-test-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

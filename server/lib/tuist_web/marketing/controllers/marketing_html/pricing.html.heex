@@ -1,0 +1,184 @@
+<main class="marketing__pricing" role="main">
+  <div class="marketing__pricing__gradient" aria-hidden="true"></div>
+
+  <header class="marketing__pricing__header">
+    <h1 class="marketing__pricing__header__title">
+      {gettext("Start for free, pay as you benefit")}
+    </h1>
+    <p class="marketing__pricing__header__subtitle">
+      {gettext(
+        "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
+      )}
+    </p>
+  </header>
+
+  <section class="marketing__pricing__plans" aria-label="Pricing Plans">
+    <.pricing_plan_plan_card
+      :for={plan <- @plans}
+      name={plan.name}
+      popular={plan.popular}
+      description={plan.description}
+      price={plan.price}
+      cta={plan.cta}
+      features={plan.features}
+      badges={plan.badges}
+      price_frequency={Map.get(plan, :price_frequency)}
+    />
+  </section>
+
+  <% feature_title = gettext("Feature")
+  metric_title = gettext("Usage unit")
+  included_title = gettext("Included for free (monthly)")
+  price_above_free = gettext("Price per unit above free tier")
+
+  items = [
+    %{
+      features: [
+        %{
+          name: gettext("Generated Projects"),
+          link: "https://docs.tuist.dev/en/guides/develop/projects",
+          description:
+            gettext("Turn projects defined with a Swift-DSL into Xcode workspaces and projects.")
+        }
+      ],
+      metric: gettext("None"),
+      included: gettext("Unlimited"),
+      price: gettext("$0")
+    },
+    %{
+      features: [
+        %{
+          name: gettext("Tuist Cache"),
+          link: "https://docs.tuist.dev/en/guides/develop/build/cache",
+          description:
+            gettext(
+              "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+            )
+        },
+        %{
+          name: gettext("Tuist Tests"),
+          link: "https://docs.tuist.dev/en/guides/develop/test/smart-runner",
+          description:
+            gettext(
+              "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+            )
+        }
+      ],
+      metric:
+        gettext(
+          "Each Tuist CLI command (e.g., generate, build, test) that pulls binaries or selective test results to optimize builds or tests counts as one invocation."
+        ),
+      included: gettext("200"),
+      price: gettext("$0.5")
+    },
+    %{
+      features: [
+        %{
+          name: gettext("Tuist Previews"),
+          link: "https://docs.tuist.dev/en/guides/share/previews",
+          description:
+            gettext("Preview your project apps in simulator or devices with one click/command.")
+        }
+      ],
+      metric: gettext("None"),
+      included: gettext("Unlimited"),
+      price: gettext("$0")
+    }
+  ] %>
+
+  <div class="marketing__pricing__features__mobile" aria-label="Feature Comparison">
+    <div :for={item <- items} class="marketing__pricing__features__mobile__feature">
+      <%= for feature <- item.features do %>
+        <h3 class="marketing__pricing__features__mobile__feature__title">
+          {feature.name}
+          <TuistWeb.Marketing.MarketingIcons.share_icon
+            size={12}
+            class="marketing__pricing__features__mobile__feature__title__share_icon"
+          />
+        </h3>
+        <div class="marketing__pricing__features__mobile__feature__description">
+          {feature.description}
+        </div>
+      <% end %>
+
+      <div class="marketing__pricing__features__mobile__feature__metric">
+        <span class="font-xs-strong"><%= metric_title %>:</span>&nbsp;{item.metric}
+      </div>
+      <div class="marketing__pricing__features__mobile__feature__included">
+        <span class="font-xs-strong"><%= included_title %>:</span>&nbsp;{item.included}
+      </div>
+      <div class="marketing__pricing__features__mobile__feature__price">
+        <span class="font-xs-strong"><%= price_above_free %>:</span>&nbsp;{item.price}
+      </div>
+    </div>
+  </div>
+
+  <div class="marketing__pricing__features__header">
+    <h2 class="marketing__pricing__features__header__title" id="features-section">
+      {gettext("Features")}
+    </h2>
+    <p class="marketing__pricing__features__header__subtitle">
+      {gettext(
+        "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.dev—we’d love to hear from you!"
+      )}
+    </p>
+  </div>
+
+  <table class="marketing__pricing__features__desktop" aria-label="Feature Comparison">
+    <thead class="marketing__pricing__features__desktop__header">
+      <tr>
+        <th scope="col">{feature_title}</th>
+        <th scope="col">{metric_title}</th>
+        <th scope="col">{included_title}</th>
+        <th scope="col">{price_above_free}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr :for={item <- items} class="marketing__pricing__features__desktop__row">
+        <td class="marketing__pricing__features__desktop__row__feature">
+          <%= for feature <- item.features do %>
+            <.link
+              href={feature.link}
+              class="marketing__pricing__features__desktop__row__feature__name"
+            >
+              {feature.name}
+              <TuistWeb.Marketing.MarketingIcons.share_icon
+                size={12}
+                class="marketing__pricing__features__desktop__row__feature__name__share_icon"
+              />
+            </.link>
+            <div class="marketing__pricing__features__desktop__row__feature__description">
+              {feature.description}
+            </div>
+          <% end %>
+        </td>
+        <td>{item.metric}</td>
+        <td>{item.included}</td>
+        <td>{item.price}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="marketing__pricing__faq" id="faq" aria-label="Frequently Asked Questions">
+    <h2 class="marketing__pricing__faq__title">{gettext("FAQ")}</h2>
+    <div class="marketing__pricing__faq__questions">
+      <%= for {{question, answer}, index} <- Enum.with_index(@faqs) do %>
+        <div class="marketing__pricing__faq__item" id={"faq-#{index}"}>
+          <button
+            class="marketing__pricing__faq__item__question"
+            aria-expanded="false"
+            aria-controls={"faq-answer-#{index}"}
+            phx-click={JS.toggle_attribute({"data-open", true}, to: "#faq-#{index}")}
+          >
+            <span class="marketing__pricing__faq__item__question__question">{question}</span>
+            <TuistWeb.Marketing.MarketingIcons.plus_icon class="marketing__pricing__faq__item__question__plus_icon" />
+            <TuistWeb.Marketing.MarketingIcons.icon_minus class="marketing__pricing__faq__item__question__minus_icon" />
+          </button>
+          <div class="marketing__pricing__faq__item__answer" id={"faq-answer-#{index}"} hidden>
+            {raw(answer)}
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+</main>

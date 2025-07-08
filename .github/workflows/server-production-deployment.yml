@@ -1,0 +1,214 @@
+name: Server Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - .github/workflows/server-production-deployment.yml
+      - pnpm-lock.yaml
+
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-production-deployment-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  MISE_EXPERIMENTAL: 1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  canary:
+    environment: server-canary
+    name: Canary Deployment
+    env:
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(.mise/tasks/generate-version)
+          echo "::set-output name=version::$version"
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Fly
+        run: flyctl deploy -c fly.canary.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --build-arg APP_REVISION=$GITHUB_SHA --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --wait-timeout 3600
+  acceptance-tests:
+    name: Acceptance Tests
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 40
+    needs: canary
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tuist/cli-ext
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.3.app
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - uses: actions/cache@v3
+        name: "Cache installed dependencies folder"
+        with:
+          path: .build
+          key: spm-v1-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+      - name: Install dependencies
+        run: tuist install
+      - name: Test
+        run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
+  production:
+    environment: server-production
+    name: Production Deployment
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 60
+    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
+    needs: acceptance-tests
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(.mise/tasks/generate-version)
+          echo "::set-output name=version::$version"
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Fly
+        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Notify about the deployment in Slack
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            commit: "${{ github.sha }}"
+            environment: "production"
+  production-hotfix:
+    environment: server-production
+    name: Production Deployment
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 60
+    if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(.mise/tasks/generate-version)
+          echo "::set-output name=version::$version"
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Fly
+        run: flyctl deploy -c fly.prod.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Notify about the deployment in Slack
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            commit: "${{ github.sha }}"
+            environment: "production"

@@ -1,0 +1,556 @@
+<div id="build-run">
+  <.button
+    label={gettext("Build Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title">
+      <div :if={@run.status == :success} data-part="badge-success">
+        <div data-part="icon">
+          <.circle_check />
+        </div>
+      </div>
+      <div :if={@run.status == :failure} data-part="badge-failure">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <h1 :if={not is_nil(@run.scheme)} data-part="label">{@run.scheme}</h1>
+    </div>
+    <.button
+      :if={@has_result_bundle.ok? && @has_result_bundle.result}
+      href={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.command_event.id}/download"
+      }
+      label={gettext("Download result")}
+      variant="secondary"
+      size="medium"
+    >
+      <:icon_left><.download /></:icon_left>
+    </.button>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={gettext("Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("Warnings")}
+      selected={@selected_tab == "warnings"}
+      patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={gettext("Errors")}
+      selected={@selected_tab == "errors"}
+      patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
+    />
+  </.tab_menu_horizontal>
+  <%= if @selected_tab == "overview" do %>
+    <.card title={gettext("Build Details")} icon="chart_arcs" data-part="build-details">
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div :if={not is_nil(@run.command_event)} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Command")}</div>
+              <span data-part="command-label">
+                {"tuist " <> @run.command_event.command_arguments}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Mac device")}</div>
+              <span data-part="label">
+                <.device_laptop />
+                {Tuist.Apple.devices()[@run.model_identifier]}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Status")}</div>
+              <%= if @run.status == :success do %>
+                <.badge label={gettext("Passed")} color="success" style="fill" />
+              <% else %>
+                <.badge label={gettext("Failed")} color="destructive" style="fill" />
+              <% end %>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Built by")}</div>
+              <.build_ran_by_badge_cell build={@run} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Build duration")}</div>
+              <span data-part="label">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@run.duration)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Built at")}</div>
+              <span data-part="label">
+                {Timex.format!(@run.inserted_at, "{WDshort} {D} {Mfull} {h24}:{m}:{s}")}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Category")}</div>
+              <.badge
+                label={@run.category |> Atom.to_string() |> String.capitalize()}
+                style="fill"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@run.git_branch || gettext("None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("Xcode version")}</div>
+              <span data-part="label">
+                {@run.xcode_version}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{gettext("macOS version")}</div>
+              <span data-part="label">
+                <.device_laptop />
+                {@run.macos_version}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
+      title={gettext("Errors and Warnings")}
+      icon="alert_triangle"
+      data-part="errors-and-warnings-card"
+    >
+      <.card_section
+        :if={not Enum.empty?(@errors_grouped_by_path)}
+        data-part="errors-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Errors")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- Enum.take(@errors_grouped_by_path, 4) do %>
+            <.issue_card issues={issues} path={path} run={@run} type="error" />
+          <% end %>
+          <%= if Enum.count(@errors_grouped_by_path) > 4 do %>
+            <div data-part="more-card" data-index="two"></div>
+            <div data-part="more-card" data-index="one"></div>
+          <% end %>
+        </div>
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@warnings_grouped_by_path)}
+        data-part="warnings-card-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Warnings")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
+          </span>
+          <.button
+            variant="secondary"
+            label={gettext("View more")}
+            size="small"
+            patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
+          />
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- Enum.take(@warnings_grouped_by_path, 4) do %>
+            <.issue_card issues={issues} path={path} run={@run} type="warning" />
+          <% end %>
+          <%= if Enum.count(@warnings_grouped_by_path) > 4 do %>
+            <div data-part="more-card" data-index="two"></div>
+            <div data-part="more-card" data-index="one"></div>
+          <% end %>
+        </div>
+      </.card_section>
+    </.card>
+    <.tab_menu_horizontal>
+      <.tab_menu_horizontal_item
+        label={gettext("Module Breakdown")}
+        selected={@selected_breakdown_tab == "module"}
+        patch={"?#{Query.put(@uri.query, "breakdown-tab", "module")}"}
+      />
+      <.tab_menu_horizontal_item
+        label={gettext("File Breakdown")}
+        selected={@selected_breakdown_tab == "file"}
+        patch={"?#{Query.put(@uri.query, "breakdown-tab", "file")}"}
+      />
+    </.tab_menu_horizontal>
+    <.card
+      :if={@selected_breakdown_tab == "module"}
+      title={gettext("Module Breakdown")}
+      icon="apps"
+      data-part="module-breakdown-card"
+    >
+      <.card_section data-part="module-breakdown-card-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-module-breakdown"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@module_breakdown_search}
+            />
+          </.form>
+          <.dropdown
+            id="module-breakdown-sort-by"
+            label={
+              case @module_breakdown_sort_by do
+                "name" -> gettext("Module")
+                _ -> gettext("Compilation duration")
+              end
+            }
+            secondary_text={gettext("Sort by:")}
+          >
+            <.dropdown_item
+              value="name"
+              label={gettext("Module")}
+              patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
+              data-selected={@module_breakdown_sort_by == "name"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="build-duration"
+              label={gettext("Build duration")}
+              patch={module_breakdown_dropdown_item_patch_sort("build-duration", @uri)}
+              data-selected={@module_breakdown_sort_by == "build-duration"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="compilation-duration"
+              label={gettext("Compilation duration")}
+              patch={module_breakdown_dropdown_item_patch_sort("compilation-duration", @uri)}
+              data-selected={@module_breakdown_sort_by == "compilation-duration"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={gettext("Filter")}
+            available_filters={@module_breakdown_available_filters}
+            active_filters={@module_breakdown_active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@module_breakdown_active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @module_breakdown_active_filters} filter={filter} />
+        </div>
+        <.table id="module-breakdown-table" rows={@module_breakdown_modules}>
+          <:col
+            :let={module}
+            label={gettext("Module")}
+            patch={
+              @module_breakdown_sort_by == "name" &&
+                module_breakdown_column_patch_sort(assigns, "name")
+            }
+            icon={
+              @module_breakdown_sort_by == "name" &&
+                sort_icon(@module_breakdown_sort_order)
+            }
+          >
+            <.text_and_description_cell label={module.name} />
+          </:col>
+          <:col
+            :let={module}
+            label={gettext("Build duration")}
+            patch={
+              @module_breakdown_sort_by == "build-duration" &&
+                module_breakdown_column_patch_sort(assigns, "build-duration")
+            }
+            icon={
+              @module_breakdown_sort_by == "build-duration" &&
+                sort_icon(@module_breakdown_sort_order)
+            }
+          >
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  module.build_duration
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col
+            :let={module}
+            label={gettext("Compilation duration")}
+            patch={
+              @module_breakdown_sort_by == "compilation-duration" &&
+                module_breakdown_column_patch_sort(assigns, "compilation-duration")
+            }
+            icon={
+              @module_breakdown_sort_by == "compilation-duration" &&
+                sort_icon(@module_breakdown_sort_order)
+            }
+          >
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  module.compilation_duration
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={module} label="Status">
+            <%= if module.status == "success" do %>
+              <.status_badge_cell label={gettext("Passed")} status="success" />
+            <% else %>
+              <.status_badge_cell label={gettext("Failed")} status="error" />
+            <% end %>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="apps"
+              title={gettext("No modules found")}
+              subtitle={gettext("Try updating your search")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@module_breakdown_modules_meta.total_pages > 1}
+          current_page={@module_breakdown_page}
+          number_of_pages={@module_breakdown_modules_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "module-breakdown-page", page)}"
+            end
+          }
+        />
+      </.card_section>
+    </.card>
+    <.card
+      :if={@selected_breakdown_tab == "file"}
+      title={gettext("File Breakdown")}
+      icon="folders"
+      data-part="file-breakdown-card"
+    >
+      <.card_section data-part="file-breakdown-card-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-file-breakdown"
+              name="search"
+              placeholder={gettext("Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@file_breakdown_search}
+            />
+          </.form>
+          <.dropdown
+            id="file-breakdown-sort-by"
+            label={
+              case @file_breakdown_sort_by do
+                "file" -> gettext("File")
+                _ -> gettext("Compilation duration")
+              end
+            }
+            secondary_text={gettext("Sort by:")}
+          >
+            <.dropdown_item
+              value="compilation-duration"
+              label={gettext("Compilation duration")}
+              patch={file_breakdown_dropdown_item_patch_sort("compilation-duration", @uri)}
+              data-selected={@file_breakdown_sort_by == "compilation-duration"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="file"
+              label={gettext("File")}
+              patch={file_breakdown_dropdown_item_patch_sort("file", @uri)}
+              data-selected={@file_breakdown_sort_by == "file"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={gettext("Filter")}
+            available_filters={@file_breakdown_available_filters}
+            active_filters={@file_breakdown_active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
+        </div>
+        <.table id="file-breakdown-table" rows={@file_breakdown_files}>
+          <:col
+            :let={file}
+            label={gettext("File")}
+            patch={
+              @file_breakdown_sort_by == "file" &&
+                file_breakdown_column_patch_sort(assigns, "file")
+            }
+            icon={
+              @file_breakdown_sort_by == "file" &&
+                sort_icon(@file_breakdown_sort_order)
+            }
+          >
+            <.text_and_description_cell label={file.path} />
+          </:col>
+          <:col :let={file} label={gettext("Type")}>
+            <.badge_cell
+              :if={file.type == "swift"}
+              label="Swift"
+              color="warning"
+              style="light-fill"
+            />
+            <.badge_cell
+              :if={file.type == "c"}
+              label="Objective-C"
+              color="information"
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={file} label={gettext("Target")}>
+            <.text_cell label={file.target} />
+          </:col>
+          <:col :let={file} label={gettext("Project")}>
+            <.text_cell label={file.project} />
+          </:col>
+          <:col
+            :let={file}
+            label={gettext("Compilation duration")}
+            patch={
+              @file_breakdown_sort_by == "compilation-duration" &&
+                file_breakdown_column_patch_sort(assigns, "compilation-duration")
+            }
+            icon={
+              @file_breakdown_sort_by == "compilation-duration" &&
+                sort_icon(@file_breakdown_sort_order)
+            }
+          >
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  file.compilation_duration
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="folders"
+              title={gettext("No files found")}
+              subtitle={gettext("Try updating your search")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@file_breakdown_files_meta.total_pages > 1}
+          current_page={@file_breakdown_page}
+          number_of_pages={@file_breakdown_files_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "file-breakdown-page", page)}"
+            end
+          }
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "warnings" do %>
+    <.card title={gettext("Warnings")} icon="alert_hexagon" data-part="warnings-card">
+      <.card_section data-part="warnings-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Warnings")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
+          </span>
+        </div>
+        <%= for {path, issues} <- @warnings_grouped_by_path do %>
+          <.issue_card issues={issues} path={path} run={@run} type="warning" />
+        <% end %>
+        <div :if={Enum.empty?(@warnings_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img src="/images/empty_warnings_light.png" data-theme="light" />
+            <img src="/images/empty_warnings_dark.png" data-theme="dark" />
+          </div>
+          <span data-part="title">{gettext("No warnings detected")}</span>
+          <span data-part="subtitle">{gettext("Looks like you're having a great day!")}</span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "errors" do %>
+    <.card title={gettext("Errors")} icon="alert_circle" data-part="errors-card">
+      <.card_section data-part="errors-card-section">
+        <div data-part="header">
+          <span data-part="title">
+            {gettext("Errors")}
+          </span>
+          <span data-part="dot">
+            {gettext("•")}
+          </span>
+          <span data-part="count">
+            {@run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.count()}
+          </span>
+        </div>
+        <div data-part="issues-list">
+          <%= for {path, issues} <- @errors_grouped_by_path do %>
+            <.issue_card issues={issues} path={path} run={@run} type="error" />
+          <% end %>
+        </div>
+        <div :if={Enum.empty?(@errors_grouped_by_path)} data-part="empty-state">
+          <div data-part="empty-state-background">
+            <.empty_tab_state_background />
+          </div>
+          <div data-part="image">
+            <img src="/images/empty_errors_light.png" data-theme="light" />
+            <img src="/images/empty_errors_dark.png" data-theme="dark" />
+          </div>
+          <span data-part="title">{gettext("No errors detected")}</span>
+          <span data-part="subtitle">{gettext("Looks like you're having a great day!")}</span>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

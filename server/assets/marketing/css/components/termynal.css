@@ -1,0 +1,61 @@
+/**
+ * termynal.js
+ *
+ * @author Ines Montani <ines@ines.io>
+ * @version 0.0.1
+ * @license MIT
+ */
+
+:root {
+  --color-bg: #252a33;
+  --color-text: #eee;
+  --color-text-subtle: #a2a2a2;
+}
+
+[data-ty] {
+  display: block;
+  line-height: 2;
+}
+
+[data-ty]:before {
+  /* Set up defaults and ensure empty lines are displayed. */
+  /* content: ""; */
+  display: inline-block;
+  vertical-align: middle;
+}
+
+[data-ty="input"]:before,
+[data-ty-prompt]:before {
+  margin-right: 0.75em;
+  color: var(--color-text-subtle);
+}
+
+[data-ty="input"]:before {
+  content: "$";
+}
+
+[data-ty][data-ty-prompt]:before {
+  content: attr(data-ty-prompt);
+}
+
+[data-ty-cursor]:after {
+  -webkit-animation: blink 1s infinite;
+  animation: blink 1s infinite;
+  margin-left: 0.5em;
+  content: attr(data-ty-cursor);
+  font-family: monospace;
+}
+
+/* Cursor animation */
+
+@-webkit-keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

@@ -1,0 +1,135 @@
+<script type="text/javascript" nonce={get_csp_nonce()}>
+  /** This section is only needed once per page if manually copying **/
+  if (typeof MauticSDKLoaded == 'undefined') {
+      var MauticSDKLoaded = true;
+      var head            = document.getElementsByTagName('head')[0];
+      var script          = document.createElement('script');
+      script.type         = 'text/javascript';
+      script.src          = 'https://marketing.tuist.dev/media/js/mautic-form.js?v54371bff';
+      script.nonce        = '<%= get_csp_nonce() %>';
+      script.onload       = function() {
+          MauticSDK.onLoad();
+      };
+      head.appendChild(script);
+      var MauticDomain = 'https://marketing.tuist.dev';
+      var MauticLang   = {
+          'submittingMessage': "Please wait..."
+      }
+  }else if (typeof MauticSDK != 'undefined') {
+      MauticSDK.onLoad();
+  }
+</script>
+
+<main
+  class="marketing__newsletter"
+  aria-label={gettext("Swift Stories newsletter's subscription form")}
+>
+  <h1 class="marketing__newsletter__title">{gettext("Swift Stories")}</h1>
+
+  <p class="marketing__newsletter__description">
+    {Tuist.Marketing.Newsletter.description()}
+  </p>
+
+  <h2 class="marketing__newsletter__subscribe__title">{gettext("Subscribe")}</h2>
+
+  <div id="mauticform_wrapper_swiftstoriesnew" class="mauticform_wrapper">
+    <form
+      class="marketing__newsletter__subscribe__title__form"
+      autocomplete="false"
+      role="form"
+      method="post"
+      action="https://marketing.tuist.dev/form/submit?formId=1"
+      id="mauticform_swiftstoriesnew"
+      data-mautic-form="swiftstoriesnew"
+      enctype="multipart/form-data"
+    >
+      <span class="marketing__newsletter__subscribe__title__form__description">
+        {gettext("Newsletter issues are sent bi-weekly and you can unsubscribe at any time.")}
+      </span>
+
+      <div class="mauticform-error" id="mauticform_swiftstoriesnew_error"></div>
+      <div class="mauticform-message" id="mauticform_swiftstoriesnew_message"></div>
+      <div class="mauticform-innerform">
+        <div class="mauticform-page-wrapper mauticform-page-1" data-mautic-form-page="1">
+          <div
+            id="mauticform_swiftstoriesnew_email"
+            class="mauticform-row mauticform-email mauticform-field-1 mauticform-required"
+            data-validate="email"
+            data-validation-type="email"
+          >
+            <label
+              id="mauticform_label_swiftstoriesnew_email"
+              for="mauticform_input_swiftstoriesnew_email"
+              class="mauticform-label"
+            >
+              Email
+            </label>
+
+            <input
+              type="email"
+              name="mauticform[email]"
+              value=""
+              id="mauticform_input_swiftstoriesnew_email"
+              placeholder="Enter your email"
+              class="mauticform-input"
+            />
+
+            <span class="mauticform-errormsg" style="display:none;">Email is required</span>
+          </div>
+
+          <div
+            style="display:none;"
+            id="mauticform_swiftstoriesnew_captcha"
+            class="mauticform-row mauticform-text mauticform-field-2"
+          >
+            <label
+              id="mauticform_label_swiftstoriesnew_captcha"
+              for="mauticform_input_swiftstoriesnew_captcha"
+              class="mauticform-label"
+            >
+              Captcha
+            </label>
+
+            <input
+              type="text"
+              name="mauticform[captcha]"
+              value=""
+              id="mauticform_input_swiftstoriesnew_captcha"
+              class="mauticform-input"
+            />
+
+            <span class="mauticform-errormsg" style="display:none;"></span>
+          </div>
+
+          <div
+            id="mauticform_swiftstoriesnew_submit"
+            class="mauticform-row mauticform-button-wrapper mauticform-field-3"
+          >
+            <button
+              class="btn btn-ghost mauticform-button"
+              name="mauticform[submit]"
+              value="1"
+              id="mauticform_input_swiftstoriesnew_submit"
+              type="submit"
+            >
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" name="mauticform[formId]" id="mauticform_swiftstoriesnew_id" value="1" />
+      <input
+        type="hidden"
+        name="mauticform[return]"
+        id="mauticform_swiftstoriesnew_return"
+        value=""
+      />
+      <input
+        type="hidden"
+        name="mauticform[formName]"
+        id="mauticform_swiftstoriesnew_name"
+        value="swiftstoriesnew"
+      />
+    </form>
+  </div>
+</main>
