@@ -7,14 +7,14 @@ final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate,
     ASAuthorizationControllerPresentationContextProviding
 {
     let authenticationService: AuthenticationService
-    let errorHandling: ErrorHandling
+    let errorHandler: ErrorHandling
 
     init(
         authenticationService: AuthenticationService,
-        errorHandling: ErrorHandling
+        errorHandler: ErrorHandling
     ) {
         self.authenticationService = authenticationService
-        self.errorHandling = errorHandling
+        self.errorHandler = errorHandler
     }
 
     func authorizationController(
@@ -22,13 +22,13 @@ final class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate,
         didCompleteWithAuthorization authorization: ASAuthorization
     ) {
         let authenticationService = authenticationService
-        errorHandling.fireAndHandleError {
+        errorHandler.fireAndHandleError {
             try await authenticationService.signInWithApple(authorization: authorization)
         }
     }
 
     func authorizationController(controller _: ASAuthorizationController, didCompleteWithError error: Error) {
-        errorHandling.handle(error: error)
+        errorHandler.handle(error: error)
     }
 
     func presentationAnchor(for _: ASAuthorizationController) -> ASPresentationAnchor {

@@ -5,7 +5,7 @@ import TuistErrorHandling
 import TuistNoora
 
 public struct LogInView: View {
-    @EnvironmentObject var errorHandling: ErrorHandling
+    @EnvironmentObject var errorHandler: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
     @Environment(\.colorScheme) private var colorScheme
     @State private var appleSignInDelegate: AppleSignInDelegate?
@@ -40,7 +40,7 @@ public struct LogInView: View {
                     style: .primary,
                     icon: "TuistLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signIn() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signIn() }
                 }
 
                 SocialButton(
@@ -54,7 +54,7 @@ public struct LogInView: View {
                     let controller = ASAuthorizationController(authorizationRequests: [request])
                     appleSignInDelegate = AppleSignInDelegate(
                         authenticationService: authenticationService,
-                        errorHandling: errorHandling
+                        errorHandler: errorHandler
                     )
                     controller.delegate = appleSignInDelegate
                     controller.presentationContextProvider = appleSignInDelegate
@@ -66,7 +66,7 @@ public struct LogInView: View {
                     style: .secondary,
                     icon: "GoogleLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
                 SocialButton(
@@ -74,7 +74,7 @@ public struct LogInView: View {
                     style: .secondary,
                     icon: "GitHubLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
             .padding(.horizontal, Noora.Spacing.spacing8)
