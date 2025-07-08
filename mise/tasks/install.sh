@@ -6,7 +6,9 @@ set -eo pipefail
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
 pnpm install
-tuist install
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  tuist install
+fi
 (cd server && mix deps.get)
 (cd server && pnpm install)
 

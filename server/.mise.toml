@@ -1,4 +1,0 @@
-
-
-[settings]
-sops.age_key_file = "~/.config/mise/tuist-server-dev-age.txt"

@@ -11,6 +11,9 @@ on:
       - pnpm-lock.yaml
   merge_group: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: tuist-server-${{ github.head_ref }}
   cancel-in-progress: true
@@ -19,7 +22,6 @@ env:
   MIX_ENV: test
   MISE_EXPERIMENTAL: "1"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
 
@@ -92,8 +94,8 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - run: mise run server:clickhouse:start
+      - run: mise run server:db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -145,7 +147,7 @@ jobs:
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
-        run: mise run format --check
+        run: mise run server:format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default
@@ -204,7 +206,7 @@ jobs:
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
-        run: mise run security
+        run: mise run server:security
   docker_build:
     name: Docker build
     runs-on: namespace-profile-default
@@ -231,7 +233,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: "{{defaultContext}}:server"
           file: Dockerfile
           push: false
           tags: tuist/tuist
@@ -277,8 +279,8 @@ jobs:
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - run: mise run server:clickhouse:start
+      - run: mise run server:db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

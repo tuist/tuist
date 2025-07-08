@@ -4,10 +4,10 @@
 
 if [ "$usage_check" = "true" ]; then
   (cd server && mix format --check-formatted)
-  prettier -c server/priv/static/app
-  prettier -c server/assets
+  (cd server && prettier -c priv/static/app)
+  (cd server && prettier -c assets)
 else
   (cd server && mix format)
-  prettier --write server/priv/static/app
-  prettier --write server/assets
+  (cd server && prettier --write priv/static/app)
+  (cd server && prettier --write assets)
 fi

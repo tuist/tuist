@@ -2,6 +2,10 @@
 
 This repository contains the source code of the server-side application that extends the functionality of the [Tuist](https://tuist.io) CLI.
 
+## Contributing
+
+Contributions to the Tuist Server require signing a Contributor License Agreement (CLA). Please see [CLA.md](./CLA.md) for details before submitting pull requests that modify server components.
+
 ## Development
 
 ### Requirements

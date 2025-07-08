@@ -1,5 +1,8 @@
 name: Server Staging Deployment
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:

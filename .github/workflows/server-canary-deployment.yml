@@ -1,5 +1,8 @@
 name: Server Canary Deployment
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
