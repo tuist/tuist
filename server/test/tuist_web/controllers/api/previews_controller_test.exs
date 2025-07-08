@@ -390,6 +390,8 @@ defmodule TuistWeb.PreviewsControllerTest do
         :ok
       end)
 
+      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+
       conn = Authentication.put_current_user(conn, user)
 
       # When
@@ -416,8 +418,16 @@ defmodule TuistWeb.PreviewsControllerTest do
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
-               "builds" => [],
-               "supported_platforms" => [],
+               "builds" => [
+                 %{
+                   "id" => app_build.id,
+                   "type" => "app_bundle",
+                   "supported_platforms" => ["ios"],
+                   "url" => "https://mocked-url.com",
+                   "inserted_at" => DateTime.to_iso8601(app_build.inserted_at)
+                 }
+               ],
+               "supported_platforms" => ["ios"],
                "inserted_at" => DateTime.to_iso8601(preview.inserted_at)
              }
     end
@@ -647,6 +657,10 @@ defmodule TuistWeb.PreviewsControllerTest do
           inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
+      app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      expect(Storage, :generate_download_url, fn _, _ -> "https://mocked-url.com" end)
+
       _preview_three =
         AppBuildsFixtures.preview_fixture(
           project: project,
@@ -688,7 +702,15 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
-                 "builds" => [],
+                 "builds" => [
+                   %{
+                     "id" => app_build_two.id,
+                     "type" => "app_bundle",
+                     "supported_platforms" => ["ios"],
+                     "url" => "https://mocked-url.com",
+                     "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at)
+                   }
+                 ],
                  "supported_platforms" => [],
                  "inserted_at" => DateTime.to_iso8601(preview_two.inserted_at)
                }

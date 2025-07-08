@@ -1,6 +1,7 @@
 import Ecto.Query, only: [from: 2]
 
 alias Tuist.Accounts
+alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
@@ -261,7 +262,7 @@ Enum.map(1..100, fn index ->
       test_case
     end
 
-  {:ok, graph} =
+  {:ok, _graph} =
     Xcode.create_xcode_graph(%{
       command_event: command_event,
       xcode_graph: %{
@@ -355,5 +356,21 @@ test_previews =
 
 Enum.each(test_previews, fn preview_attrs ->
   changeset = Preview.create_changeset(%Preview{}, preview_attrs)
-  Repo.insert!(changeset)
+  preview = Repo.insert!(changeset)
+
+  supported_platforms = preview_attrs.supported_platforms
+
+  Enum.each(1..Enum.random(1..3), fn _ ->
+    build_platforms = Enum.take_random(supported_platforms, Enum.random(1..length(supported_platforms)))
+    build_type = Enum.random([:app_bundle, :ipa])
+
+    app_build_attrs = %{
+      preview_id: preview.id,
+      type: build_type,
+      supported_platforms: build_platforms
+    }
+
+    app_build_changeset = AppBuild.create_changeset(%AppBuild{}, app_build_attrs)
+    Repo.insert!(app_build_changeset)
+  end)
 end)

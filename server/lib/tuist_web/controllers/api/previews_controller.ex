@@ -338,21 +338,11 @@ defmodule TuistWeb.API.PreviewsController do
 
         Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
+        {:ok, preview} = AppBuilds.preview_by_id(app_build.preview.id, preload: [:app_builds])
+
         conn
         |> put_status(:ok)
-        |> json(%{
-          id: app_build.preview_id,
-          url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}"),
-          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}/qr-code.png"),
-          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{app_build.preview.id}/icon.png"),
-          bundle_identifier: app_build.preview.bundle_identifier,
-          display_name: app_build.preview.display_name,
-          git_commit_sha: app_build.preview.git_commit_sha,
-          git_branch: app_build.preview.git_branch,
-          supported_platforms: app_build.preview.supported_platforms,
-          inserted_at: app_build.preview.inserted_at,
-          builds: []
-        })
+        |> json(map_preview(preview, account_handle, project_handle))
 
       {:error, :not_found} ->
         conn
@@ -412,45 +402,17 @@ defmodule TuistWeb.API.PreviewsController do
       ) do
     case AppBuilds.preview_by_id(preview_id, preload: [:app_builds]) do
       {:ok, preview} ->
-        expires_in = 3600
-
-        app_builds =
-          Enum.map(preview.app_builds, fn app_build ->
-            key =
-              AppBuilds.storage_key(%{
-                account_handle: account_handle,
-                project_handle: project_handle,
-                app_build_id: app_build.id
-              })
-
-            %{
-              id: app_build.id,
-              url:
-                Storage.generate_download_url(
-                  key,
-                  expires_in: expires_in
-                ),
-              type: app_build.type,
-              supported_platforms: app_build.supported_platforms,
-              inserted_at: app_build.inserted_at
-            }
-          end)
-
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-        response = %{
-          id: preview_id,
-          url: hd(app_builds).url,
-          qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
-          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
-          bundle_identifier: preview.bundle_identifier,
-          display_name: preview.display_name,
-          git_commit_sha: preview.git_commit_sha,
-          git_branch: preview.git_branch,
-          builds: Enum.sort_by(app_builds, & &1.inserted_at, {:desc, DateTime}),
-          supported_platforms: preview.supported_platforms,
-          inserted_at: preview.inserted_at
-        }
+        response = map_preview(preview, account_handle, project_handle)
+
+        response =
+          if Enum.empty?(response.builds) do
+            response
+          else
+            # Note: the URL field is deprecated but we still need to return to cater for older CLI versions
+            %{response | url: hd(response.builds).url}
+          end
 
         json(conn, response)
 
@@ -578,26 +540,15 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         distinct: distinct,
-        supported_platforms: Map.get(params, :supported_platforms)
+        supported_platforms: Map.get(params, :supported_platforms),
+        preload: [:app_builds]
       )
 
     json(conn, %{
       previews:
         Enum.map(
           previews,
-          &%{
-            id: &1.id,
-            url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}"),
-            qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/qr-code.png"),
-            icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/icon.png"),
-            bundle_identifier: &1.bundle_identifier,
-            display_name: &1.display_name,
-            git_commit_sha: &1.git_commit_sha,
-            git_branch: &1.git_branch,
-            builds: [],
-            supported_platforms: &1.supported_platforms,
-            inserted_at: &1.inserted_at
-          }
+          &map_preview(&1, account_handle, project_handle)
         ),
       pagination_metadata: %{
         has_next_page: meta.has_next_page?,
@@ -703,5 +654,45 @@ defmodule TuistWeb.API.PreviewsController do
 
   defp valid_git_commit_sha?(hash) do
     Regex.match?(~r/^[a-fA-F0-9]{40}$/, hash)
+  end
+
+  defp map_app_build(app_build, account_handle, project_handle, opts) do
+    expires_in = Keyword.get(opts, :expires_in, 3600)
+
+    key =
+      AppBuilds.storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        app_build_id: app_build.id
+      })
+
+    %{
+      id: app_build.id,
+      url: Storage.generate_download_url(key, expires_in: expires_in),
+      type: app_build.type,
+      supported_platforms: app_build.supported_platforms,
+      inserted_at: app_build.inserted_at
+    }
+  end
+
+  defp map_preview(preview, account_handle, project_handle, opts \\ []) do
+    builds =
+      preview.app_builds
+      |> Enum.map(&map_app_build(&1, account_handle, project_handle, opts))
+      |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+
+    %{
+      id: preview.id,
+      url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}"),
+      qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/qr-code.png"),
+      icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"),
+      bundle_identifier: preview.bundle_identifier,
+      display_name: preview.display_name,
+      git_commit_sha: preview.git_commit_sha,
+      git_branch: preview.git_branch,
+      builds: builds,
+      supported_platforms: preview.supported_platforms,
+      inserted_at: preview.inserted_at
+    }
   end
 end
