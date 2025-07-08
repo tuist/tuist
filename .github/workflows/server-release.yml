@@ -51,7 +51,7 @@ jobs:
       - name: "Get version"
         id: version
         run: |
-          version=$(mise/tasks/server/generate-version.sh)
+          version=$(../mise/tasks/server/generate-version.sh)
           echo "::set-output name=version::$version"
       - id: last-release
         uses: pozetroninc/github-action-get-latest-release@master
