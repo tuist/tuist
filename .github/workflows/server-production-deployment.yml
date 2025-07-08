@@ -168,7 +168,7 @@ jobs:
             environment: "production"
   production-hotfix:
     environment: server-production
-    name: Production Deployment
+    name: Hotfix Production Deployment
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
