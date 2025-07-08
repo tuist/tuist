@@ -97,12 +97,6 @@ export class LocalizedLinkValidator {
           const relativePath = path.relative(this.srcDir, file);
           console.error(`   - [${lang}] ${relativePath}`);
         }
-        
-        // Suggest corrections
-        const suggestion = this.suggestCorrection(href);
-        if (suggestion) {
-          console.error(`   💡 Suggested fix: ${suggestion}`);
-        }
       }
       
       throw new Error(`Build failed: ${this.brokenLinks.length} broken LocalizedLink references found`);
@@ -199,29 +193,6 @@ export class LocalizedLinkValidator {
     }
     
     return true;
-  }
-
-  /**
-   * Suggests corrections for broken links
-   */
-  suggestCorrection(href) {
-    const corrections = new Map([
-      ['/server/introduction/accounts-and-projects', '/guides/server/accounts-and-projects'],
-      ['/server/introduction/integrations#git-platforms', '/guides/server/authentication'],
-      ['/server/introduction/why-a-server', '/guides/tuist/about'],
-      ['/guides/automate/continuous-integration', '/guides/integrations/continuous-integration'],
-      ['/guides/features/automate/continuous-integration', '/guides/integrations/continuous-integration'],
-      ['/guides/features/build/cache', '/guides/features/cache'],
-      ['/guides/features/cache.html#supported-products', '/guides/features/cache#supported-products'],
-      ['/guides/features/inspect/implicit-dependencies', '/guides/features/projects/inspect/implicit-dependencies'],
-      ['/guides/start/new-project', '/guides/features/projects/adoption/new-project'],
-      ['/guides/features/test', '/guides/features/selective-testing'],
-      ['/guides/features/test/selective-testing', '/guides/features/selective-testing'],
-      ['/guides/features/selective-testing/xcodebuild', '/guides/features/selective-testing/xcode-project'],
-      ['/contributors/principles.html#default-to-conventions', '/contributors/principles#default-to-conventions']
-    ]);
-    
-    return corrections.get(href) || null;
   }
 }
 
