@@ -56,13 +56,11 @@ import TuistServer
                         Group {
                             if case .loggedIn = authenticationService.authenticationState {
                                 TabView {
-                                    NavigationView {
-                                        PreviewsView()
-                                    }
-                                    .tabItem {
-                                        NooraIcon(.deviceMobile)
-                                        Text("Previews")
-                                    }
+                                    PreviewsView()
+                                        .tabItem {
+                                            NooraIcon(.deviceMobile)
+                                            Text("Previews")
+                                        }
 
                                     ProfileView()
                                         .environmentObject(authenticationService)

@@ -2,7 +2,7 @@ import Foundation
 import XcodeGraph
 
 /// Represents a destination type either for a simulator or a device with a given platform.
-public enum DestinationType: Sendable, Codable, Equatable, CustomStringConvertible {
+public enum DestinationType: Hashable, Sendable, Codable, Equatable, CustomStringConvertible {
     case simulator(Platform)
     case device(Platform)
 

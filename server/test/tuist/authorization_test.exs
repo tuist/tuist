@@ -1200,7 +1200,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account_two.id)
 
     # When
-    assert Authorization.can(user, :create, project, :preview) == false
+    assert Authorization.can?(:project_preview_create, user, project) == false
   end
 
   test "can.create.project.preview when the subject is an admin of the project organization being created" do
@@ -1212,7 +1212,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :create, project, :preview) == true
+    assert Authorization.can?(:project_preview_create, user, project) == true
   end
 
   test "can.create.project.preview when the subject is a user of the project organization being created" do
@@ -1224,7 +1224,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :create, project, :preview) == true
+    assert Authorization.can?(:project_preview_create, user, project) == true
   end
 
   test "can.create.project.preview when the subject does not belong to the project organization" do
@@ -1235,7 +1235,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :create, project, :preview) == false
+    assert Authorization.can?(:project_preview_create, user, project) == false
   end
 
   test "can.create.project.preview when the subject is the same project previews are being created for" do
@@ -1243,7 +1243,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(project, :create, project, :preview) == true
+    assert Authorization.can?(:project_preview_create, project, project) == true
   end
 
   test "can.create.project.preview when the subject is not the same project previews are being created for" do
@@ -1252,7 +1252,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(another_project, :create, project, :preview) == false
+    assert Authorization.can?(:project_preview_create, another_project, project) == false
   end
 
   test "can.read.project.preview when the subject is not the same project account being read" do
@@ -1263,7 +1263,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account_two.id)
 
     # When
-    assert Authorization.can(user, :read, project, :preview) == false
+    assert Authorization.can?(:project_preview_read, user, project) == false
   end
 
   test "can.read.project.preview when the subject is an admin of the project organization being read" do
@@ -1275,7 +1275,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :read, project, :preview) == true
+    assert Authorization.can?(:project_preview_read, user, project) == true
   end
 
   test "can.read.project.preview when the subject is a user of the project organization being read" do
@@ -1287,7 +1287,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :read, project, :preview) == true
+    assert Authorization.can?(:project_preview_read, user, project) == true
   end
 
   test "can.read.project.preview when the subject does not belong to the project organization" do
@@ -1298,7 +1298,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(account_id: account.id)
 
     # When
-    assert Authorization.can(user, :read, project, :preview) == false
+    assert Authorization.can?(:project_preview_read, user, project) == false
   end
 
   test "can.read.project.preview when the subject does not belong to the project organization and the project is public" do
@@ -1307,7 +1307,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can(user, :read, project, :preview) == true
+    assert Authorization.can?(:project_preview_read, user, project) == true
   end
 
   test "can.read.project.preview when the subject is anonymous and the project is public" do
@@ -1315,7 +1315,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture(visibility: :public)
 
     # When
-    assert Authorization.can(nil, :read, project, :preview) == true
+    assert Authorization.can?(:project_preview_read, nil, project) == true
   end
 
   test "can.read.preview when the subject is a creator of the project and the preview is ipa" do

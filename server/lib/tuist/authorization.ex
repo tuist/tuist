@@ -136,6 +136,44 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :project_preview do
+    action :create do
+      desc "Allows users of a project to create a preview."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to create a preview."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to create the preview if it matches the project for which the preview is being created."
+      allow [:authenticated_as_project, :projects_match]
+    end
+
+    action :read do
+      desc "Allows the authenticated subject to read a project's preview if the project is public."
+      allow :public_project
+
+      desc "Allows users of a project to read a preview."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to read a preview."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to read the preview if it matches the project whose preview is being read."
+      allow [:authenticated_as_project, :projects_match]
+    end
+
+    action :delete do
+      desc "Allows users of a project to delete a preview."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to delete a preview."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to delete the preview if it matches the project whose preview is being deleted."
+      allow [:authenticated_as_project, :projects_match]
+    end
+  end
+
   def can(%User{} = user, :create, %Account{} = account, :project) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
@@ -271,22 +309,6 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_is_admin_to_account_organization?(user, %{id: project.account_id})
   end
 
-  def can(%Project{} = current_project, :create, %Project{} = project, :preview) do
-    current_project.id == project.id
-  end
-
-  def can(%User{} = user, :create, %Project{} = project, :preview) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%User{} = user, :read, %Project{visibility: :private} = project, :preview) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(_, :read, %Project{visibility: :public}, :preview) do
-    true
-  end
-
   def can(%Project{} = current_project, :create, %Project{} = project, :cache) do
     current_project.id == project.id
   end
@@ -307,21 +329,13 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
-  def can(_, :read, %Project{visibility: :public}, :preview) do
-    true
-  end
-
-  def can(nil, :read, %Project{visibility: :private}, :preview) do
-    false
-  end
-
   def can(_, :read, %Preview{visibility: :public}) do
     true
   end
 
   def can(subject, :read, %Preview{} = preview) do
     preview = Repo.preload(preview, :project)
-    can(subject, :read, preview.project, :preview)
+    can?(:project_preview_read, subject, preview.project)
   end
 
   def can(subject, :read, %CommandEvents.Event{} = command_event) do

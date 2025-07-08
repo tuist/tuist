@@ -441,7 +441,12 @@ defmodule TuistWeb.PreviewsControllerTest do
                  }
                ],
                "supported_platforms" => ["ios"],
-               "inserted_at" => DateTime.to_iso8601(preview.inserted_at)
+               "inserted_at" => DateTime.to_iso8601(preview.inserted_at),
+               "created_by" => %{
+                 "id" => account.id,
+                 "handle" => account.name
+               },
+               "created_by_ci" => false
              }
     end
 
@@ -569,6 +574,13 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "preview-commit-sha"
       assert response["inserted_at"] == DateTime.to_iso8601(preview.inserted_at)
+
+      assert response["created_by"] == %{
+               "id" => account.id,
+               "handle" => account.name
+             }
+
+      assert response["created_by_ci"] == false
 
       assert Enum.map(
                response["builds"],
@@ -729,7 +741,12 @@ defmodule TuistWeb.PreviewsControllerTest do
                    }
                  ],
                  "supported_platforms" => [],
-                 "inserted_at" => DateTime.to_iso8601(preview_two.inserted_at)
+                 "inserted_at" => DateTime.to_iso8601(preview_two.inserted_at),
+                 "created_by" => %{
+                   "id" => account.id,
+                   "handle" => account.name
+                 },
+                 "created_by_ci" => false
                }
              ]
 
@@ -1221,6 +1238,73 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert response["message"] ==
                "tuist is not authorized to create preview"
+    end
+  end
+
+  describe "DELETE /api/projects/:account_handle/:project_handle/previews/:preview_id" do
+    test "deletes a preview successfully", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview = AppBuildsFixtures.preview_fixture(project: project, created_by_account: account)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        delete(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+
+      # Then
+      assert conn.status == 204
+
+      assert Repo.get(Preview, preview.id) == nil
+    end
+
+    test "returns not_found when preview doesn't exist", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      non_existing_id = "00000000-0000-0000-0000-000000000000"
+
+      # When
+      conn =
+        delete(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/#{non_existing_id}"
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["message"] == "Preview not found."
+    end
+
+    test "returns forbidden when user is not authorized to delete preview", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      # When
+      conn =
+        delete(conn, ~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "tuist is not authorized to delete preview"
     end
   end
 end

@@ -6,7 +6,9 @@ import TuistServer
 
 struct PreviewRowView: View {
     let preview: ServerPreview
-    @State private var isLoading = false
+    @Binding var navigationPath: NavigationPath
+    @Binding var pressedPreviewId: String?
+    @State private var isPressed = false
 
     private let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -75,29 +77,21 @@ struct PreviewRowView: View {
                     }
                 }
 
-                NooraButton(
-                    title: "Run",
-                    isLoading: isLoading,
-                    isDisabled: !preview.appBuilds
-                        .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
-                ) {
-                    isLoading = true
-                    let url =
-                        URL(string: "itms-services://?action=download-manifest&url=\(preview.url.absoluteString)/manifest.plist")!
-                    UIApplication.shared.open(url)
-
-                    Task {
-                        // It takes some time for the alert to install the app to appear
-                        // We don't have a way to hook into the alert displaying, so we're using a hardcoded value to signal that
-                        // something was triggered.
-                        try await Task.sleep(for: .seconds(2))
-                        isLoading = false
-                    }
-                }
+                PreviewRunButton(preview: preview)
             }
             .padding(Noora.Spacing.spacing5)
 
             NooraDivider()
         }
+        .onTapGesture {
+            navigationPath.append(preview)
+        }
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { isPressing in
+            isPressed = isPressing
+        } perform: {}
+        .listRowBackground(
+            Rectangle()
+                .fill(isPressed ? Color(UIColor.systemGray4) : Color.clear)
+        )
     }
 }
