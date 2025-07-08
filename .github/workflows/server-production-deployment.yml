@@ -36,9 +36,7 @@ defaults:
 
 jobs:
   canary:
-    environment:
-      name: canary
-      url: https://canary.tuist.dev
+    environment: server-canary
     name: Canary Deployment
     env:
       DOCKER_BUILDKIT: 1
@@ -116,9 +114,7 @@ jobs:
       - name: Test
         run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
-    environment:
-      name: production
-      url: https://tuist.dev
+    environment: server-production
     name: Production Deployment
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -168,9 +164,7 @@ jobs:
             commit: "${{ github.sha }}"
             environment: "production"
   production-hotfix:
-    environment:
-      name: production
-      url: https://tuist.dev
+    environment: server-production
     name: Production Deployment
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

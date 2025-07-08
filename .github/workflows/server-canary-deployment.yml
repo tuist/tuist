@@ -27,9 +27,7 @@ defaults:
 
 jobs:
   canary:
-    environment:
-      name: canary
-      url: https://canary.tuist.io
+    environment: server-canary
     name: Canary Deployment
     env:
       DOCKER_BUILDKIT: 1
@@ -74,4 +72,4 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             commit: "${{ github.sha }}"
-            environment: "canary"
+            environment: "server-canary"

@@ -27,9 +27,7 @@ defaults:
 
 jobs:
   deploy:
-    environment:
-      name: staging
-      url: https://staging.tuist.io
+    environment: server-staging
     name: Staging Deployment
     env:
       DOCKER_BUILDKIT: 1
