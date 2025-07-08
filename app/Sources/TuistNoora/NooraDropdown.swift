@@ -39,7 +39,10 @@ public struct NooraDropdown<Option: Identifiable & CustomStringConvertible>: Vie
             .cornerRadius(6)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(Noora.Colors.neutralGray24Alpha, lineWidth: 0.5)
+                    .stroke(
+                        Color(light: Noora.Colors.neutralGray24Alpha, dark: Color(hex: 0x696C72, alpha: 0.45)),
+                        lineWidth: 0.5
+                    )
             )
         }
     }

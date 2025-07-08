@@ -36,6 +36,7 @@ public struct PreviewsView: View {
                 .listRowInsets(
                     EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
                 )
+                .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
             }
 
             ForEach(viewModel.previews) { preview in
@@ -53,6 +54,7 @@ public struct PreviewsView: View {
 
                         preloadUpcomingImages(for: preview)
                     }
+                    .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
             }
             if viewModel.isLoadingMore {
                 HStack {
@@ -62,6 +64,7 @@ public struct PreviewsView: View {
                         .scaleEffect(0.8)
                     Spacer()
                 }
+                .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
             }
         }
         .listStyle(.plain)
@@ -77,6 +80,7 @@ public struct PreviewsView: View {
         }
         .navigationTitle("Previews")
         .navigationBarTitleDisplayMode(.automatic)
+        .background(Noora.Colors.surfaceBackgroundPrimary)
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {

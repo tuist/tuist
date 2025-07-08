@@ -129,18 +129,18 @@ public enum Noora {
 
         // MARK: Neutral Dark
 
-        public static let neutralDark50 = Color(hex: 0xFDFDFD)
-        public static let neutralDark100 = Color(hex: 0xF9FAFA)
-        public static let neutralDark200 = Color(hex: 0xF1F2F4)
-        public static let neutralDark300 = Color(hex: 0xE6E8EA)
-        public static let neutralDark400 = Color(hex: 0xD8DBDF)
-        public static let neutralDark500 = Color(hex: 0xC7CCD1)
-        public static let neutralDark600 = Color(hex: 0xB3BAC1)
-        public static let neutralDark700 = Color(hex: 0x9DA6AF)
-        public static let neutralDark800 = Color(hex: 0x848F9A)
-        public static let neutralDark900 = Color(hex: 0x6A7581)
-        public static let neutralDark1000 = Color(hex: 0x4E575F)
-        public static let neutralDark1100 = Color(hex: 0x2E3338)
+        public static let neutralDark50 = Color(hex: 0xDFE3EA)
+        public static let neutralDark100 = Color(hex: 0xCACED4)
+        public static let neutralDark200 = Color(hex: 0x9EA2A8)
+        public static let neutralDark300 = Color(hex: 0x85888E)
+        public static let neutralDark400 = Color(hex: 0x73767C)
+        public static let neutralDark500 = Color(hex: 0x696C72)
+        public static let neutralDark600 = Color(hex: 0x5D6066)
+        public static let neutralDark700 = Color(hex: 0x4E5157)
+        public static let neutralDark800 = Color(hex: 0x45484D)
+        public static let neutralDark900 = Color(hex: 0x3A3D43)
+        public static let neutralDark1000 = Color(hex: 0x2F3237)
+        public static let neutralDark1100 = Color(hex: 0x1F2126)
         public static let neutralDark1200 = Color(hex: 0x16181C)
 
         // MARK: - Alpha Colors
