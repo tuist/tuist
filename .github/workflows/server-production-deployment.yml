@@ -30,10 +30,6 @@ env:
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
 
-defaults:
-  run:
-    working-directory: server
-
 jobs:
   canary:
     environment: server-canary
@@ -41,6 +37,9 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
     runs-on: namespace-profile-default
+    defaults:
+      run:
+        working-directory: server
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -124,6 +123,9 @@ jobs:
     timeout-minutes: 60
     if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
     needs: acceptance-tests
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -173,6 +175,9 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 60
     if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
