@@ -234,25 +234,37 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
       x-validate:
     CommandEvent:
-      description: The schema for the command analytics event.
+      description: A command event.
+      example:
+        id: 123e4567-e89b-12d3-a456-426614174000
+        name: build
+        project_id: 123
+        url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
         id:
-          description: ID of the command event
-          type: number
-          x-struct:
-          x-validate:
-        name:
-          description: Name of the command
+          description: The unique identifier of the command event.
+          format: uuid
           type: string
           x-struct:
           x-validate:
+        name:
+          description: The name of the command
+          type: string
+          x-struct:
+          x-validate:
+        project_id:
+          description: The project identifier
+          type: integer
+          x-struct:
+          x-validate:
         url:
-          description: URL to the command event
+          description: The URL to the command event
           type: string
           x-struct:
           x-validate:
       required:
         - id
+        - project_id
         - name
         - url
       title: CommandEvent
@@ -1898,7 +1910,7 @@ components:
           scopes:
             read: Read access to resources
             write: Write access to resources
-          tokenUrl: /oauth/token
+          tokenUrl: /oauth2/token
       type: oauth2
 info:
   title: Tuist
@@ -2784,12 +2796,12 @@ paths:
       description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
       operationId: startAnalyticsArtifactMultipartUpload
       parameters:
-        - description: The id of the command event.
+        - description: The id of the command event UUID.
           in: path
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -3313,6 +3325,57 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
+  /api/auth/apple:
+    post:
+      callbacks: {}
+      description: This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+      operationId: authenticateApple
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                authorization_code:
+                  description: The Apple authorization code.
+                  type: string
+                  x-struct:
+                  x-validate:
+                identity_token:
+                  description: The Apple identity token.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - identity_token
+                - authorization_code
+              type: object
+              x-struct:
+              x-validate:
+        description: Apple authentication params.
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticationTokens"
+          description: Successfully authenticated and returned new API tokens.
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid request parameters.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Invalid Apple identity token or authorization code.
+      summary: Authenticate with Apple identity token.
+      tags:
+        - Authentication
   /api/projects/{account_handle}/{project_handle}/cache/ac:
     post:
       callbacks: {}
@@ -3788,7 +3851,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -4200,7 +4263,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
@@ -5518,7 +5581,7 @@ paths:
           name: run_id
           required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       requestBody:
