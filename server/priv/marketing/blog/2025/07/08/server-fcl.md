@@ -52,6 +52,16 @@ And who knows—if the mobile development market grows large enough and our busi
 
 The key is staying flexible and responsive to what our community and customers actually need, rather than getting locked into a rigid ideological position about licensing.
 
+## What changes for me?
+
+I imagine many of you are wondering what this actually means for your day-to-day work with Tuist. The short answer is: probably not much. Let me break this down.
+
+If you're a developer who loves contributing to open source projects, **the Tuist CLI and all our core tooling remains exactly as it was**—MIT licensed and completely open for contributions. You can continue submitting PRs, reporting issues, and helping shape the future of mobile development tooling without any additional friction. The server components now require a simple contributor agreement, but we've designed this process to be as straightforward as possible because we genuinely want your contributions.
+
+For organizations evaluating Tuist, **you can run the server locally for development and testing purposes**. The source code is publicly available, you can inspect every line, and modify it for your needs. However, if you want to deploy it in your production infrastructure, you'll need to obtain a license from us to legally use it in that capacity. This licensing approach ensures we can continue investing in the platform while still maintaining transparency around our technical decisions.
+
+If managing that infrastructure sounds overwhelming (and for many teams, it absolutely should), **our hosted service remains the easiest path forward**. We handle all the complexity while you focus on building great apps. This is where we capture value to fund continued development, and it's a model that's worked well for companies like GitHub, GitLab, and countless others in the developer tools space.
+
 ## Closing thoughts
 
 When you make a tool part of your development stack, you're placing tremendous trust in us to support your journey, and we've always felt deeply responsible for honoring that trust with an unwavering commitment to always be there for you. We focused on building a source of revenue so our passionate team could focus on Tuist full time without worrying about sustainability. We then announced our [longevity commitment](/longevity), which legally ensures that regardless of what happens to Tuist as a company, your projects and workflows won't get disrupted. We embraced a transparent pricing model and product design that actively fought against predatory enterprise practices like "contact sales" gatekeeping or feature-limited demo products that were unfortunately becoming the norm in our space.
