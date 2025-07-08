@@ -1,0 +1,289 @@
+<div id="billing">
+  <div data-part="header">
+    <h1 data-part="title">{gettext("Billing")}</h1>
+    <span data-part="subtitle">{gettext("Manage your billing and payment details")}</span>
+  </div>
+  <.card data-part="current-plan-card" icon="package" title={gettext("Current plan")}>
+    <div data-part="current-plan-card-sections">
+      <.card_section :if={@plan in [:air, :pro]} data-part="usage-card-section">
+        <div data-part="current-bill">
+          <span data-part="next-payment">{@estimated_next_payment}</span>
+          <span data-part="next-charge-date">
+            {gettext("charged on %{next_charge_date}", next_charge_date: @next_charge_date)}
+          </span>
+        </div>
+        <div data-part="usage-details-title">
+          <span data-part="label">{gettext("Usage details")}</span>
+          <.badge
+            :if={@current_month_remote_cache_hits_count > 200}
+            label={gettext("Free tier exceeded")}
+            color="attention"
+            size="small"
+            style="light-fill"
+          />
+        </div>
+        <.progress_bar
+          value={@current_month_remote_cache_hits_count}
+          max={200}
+          title={gettext("Remote cache hits:")}
+        >
+          <:description>
+            <div data-part="description">
+              <.link_button
+                href="https://tuist.dev/pricing"
+                label={gettext("Learn more")}
+                variant="primary"
+                size="medium"
+                target="_blank"
+                underline
+              />
+              <span data-part="label">
+                {gettext("about remote cache hits")}
+              </span>
+            </div>
+          </:description>
+        </.progress_bar>
+      </.card_section>
+      <.card_section data-part="current-plan-card-section">
+        <div data-part="header">
+          <div data-part="title">
+            <span data-part="label">
+              {case @plan do
+                :air -> gettext("Air")
+                :open_source -> gettext("Open source")
+                :pro -> gettext("Pro")
+                :enterprise -> gettext("Enterprise")
+              end}
+            </span>
+            <.badge
+              label={
+                case @plan do
+                  :air -> gettext("Free")
+                  :open_source -> gettext("Free")
+                  :pro -> gettext("Usage-based")
+                  :enterprise -> gettext("Custom")
+                end
+              }
+              color="primary"
+              size="small"
+              style="light-fill"
+            />
+          </div>
+          <span :if={@plan == :air} data-part="subtitle">
+            {gettext("Get started with no credit card required—try with no commitment.")}
+          </span>
+          <span :if={@plan == :pro} data-part="subtitle">
+            {gettext("Usage-based pricing after free tier.")}
+          </span>
+          <span :if={@plan == :enterprise} data-part="subtitle">
+            {gettext("Create your plan or self-host your instance.")}
+          </span>
+          <span :if={@plan == :open_source} data-part="subtitle">
+            {gettext("Use all Tuist features as long as you stay open source.")}
+          </span>
+        </div>
+        <ul :if={@plan == :air} data-part="feature-list">
+          <.plan_feature label={
+            gettext("Generous free monthly tier: Usage capped at free tier limits")
+          } />
+          <.plan_feature label={
+            gettext("Like, totally free: All features, no credit card required")
+          } />
+          <.plan_feature label={gettext("Community support: Support via community forum")} />
+        </ul>
+        <ul :if={@plan == :pro} data-part="feature-list">
+          <.plan_feature label={
+            gettext("Generous base price: Pay nothing if below free tier limits")
+          } />
+          <.plan_feature label={
+            gettext("Usage-based pricing: Pay only for what you use per feature")
+          } />
+          <.plan_feature label={gettext("Standard support: Via Slack and email")} />
+        </ul>
+        <ul :if={@plan == :enterprise} data-part="feature-list">
+          <.plan_feature label={
+            gettext("Custom terms: Tailored agreements to meet your specific needs")
+          } />
+          <.plan_feature label={gettext("On-premise: Self-host your instance of Tuist")} />
+          <.plan_feature label={gettext("Priority support: Via shared Slack channel")} />
+        </ul>
+        <ul :if={@plan == :open_source} data-part="feature-list">
+          <.plan_feature label={gettext("Completely free for open source projects")} />
+        </ul>
+        <.modal
+          :if={@plan in [:air, :pro]}
+          id="billing-upgrade-modal"
+          description={gettext("Change your subscription to fit your needs.")}
+          title={gettext("Change subscription plan")}
+          header_type="icon"
+          header_size="large"
+        >
+          <:trigger :let={attrs}>
+            <.button label={gettext("Upgrade plan")} variant="primary" {attrs} />
+          </:trigger>
+          <:header_icon>
+            <.credit_card />
+          </:header_icon>
+          <:header_button>
+            <.button
+              label={gettext("Pricing details")}
+              variant="secondary"
+              href="https://tuist.dev/pricing"
+              target="_blank"
+              size="medium"
+            >
+              <:icon_right><.external_link /></:icon_right>
+            </.button>
+          </:header_button>
+          <div data-part="plans">
+            <.pricing_cards id="billing-modal-pricing-plans" plan={@plan} />
+          </div>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label="Cancel"
+                  variant="secondary"
+                  phx-click="close-billing-upgrade-modal"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </.card_section>
+    </div>
+  </.card>
+  <div :if={@plan == :air} data-part="plans">
+    <.pricing_cards id="billing-pricing-plans" plan={@plan} />
+  </div>
+  <.card
+    :if={@plan == :pro and @current_month_remote_cache_hits_count > 200}
+    data-part="usage-card"
+    icon="history"
+    title={gettext("Usage")}
+  >
+    <.card_section data-part="usage-card-section">
+      <span data-part="info-label">
+        {gettext(
+          "You’ve exceeded your free tier quota and will incur charges for additional usage."
+        )}
+      </span>
+      <.table
+        id="usage-table"
+        rows={[
+          %{
+            current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+            price: gettext("$0.50"),
+            total: @estimated_next_payment
+          }
+        ]}
+      >
+        <:col :let={usage_item} label={gettext("Remote cache hits")}>
+          <.text_and_description_cell
+            label={usage_item.current_month_remote_cache_hits_count}
+            description={gettext("above free tier")}
+          />
+        </:col>
+        <:col :let={usage_item} label={gettext("Price")}>
+          <.text_cell label={usage_item.price} />
+        </:col>
+        <:col :let={usage_item} label={gettext("Total")}>
+          <.text_cell label={usage_item.total} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+  <.card_section :if={@plan == :pro} data-part="billing-payment-method-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("Payment method")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("Payments for your subscription are made using the default card.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.button
+        href={~p"/#{@selected_account.name}/billing/manage"}
+        target="_blank"
+        variant="secondary"
+        label={gettext("Update payment method")}
+        size="medium"
+        data-part="update-button"
+      >
+        <:icon_right>
+          <.external_link />
+        </:icon_right>
+      </.button>
+      <div data-part="card" class="tuist-shine">
+        <div data-part="top-row">
+          <div data-part="tuist-icon">
+            <.card_tuist_icon_svg />
+          </div>
+          <div data-part="master-card-logo">
+            <.master_card_logo_svg />
+          </div>
+        </div>
+        <.button
+          :if={is_nil(@payment_method)}
+          href={~p"/#{@selected_account.name}/billing/manage"}
+          target="_blank"
+          variant="secondary"
+          label={gettext("Add payment method")}
+          size="large"
+        >
+          <:icon_right>
+            <.external_link />
+          </:icon_right>
+        </.button>
+        <div :if={not is_nil(@payment_method)} data-part="payment-card-details">
+          <span data-part="name">
+            {@payment_method.card.cardholder_name}
+          </span>
+          <span data-part="expiry-date">
+            {gettext("%{month}/%{year}",
+              month:
+                String.pad_leading(@payment_method.card.exp_month |> Integer.to_string(), 2, "0"),
+              year: @payment_method.card.exp_year
+            )}
+          </span>
+          <span data-part="card-number">
+            {gettext("xxxx xxxx xxxx %{card_number}", card_number: @payment_method.card.last4)}
+          </span>
+        </div>
+        <div data-part="blur-top-left"></div>
+        <div data-part="blur-bottom-right"></div>
+      </div>
+    </div>
+  </.card_section>
+  <.card_section data-part="billing-email-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {gettext("Billing email")}
+      </span>
+      <span data-part="subtitle">
+        {gettext("All billing correspondence will go to this email")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.button
+        href={~p"/#{@selected_account.name}/billing/manage"}
+        target="_blank"
+        variant="secondary"
+        label={gettext("Update billing email")}
+        size="medium"
+        data-part="update-button"
+      >
+        <:icon_right>
+          <.external_link />
+        </:icon_right>
+      </.button>
+      <div data-part="email">
+        <.label label={gettext("Email")} />
+        <span data-part="billing-email">
+          {@selected_account.billing_email}
+        </span>
+      </div>
+    </div>
+  </.card_section>
+</div>

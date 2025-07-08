@@ -1,0 +1,185 @@
+<footer class="marketing__footer">
+  <div class="marketing__footer__header">
+    <div class="marketing__footer__header__title">
+      <img
+        class="marketing__footer__header__title__logo"
+        src="/images/tuist_logo_32x32@2x.png"
+        alt={gettext("Tuist Icon")}
+      />
+      <h2 class="marketing__footer__header__title__text font-m-strong">
+        {gettext("Tuist")}
+      </h2>
+    </div>
+
+    <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
+
+    <%= if any_ongoing_incident? do %>
+      <.link
+        href={Tuist.Environment.get_url(:status)}
+        target="__blank"
+        class="marketing__footer__header__status"
+        role="status"
+        aria-live="assertive"
+      >
+        <div
+          class="marketing__footer__header__status__indicator"
+          data-status="incident"
+          aria-hidden="true"
+        >
+        </div>
+
+        <div class="marketing__footer__header__status__text font-xxs">
+          {gettext("Ongoing incident")}
+        </div>
+      </.link>
+    <% else %>
+      <.link
+        href={Tuist.Environment.get_url(:status)}
+        target="__blank"
+        class="marketing__footer__header__status"
+        role="status"
+        aria-live="polite"
+      >
+        <div
+          class="marketing__footer__header__status__indicator"
+          data-status="operational"
+          aria-hidden="true"
+        >
+        </div>
+
+        <div class="marketing__footer__header__status__text font-xxs">
+          {gettext("All systems are normal")}
+        </div>
+      </.link>
+    <% end %>
+  </div>
+
+  <div class="marketing__footer__main">
+    <div class="marketing__footer__main__menus">
+      <.footer_section
+        title={gettext("App lifecycle")}
+        items={[
+          %{
+            text: gettext("Start"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+          },
+          %{
+            text: gettext("Develop"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_develop)
+          },
+          %{
+            text: gettext("Share"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+          },
+          %{
+            text: gettext("Measure"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_measure)
+          }
+        ]}
+      />
+      <.footer_section
+        title={gettext("Support")}
+        items={[
+          %{
+            text: gettext("Docs"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+          },
+          %{text: gettext("Changelog"), href: ~p"/changelog"},
+          %{
+            text: gettext("Forum"),
+            href: Tuist.Environment.get_url(:forum)
+          },
+          %{
+            text: gettext("Issues"),
+            href: Tuist.Environment.get_url(:github_issues)
+          },
+          %{
+            text: gettext("Contact"),
+            href: Tuist.Environment.get_url(:contact)
+          }
+        ]}
+      />
+      <.footer_section
+        title={gettext("Company")}
+        items={[
+          %{text: gettext("Pricing"), href: ~p"/pricing"},
+          %{text: gettext("Blog"), href: ~p"/blog"},
+          %{text: gettext("About"), href: ~p"/about"},
+          %{text: gettext("Imprint"), href: ~p"/imprint"},
+          %{
+            text: gettext("Grafana dashboard"),
+            href: Tuist.Environment.get_url(:grafana_dashboard),
+            target: "__blank"
+          },
+          %{
+            text: gettext("Shop"),
+            href: Tuist.Environment.get_url(:shop),
+            target: "__blank"
+          },
+          %{text: gettext("We ❤️ openness"), href: ~p"/openness"},
+          %{text: gettext("Longevity manifesto"), href: ~p"/longevity"},
+          %{text: gettext("Trademark guidelines"), href: ~p"/trademark-guidelines"},
+          %{text: gettext("Security"), href: ~p"/security"},
+          %{text: gettext("Community"), href: ~p"/community"}
+        ]}
+      />
+      <.footer_section
+        title={gettext("Subscribe")}
+        items={[
+          %{text: gettext("Blog Atom"), href: ~p"/blog/atom.xml", target: "__blank"},
+          %{text: gettext("Blog RSS"), href: ~p"/blog/rss.xml", target: "__blank"},
+          %{text: gettext("Changelog Atom"), href: ~p"/changelog/atom.xml", target: "__blank"},
+          %{text: gettext("Changelog RSS"), href: ~p"/changelog/rss.xml", target: "__blank"},
+          %{text: gettext("Newsletter"), href: ~p"/newsletter"},
+          %{text: gettext("Newsletter Atom"), href: ~p"/newsletter/atom.xml", target: "__blank"},
+          %{text: gettext("Newsletter RSS"), href: ~p"/newsletter/rss.xml", target: "__blank"}
+        ]}
+      />
+    </div>
+
+    <div class="marketing__footer__main__links">
+      <div class="marketing__footer__main__links__social">
+        <h3 class="marketing__footer__main__links__social__title font-xxs-strong">
+          {gettext("Stay in touch")}
+        </h3>
+        <div class="marketing__footer__main__links__social__items">
+          <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
+            <.icon_slack class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:github)} target="_blank">
+            <.icon_github class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
+            <.icon_mastodon class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:bluesky)} target="_blank">
+            <.icon_bluesky class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
+            <.icon_linkedin class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
+            <.icon_peertube class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+        </div>
+        <.link href="/security">
+          <img src="/marketing/images/SOC Badge.png" class="marketing__footer__main__links__soc2" />
+        </.link>
+      </div>
+    </div>
+  </div>
+
+  <div class="marketing__footer__footer">
+    <.link href={~p"/terms"} class="marketing__footer__footer__link font-xxs">
+      {gettext("Terms of service")}
+    </.link>
+    <span>|</span>
+    <.link href={~p"/privacy"} class="marketing__footer__footer__link font-xxs">
+      {gettext("Privacy policy")}
+    </.link>
+    <span>|</span>
+    <.link href={~p"/cookies"} class="marketing__footer__footer__link font-xxs">
+      {gettext("Cookie policy")}
+    </.link>
+  </div>
+</footer>

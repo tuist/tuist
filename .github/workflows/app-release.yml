@@ -1,0 +1,142 @@
+name: App Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  MISE_EXPERIMENTAL: "1"
+
+jobs:
+  release:
+    name: Release
+    runs-on: macos-15
+    timeout-minutes: 50
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
+      - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
+        with:
+          version: 2025.7.0
+          experimental: true
+      - name: Check if there are releasable changes
+        id: is-releasable
+        working-directory: app
+        run: |
+          # Run git cliff and save the output
+          bumped_output=$(git cliff --include-path "app/**/*" --repository "../" --bump)
+          echo "Bumped output:"
+          echo "${bumped_output}"
+
+          # Read the content of CHANGELOG.md
+          changelog_content=$(cat CHANGELOG.md)
+          echo "CHANGELOG.md content:"
+          echo "${changelog_content}"
+
+          # Compare the outputs and set the result
+          if [ "${bumped_output}" != "${changelog_content}" ]; then
+            echo "should-release=true" >> $GITHUB_ENV
+          else
+            echo "should-release=false" >> $GITHUB_ENV
+          fi
+      - name: Get next version
+        working-directory: app
+        id: next-version
+        if: env.should-release == 'true'
+        run: |
+          NEXT_VERSION=$(git cliff --include-path "app/**/*" --repository "../" --bumped-version)
+
+          if [ "$NEXT_VERSION" = "0.1.0" ]; then
+            NEXT_VERSION="app@0.1.0"
+          fi
+
+          echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "NEXT_VERSION_NUMBER=${NEXT_VERSION#*@}" >> "$GITHUB_OUTPUT"
+      - name: Get release notes
+        id: release-notes
+        if: env.should-release == 'true'
+        working-directory: app
+        run: |
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          git cliff --include-path "app/**/*" --repository "../" --unreleased >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: Update version
+        working-directory: app
+        if: env.should-release == 'true'
+        run: |
+          sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}\",/g" "Project.swift"
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}\",/g" "Project.swift"
+      - name: Update CHANGELOG.md
+        working-directory: app
+        if: env.should-release == 'true'
+        run: git cliff --include-path "app/**/*" --repository "../" --bump -o CHANGELOG.md
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - name: Bundle Tuist App
+        if: env.should-release == 'true'
+        run: mise run app:bundle
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
+          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_APP_CONFIG_TOKEN }}
+      - name: Generate Sparkle appcast
+        if: env.should-release == 'true'
+        env:
+          TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
+        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+      - name: Commit changes
+        if: env.should-release == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add app/CHANGELOG.md app/Project.swift app/appcast.xml
+          git commit -m "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+          git push origin main
+          git push origin main --tags
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: env.should-release == 'true'
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+          body: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+          target_commitish: ${{ steps.auto-commit-action.outputs.commit_hash }}
+          files: |
+            app/build/artifacts/Tuist.dmg
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
+      - name: Get DMG SHA256
+        id: sha256
+        if: env.should-release == 'true'
+        run: |
+          SHA256=$(grep "Tuist.dmg" app/build/artifacts/SHASUMS256.txt | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+      - name: Release Homebrew cask
+        if: env.should-release == 'true'
+        run: mise run cli:release:homebrew-cask --version ${{ steps.next-version.outputs.NEXT_VERSION }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}

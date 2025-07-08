@@ -1,0 +1,68 @@
+#builds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+  & .noora-chart {
+    padding: var(--noora-spacing-3);
+  }
+  & > [data-part="analytics-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    & .noora-chart {
+      height: 200px;
+    }
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & > [data-part="configuration-insights-card"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+    & > [data-part="configuration-insights-card-chart-section"] {
+      padding: var(--noora-spacing-9) var(--noora-spacing-7);
+      & > .tuist-legend {
+        margin-left: var(--noora-spacing-5);
+        padding-bottom: unset;
+      }
+    }
+  }
+
+  & > [data-part="recent-builds-card"] {
+    & > [data-part="recent-builds-card-section"] {
+      gap: var(--noora-spacing-8);
+      padding: var(--noora-spacing-9);
+      & .noora-chart {
+        height: 148px;
+      }
+
+      & > [data-part="builds-chart"] {
+        & > [data-part="legends"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-5);
+          & > * {
+            flex-grow: 1;
+          }
+        }
+      }
+    }
+  }
+}

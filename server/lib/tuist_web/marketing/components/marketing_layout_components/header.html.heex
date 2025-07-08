@@ -1,0 +1,361 @@
+<% app_lifecycle_open_icon_selector =
+  ".marketing__header__bar__links > #app-lifecycle > .marketing__header__bar__links__link__open_icon"
+
+app_lifecycle_close_icon_selector =
+  ".marketing__header__bar__links > #app-lifecycle > .marketing__header__bar__links__link__close_icon"
+
+app_lifecycle_dropdown_selector = ".marketing__header__bar__links > #app-lifecycle"
+
+developers_open_icon_selector =
+  ".marketing__header__bar__links > #developers > .marketing__header__bar__links__link__open_icon"
+
+developers_close_icon_selector =
+  ".marketing__header__bar__links > #developers > .marketing__header__bar__links__link__close_icon"
+
+developers_dropdown_selector = ".marketing__header__bar__links > #developers"
+
+reset_dopdowns_state_js =
+  %JS{}
+  # App Lifecycle
+  |> JS.hide(to: ".marketing__header__bar__app-lifecycle")
+  |> JS.hide(to: app_lifecycle_close_icon_selector)
+  |> JS.show(to: app_lifecycle_open_icon_selector)
+  |> JS.set_attribute({"aria-expanded", "false"}, to: app_lifecycle_dropdown_selector)
+  # Developers
+  |> JS.hide(to: ".marketing__header__bar__developers")
+  |> JS.hide(to: developers_close_icon_selector)
+  |> JS.show(to: developers_open_icon_selector)
+  |> JS.set_attribute({"aria-expanded", "false"}, to: developers_dropdown_selector) %>
+
+<% show_app_lifecycle_js =
+  reset_dopdowns_state_js
+  |> JS.toggle(to: ".marketing__header__bar__app-lifecycle", display: "grid")
+  |> JS.toggle(to: app_lifecycle_open_icon_selector)
+  |> JS.toggle(to: app_lifecycle_close_icon_selector)
+  |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: app_lifecycle_dropdown_selector) %>
+
+<% show_developers_js =
+  reset_dopdowns_state_js
+  |> JS.hide(to: ".marketing__header__bar__app-lifecycle")
+  |> JS.toggle(to: ".marketing__header__bar__developers", display: "grid")
+  |> JS.toggle(to: developers_open_icon_selector)
+  |> JS.toggle(to: developers_close_icon_selector)
+  |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: developers_dropdown_selector) %>
+
+<header class="marketing__header">
+  <div class="marketing__header__bar">
+    <div class="marketing__header__bar__title">
+      <.link href="/" class="marketing__header__bar__title__link">
+        <img
+          class="marketing__header__bar__title__link__logo"
+          src="/images/tuist_logo_32x32@2x.png"
+          alt={gettext("Tuist Icon")}
+        />
+        <h2 class="marketing__header__bar__title__link__text">
+          Tuist
+        </h2>
+      </.link>
+    </div>
+
+    <nav class="marketing__header__bar__links">
+      <.link
+        class="marketing__header__bar__links__link"
+        id="app-lifecycle"
+        aria-expanded="false"
+        aria-haspopup="true"
+        phx-click={show_app_lifecycle_js}
+      >
+        {gettext("App lifecycle")}
+        <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
+        <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
+      </.link>
+      <.link
+        class="marketing__header__bar__links__link"
+        id="developers"
+        aria-expanded="false"
+        aria-haspopup="true"
+        phx-click={show_developers_js}
+      >
+        {gettext("Developers")}
+        <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
+        <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
+      </.link>
+      <.link href={~p"/pricing"} class="marketing__header__bar__links__link">
+        {gettext("Pricing")}
+      </.link>
+      <.link href={~p"/blog"} class="marketing__header__bar__links__link">
+        {gettext("Blog")}
+      </.link>
+    </nav>
+
+    <% {cta_text, cta_href} =
+      if is_nil(TuistWeb.Authentication.current_user(assigns)) do
+        {gettext("Log in"), ~p"/users/log_in"}
+      else
+        {gettext("Dashboard"),
+         TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
+      end %>
+    <.primary_button class="marketing__header__bar__cta" size="small" href={cta_href}>
+      {cta_text}
+    </.primary_button>
+
+    <button
+      class="marketing__header__menu__button"
+      phx-click={
+        JS.toggle(to: ".marketing__header__bar__mobile__menu")
+        |> JS.toggle_attribute({"data-scrollable", "true", "false"}, to: "body")
+      }
+    >
+      <.menu_icon />
+    </button>
+  </div>
+  <!-- Mobile Menu -->
+  <nav class="marketing__header__bar__mobile__menu" aria-label="Mobile Navigation">
+    <div class="marketing__header__bar__mobile__menu__header">
+      <div class="marketing__header__bar__mobile__menu__header__title">
+        <img
+          class="marketing__header__bar__mobile__menu__header__title__logo"
+          src="/images/tuist_logo_32x32@2x.png"
+          alt={gettext("Tuist Icon")}
+        />
+        <h2 class="marketing__header__bar__mobile__menu__header__title__text">
+          Tuist
+        </h2>
+      </div>
+      <button
+        class="marketing__header__bar__mobile__menu__header__close"
+        aria-label={gettext("Close menu")}
+        phx-click={
+          JS.toggle(to: ".marketing__header__bar__mobile__menu")
+          |> JS.toggle_attribute({"data-scrollable", "true", "false"}, to: "body")
+        }
+      >
+        <TuistWeb.Marketing.MarketingIcons.close_icon class="marketing__header__bar__mobile__menu__header__close" />
+      </button>
+    </div>
+    <div class="marketing__header__bar__mobile__menu__main">
+      <.marketing_mobile_menu_dropdown
+        key="app-lifecycle"
+        current_path={@current_path}
+        title={gettext("App lifecycle")}
+        children={[
+          %{
+            title: gettext("Start"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+          },
+          %{
+            title: gettext("Develop"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+          },
+          %{
+            title: gettext("Share"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+          },
+          %{
+            title: gettext("Measure"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_measure)
+          }
+        ]}
+      />
+      <.marketing_mobile_menu_dropdown
+        key="developers"
+        current_path={@current_path}
+        title={gettext("Developers")}
+        children={[
+          %{
+            title: gettext("Docs"),
+            href: Tuist.Environment.get_url(:documentation)
+          },
+          %{title: gettext("Changelog"), href: ~p"/changelog"},
+          %{
+            title: gettext("Forum"),
+            href: Tuist.Environment.get_url(:forum)
+          },
+          %{
+            title: gettext("Slack"),
+            href: Tuist.Environment.get_url(:slack)
+          },
+          %{
+            title: gettext("GitHub"),
+            href: Tuist.Environment.get_url(:github)
+          }
+        ]}
+      />
+      <.marketing_mobile_menu_dropdown
+        key="pricing"
+        current_path={@current_path}
+        title={gettext("Pricing")}
+        href={~p"/pricing"}
+      />
+      <.marketing_mobile_menu_dropdown
+        key="title"
+        current_path={@current_path}
+        title={gettext("Blog")}
+        href={~p"/blog"}
+      />
+
+      <div class="marketing__header__bar__mobile__menu__main__footer">
+        <.primary_button size="big" type="primary" href={Tuist.Environment.get_url(:get_started)}>
+          {gettext("Get started")}
+        </.primary_button>
+        <div class="marketing__header__bar__mobile__menu__main__footer__links">
+          <div class="marketing__header__bar__mobile__menu__main__footer__links__header">
+            {gettext("Stay in touch")}
+          </div>
+          <div class="marketing__header__bar__mobile__menu__main__footer__links__main">
+            <nav
+              class="marketing__header__bar__mobile__menu__main__footer__links__main__social"
+              aria-label={gettext("Social Media Links")}
+            >
+              <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
+                <.icon_slack class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+              <.link href={Tuist.Environment.get_url(:bluesky)} target="_blank">
+                <.icon_bluesky class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+              <.link href={Tuist.Environment.get_url(:github)} target="_blank">
+                <.icon_github class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+              <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
+                <.icon_mastodon class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+              <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
+                <.icon_peertube class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+              <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
+                <.icon_linkedin class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
+              </.link>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <!-- App Lifecycle Menu -->
+  <nav class="marketing__header__bar__app-lifecycle" aria-labelledby="app-lifecycle">
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_start)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
+        {gettext("Start")}
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        {gettext("Start a new project or add Tuist to an existing one.")}
+      </p>
+      <.app_lifecycle_start_artwork />
+    </.link>
+
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_develop)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
+        {gettext("Develop")}
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        {gettext("Develop top-notch apps fast and with confidence.")}
+      </p>
+      <.app_lifecycle_develop_artwork />
+    </.link>
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_share)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
+        {gettext("Share")}
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        {gettext("Effortlessly share your app with a single URL.")}
+      </p>
+      <.app_lifecycle_share_artwork />
+    </.link>
+
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_measure)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
+        {gettext("Measure")}
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        {gettext("Enhance your product and development with actionable insights.")}
+      </p>
+      <.app_lifecycle_measure_artwork />
+    </.link>
+  </nav>
+  <!-- Developers Menu -->
+  <nav class="marketing__header__bar__developers" aria-labelledby="app-lifecycle">
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:documentation)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
+        {gettext("Docs")}
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        {gettext("Explore our documentation—your go-to guide for mastering all things.")}
+      </p>
+
+      <.developers_docs_artwork style="grid-area: span 2;" />
+    </.link>
+
+    <.link class="marketing__header__bar__developers__phase" href={~p"/changelog"}>
+      <h2 class="marketing__header__bar__developers__phase__title">
+        {gettext("Changelog")}
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        {gettext("Keep up with the latest and greatest changes in Tuist.")}
+      </p>
+    </.link>
+
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:forum)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
+        {gettext("Community")}
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        {gettext("Got ideas or questions? Join the conversation in our community forum.")}
+      </p>
+    </.link>
+
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:slack)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
+        {gettext("Slack")}
+      </h2>
+
+      <p class="marketing__header__bar__developers__phase__description">
+        {gettext(
+          "Join our Slack group for real-time conversations and to connect with the Tuist community"
+        )}
+      </p>
+    </.link>
+
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:github)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
+        {gettext("GitHub")}
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        {gettext(
+          "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
+        )}
+      </p>
+    </.link>
+  </nav>
+</header>

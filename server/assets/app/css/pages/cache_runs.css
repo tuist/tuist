@@ -1,0 +1,58 @@
+#cache-runs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="cache-runs-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+  }
+
+  & .noora-card {
+    overflow-x: hidden;
+  }
+
+  & > [data-part="cache-runs"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & [data-part="empty-cache-runs-table-card-section"] {
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+    & > [data-part="image"] {
+      height: 150px;
+    }
+  }
+
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & table {
+    & td:first-child,
+    & td:nth-child(4) {
+      width: 20%;
+    }
+
+    & td:nth-child(5),
+    & td:nth-child(6),
+    & td:last-child {
+      width: 12%;
+    }
+  }
+}

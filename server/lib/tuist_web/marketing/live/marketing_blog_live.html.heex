@@ -1,0 +1,95 @@
+<main class="marketing__blog" aria-label={gettext("Blog posts")}>
+  <section class="marketing__blog__hero">
+    <div class="marketing__blog__hero__left">
+      <h1 class="marketing__blog__hero__left__title">
+        {gettext("Engaging stories and expert insights")}
+      </h1>
+      <p class="marketing__blog__hero__left__subtitle">{gettext("Stay in touch")}</p>
+      <div class="marketing__blog__hero__social">
+        <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_slack class="marketing__blog__hero__social__item" />
+        </.link>
+        <.link href={Tuist.Environment.get_url(:github)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_github class="marketing__blog__hero__social__item" />
+        </.link>
+        <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_mastodon class="marketing__blog__hero__social__item" />
+        </.link>
+        <.link href={Tuist.Environment.get_url(:bluesky)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_bluesky class="marketing__blog__hero__social__item" />
+        </.link>
+        <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_linkedin class="marketing__blog__hero__social__item" />
+        </.link>
+        <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
+          <TuistWeb.Marketing.MarketingIcons.icon_peertube class="marketing__blog__hero__social__item" />
+        </.link>
+      </div>
+    </div>
+    <div class="marketing__blog__hero__right">
+      <TuistWeb.Marketing.MarketingComponents.more_card
+        category={@hero_post.category}
+        title={@hero_post.title}
+        description={@hero_post.excerpt}
+        href={@hero_post.slug}
+        class="marketing__blog__hero__right__card"
+      />
+    </div>
+  </section>
+
+  <section class="marketing__blog__essential">
+    <h2 class="marketing__blog__essential__title">
+      {gettext("Essential reading")}
+    </h2>
+    <div class="marketing__blog__essential__posts">
+      <%= for {post, index} <- Enum.with_index(@highlighted_posts) do %>
+        <h3 class="marketing__blog__essential__posts__post">
+          <.link href={post.slug} class="marketing__blog__essential__posts__post__link">
+            <span class="marketing__blog__essential__posts__post__link__index">
+              {"0#{index + 1}."}
+            </span>
+            <span class="marketing__blog__essential__posts__post__link__title">
+              {post.title}
+            </span>
+          </.link>
+        </h3>
+      <% end %>
+    </div>
+  </section>
+  <section class="marketing__blog__posts">
+    <div class="marketing__blog__posts__heading">
+      <h2 class="marketing__blog__posts__heading__title">
+        {gettext("Posts")}
+      </h2>
+      <div class="marketing__blog__posts__heading__categories">
+        <.link
+          patch={~p"/blog"}
+          data-selected={if(@current_path == ~p"/blog", do: "true", else: "false")}
+          class="marketing__blog__posts__heading__categories__category"
+        >
+          {gettext("All")}
+        </.link>
+        <%= for category <- @categories do %>
+          <% params = %{category: category} %>
+          <.link
+            patch={~p"/blog?#{params}"}
+            data-selected={if(@current_path == ~p"/blog?#{params}", do: "true", else: "false")}
+            class="marketing__blog__posts__heading__categories__category"
+          >
+            <span>{category}</span>
+          </.link>
+        <% end %>
+      </div>
+    </div>
+    <div class="marketing__blog__posts__main">
+      <TuistWeb.Marketing.MarketingComponents.more_card
+        :for={post <- @posts}
+        category={post.category}
+        title={post.title}
+        description={post.excerpt}
+        href={post.slug}
+        class=""
+      />
+    </div>
+  </section>
+</main>

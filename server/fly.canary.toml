@@ -1,0 +1,65 @@
+app = "tuist-cloud-canary"
+primary_region = "atl"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+console_command = "/app/bin/tuist remote"
+
+[experimental]
+  auto_rollback = true
+  cmd = ["sh", "-C", "/app/bin/server"]
+
+[deploy]
+  release_command = '/app/bin/migrate'
+
+[env]
+  PORT = "8080"
+  MIX_ENV="can"
+  TUIST_APP_URL="https://canary.tuist.dev"
+  TUIST_HOSTED="1"
+  TUIST_USE_IPV6="1"
+  TUIST_USE_SSL_FOR_DATABASE="1"
+  TUIST_DATABASE_POOL_SIZE="6"
+
+[[vm]]
+  cpu_kind = 'shared'
+  memory = "2048mb"
+  cpus = 2
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+    http_options = { h2_backend = true }
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 20
+
+  [[services.http_checks]]
+    interval = 10000
+    grace_period = "10s"
+    method = "get"
+    path = "/ready"
+    protocol = "http"
+    timeout = 2000
+    tls_skip_verify = false
+    [services.http_checks.headers]
+
+[[statics]]
+  guest_path = "/app/public"
+  url_prefix = "/"
+
+[[metrics]]
+  port = 9091
+  path = "/metrics"

@@ -1,0 +1,220 @@
+.marketing__blog__hero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-48);
+  padding: var(--spacing-96);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__hero {
+    flex-direction: column;
+    padding: var(--spacing-48) var(--spacing-24);
+  }
+}
+
+.marketing__blog__hero__left {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.marketing__blog__hero__right {
+  flex: 1;
+}
+
+.marketing__blog__hero__left__title {
+  margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-xxxl-strong);
+}
+
+.marketing__blog__hero__left__subtitle {
+  margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-l);
+}
+
+.marketing__blog__hero__social {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-8);
+}
+
+.marketing__blog__hero__social__item {
+  color: var(--violet);
+}
+
+.marketing__blog__essential {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-48);
+  background: var(--medium-violet);
+  padding: var(--spacing-96);
+
+  @media (max-width: 1024px) {
+    padding: var(--spacing-48) 0 var(--spacing-48) 0;
+  }
+}
+
+.marketing__blog__essential__title {
+  margin: 0;
+  color: var(--lime);
+  font: var(--font-xl-strong);
+  text-transform: uppercase;
+
+  @media (max-width: 1024px) {
+    padding: 0 var(--spacing-24) 0 var(--spacing-24);
+  }
+}
+
+.marketing__blog__essential__posts {
+  display: flex;
+  flex-direction: row;
+  justify-items: space-between;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__essential__posts {
+    padding: 0 var(--spacing-24);
+    overflow-x: scroll;
+    scrollbar-width: none;
+  }
+  .marketing__blog__essential__posts::-webkit-scrollbar {
+    display: none; /* WebKit */
+  }
+}
+
+.marketing__blog__essential__posts__post {
+  flex: 1;
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__essential__posts__post {
+    flex: 0 0 50vw;
+  }
+}
+
+.marketing__blog__essential__posts__post__link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  text-decoration: none;
+}
+
+.marketing__blog__essential__posts__post__link__index {
+  color: var(--light-violet);
+  font: var(--font-xxxl-strong);
+}
+
+.marketing__blog__essential__posts__post__link__title {
+  color: white;
+  font: var(--font-xl-strong);
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.marketing__blog__posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-48);
+  padding: var(--spacing-96);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts {
+    padding: var(--spacing-48) 0;
+  }
+}
+
+.marketing__blog__posts__heading {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts__heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-48);
+  }
+}
+
+.marketing__blog__posts__heading__title {
+  margin: 0;
+  color: var(--dark-violet);
+  font: var(--font-xxxl-strong);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts__heading__title {
+    padding: 0 var(--spacing-24);
+  }
+}
+
+.marketing__blog__posts__heading__categories {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts__heading__categories {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    padding: 0 var(--spacing-24);
+    width: calc(100% - (var(--spacing-24) * 2));
+    overflow-x: scroll;
+    scrollbar-width: none;
+  }
+  .marketing__blog__posts__heading__categories::-webkit-scrollbar {
+    display: none; /* WebKit */
+  }
+}
+
+.marketing__blog__posts__heading__categories__category {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-16) 0;
+  color: var(--dark-violet);
+  font: var(--font-m);
+  text-decoration: none;
+  text-transform: uppercase;
+
+  &:hover {
+    color: var(--violet);
+  }
+
+  &[data-selected="true"] {
+    border-bottom-width: 3px;
+    border-bottom-style: solid;
+    border-bottom-color: var(--violet);
+    color: var(--violet);
+    font: var(--font-m-strong);
+  }
+}
+
+.marketing__blog__posts__main {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts__main {
+    padding: 0 var(--spacing-24);
+  }
+}
+
+@media (max-width: 1024px) {
+  .marketing__blog__posts__main {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Swift Stories Newsletter</title>
+    <description>%= Tuist.Marketing.Newsletter.description() %></description>
+    <link><%= Tuist.Environment.app_url(path: ~p"/newsletter") %></link>
+    <lastBuildDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></lastBuildDate>
+    <pubDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></pubDate>
+    <ttl>1800</ttl>
+    <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/newsletter/rss.xml") %>" rel="self" type="application/rss+xml"/>
+
+    <%= for issue <- @issues do %>
+      <item>
+        <title><![CDATA[<%= issue.full_title %>]]></title>
+        <description><![CDATA[ <%= issue.plain_html %> ]]></description>
+        <link><%= Tuist.Environment.app_url(path: "#{~p"/newsletter/issues/#{issue.number}"}") %></link>
+        <guid isPermaLink="false"><%= issue.number %></guid>
+        <pubDate><%= issue.date |> Timex.format!("{RFC1123}")  %></pubDate>
+      </item>
+    <% end %>
+  </channel>
+</rss>

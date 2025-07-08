@@ -28,11 +28,16 @@
     "**/.git": true,
     "**/node_modules": true
   },
-  "spellright.language": [
-    "en"
-  ],
-  "spellright.documentTypes": [
-    "latex",
-    "plaintext"
-  ]
+  "search.exclude": {
+    "server/deps/**": true
+  },
+  "spellright.language": ["en"],
+  "spellright.documentTypes": ["latex", "plaintext"],
+  "emmet.includeLanguages": {
+    "html-eex": "html"
+  },
+  "[phoenix-heex]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls",
+    "editor.formatOnSave": true
+  }
 }

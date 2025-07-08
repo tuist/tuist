@@ -1,0 +1,9 @@
+.marketing__page {
+  padding: var(--spacing-96);
+}
+
+@media (max-width: 1024px) {
+  .marketing__page {
+    padding: var(--spacing-24);
+  }
+}
