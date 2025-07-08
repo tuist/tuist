@@ -1,6 +1,6 @@
 ---
 title: Создание нового проекта
-titleTemplate: :title · Adoption · Projects · Features · Guides · Tuist
+titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
 description: Научитесь создавать новый проект с помощью Tuist.
 ---
 

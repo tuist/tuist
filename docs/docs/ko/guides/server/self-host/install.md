@@ -175,7 +175,7 @@ Google Cloud Storage의 경우, [이 문서](https://cloud.google.com/storage/do
 
 ### Git 플랫폼 구성 {#git-platform-configuration}
 
-Tuist는 Pull Request에 자동으로 댓글을 게시하는 등의 추가 기능을 제공하기 위해 <LocalizedLink href="/guides/server/authentication">Git 플랫폼과 통합</LocalizedLink>할 수 있습니다.
+Tuist는 Pull Request에 자동으로 댓글을 게시하는 등의 추가 기능을 제공하기 위해 <LocalizedLink href="/server/introduction/integrations#git-platforms">Git 플랫폼과 통합</LocalizedLink>할 수 있습니다.
 
 #### GitHub {#platform-github}
 

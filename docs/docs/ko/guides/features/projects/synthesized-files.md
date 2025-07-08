@@ -1,6 +1,6 @@
 ---
 title: Synthesized files
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Tuist 프로젝트에서 자동으로 생성된 파일에 대해 배워봅니다.
 ---
 

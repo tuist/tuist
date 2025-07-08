@@ -1,6 +1,6 @@
 ---
 title: Code sharing
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn how to share code across manifest files to reduce duplications and ensure consistency
 ---
 

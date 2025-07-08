@@ -1,6 +1,6 @@
 ---
 title: Swift package
-titleTemplate: :title · Registry · Features · Guides · Tuist
+titleTemplate: :title · Registry · Develop · Guides · Tuist
 description: Swift Package에서 Tuist Registry를 사용하는 방법을 학습합니다.
 ---
 

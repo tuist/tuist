@@ -1,6 +1,6 @@
 ---
 title: モデルコンテキストプロトコル(MCP)
-titleTemplate: :title · Agentic coding · Features · Guides · Tuist
+titleTemplate: :title · AI · Guides · Tuist
 description: Tuist MCPサーバーを使用して、アプリ開発環境に自然言語インターフェースを導入する方法を学びましょう。
 ---
 

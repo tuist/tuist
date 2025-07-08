@@ -1,6 +1,6 @@
 ---
 title: Bundle Size
-titleTemplate: :title · Features · Guides · Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: 앱의 메모리 사용량을 최소화하고 이를 유지하는 방법을 배워봅니다.
 ---
 
@@ -8,7 +8,7 @@ description: 앱의 메모리 사용량을 최소화하고 이를 유지하는 �
 
 > [!IMPORTANT] 요구사항
 >
-> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 앱에 기능을 추가할수록 앱 번들 크기는 커지게 됩니다. 더 많은 코드와 에셋으로 인해 어느 정도의 번들 크기는 증가하지만 에셋이 번들 간에 중복되지 않도록 하거나 사용하지 않는 바이너리 심볼을 제거하는 등 크기를 최적화할 수 있는 많은 방법이 있습니다. Tuist는 앱 크기를 작게 유지할 수 있도록 툴과 인사이트를 제공하며, 지속적으로 앱 크기를 모니터링합니다.
 
@@ -38,7 +38,7 @@ tuist inspect bundle App.app
 
 ## Continuous integration {#continuous-integration}
 
-번들 크기를 추적하려면 CI에서 번들 분석을 해야 합니다. 먼저, CI는 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되어 있는지 확인해야 합니다:
+번들 크기를 추적하려면 CI에서 번들 분석을 해야 합니다. 먼저, CI는 <LocalizedLink href="/guides/automate/continuous-integration#authentication">인증</LocalizedLink>되어 있는지 확인해야 합니다:
 
 An example workflow for GitHub Actions could then look like this:
 

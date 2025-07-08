@@ -1,6 +1,6 @@
 ---
 title: Editing
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Xcode의 빌드 시스템과 편집기 기능을 활용하여 프로젝트를 선언하기 위한 Tuist의 편집 워크플로우에 대해 배워봅니다.
 ---
 

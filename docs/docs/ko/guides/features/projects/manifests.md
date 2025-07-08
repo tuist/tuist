@@ -1,6 +1,6 @@
 ---
 title: Manifests
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Tuist가 프로젝트와 워크스페이스를 정의하고 생성 프로세스를 구성하는데 사용하는 매니페스트 파일에 대해 알아봅니다.
 ---
 

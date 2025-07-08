@@ -1,6 +1,6 @@
 ---
 title: Dynamic configuration
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: 프로젝트를 동적 구성하기 위해 환경 변수를 사용하는 방법을 배워봅니다.
 ---
 

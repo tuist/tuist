@@ -1,6 +1,6 @@
 ---
 title: Xcode project
-titleTemplate: :title · Selective testing · Features · Guides · Tuist
+titleTemplate: :title · Selective testing · Develop · Guides · Tuist
 description: "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방법 배우기."
 ---
 
@@ -8,7 +8,7 @@ description: "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방�
 
 > [!IMPORTANT] 요구 사항
 >
-> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 명령어를 통해 선택적으로 Xcode 프로젝트 테스트를 수행할 수 있습니다. 예를 들어서, `tuist xcodebuild test -scheme App`와 같이 사용할 수 있습니다. 해당 명령어 수행이 성공하면 프로젝트를 해시하고 다음 실행 시 변경 사항을 파악하기 위해 해시 값을 저장합니다.
 
@@ -30,7 +30,7 @@ description: "`xcodebuild`를 이용한 선택적 테스팅을 활용하는 방�
 | `Core` 업데이트                | 개발자가 해당 타겟의 코드를 수정                                         | 이전과 동일                                                       |
 | `tuist xcodebuild test` 실행 | `CoreTests`, `FeatureATests`, 그리고 `FeatureBTests`에서 테스트 실행 | `FeatureATests`, `FeatureBTests`, 그리고 `CoreTests`의 새로운 해시 저장 |
 
-`tuist xcodebuild test` 을 CI에서 사용하기 위해서는, <LocalizedLink href="/guides/integrations/continuous-integration">Continuous integration guide</LocalizedLink>에 나와있는 설명을 참고하시면 됩니다.
+`tuist xcodebuild test` 을 CI에서 사용하기 위해서는, <LocalizedLink href="/guides/automate/continuous-integration">Continuous integration guide</LocalizedLink>에 나와있는 설명을 참고하시면 됩니다.
 
 선택적 테스트에 대한 영상을 확인해 보세요:
 

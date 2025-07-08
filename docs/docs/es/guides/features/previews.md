@@ -1,6 +1,6 @@
 ---
 title: Previews
-titleTemplate: :title · Features · Guides · Tuist
+titleTemplate: :title · Share · Guides · Tuist
 description: Learn how to generate and share previews of your apps with anyone.
 ---
 
@@ -8,7 +8,7 @@ description: Learn how to generate and share previews of your apps with anyone.
 
 > [!IMPORTANT] REQUIREMENTS
 >
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
@@ -77,7 +77,7 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 

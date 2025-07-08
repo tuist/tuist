@@ -1,6 +1,6 @@
 ---
 title: The Modular Architecture (TMA)
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: The Modular Architecture (TMA) 에 대해 배우고, 이를 사용하여 프로젝트를 구조화 하는 방법을 배워봅니다.
 ---
 

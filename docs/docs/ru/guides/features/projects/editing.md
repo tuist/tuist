@@ -1,6 +1,6 @@
 ---
 title: Редактирование
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Узнайте, как использовать редактор Tuist, чтобы объявить свой проект, используя возможности системы сборки и редактора Xcode.
 ---
 

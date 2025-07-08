@@ -54,12 +54,6 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         details="Find out how to make and keep your app's memory footprint as small as possible."
         linkText="Analyze your app bundle"
         link="/guides/features/bundle-size"/>
-    <HomeCard
-        icon="🤖"
-        title="Agentic Coding"
-        details="Bridge the gap between Apple development and AI-powered coding. Our tools integrate seamlessly with AI assistants and coding agents."
-        linkText="Explore AI integration"
-        link="/guides/features/agentic-coding/mcp"/>
 </HomeCards>
 
 ## インストール方法
@@ -82,34 +76,6 @@ mise x tuist@latest -- tuist init
 :::
 
 詳細については、 <LocalizedLink href="/guides/quick-start/install-tuist">導入の手順</LocalizedLink> をご覧ください。
-
-## Why Tuist? Four compelling reasons
-
-### Simplify complex projects 🌱
-
-As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
-
-### Optimize your workflows 🚀
-
-Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds - cutting build times by up to 65%.
-
-### Foster healthy project evolution 📈
-
-We provide insights into your project's dynamics and expert guidance for informed decision-making. This prevents the frustration and productivity loss associated with unhealthy projects, which can lead to developer attrition and missed business goals.
-
-### Break down development silos 💜
-
-Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
-
----
-
-## Solving the platform team problem
-
-In Apple platform development, organizations often encounter **productivity roadblocks** - sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
-
-**Tuist serves as your virtual platform team.** We integrate seamlessly with official Apple tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the developer experience.
-
-Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services.
 
 ## もっと詳しく
 
@@ -139,7 +105,7 @@ Tuist を少し試してみて、Tuist を最大限に活用する方法を学�
 
 Tuistのこれまでの発表内容をご覧ください。 最新情報をキャッチし、専門知識を身につけましょう。
 
-<HomeVideos/>
+<HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
 
 ## コミュニティに参加する
 

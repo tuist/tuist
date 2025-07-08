@@ -1,6 +1,6 @@
 ---
 title: ベストプラクティス
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Tuist プロジェクトと Xcode プロジェクトのベストプラクティスについて学ぶ
 ---
 

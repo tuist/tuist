@@ -1,6 +1,6 @@
 ---
 title: Templates
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: 프로젝트에서 코드 생성을 위해 Tuist에서 템플릿을 생성하고 사용하는 방법을 배워봅니다.
 ---
 

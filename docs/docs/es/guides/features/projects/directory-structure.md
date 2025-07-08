@@ -1,6 +1,6 @@
 ---
 title: Directory structure
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about the structure of Tuist projects and how to organize them.
 ---
 
@@ -43,4 +43,4 @@ When interacting with the above project, commands expect to find either a `Works
 
 Tuist also supports SPM package projects. If you are working on an SPM package, you shouldn't need to update anything. Tuist automatically picks up on your root `Package.swift` and all the features of Tuist work as if it was a `Project.swift` manifest.
 
-To get started, run `tuist install` and `tuist generate` in your SPM package. Your project should now have all the same schemes and files that you would see in the vanilla Xcode SPM integration. However, now you can also run <LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink> and have majority of your SPM dependencies and modules precompiled, making subsequent builds extremely fast.
+To get started, run `tuist install` and `tuist generate` in your SPM package. Your project should now have all the same schemes and files that you would see in the vanilla Xcode SPM integration. However, now you can also run <LocalizedLink href="/guides/features/build/cache">`tuist cache`</LocalizedLink> and have majority of your SPM dependencies and modules precompiled, making subsequent builds extremely fast.

@@ -1,6 +1,6 @@
 ---
 title: Projects
-titleTemplate: :title · Features · Guides · Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: Xcode 프로젝트를 정의하는 Tuist의 DSL에 대해 배워봅니다.
 ---
 

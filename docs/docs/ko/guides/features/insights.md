@@ -1,6 +1,6 @@
 ---
 title: Insights
-titleTemplate: :title · Features · Guides · Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: 개발 환경을 유지하기 위해 프로젝트에 대한 인사이트를 얻으세요.
 ---
 
@@ -8,7 +8,7 @@ description: 개발 환경을 유지하기 위해 프로젝트에 대한 인사�
 
 > [!IMPORTANT] 요구사항
 >
-> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
+> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 대규모 프로젝트 작업이 부담스럽게 느껴지면 안됩니다. 사실, 2주 전에 시작한 프로젝트처럼 즐거워야 합니다. 그렇지 못한 이유 중에 하나는 프로젝트가 커짐에 따라 개발자 경험이 나빠지기 때문입니다. 빌드 시간이 길어지고 테스트가 느리고 불안정해집니다. 이러한 문제들은 심각해질 때까지 무시되곤 하지만 그 시점이 되면 해결하기가 어렵습니다. Tuist Insights는 프로젝트의 상태를 모니터링하고, 프로젝트가 커져도 생산적인 개발 환경을 유지할 수 있도록 도와주는 툴을 제공합니다.
 
@@ -96,7 +96,7 @@ Mise를 사용하지 않는다면, 스크립트를 다음과 같이 간단하게
 
 ## Continuous integration {#continuous-integration}
 
-CI에서 빌드 시간을 추적하려면, CI가 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지 확인해야 합니다.
+CI에서 빌드 시간을 추적하려면, CI가 <LocalizedLink href="/guides/automate/continuous-integration#authentication">인증</LocalizedLink>되었는지 확인해야 합니다.
 
 추가로, 다음의 내용도 필요합니다:
 

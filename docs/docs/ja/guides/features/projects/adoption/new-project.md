@@ -1,6 +1,6 @@
 ---
 title: 新規プロジェクトの作成
-titleTemplate: :title · Adoption · Projects · Features · Guides · Tuist
+titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
 description: Tuist で新規プロジェクトを作成する方法を学びます。
 ---
 

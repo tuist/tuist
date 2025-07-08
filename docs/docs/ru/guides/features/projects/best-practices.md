@@ -1,6 +1,6 @@
 ---
 title: Лучшие практики
-titleTemplate: :title · Projects · Features · Guides · Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Узнайте о лучших практиках работы с Tuist и проектами Xcode.
 ---
 
