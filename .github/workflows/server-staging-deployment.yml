@@ -40,7 +40,6 @@ jobs:
         id: mix-cache
         with:
           path: |
-            server
             deps
             _build
             _site

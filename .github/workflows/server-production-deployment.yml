@@ -53,7 +53,6 @@ jobs:
         id: mix-cache
         with:
           path: |
-            server
             deps
             _build
             _site
@@ -126,7 +125,6 @@ jobs:
         id: mix-cache
         with:
           path: |
-            server
             deps
             _build
             _site
@@ -179,7 +177,6 @@ jobs:
         id: mix-cache
         with:
           path: |
-            server
             deps
             _build
             _site
