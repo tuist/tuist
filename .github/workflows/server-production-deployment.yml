@@ -115,6 +115,7 @@ jobs:
         uses: namespacelabs/breakpoint-action@v0
         with:
           duration: 30m
+          authorized-users: pepicrft
       - name: Test
         run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
