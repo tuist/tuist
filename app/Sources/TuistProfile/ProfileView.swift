@@ -1,49 +1,93 @@
+import Foundation
 import SwiftUI
 import TuistAuthentication
+import TuistErrorHandling
 import TuistNoora
 
 public struct ProfileView: View {
-    @EnvironmentObject var authenticationService: AuthenticationService
+    @EnvironmentObject private var errorHandler: ErrorHandling
+    @EnvironmentObject private var authenticationService: AuthenticationService
 
-    public init() {}
+    private let account: Account
+
+    public init(
+        account: Account
+    ) {
+        self.account = account
+    }
 
     public var body: some View {
-        VStack(spacing: Noora.Spacing.spacing8) {
-            Spacer()
+        List {
+            Section {
+                VStack(spacing: 10) {
+                    NooraAvatar(email: account.email, size: .xxlarge)
 
-            Circle()
-                .fill(Noora.Colors.neutralLight300)
-                .frame(width: 80, height: 80)
-                .overlay(
-                    Text("A")
-                        .font(.system(size: 32, weight: .medium))
+                    Text("@\(account.handle)")
+                        .font(.body.weight(.medium))
+                        .fontWeight(.medium)
+                        .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            Section {
+                HStack {
+                    Text("Email")
+                        .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-                )
-
-            VStack(spacing: Noora.Spacing.spacing2) {
-                Text("Profile")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-
-                Text("Manage your account")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                    Spacer()
+                    Text(account.email)
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
             }
 
-            Spacer()
+            Section {
+                ExternalLinkRow(
+                    title: "Terms of Service",
+                    url: URL(string: "https://tuist.dev/terms")!
+                )
+                ExternalLinkRow(
+                    title: "Privacy Policy",
+                    url: URL(string: "https://tuist.dev/privacy")!
+                )
+            }
 
-            Button(
-                "Log Out",
-                action: {
+            Section {
+                ExternalLinkRow(
+                    title: "Get help",
+                    url: URL(string: "mailto:contact@tuist.dev")!
+                )
+            }
+
+            Section {
+                HStack {
+                    Text("App version")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                    Spacer()
+                    Text("1.0.0")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+
+            Section {
+                Button(action: {
                     Task {
                         await authenticationService.signOut()
                     }
+                }) {
+                    Text("Sign out")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelDestructive)
+                        .frame(maxWidth: .infinity)
                 }
-            )
-            .padding(.horizontal, Noora.Spacing.spacing8)
-
-            Spacer()
+            }
         }
+        .listStyle(.insetGrouped)
         .background(Noora.Colors.surfaceBackgroundPrimary)
     }
 }
