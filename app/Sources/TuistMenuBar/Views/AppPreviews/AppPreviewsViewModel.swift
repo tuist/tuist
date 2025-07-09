@@ -79,6 +79,7 @@ final class AppPreviewsViewModel: Sendable {
                 fullHandle: project.fullName,
                 serverURL: serverURL
             )
+            .previews
             .compactMap { preview in
                 guard let bundleIdentifier = preview.bundleIdentifier else { return nil }
                 return AppPreview(
@@ -106,6 +107,7 @@ final class AppPreviewsViewModel: Sendable {
             fullHandle: appPreview.fullHandle,
             serverURL: serverURL
         )
+        .previews
 
         guard let preview = previews.first else {
             throw AppPreviewsModelError.previewNotFound(appPreview.displayName)

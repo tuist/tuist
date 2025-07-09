@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "brand-okta.png",
+      "filename" : "timeline-event.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "brand-okta@2x.png",
+      "filename" : "timeline-event@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "brand-okta@3x.png",
+      "filename" : "timeline-event@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
@@ -19,8 +19,5 @@
   "info" : {
     "author" : "xcode",
     "version" : 1
-  },
-  "properties" : {
-    "preserves-vector-representation" : true
   }
 }

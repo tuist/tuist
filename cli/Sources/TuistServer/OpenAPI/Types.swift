@@ -115,6 +115,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
     func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
     /// It uploads a given cache action item.
     ///
     /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
@@ -552,6 +559,21 @@ extension APIProtocol {
         try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
             query: query,
             headers: headers
+        ))
+    }
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    internal func authenticateApple(
+        headers: Operations.authenticateApple.Input.Headers = .init(),
+        body: Operations.authenticateApple.Input.Body? = nil
+    ) async throws -> Operations.authenticateApple.Output {
+        try await authenticateApple(Operations.authenticateApple.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// It uploads a given cache action item.
@@ -1915,6 +1937,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/id`.
             internal var id: Swift.String
+            /// The date and time when the preview was inserted
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/inserted_at`.
+            internal var inserted_at: Swift.String
             /// The URL for the QR code image to dowload the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
@@ -1935,6 +1961,7 @@ internal enum Components {
             ///   - git_commit_sha: The git commit SHA associated with the preview
             ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
+            ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - supported_platforms:
             ///   - url: The URL to download the preview
@@ -1946,6 +1973,7 @@ internal enum Components {
                 git_commit_sha: Swift.String? = nil,
                 icon_url: Swift.String,
                 id: Swift.String,
+                inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
                 url: Swift.String
@@ -1957,6 +1985,7 @@ internal enum Components {
                 self.git_commit_sha = git_commit_sha
                 self.icon_url = icon_url
                 self.id = id
+                self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
                 self.supported_platforms = supported_platforms
                 self.url = url
@@ -1969,6 +1998,7 @@ internal enum Components {
                 case git_commit_sha
                 case icon_url
                 case id
+                case inserted_at
                 case qr_code_url
                 case supported_platforms
                 case url
@@ -2770,6 +2800,8 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PreviewsIndex`.
         internal struct PreviewsIndex: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewsIndex/pagination_metadata`.
+            internal var pagination_metadata: Components.Schemas.PaginationMetadata
             /// Previews list.
             ///
             /// - Remark: Generated from `#/components/schemas/PreviewsIndex/previews`.
@@ -2777,11 +2809,17 @@ internal enum Components {
             /// Creates a new `PreviewsIndex`.
             ///
             /// - Parameters:
+            ///   - pagination_metadata:
             ///   - previews: Previews list.
-            internal init(previews: [Components.Schemas.Preview]) {
+            internal init(
+                pagination_metadata: Components.Schemas.PaginationMetadata,
+                previews: [Components.Schemas.Preview]
+            ) {
+                self.pagination_metadata = pagination_metadata
                 self.previews = previews
             }
             internal enum CodingKeys: String, CodingKey {
+                case pagination_metadata
                 case previews
             }
         }
@@ -3717,6 +3755,67 @@ internal enum Components {
                 case targets
                 case _type = "type"
                 case xcode_version
+            }
+        }
+        /// Pagination metadata.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PaginationMetadata`.
+        internal struct PaginationMetadata: Codable, Hashable, Sendable {
+            /// Current page number. Always `nil` when using cursor-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
+            internal var current_page: Swift.Int?
+            /// Whether there are more pages available.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_next_page`.
+            internal var has_next_page: Swift.Bool
+            /// Whether there are previous pages available.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_previous_page`.
+            internal var has_previous_page: Swift.Bool
+            /// Number of items per page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
+            internal var page_size: Swift.Int
+            /// Total number of items.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_count`.
+            internal var total_count: Swift.Int
+            /// Total number of pages. Always `nil` when using cursor-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_pages`.
+            internal var total_pages: Swift.Int?
+            /// Creates a new `PaginationMetadata`.
+            ///
+            /// - Parameters:
+            ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
+            ///   - has_next_page: Whether there are more pages available.
+            ///   - has_previous_page: Whether there are previous pages available.
+            ///   - page_size: Number of items per page.
+            ///   - total_count: Total number of items.
+            ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
+            internal init(
+                current_page: Swift.Int? = nil,
+                has_next_page: Swift.Bool,
+                has_previous_page: Swift.Bool,
+                page_size: Swift.Int,
+                total_count: Swift.Int,
+                total_pages: Swift.Int? = nil
+            ) {
+                self.current_page = current_page
+                self.has_next_page = has_next_page
+                self.has_previous_page = has_previous_page
+                self.page_size = page_size
+                self.total_count = total_count
+                self.total_pages = total_pages
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case current_page
+                case has_next_page
+                case has_previous_page
+                case page_size
+                case total_count
+                case total_pages
             }
         }
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
@@ -9317,6 +9416,258 @@ internal enum Operations {
             }
         }
     }
+    /// Authenticate with Apple identity token.
+    ///
+    /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+    ///
+    /// - Remark: HTTP `POST /api/auth/apple`.
+    /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
+    internal enum authenticateApple {
+        internal static let id: Swift.String = "authenticateApple"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/apple/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.authenticateApple.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.authenticateApple.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.authenticateApple.Input.Headers
+            /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The Apple authorization code.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json/authorization_code`.
+                    internal var authorization_code: Swift.String
+                    /// The Apple identity token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/json/identity_token`.
+                    internal var identity_token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - authorization_code: The Apple authorization code.
+                    ///   - identity_token: The Apple identity token.
+                    internal init(
+                        authorization_code: Swift.String,
+                        identity_token: Swift.String
+                    ) {
+                        self.authorization_code = authorization_code
+                        self.identity_token = identity_token
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case authorization_code
+                        case identity_token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/requestBody/content/application\/json`.
+                case json(Operations.authenticateApple.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.authenticateApple.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.authenticateApple.Input.Headers = .init(),
+                body: Operations.authenticateApple.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AuthenticationTokens)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.AuthenticationTokens {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Successfully authenticated and returned new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.authenticateApple.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.authenticateApple.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid request parameters.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.authenticateApple.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.authenticateApple.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/apple/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticateApple.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticateApple.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid Apple identity token or authorization code.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.authenticateApple.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.authenticateApple.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// It uploads a given cache action item.
     ///
     /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
@@ -13132,6 +13483,8 @@ internal enum Operations {
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/pagination_metadata`.
+                        internal var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// Previews list.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
@@ -13139,11 +13492,17 @@ internal enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - previews: Previews list.
-                        internal init(previews: [Components.Schemas.Preview]) {
+                        internal init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            previews: [Components.Schemas.Preview]
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.previews = previews
                         }
                         internal enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case previews
                         }
                     }

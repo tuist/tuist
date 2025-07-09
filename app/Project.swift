@@ -97,10 +97,12 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
+                .target(name: "TuistProfile", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -128,6 +130,9 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistAppStorage"),
+                .external(name: "NukeUI"),
             ]
         ),
         .target(
@@ -137,6 +142,7 @@ let project = Project(
             bundleId: "dev.tuist.noora",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistNoora/**"],
+            resources: ["Resources/TuistNoora/**"],
             dependencies: []
         ),
         .target(
@@ -149,6 +155,18 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
+                .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora"),
+            ]
+        ),
+        .target(
+            name: "TuistProfile",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.profile",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistProfile/**"],
+            dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistNoora"),
             ]

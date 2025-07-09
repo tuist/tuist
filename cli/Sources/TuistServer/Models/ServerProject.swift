@@ -1,7 +1,7 @@
 import Foundation
 
 /// Server project
-public struct ServerProject: Codable {
+public struct ServerProject: Codable, Identifiable {
     public enum Visibility: String, Codable {
         case `public`, `private`
     }
@@ -39,6 +39,12 @@ extension ServerProject {
         case ._public:
             .public
         }
+    }
+}
+
+extension ServerProject: CustomStringConvertible {
+    public var description: String {
+        fullName
     }
 }
 

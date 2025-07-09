@@ -7,7 +7,7 @@ public protocol GetPreviewServicing {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Preview
+    ) async throws -> ServerPreview
 }
 
 public enum GetPreviewServiceError: LocalizedError, Equatable {
@@ -49,7 +49,7 @@ public final class GetPreviewService: GetPreviewServicing {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Preview {
+    ) async throws -> ServerPreview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.downloadPreview(
@@ -65,7 +65,7 @@ public final class GetPreviewService: GetPreviewServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(preview):
-                guard let preview = Preview(preview) else {
+                guard let preview = ServerPreview(preview) else {
                     throw GetPreviewServiceError.invalidPreview(previewId)
                 }
                 return preview

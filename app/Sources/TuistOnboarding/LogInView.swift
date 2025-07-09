@@ -5,9 +5,10 @@ import TuistErrorHandling
 import TuistNoora
 
 public struct LogInView: View {
-    @EnvironmentObject var errorHandling: ErrorHandling
+    @EnvironmentObject var errorHandler: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
     @Environment(\.colorScheme) private var colorScheme
+    @State private var appleSignInDelegate: AppleSignInDelegate?
 
     public init() {}
 
@@ -34,47 +35,46 @@ public struct LogInView: View {
             Spacer()
 
             VStack(spacing: Noora.Spacing.spacing5) {
-                NooraButton(
+                SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
-                    icon: "brand-tuist"
+                    icon: "TuistLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signIn() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signIn() }
                 }
 
-                SignInWithAppleButton(.signIn) { request in
+                SocialButton(
+                    title: "Sign in with Apple",
+                    style: .secondary,
+                    icon: "AppleLogo"
+                ) {
+                    let request = ASAuthorizationAppleIDProvider().createRequest()
                     request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    switch result {
-                    case let .success(authorization):
-                        errorHandling.fireAndHandleError {
-                            try await authenticationService.signInWithApple(authorization: authorization)
-                        }
-                    case let .failure(error):
-                        errorHandling.handle(error: error)
-                    }
-                }
-                .frame(height: 50)
-                .cornerRadius(Noora.CornerRadius.large)
-                .signInWithAppleButtonStyle(colorScheme == .light ? .white : .black)
-                .shadow(color: .black.opacity(0.05), radius: 0.5, x: 0, y: 1)
-                .shadow(color: .black.opacity(0.16), radius: 1.5, x: 0, y: 1)
-                .id(colorScheme)
 
-                NooraButton(
+                    let controller = ASAuthorizationController(authorizationRequests: [request])
+                    appleSignInDelegate = AppleSignInDelegate(
+                        authenticationService: authenticationService,
+                        errorHandler: errorHandler
+                    )
+                    controller.delegate = appleSignInDelegate
+                    controller.presentationContextProvider = appleSignInDelegate
+                    controller.performRequests()
+                }
+
+                SocialButton(
                     title: "Sign in with Google",
                     style: .secondary,
-                    icon: "brand-google"
+                    icon: "GoogleLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
 
-                NooraButton(
-                    title: "Sign in with Okta",
+                SocialButton(
+                    title: "Sign in with GitHub",
                     style: .secondary,
-                    icon: "brand-okta"
+                    icon: "GitHubLogo"
                 ) {
-                    errorHandling.fireAndHandleError { try await authenticationService.signInWithOkta() }
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
             .padding(.horizontal, Noora.Spacing.spacing8)
@@ -88,7 +88,7 @@ public struct LogInView: View {
                     bottomTrailingRadius: 0,
                     topTrailingRadius: 32
                 )
-                .fill(.white.opacity(0.6))
+                .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.6)))
                 .overlay(
                     UnevenRoundedRectangle(
                         topLeadingRadius: 32,
@@ -96,7 +96,7 @@ public struct LogInView: View {
                         bottomTrailingRadius: 0,
                         topTrailingRadius: 32
                     )
-                    .stroke(Color.white, lineWidth: 2)
+                    .stroke(Color(light: Color.white, dark: Color(hex: 0x1F1F1F)), lineWidth: 2)
                 )
                 .ignoresSafeArea(.container, edges: .bottom)
             )

@@ -129,18 +129,18 @@ public enum Noora {
 
         // MARK: Neutral Dark
 
-        public static let neutralDark50 = Color(hex: 0xFDFDFD)
-        public static let neutralDark100 = Color(hex: 0xF9FAFA)
-        public static let neutralDark200 = Color(hex: 0xF1F2F4)
-        public static let neutralDark300 = Color(hex: 0xE6E8EA)
-        public static let neutralDark400 = Color(hex: 0xD8DBDF)
-        public static let neutralDark500 = Color(hex: 0xC7CCD1)
-        public static let neutralDark600 = Color(hex: 0xB3BAC1)
-        public static let neutralDark700 = Color(hex: 0x9DA6AF)
-        public static let neutralDark800 = Color(hex: 0x848F9A)
-        public static let neutralDark900 = Color(hex: 0x6A7581)
-        public static let neutralDark1000 = Color(hex: 0x4E575F)
-        public static let neutralDark1100 = Color(hex: 0x2E3338)
+        public static let neutralDark50 = Color(hex: 0xDFE3EA)
+        public static let neutralDark100 = Color(hex: 0xCACED4)
+        public static let neutralDark200 = Color(hex: 0x9EA2A8)
+        public static let neutralDark300 = Color(hex: 0x85888E)
+        public static let neutralDark400 = Color(hex: 0x73767C)
+        public static let neutralDark500 = Color(hex: 0x696C72)
+        public static let neutralDark600 = Color(hex: 0x5D6066)
+        public static let neutralDark700 = Color(hex: 0x4E5157)
+        public static let neutralDark800 = Color(hex: 0x45484D)
+        public static let neutralDark900 = Color(hex: 0x3A3D43)
+        public static let neutralDark1000 = Color(hex: 0x2F3237)
+        public static let neutralDark1100 = Color(hex: 0x1F2126)
         public static let neutralDark1200 = Color(hex: 0x16181C)
 
         // MARK: - Alpha Colors
@@ -186,6 +186,16 @@ public enum Noora {
         public static let buttonPrimaryLabel = Color(light: neutralLight50, dark: neutralLight50)
         public static let buttonSecondaryBackground = Color(light: neutralLight50, dark: neutralDark1100)
         public static let buttonSecondaryLabel = Color(light: neutralLight1200, dark: neutralLight50)
+        public static let buttonEnabledLabel = Color(light: purple500, dark: purple400)
+        public static let buttonEnabledBackground = Color(light: purple500.opacity(0.15), dark: purple500.opacity(0.20))
+        public static let buttonDisabledLabel = Color(
+            light: Color(hex: 0x3C3C_434D, alpha: 0.3),
+            dark: Color(hex: 0x3C3C43, alpha: 0.3)
+        )
+        public static let buttonDisabledBackground = Color(
+            light: Color(hex: 0x787880, alpha: 0.12),
+            dark: Color(hex: 0x787880, alpha: 0.24)
+        )
     }
 
     public enum Spacing {
@@ -223,7 +233,7 @@ public enum Noora {
 // MARK: - Color Extension
 
 extension Color {
-    init(hex: Int, alpha: Double = 1.0) {
+    public init(hex: Int, alpha: Double = 1.0) {
         self.init(
             red: Double((hex >> 16) & 0xFF) / 255.0,
             green: Double((hex >> 8) & 0xFF) / 255.0,
@@ -232,7 +242,7 @@ extension Color {
         )
     }
 
-    init(
+    public init(
         light: Color,
         dark: Color
     ) {

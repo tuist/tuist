@@ -87,14 +87,16 @@ import TuistTesting
                 serverURL: .any
             )
             .willReturn(
-                [
-                    .test(
-                        displayName: "App_B"
-                    ),
-                    .test(
-                        displayName: "App_A"
-                    ),
-                ]
+                .test(
+                    previews: [
+                        .test(
+                            displayName: "App_B"
+                        ),
+                        .test(
+                            displayName: "App_A"
+                        ),
+                    ]
+                )
             )
 
         given(appStorage)
@@ -145,7 +147,7 @@ import TuistTesting
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn([])
+            .willReturn(.test(previews: []))
 
         // When / Then
         await #expect(throws: AppPreviewsModelError.previewNotFound(appPreview.displayName)) {
@@ -178,9 +180,11 @@ import TuistTesting
                 serverURL: .any
             )
             .willReturn(
-                [
-                    .test(id: "preview-id"),
-                ]
+                .test(
+                    previews: [
+                        .test(id: "preview-id"),
+                    ]
+                )
             )
 
         given(deviceService)

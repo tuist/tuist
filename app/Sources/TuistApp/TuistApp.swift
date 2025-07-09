@@ -38,8 +38,10 @@ import TuistServer
     }
 #else
     import TuistErrorHandling
+    import TuistNoora
     import TuistOnboarding
     import TuistPreviews
+    import TuistProfile
 
     @main
     struct TuistApp: App {
@@ -53,17 +55,24 @@ import TuistServer
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
                             if case .loggedIn = authenticationService.authenticationState {
-                                NavigationView {
-                                    PreviewsView()
-                                        .navigationBarItems(
-                                            trailing:
-                                            Button("Log Out") {
-                                                Task {
-                                                    await authenticationService.signOut()
-                                                }
-                                            }
-                                        )
+                                TabView {
+                                    NavigationView {
+                                        PreviewsView()
+                                    }
+                                    .tabItem {
+                                        NooraIcon(.deviceMobile)
+                                        Text("Previews")
+                                    }
+
+                                    ProfileView()
+                                        .environmentObject(authenticationService)
+                                        .tabItem {
+                                            Image(systemName: "person.crop.circle")
+                                                .font(.system(size: 24))
+                                            Text("Profile")
+                                        }
                                 }
+                                .accentColor(Color(light: Noora.Colors.purple500, dark: Noora.Colors.purple400))
                             } else {
                                 LogInView()
                             }
