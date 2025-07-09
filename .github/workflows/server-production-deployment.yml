@@ -98,11 +98,6 @@ jobs:
       - name: Install dependencies
         working-directory: cli-ext
         run: tuist install
-      - name: Breakpoint if tests failed
-        uses: namespacelabs/breakpoint-action@v0
-        with:
-          duration: 30m
-          authorized-users: pepicrft
       - name: Test
         working-directory: cli-ext
         run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
