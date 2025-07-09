@@ -8,8 +8,8 @@ defmodule Tuist.Ops.DailySlackReportWorker do
 
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
+  alias Tuist.CommandEvents
   alias Tuist.CommandEvents.CacheEvent
-  alias Tuist.CommandEvents.Event
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Slack
@@ -21,7 +21,7 @@ defmodule Tuist.Ops.DailySlackReportWorker do
     organization_numbers = growth(Organization, dates)
     project_numbers = growth(Project, dates)
     cache_event_numbers = growth(CacheEvent, dates)
-    command_event_numbers = growth(Event, dates)
+    command_event_numbers = growth_command_events(dates)
 
     :ok =
       Slack.send_message([
@@ -153,5 +153,13 @@ defmodule Tuist.Ops.DailySlackReportWorker do
     increase = (current_count - previous_count) / previous_count * 100
     rounded_increase = Float.round(increase, 0)
     trunc(rounded_increase)
+  end
+
+  defp growth_command_events({beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}) do
+    this_week = CommandEvents.count_events_in_period(beginning_of_this_week, today)
+    last_week = CommandEvents.count_events_in_period(beginning_of_last_week, same_weekday_last_week)
+    total = CommandEvents.count_all_events()
+
+    {this_week, total, percentage_increase(this_week, last_week)}
   end
 end

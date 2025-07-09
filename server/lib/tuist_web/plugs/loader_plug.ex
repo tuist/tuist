@@ -16,16 +16,17 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   def call(%{path_params: %{"run_id" => run_id}} = conn, _opts) do
     run_result =
       cached(conn, ["run", run_id], fn ->
-        CommandEvents.get_command_event_by_id(run_id,
-          preload: [user: :account, project: :account]
-        )
+        CommandEvents.get_command_event_by_id(run_id)
       end)
 
     case run_result do
       {:ok, run} ->
+        # Get project and account separately since we can't preload across databases
+        {:ok, project} = CommandEvents.get_project_for_command_event(run, preload: :account)
+
         conn
-        |> assign(:selected_account, run.project.account)
-        |> assign(:selected_project, run.project)
+        |> assign(:selected_account, project.account)
+        |> assign(:selected_project, project)
         |> assign(:selected_run, run)
 
       {:error, :not_found} ->

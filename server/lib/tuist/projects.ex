@@ -10,7 +10,7 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Base64
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents
   alias Tuist.Projects.Project
   alias Tuist.Projects.ProjectToken
   alias Tuist.Repo
@@ -201,13 +201,10 @@ defmodule Tuist.Projects do
   def delete_project(%Project{} = project) do
     {:ok, _} =
       Ecto.Multi.new()
-      |> Ecto.Multi.delete_all(
-        :delete_command_events,
-        from(
-          c in Event,
-          where: c.project_id == ^project.id
-        )
-      )
+      |> Ecto.Multi.run(:delete_command_events, fn _repo, _changes ->
+        CommandEvents.delete_project_events(project.id)
+        {:ok, :deleted}
+      end)
       |> Ecto.Multi.delete(:delete_project, project)
       |> Repo.transaction()
   end
@@ -319,21 +316,19 @@ defmodule Tuist.Projects do
     project_ids = Enum.map(projects, & &1.id)
     preload = Keyword.get(opts, :preload, [])
 
+    # Get interaction data from CommandEvents
+    interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
+
+    # Load projects with preloads and merge interaction data
     from(p in Project,
-      left_join:
-        ce_max in subquery(
-          from(ce in Event,
-            where: ce.project_id in ^project_ids,
-            group_by: ce.project_id,
-            select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
-          )
-        ),
-      on: p.id == ce_max.project_id,
       where: p.id in ^project_ids,
-      select: %{p | last_interacted_at: ce_max.last_interacted_at}
+      preload: ^preload
     )
-    |> preload(^preload)
     |> Repo.all()
+    |> Enum.map(fn project ->
+      last_interacted_at = Map.get(interaction_data, project.id)
+      %{project | last_interacted_at: last_interacted_at}
+    end)
     |> Enum.sort_by(
       fn project ->
         case project.last_interacted_at do
@@ -364,41 +359,40 @@ defmodule Tuist.Projects do
   end
 
   defp list_projects_with_interaction_data(attrs, preload) do
-    subquery =
-      from(ce in Event,
-        group_by: ce.project_id,
-        select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
-      )
+    # Get all interaction data from CommandEvents
+    interaction_data = CommandEvents.get_all_project_last_interaction_data()
 
-    Flop.validate_and_run!(
-      from(p in Project,
-        left_join: ce_max in subquery(subquery),
-        on: p.id == ce_max.project_id,
-        select: %{p | last_interacted_at: ce_max.last_interacted_at},
-        preload: ^preload
-      ),
-      attrs,
-      for: Project
-    )
+    # Create a custom Flop query that handles the interaction data
+    base_query = from(p in Project, preload: ^preload)
+
+    # Use Flop on the base query, then add interaction data
+    {projects, meta} = Flop.validate_and_run!(base_query, attrs, for: Project)
+
+    projects_with_interaction =
+      Enum.map(projects, fn project ->
+        last_interacted_at = Map.get(interaction_data, project.id)
+        %{project | last_interacted_at: last_interacted_at}
+      end)
+
+    {projects_with_interaction, meta}
   end
 
   def get_recent_projects_for_account(account, limit \\ 3) do
-    event_subquery =
-      from(ce in Event,
-        group_by: ce.project_id,
-        select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
-      )
+    # Get all interaction data from CommandEvents
+    interaction_data = CommandEvents.get_all_project_last_interaction_data()
 
-    Repo.all(
-      from(p in Project,
-        join: ce_max in subquery(event_subquery),
-        on: p.id == ce_max.project_id,
-        where: p.account_id == ^account.id and not is_nil(ce_max.last_interacted_at),
-        select: %{p | last_interacted_at: ce_max.last_interacted_at},
-        order_by: [desc: ce_max.last_interacted_at],
-        limit: ^limit,
-        preload: [:previews]
-      )
+    # Get projects for account and filter/sort by interaction data
+    from(p in Project,
+      where: p.account_id == ^account.id,
+      preload: [:previews]
     )
+    |> Repo.all()
+    |> Enum.map(fn project ->
+      last_interacted_at = Map.get(interaction_data, project.id)
+      %{project | last_interacted_at: last_interacted_at}
+    end)
+    |> Enum.filter(fn project -> not is_nil(project.last_interacted_at) end)
+    |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
+    |> Enum.take(limit)
   end
 end

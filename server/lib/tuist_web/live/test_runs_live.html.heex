@@ -234,7 +234,10 @@
             } />
           </:col>
           <:col :let={test_run} label={gettext("Ran by")}>
-            <.run_ran_by_badge_cell run={test_run} />
+            <.run_ran_by_badge_cell
+              run={test_run}
+              ran_by_name={Map.get(@user_account_names, test_run.id)}
+            />
           </:col>
           <:col :let={test_run} label={gettext("Ran at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />

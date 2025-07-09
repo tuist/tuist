@@ -81,7 +81,10 @@
           <.text_cell icon="git_branch" label={generate_run.git_branch || "None"} />
         </:col>
         <:col :let={generate_run} label={gettext("Ran by")}>
-          <.run_ran_by_badge_cell run={generate_run} />
+          <.run_ran_by_badge_cell
+            run={generate_run}
+            ran_by_name={Map.get(@user_account_names, generate_run.id)}
+          />
         </:col>
         <:col
           :let={generate_run}

@@ -15,6 +15,8 @@ alias Tuist.Xcode
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
+FunWithFlags.enable(:clickhouse_events)
+
 _account =
   if is_nil(Accounts.get_user_by_email(email)) do
     {:ok, account} =
@@ -233,7 +235,8 @@ for _event <- 1..8000 do
   })
 end
 
-test_command_events = Tuist.Repo.all(from(c in CommandEvents.Event, where: c.name == "test"))
+test_command_events =
+  Tuist.Repo.all(from(c in Tuist.CommandEvents.Postgres.Event, where: c.name == "test"))
 
 test_command_events
 |> Enum.shuffle()

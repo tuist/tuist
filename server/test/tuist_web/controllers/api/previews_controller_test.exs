@@ -48,10 +48,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
-
-      {:ok, app_build} =
-        AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
-
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
       assert app_build.preview.display_name == "name"
       assert Enum.sort(app_build.supported_platforms) == [:ios, :watchos]
       assert response_data["preview_id"] == app_build.id
@@ -191,11 +188,11 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           conn
           |> put_req_header("content-type", "application/json")
           |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/start")
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{
@@ -268,12 +265,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response_data["url"] == "https://url.com"
     end
 
-    test "generates platform-specific multipart url", %{
-      conn: conn,
-      user: user,
-      project: project,
-      account: account
-    } do
+    test "generates platform-specific multipart url", %{conn: conn, user: user, project: project, account: account} do
       # Given
       app_build_id = "app-build-id"
       upload_id = "12344"
@@ -323,14 +315,14 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           conn
           |> put_req_header("content-type", "application/json")
           |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/generate-url",
             preview_id: "preview-id",
             multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
           )
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{
@@ -378,11 +370,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "1234"
 
       preview =
-        AppBuildsFixtures.preview_fixture(
-          project: project,
-          git_commit_sha: "commit-sha",
-          git_branch: "main"
-        )
+        AppBuildsFixtures.preview_fixture(project: project, git_commit_sha: "commit-sha", git_branch: "main")
 
       app_build =
         AppBuildsFixtures.app_build_fixture(preview: preview)
@@ -432,7 +420,6 @@ defmodule TuistWeb.PreviewsControllerTest do
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
-               "version" => "1.0.0",
                "builds" => [
                  %{
                    "id" => app_build.id,
@@ -462,7 +449,7 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           conn
           |> put_req_header("content-type", "application/json")
           |> post(~p"/api/projects/#{account.name}/non-existing-project/previews/complete",
@@ -472,7 +459,7 @@ defmodule TuistWeb.PreviewsControllerTest do
               upload_id: "upload-id"
             }
           )
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{
@@ -609,9 +596,9 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           get(conn, ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{
@@ -734,7 +721,6 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
-                 "version" => "1.0.0",
                  "builds" => [
                    %{
                      "id" => app_build_two.id,
@@ -1128,12 +1114,12 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           get(
             conn,
             ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1"
           )
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{
@@ -1208,12 +1194,12 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       # When
       {_, _, payload} =
-        assert_error_sent(:not_found, fn ->
+        assert_error_sent :not_found, fn ->
           post(
             conn,
             ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons"
           )
-        end)
+        end
 
       # Then
       assert JSON.decode!(payload) == %{

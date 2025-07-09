@@ -14,11 +14,7 @@ defmodule Tuist.Xcode.Postgres.XcodeGraph do
     # used in the graph. This number is calculated client-side using the graph information
     # and assuming uncapped parallelism.
     field :binary_build_duration, :integer
-
-    belongs_to :command_event, Tuist.CommandEvents.Event,
-      foreign_key: :command_event_id,
-      references: :id,
-      type: Ecto.UUID
+    field :command_event_id, :binary_id
 
     has_many :xcode_projects, Tuist.Xcode.Postgres.XcodeProject
 

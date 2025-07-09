@@ -7,7 +7,6 @@ defmodule TuistWeb.Authorization do
   alias Phoenix.LiveView.Socket
   alias Tuist.AppBuilds.Preview
   alias Tuist.Authorization
-  alias Tuist.CommandEvents
   alias Tuist.Projects
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
@@ -38,8 +37,9 @@ defmodule TuistWeb.Authorization do
         [:current_user, :read, :command_event],
         _params,
         _session,
-        %Socket{assigns: %{current_command_event: %CommandEvents.Event{} = command_event}} = socket
-      ) do
+        %Socket{assigns: %{current_command_event: command_event}} = socket
+      )
+      when not is_nil(command_event) do
     guard_can_user_read_entity(command_event, socket)
   end
 
