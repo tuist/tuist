@@ -1,3 +1,8 @@
+## What's Changed in app@0.16.0
+* feat: show previews list by @fortmarek in [#7783](https://github.com/tuist/tuist/pull/7783)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.15.0...app@0.16.0
+
 ## What's Changed in app@0.15.0
 * feat: update log in view based on the latest design by @fortmarek in [#7782](https://github.com/tuist/tuist/pull/7782)
 
