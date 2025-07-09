@@ -63,7 +63,7 @@ msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/preview_live.ex:43
+#: lib/tuist_web/live/preview_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
 msgstr ""
@@ -2414,8 +2414,9 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-#: lib/tuist_web/authorization.ex:73
-#: lib/tuist_web/authorization.ex:89
+#: lib/tuist_web/authorization.ex:74
+#: lib/tuist_web/authorization.ex:90
+#: lib/tuist_web/authorization.ex:106
 #: lib/tuist_web/live/projects_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
@@ -2967,8 +2968,9 @@ msgstr ""
 
 #: lib/tuist_web/authorization.ex:23
 #: lib/tuist_web/authorization.ex:51
-#: lib/tuist_web/authorization.ex:66
-#: lib/tuist_web/authorization.ex:82
+#: lib/tuist_web/authorization.ex:67
+#: lib/tuist_web/authorization.ex:83
+#: lib/tuist_web/authorization.ex:99
 #, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
 msgstr ""
