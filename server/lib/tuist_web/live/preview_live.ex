@@ -9,7 +9,6 @@ defmodule TuistWeb.PreviewLive do
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
-  alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -24,14 +23,7 @@ defmodule TuistWeb.PreviewLive do
         false
       end
 
-    if not Authorization.can(
-         socket.assigns.current_user,
-         :read,
-         preview
-       ) do
-      raise NotFoundError,
-            "Preview not found."
-    end
+    preview = Tuist.Repo.preload(preview, :project)
 
     user_agent = UAParser.parse(get_connect_info(socket, :user_agent))
 
@@ -93,7 +85,7 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  attr :platform, :atom, required: true
+  attr(:platform, :atom, required: true)
 
   def platform_tag(assigns) do
     ~H"""
@@ -110,7 +102,9 @@ defmodule TuistWeb.PreviewLive do
 
     {
       :noreply,
-      push_navigate(socket, to: ~p"/#{selected_project.account.name}/#{selected_project.name}/previews")
+      push_navigate(socket,
+        to: ~p"/#{selected_project.account.name}/#{selected_project.name}/previews"
+      )
     }
   end
 

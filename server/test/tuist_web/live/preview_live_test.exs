@@ -26,7 +26,10 @@ defmodule TuistWeb.PreviewLiveTest do
        } do
     # Given
     preview = AppBuildsFixtures.preview_fixture(git_commit_sha: nil, project: project)
-    app_build = AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [:ios, :macos])
+
+    app_build =
+      AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [:ios, :macos])
+
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 
     # When
@@ -44,7 +47,10 @@ defmodule TuistWeb.PreviewLiveTest do
   } do
     # Given
     preview = AppBuildsFixtures.preview_fixture(project: project)
-    app_build = AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [:ios, :macos])
+
+    app_build =
+      AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [:ios, :macos])
+
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 
     # When
@@ -114,14 +120,14 @@ defmodule TuistWeb.PreviewLiveTest do
     assert got == {:error, {:redirect, %{to: "/users/log_in", flash: %{}}}}
   end
 
-  test "it does not require authenticated user when the preview is :ipa", %{
+  test "it does not require authenticated user when the preview is :public", %{
     conn: conn,
     organization: organization,
     project: project
   } do
     # Given
     Authentication.log_out_user(conn)
-    preview = AppBuildsFixtures.preview_fixture(project: project)
+    preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 

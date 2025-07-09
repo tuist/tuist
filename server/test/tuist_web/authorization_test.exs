@@ -82,14 +82,13 @@ defmodule TuistWeb.AuthorizationTest do
       user: user
     } do
       # Given
-      preview = AppBuildsFixtures.preview_fixture()
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      preview = AppBuildsFixtures.preview_fixture(project: project)
 
       conn =
         conn
         |> Authentication.put_current_user(user)
         |> assign(:current_preview, preview)
-
-      expect(Tuist.Authorization, :can, fn ^user, :read, ^preview -> true end)
 
       # When
       got = Authorization.call(conn, Authorization.init([:current_user, :read, :preview]))
@@ -109,8 +108,6 @@ defmodule TuistWeb.AuthorizationTest do
         conn
         |> Authentication.put_current_user(user)
         |> assign(:current_preview, preview)
-
-      expect(Tuist.Authorization, :can, fn ^user, :read, ^preview -> false end)
 
       # When/Then
       assert_raise NotFoundError,

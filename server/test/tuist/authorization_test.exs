@@ -10,7 +10,6 @@ defmodule Tuist.AuthorizationTest do
   alias Tuist.VCS.Repositories.Permission
   alias Tuist.VCS.Repositories.Repository
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -1316,70 +1315,6 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can?(:project_preview_read, nil, project) == true
-  end
-
-  test "can.read.preview when the subject is a creator of the project and the preview is ipa" do
-    # Given
-    user = AccountsFixtures.user_fixture()
-    project = ProjectsFixtures.project_fixture(user_id: user.id)
-    preview = AppBuildsFixtures.preview_fixture(project: project)
-
-    app_build =
-      TuistTestSupport.Fixtures.AppBuildsFixtures.app_build_fixture(
-        preview: preview,
-        project: project,
-        type: :ipa
-      )
-
-    updated_preview = Tuist.AppBuilds.update_preview_with_app_build(preview.id, app_build)
-
-    # When
-    assert Authorization.can(user, :read, updated_preview) == true
-  end
-
-  test "can.read.preview when the subject is anonymous and the preview is ipa" do
-    # Given
-    preview = AppBuildsFixtures.preview_fixture()
-
-    app_build =
-      TuistTestSupport.Fixtures.AppBuildsFixtures.app_build_fixture(
-        preview: preview,
-        type: :ipa
-      )
-
-    updated_preview = Tuist.AppBuilds.update_preview_with_app_build(preview.id, app_build)
-
-    # When
-    assert Authorization.can(nil, :read, updated_preview) == true
-  end
-
-  test "can.read.preview when the subject is a creator of the project and the preview is private" do
-    # Given
-    user = Repo.preload(AccountsFixtures.user_fixture(), :account)
-    project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-
-    preview =
-      AppBuildsFixtures.preview_fixture(project: project, visibility: :private)
-
-    # When
-    assert Authorization.can(user, :read, preview) == true
-  end
-
-  test "can.read.preview when the subject is anonymous and the preview is private" do
-    # Given
-    preview = AppBuildsFixtures.preview_fixture(visibility: :private)
-
-    # When
-    assert Authorization.can(nil, :read, preview) == false
-  end
-
-  test "can.read.preview when the subject is anonymous, the preview is private, and the project is public" do
-    # Given
-    project = ProjectsFixtures.project_fixture(visibility: :public)
-    preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :private)
-
-    # When
-    assert Authorization.can(nil, :read, preview) == true
   end
 
   test "can.update.project.settings when the subject is not the same project account being updated" do
