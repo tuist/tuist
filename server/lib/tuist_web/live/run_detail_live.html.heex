@@ -114,7 +114,7 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Ran by")}</div>
-              <.run_ran_by_badge_cell run={@run} />
+              <.run_ran_by_badge_cell run={@run} ran_by_name={@user && @user.account.name} />
             </div>
             <div data-part="metadata">
               <div data-part="title">{gettext("Ran at")}</div>

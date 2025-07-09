@@ -6,14 +6,13 @@ defmodule Tuist.Xcode.Clickhouse do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents.Event
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias Tuist.Xcode.Clickhouse.XcodeProject
   alias Tuist.Xcode.Clickhouse.XcodeTarget
   alias Tuist.Xcode.Clickhouse.XcodeTargetDenormalized
 
   def create_xcode_graph(%{
-        command_event: %Event{id: command_event_id},
+        command_event: %{id: command_event_id},
         xcode_graph: %{name: name, projects: projects} = xcode_graph
       }) do
     xcode_graph_id = UUIDv7.generate()

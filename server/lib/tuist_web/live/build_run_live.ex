@@ -27,8 +27,14 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Tuist.Repo.preload([:project, :ran_by_account, :command_event])
+      |> Tuist.Repo.preload([:project, :ran_by_account])
       |> Tuist.ClickHouseRepo.preload([:issues])
+
+    command_event =
+      case CommandEvents.get_command_event_by_build_run_id(run.id) do
+        {:ok, event} -> event
+        {:error, :not_found} -> nil
+      end
 
     if run.project.id != project.id do
       raise NotFoundError, gettext("Build not found.")
@@ -37,6 +43,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:command_event, command_event)
       |> assign(:head_title, "#{gettext("Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,
@@ -51,7 +58,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
       |> assign(:module_breakdown_active_filters, [])
       |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: (run.command_event && CommandEvents.has_result_bundle?(run.command_event)) || false}}
+        {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
 
     {:ok, socket}

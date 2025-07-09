@@ -5,7 +5,7 @@ defmodule Tuist.Xcode.Postgres do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.Postgres.Event
   alias Tuist.Repo
   alias Tuist.Xcode.Postgres.XcodeGraph
   alias Tuist.Xcode.Postgres.XcodeProject

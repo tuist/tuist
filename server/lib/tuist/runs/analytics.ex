@@ -5,7 +5,7 @@ defmodule Tuist.Runs.Analytics do
   import Ecto.Query
   import Timescale.Hyperfunctions
 
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runs.Build
 
@@ -167,27 +167,17 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date ->
-        add_filters(
-          from(e in Event,
-            where:
-              e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-                e.project_id == ^project_id
-          ),
-          Keyword.put(opts, :name, name)
-        )
+        CommandEvents.runs_analytics(project_id, start_date, end_date, Keyword.put(opts, :name, name))
       end,
       average_durations: fn start_date, end_date, date_period, time_bucket ->
-        add_filters(
-          from(e in Event,
-            group_by: selected_as(^date_period),
-            where:
-              e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
-                e.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), value: avg(e.duration)}
-          ),
-          Keyword.put(opts, :name, name)
+        CommandEvents.runs_analytics_average_durations(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
         )
       end
     })
@@ -298,17 +288,7 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date, date_period, time_bucket ->
-        add_filters(
-          from(e in Event,
-            group_by: selected_as(^date_period),
-            where:
-              e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-                e.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), count: count(e)}
-          ),
-          Keyword.put(opts, :name, name)
-        )
+        CommandEvents.runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts)
       end
     })
   end
@@ -506,19 +486,7 @@ defmodule Tuist.Runs.Analytics do
     end_date = DateTime.to_date(DateTime.utc_now())
 
     result =
-      from(e in Event,
-        where:
-          e.project_id == ^project_id and
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
-        select: %{
-          cacheable_targets_count: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.one()
+      CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
 
     local_cache_target_hits_count = result.local_cache_target_hits_count || 0
     remote_cache_target_hits_count = result.remote_cache_target_hits_count || 0
@@ -539,21 +507,8 @@ defmodule Tuist.Runs.Analytics do
     time_bucket = time_bucket_for_date_period(date_period)
 
     cache_hit_rate_metadata_map =
-      from(e in Event,
-        group_by: selected_as(^date_period),
-        where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.all()
+      project_id
+      |> CommandEvents.cache_hit_rates(start_date, end_date, date_period, time_bucket, opts)
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -645,19 +600,7 @@ defmodule Tuist.Runs.Analytics do
     end_date = DateTime.to_date(DateTime.utc_now())
 
     result =
-      from(e in Event,
-        where:
-          e.project_id == ^project_id and
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
-        select: %{
-          test_targets_count: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits_count: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.one()
+      CommandEvents.selective_testing_hit_rate(project_id, start_date, end_date, opts)
 
     local_test_target_hits_count = result.local_test_target_hits_count || 0
     remote_test_target_hits_count = result.remote_test_target_hits_count || 0
@@ -678,21 +621,8 @@ defmodule Tuist.Runs.Analytics do
     time_bucket = time_bucket_for_date_period(date_period)
 
     selective_testing_hit_rate_metadata_map =
-      from(e in Event,
-        group_by: selected_as(^date_period),
-        where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          test_targets: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.all()
+      project_id
+      |> CommandEvents.selective_testing_hit_rates(start_date, end_date, date_period, time_bucket, opts)
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -727,17 +657,38 @@ defmodule Tuist.Runs.Analytics do
   end
 
   def total_execution_period_average_duration(%{query: query, start_date: start_date, end_date: end_date}) do
-    average =
-      start_date
-      |> query.(end_date)
-      |> Repo.aggregate(:avg, :duration)
-
-    if is_nil(average) do
-      0
-    else
-      Decimal.to_float(average)
-    end
+    result = calculate_average_duration(query, start_date, end_date)
+    normalize_result(result)
   end
+
+  defp calculate_average_duration(query_fn, start_date, end_date) when is_function(query_fn) do
+    query_result = query_fn.(start_date, end_date)
+    process_query_result(query_result)
+  end
+
+  defp calculate_average_duration(query_list, _start_date, _end_date) when is_list(query_list) do
+    calculate_list_average(query_list)
+  end
+
+  defp process_query_result(query_list) when is_list(query_list) do
+    calculate_list_average(query_list)
+  end
+
+  defp process_query_result(query) do
+    Repo.aggregate(query, :avg, :duration)
+  end
+
+  defp calculate_list_average([]), do: nil
+
+  defp calculate_list_average(events) do
+    total_duration = Enum.reduce(events, 0, fn event, acc -> acc + (event.duration || 0) end)
+    total_duration / length(events)
+  end
+
+  defp normalize_result(nil), do: 0
+  defp normalize_result(%Decimal{} = decimal), do: Decimal.to_float(decimal)
+  defp normalize_result(float) when is_float(float), do: float
+  defp normalize_result(int) when is_integer(int), do: int / 1
 
   @doc """
   Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
@@ -796,10 +747,13 @@ defmodule Tuist.Runs.Analytics do
          time_bucket: time_bucket
        }) do
     durations =
-      start_date
-      |> query.(end_date, date_period, time_bucket)
-      |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1.value})
+      case query.(start_date, end_date, date_period, time_bucket) do
+        query_list when is_list(query_list) ->
+          Map.new(query_list, &{normalise_date(&1.date, date_period), &1.value})
+
+        query ->
+          query |> Repo.all() |> Map.new(&{normalise_date(&1.date, date_period), &1.value})
+      end
 
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)
@@ -892,8 +846,14 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  defp normalise_date(naive_datetime, date_period) do
-    date = NaiveDateTime.to_date(naive_datetime)
+  defp normalise_date(date_input, date_period) do
+    date =
+      case date_input do
+        %DateTime{} = dt -> DateTime.to_date(dt)
+        %NaiveDateTime{} = dt -> NaiveDateTime.to_date(dt)
+        date_string when is_binary(date_string) -> Date.from_iso8601!(date_string)
+        %Date{} = d -> d
+      end
 
     case date_period do
       :day -> date
@@ -903,10 +863,21 @@ defmodule Tuist.Runs.Analytics do
 
   defp runs_per_period(%{query: query, start_date: start_date, end_date: end_date, date_period: date_period}) do
     runs =
-      start_date
-      |> query.(end_date, date_period, time_bucket_for_date_period(date_period))
-      |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1.count})
+      case query do
+        query_fn when is_function(query_fn) ->
+          result = query_fn.(start_date, end_date, date_period, time_bucket_for_date_period(date_period))
+
+          case result do
+            query when is_list(query) ->
+              Map.new(query, &{normalise_date(&1.date, date_period), &1.count})
+
+            query ->
+              query |> Repo.all() |> Map.new(&{normalise_date(&1.date, date_period), &1.count})
+          end
+
+        query_list when is_list(query_list) ->
+          Map.new(query_list, &{normalise_date(&1.date, date_period), &1.count})
+      end
 
     date_period
     |> date_range_for_date_period(start_date: start_date, end_date: end_date)

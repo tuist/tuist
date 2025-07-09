@@ -651,9 +651,6 @@ defmodule TuistWeb.API.AnalyticsController do
 
   defp get_object_key(%{type: type, run_id: run_id, name: name}) do
     case CommandEvents.get_command_event_by_id(run_id) do
-      {:error, :not_found} ->
-        {:error, :not_found}
-
       {:ok, command_event} ->
         object_key =
           case type do
@@ -668,6 +665,9 @@ defmodule TuistWeb.API.AnalyticsController do
           end
 
         {:ok, object_key}
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 

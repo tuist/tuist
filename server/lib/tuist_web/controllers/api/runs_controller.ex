@@ -3,7 +3,6 @@ defmodule TuistWeb.API.RunsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.CommandEvents
   alias Tuist.Runs
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
@@ -105,7 +104,7 @@ defmodule TuistWeb.API.RunsController do
       ] ++ filters_from_params(params)
 
     {command_events, _meta} =
-      CommandEvents.list_command_events(%{
+      Tuist.CommandEvents.list_command_events(%{
         page: page,
         page_size: page_size,
         filters: filters,
@@ -116,6 +115,16 @@ defmodule TuistWeb.API.RunsController do
     json(conn, %{
       runs:
         Enum.map(command_events, fn event ->
+          ran_by =
+            case Tuist.CommandEvents.get_user_for_command_event(event) do
+              {:ok, user} ->
+                user = Tuist.Repo.preload(user, :account)
+                %{handle: user.account.name}
+
+              {:error, :not_found} ->
+                nil
+            end
+
           event
           |> Map.take([
             :legacy_id,
@@ -150,10 +159,7 @@ defmodule TuistWeb.API.RunsController do
             :ran_at,
             event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
           )
-          |> Map.put(
-            :ran_by,
-            if(is_nil(event.user), do: nil, else: %{handle: event.user.account.name})
-          )
+          |> Map.put(:ran_by, ran_by)
         end)
     })
   end

@@ -12,13 +12,23 @@ defmodule TuistWeb.RunDetailLive do
 
   @table_page_size 20
 
-  def mount(_params, _session, %{assigns: %{selected_project: project, selected_run: run}} = socket) do
-    run = Tuist.Repo.preload(run, user: :account, project: :account)
+  def mount(_params, _session, %{assigns: %{selected_project: _project, selected_run: run}} = socket) do
+    user =
+      run
+      |> CommandEvents.get_user_for_command_event(preload: :account)
+      |> case do
+        {:ok, user} -> user
+        _ -> nil
+      end
+
+    {:ok, project} = CommandEvents.get_project_for_command_event(run, preload: :account)
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,
      socket
      |> assign(:run, run)
+     |> assign(:user, user)
+     |> assign(:project, project)
      |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
      |> assign_initial_analytics_state()
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))

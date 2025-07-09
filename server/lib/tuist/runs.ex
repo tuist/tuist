@@ -64,21 +64,7 @@ defmodule Tuist.Runs do
   end
 
   defp create_build_targets(build, targets) do
-    targets =
-      Enum.map(targets, fn target_attrs ->
-        %{
-          build_run_id: build.id,
-          name: target_attrs.name,
-          project: target_attrs.project,
-          build_duration: target_attrs.build_duration,
-          compilation_duration: target_attrs.compilation_duration,
-          status:
-            case target_attrs.status do
-              :success -> 0
-              :failure -> 1
-            end
-        }
-      end)
+    targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
     ClickHouseRepo.insert_all(BuildTarget, targets)
   end
