@@ -135,7 +135,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 placeholder="hello@tuist.dev"
                 show_prefix={false}
                 required
-                tabindex="1"
+                tabindex={1}
               />
               <% password_errors =
                 case Map.get(@errors, :password) do
@@ -158,7 +158,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 error={password_errors}
                 show_prefix={false}
                 required
-                tabindex="2"
+                tabindex={2}
               />
               <.text_input
                 field={@form[:username]}
@@ -169,9 +169,9 @@ defmodule TuistWeb.UserRegistrationLive do
                 error={Map.get(@errors, :name)}
                 show_prefix={false}
                 required
-                tabindex="3"
+                tabindex={3}
               />
-              <.button variant="primary" size="large" label={gettext("Sign up")} tabindex="4" />
+              <.button variant="primary" size="large" label={gettext("Sign up")} tabindex={4} />
             </.form>
           </div>
           <div data-part="bottom-link">
