@@ -102,13 +102,13 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v2
       - uses: actions/cache@v3
         name: "Cache installed dependencies folder"
         with:
           path: .build
-          key: spm-v1-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+          key: spm-ext-v1-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-ext-v1-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v2
       - name: Install dependencies
         run: tuist install
       - name: Test
