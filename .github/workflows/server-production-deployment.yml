@@ -111,6 +111,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Install dependencies
         run: tuist install
+      - run: ls .build/checkouts/tuist
       - name: Test
         run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
