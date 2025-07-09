@@ -111,7 +111,11 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Install dependencies
         run: tuist install
-      - run: ls .build/checkouts/tuist
+      - name: Breakpoint if tests failed
+        if: failure()
+        uses: namespacelabs/breakpoint-action@v0
+        with:
+          duration: 30m
       - name: Test
         run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
