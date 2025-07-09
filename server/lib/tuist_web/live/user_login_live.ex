@@ -129,6 +129,7 @@ defmodule TuistWeb.UserLoginLive do
               error={Flash.get(@flash, :error)}
               show_error_message={false}
               required
+              tabindex="1"
             />
             <.text_input
               field={@form[:password]}
@@ -139,12 +140,14 @@ defmodule TuistWeb.UserLoginLive do
               error={Flash.get(@flash, :error)}
               show_error_message={false}
               required
+              tabindex="2"
             />
             <div data-part="remember-me">
               <.checkbox
                 id="remember_me"
                 field={@form[:remember_me]}
                 label={gettext("Keep me logged in")}
+                tabindex="3"
               />
               <.link_button
                 navigate={~p"/users/reset_password"}
@@ -153,7 +156,7 @@ defmodule TuistWeb.UserLoginLive do
                 label={gettext("Forgot password?")}
               />
             </div>
-            <.button variant="primary" size="large" label={gettext("Log in")} />
+            <.button variant="primary" size="large" label={gettext("Log in")} tabindex="4" />
           </.form>
         </div>
         <div :if={@mail_configured?} data-part="bottom-link">
