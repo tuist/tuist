@@ -235,16 +235,17 @@ end
 
 test_command_events = Tuist.Repo.all(from(c in CommandEvents.Event, where: c.name == "test"))
 
-Enum.map(1..100, fn index ->
-  name = "test#{index}"
+test_command_events
+|> Enum.shuffle()
+|> Enum.take(100)
+|> Enum.map(fn command_event ->
+  name = "test#{System.unique_integer([:positive])}"
 
   module_name =
     Enum.random(["ModuleOne", "ModuleTwo", "ModuleThree", "ModuleFour", "ModuleFive"])
 
   identifier = "#{module_name}/#{name}"
   test_case = CommandEvents.get_test_case_by_identifier(identifier)
-
-  command_event = Enum.random(test_command_events)
 
   test_case =
     if is_nil(test_case) do
@@ -287,7 +288,7 @@ Enum.map(1..100, fn index ->
 
   xcode_targets =
     command_event.id
-    |> Tuist.Xcode.xcode_targets_for_command_event()
+    |> Xcode.xcode_targets_for_command_event()
     |> Enum.map(& &1.id)
 
   for _ <- 1..100 do
