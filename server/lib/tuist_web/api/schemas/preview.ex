@@ -23,10 +23,6 @@ defmodule TuistWeb.API.Schemas.Preview do
         type: :string,
         description: "The URL for the icon image of the preview"
       },
-      version: %Schema{
-        type: :string,
-        description: "The app version of the preview"
-      },
       bundle_identifier: %Schema{
         type: :string,
         description: "The bundle identifier of the preview"

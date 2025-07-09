@@ -28,4 +28,28 @@ defmodule Tuist.Runs.BuildTarget do
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(updated_at: false)
   end
+
+  def changeset(build_run_id, target_attrs) do
+    changeset = %{
+      build_run_id: build_run_id,
+      name: target_attrs.name,
+      project: target_attrs.project,
+      build_duration: target_attrs.build_duration,
+      compilation_duration: target_attrs.compilation_duration,
+      inserted_at: :second |> DateTime.utc_now() |> DateTime.to_naive()
+    }
+
+    changeset =
+      if Map.has_key?(target_attrs, :status) do
+        Map.put(changeset, :status, normalize_status_value(target_attrs.status))
+      else
+        changeset
+      end
+
+    changeset
+  end
+
+  defp normalize_status_value(:success), do: 0
+  defp normalize_status_value(:failure), do: 1
+  defp normalize_status_value(other), do: other
 end

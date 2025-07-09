@@ -18,7 +18,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
+  plug TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms]
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -28,7 +28,7 @@ defmodule TuistWeb.API.PreviewsController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
 
-  tags(["Previews"])
+  tags ["Previews"]
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a preview artifact.",
@@ -104,11 +104,7 @@ defmodule TuistWeb.API.PreviewsController do
                  "Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts",
                properties: %{
                  upload_id: %Schema{type: :string, description: "The upload ID"},
-                 preview_id: %Schema{
-                   type: :string,
-                   description: "The id of the preview.",
-                   deprecated: true
-                 },
+                 preview_id: %Schema{type: :string, description: "The id of the preview.", deprecated: true},
                  app_build_id: %Schema{type: :string, description: "The id of the app build."}
                },
                required: [:upload_id, :app_build_id]
@@ -690,7 +686,6 @@ defmodule TuistWeb.API.PreviewsController do
       url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}"),
       qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/qr-code.png"),
       icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"),
-      version: preview.version,
       bundle_identifier: preview.bundle_identifier,
       display_name: preview.display_name,
       git_commit_sha: preview.git_commit_sha,

@@ -6,6 +6,7 @@ defmodule TuistWeb.Runs.RanByBadge do
   use Noora
 
   attr :run, :map, required: true
+  attr :ran_by_name, :string, default: nil
 
   def run_ran_by_badge_cell(assigns) do
     ~H"""
@@ -17,14 +18,14 @@ defmodule TuistWeb.Runs.RanByBadge do
       style="light-fill"
     />
     <.badge_cell
-      :if={Map.has_key?(@run, :user) and not is_nil(@run.user)}
-      label={@run.user.account.name}
+      :if={not @run.is_ci and @ran_by_name}
+      label={@ran_by_name}
       icon="user"
       color="primary"
       style="light-fill"
     />
     <.badge_cell
-      :if={!@run.is_ci and (!Map.has_key?(@run, :user) or is_nil(@run.user))}
+      :if={!@run.is_ci and !@ran_by_name}
       label={gettext("Unknown")}
       color="neutral"
       style="light-fill"

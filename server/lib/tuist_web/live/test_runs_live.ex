@@ -334,10 +334,13 @@ defmodule TuistWeb.TestRunsLive do
 
     {test_runs, test_runs_meta} = CommandEvents.list_test_runs(options)
 
+    user_account_names = CommandEvents.get_user_account_names_for_runs(test_runs)
+
     socket
     |> assign(:active_filters, filters)
     |> assign(:test_runs, test_runs)
     |> assign(:test_runs_meta, test_runs_meta)
+    |> assign(:user_account_names, user_account_names)
   end
 
   defp build_flop_filters(filters) do

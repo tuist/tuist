@@ -25,9 +25,9 @@
       <h1 :if={not is_nil(@run.scheme)} data-part="label">{@run.scheme}</h1>
     </div>
     <.button
-      :if={@has_result_bundle.ok? && @has_result_bundle.result}
+      :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
       href={
-        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.command_event.id}/download"
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
       }
       label={gettext("Download result")}
       variant="secondary"
@@ -57,11 +57,11 @@
     <.card title={gettext("Build Details")} icon="chart_arcs" data-part="build-details">
       <.card_section data-part="build-details-section">
         <div data-part="metadata-grid">
-          <div :if={not is_nil(@run.command_event)} data-part="metadata-row">
+          <div :if={not is_nil(@command_event)} data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{gettext("Command")}</div>
               <span data-part="command-label">
-                {"tuist " <> @run.command_event.command_arguments}
+                {"tuist " <> @command_event.command_arguments}
               </span>
             </div>
           </div>

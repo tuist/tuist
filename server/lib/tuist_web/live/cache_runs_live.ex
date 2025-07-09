@@ -183,10 +183,13 @@ defmodule TuistWeb.CacheRunsLive do
     {cache_runs, cache_runs_meta} =
       list_cache_runs(project.id, params, order_by, order_direction, filters)
 
+    user_account_names = CommandEvents.get_user_account_names_for_runs(cache_runs)
+
     socket
     |> assign(:active_filters, filters)
     |> assign(:cache_runs, cache_runs)
     |> assign(:cache_runs_meta, cache_runs_meta)
+    |> assign(:user_account_names, user_account_names)
   end
 
   defp list_cache_runs(project_id, %{"after" => after_cursor}, order_by, order_direction, filters) do
