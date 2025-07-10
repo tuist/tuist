@@ -3,6 +3,22 @@ import ProjectDescription
 import TuistCore
 import XcodeGraph
 
+/// Represents specific errors that can occur during the mapping of App Clip data.
+enum AppClipMappingError: LocalizedError {
+    /// Thrown when the provided App Clip invocation URL string is not a valid URL.
+    ///
+    /// - Parameter urlString: The original invalid URL string.
+    case invalidInvocationURL(String)
+
+    /// A human-readable description of the error, useful for debugging or displaying in UI.
+    var errorDescription: String? {
+        switch self {
+        case let .invalidInvocationURL(urlString):
+            return "The provided App Clip invocation URL string is invalid: '\(urlString)'. Make sure it is a properly formatted URL."
+        }
+    }
+}
+
 extension XcodeGraph.RunAction {
     /// Maps a ProjectDescription.RunAction instance into a XcodeGraph.RunAction instance.
     /// - Parameters:
@@ -63,7 +79,7 @@ extension XcodeGraph.RunAction {
             if let url = URL(string: appClipInvocationURLString) {
                 appClipInvocationURL = url
             } else {
-                throw URLError(.badURL)
+                throw AppClipMappingError.invalidInvocationURL(appClipInvocationURLString)
             }
         }
 
