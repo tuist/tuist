@@ -17,7 +17,7 @@ defmodule TuistWeb.API.Schemas.Preview do
       :builds,
       :supported_platforms,
       :inserted_at,
-      :created_by_ci
+      :created_from_ci
     ],
     properties: %{
       id: %Schema{
@@ -67,9 +67,9 @@ defmodule TuistWeb.API.Schemas.Preview do
         description: "The date and time when the preview was inserted"
       },
       created_by: Account,
-      created_by_ci: %Schema{
+      created_from_ci: %Schema{
         type: :boolean,
-        description: "Whether the preview was created by CI"
+        description: "Whether the preview was created from CI"
       }
     }
   })

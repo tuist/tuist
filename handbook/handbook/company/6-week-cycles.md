@@ -15,7 +15,7 @@ With our current company size, most projects will typically involve one full-tim
 
 ## 2025 Calendar
 
-### 3rd Cycle / April 7 - May 18, 2025
+### 1st Cycle / April 7 - May 18, 2025
 - **Week 1:** April 7 - April 13
 - **Week 2:** April 14 - April 20
 - **Week 3:** April 21 - April 27
@@ -24,7 +24,7 @@ With our current company size, most projects will typically involve one full-tim
 - **Week 6:** May 12 - May 18
 - **Cooldown Week:** May 19 - May 25
 
-### 4th Cycle / May 26 - July 6, 2025
+### 2nd Cycle / May 26 - July 6, 2025
 - **Week 1:** May 26 - June 1
 - **Week 2:** June 2 - June 8
 - **Week 3:** June 9 - June 15
@@ -33,7 +33,7 @@ With our current company size, most projects will typically involve one full-tim
 - **Week 6:** June 30 - July 6
 - **Cooldown Week:** July 7 - July 13
 
-### 5th Cycle / July 14 - August 24, 2025
+### 3rd Cycle / July 14 - August 24, 2025
 - **Week 1:** July 14 - July 20
 - **Week 2:** July 21 - July 27
 - **Week 3:** July 28 - August 3
@@ -42,7 +42,7 @@ With our current company size, most projects will typically involve one full-tim
 - **Week 6:** August 18 - August 24
 - **Cooldown Week:** August 25 - August 31
 
-### 6th Cycle / September 1 - October 12, 2025
+### 4th Cycle / September 1 - October 12, 2025
 - **Week 1:** September 1 - September 7
 - **Week 2:** September 8 - September 14
 - **Week 3:** September 15 - September 21
@@ -51,7 +51,7 @@ With our current company size, most projects will typically involve one full-tim
 - **Week 6:** October 6 - October 12
 - **Cooldown Week:** October 13 - October 19
 
-### 7th Cycle / October 20 - November 30, 2025
+### 5th Cycle / October 20 - November 30, 2025
 - **Week 1:** October 20 - October 26
 - **Week 2:** October 27 - November 2
 - **Week 3:** November 3 - November 9
@@ -60,7 +60,7 @@ With our current company size, most projects will typically involve one full-tim
 - **Week 6:** November 24 - November 30
 - **Cooldown Week:** December 1 - December 7
 
-### 8th Cycle / December 8 - December 31, 2025 (Shortened Cycle)
+### 6th Cycle / December 8 - December 31, 2025 (Shortened Cycle)
 - **Week 1:** December 8 - December 14
 - **Week 2:** December 15 - December 21
 - **Week 3:** December 22 - December 31 (extended week to match year-end)

@@ -611,7 +611,7 @@ components:
           x-validate:
         created_by:
           $ref: '#/components/schemas/Account'
-        created_by_ci:
+        created_from_ci:
           description: Whether the preview was created by CI
           type: boolean
           x-struct:
@@ -676,7 +676,7 @@ components:
         - builds
         - supported_platforms
         - inserted_at
-        - created_by_ci
+        - created_from_ci
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
@@ -4481,6 +4481,12 @@ paths:
       responses:
         204:
           description: The preview was deleted
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         401:
           content:
             application/json:

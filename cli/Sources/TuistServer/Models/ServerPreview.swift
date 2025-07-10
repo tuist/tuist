@@ -14,7 +14,7 @@ public struct ServerPreview: Sendable, Equatable, Codable, Identifiable, Hashabl
     public let gitBranch: String?
     public let appBuilds: [AppBuild]
     public let supportedPlatforms: [DestinationType]
-    public let createdByCI: Bool
+    public let createdFromCI: Bool
     public let createdBy: ServerAccount?
     public let insertedAt: Date
 }
@@ -43,7 +43,7 @@ extension ServerPreview {
         gitBranch = preview.git_branch
         appBuilds = preview.builds.compactMap(AppBuild.init)
         supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
-        createdByCI = preview.created_by_ci
+        createdFromCI = preview.created_from_ci
         if let createdBy = preview.created_by {
             self.createdBy = ServerAccount(createdBy)
         } else {
@@ -77,7 +77,7 @@ extension ServerPreview {
                 .device(.iOS),
                 .simulator(.iOS),
             ],
-            createdByCI: Bool = false,
+            createdFromCI: Bool = false,
             createdBy: ServerAccount? = .test(),
             insertedAt: Date = Date(timeIntervalSince1970: 0)
         ) -> Self {
@@ -93,7 +93,7 @@ extension ServerPreview {
                 gitBranch: gitBranch,
                 appBuilds: appBuilds,
                 supportedPlatforms: supportedPlatforms,
-                createdByCI: createdByCI,
+                createdFromCI: createdFromCI,
                 createdBy: createdBy,
                 insertedAt: insertedAt
             )

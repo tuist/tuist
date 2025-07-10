@@ -710,7 +710,8 @@ defmodule TuistWeb.API.PreviewsController do
       no_content: "The preview was deleted",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
-      not_found: {"The preview does not exist", "application/json", Error}
+      not_found: {"The preview does not exist", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -769,7 +770,7 @@ defmodule TuistWeb.API.PreviewsController do
             id: preview.created_by_account.id,
             handle: preview.created_by_account.name
           },
-      created_by_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
+      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
     }
   end
 end
