@@ -28,6 +28,59 @@ public enum Module: String, CaseIterable {
     case xcActivityLog = "TuistXCActivityLog"
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
+    
+    private static func cacheEEDirectory() -> URL {
+        let currentFileURL = URL(fileURLWithPath: #file)
+        return currentFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("cli")
+            .appendingPathComponent("TuistCacheEE")
+    }
+    
+    private static func isCacheEEAvailable() -> Bool {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: cacheEEDirectory().path(), isDirectory: &isDirectory)
+        return exists && isDirectory.boolValue
+    }
+    
+    public static func allTargets() -> [Target] {
+        var targets = Module.allCases.flatMap(\.targets)
+        targets.append(contentsOf: cacheEETargets())
+        return targets
+    }
+    
+    public static func cacheEETargets() -> [Target] {
+        guard isCacheEEAvailable() else { return [] }
+        return [
+            .target(
+                name: "TuistCacheEE",
+                destinations: [.mac],
+                product: .staticFramework,
+                bundleId: "dev.tuist.TuistCacheEE",
+                deploymentTargets: .macOS("14.0"),
+                infoPlist: .default,
+                sources: ["\(cacheEEDirectory().path())/Sources/**/*.swift"],
+                dependencies: [],
+                settings: .settings(
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
+                            xcconfig: nil
+                        ),
+                        .release(
+                            name: "Release",
+
+                            settings: [:],
+                            xcconfig: nil
+                        ),
+                    ]
+                )
+            )
+        ]
+    }
 
     public var isRunnable: Bool {
         switch self {
@@ -77,7 +130,7 @@ public enum Module: String, CaseIterable {
     }
 
     public var targets: [Target] {
-        var targets: [Target] = sourceTargets
+        let targets: [Target] = sourceTargets
         return targets + testTargets
     }
 
