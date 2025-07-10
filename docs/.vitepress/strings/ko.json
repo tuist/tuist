@@ -207,6 +207,14 @@
         "features": {
           "text": "기능"
         },
+        "examples": {
+          "text": "예제",
+          "items": {
+            "generated-projects": {
+              "text": "생성된 프로젝트"
+            }
+          }
+        },
         "develop": {
           "text": "Develop",
           "items": {

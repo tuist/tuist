@@ -217,7 +217,7 @@ export function contributorsSidebar(locale) {
   ];
 }
 
-export function guidesSidebar(locale) {
+export async function guidesSidebar(locale) {
   return [
     {
       text: localizedString(locale, "sidebars.guides.items.quick-start.text"),
@@ -530,6 +530,25 @@ export function guidesSidebar(locale) {
               link: `/${locale}/guides/features/agentic-coding/mcp`,
             },
           ],
+        },
+      ],
+    },
+    {
+      text: localizedString(locale, "sidebars.guides.items.examples.text"),
+      items: [
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${codeBrowserIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.examples.items.generated-projects.text",
+          )}</span>`,
+          link: `/${locale}/guides/examples/generated-projects`,
+          collapsed: true,
+          items: (await loadExamplesData()).map((item) => {
+            return {
+              text: item.title,
+              link: `/${locale}/guides/examples/generated-projects/${item.name}`,
+            };
+          }),
         },
       ],
     },
