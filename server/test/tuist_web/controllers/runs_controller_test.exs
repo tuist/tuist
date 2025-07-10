@@ -30,7 +30,8 @@ defmodule TuistWeb.RunsControllerTest do
       user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       conn = log_in_user(conn, user)
-      non_existent_id = "00000000-0000-0000-0000-000000000000"
+      non_existent_id = 999_999_999
+
       # When
       conn =
         get(conn, ~p"/#{user.account.name}/#{project.name}/runs/#{non_existent_id}/download")

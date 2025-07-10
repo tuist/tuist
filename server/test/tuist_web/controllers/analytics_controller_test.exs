@@ -248,7 +248,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert response == %{
                "name" => "generate",
-               "id" => response["id"],
+               "id" => command_event.id,
                "project_id" => project.id,
                "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
@@ -346,8 +346,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response == %{
-               "name" => "generate",
                "id" => response["id"],
+               "name" => "generate",
                "project_id" => project.id,
                "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
              }
@@ -631,118 +631,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
       {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
 
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
-    end
-
-    test "returns legacy_id as id for CLI versions below 4.56", %{conn: conn, user: user} do
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tuist-cli-version", "4.55.0")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "4.55.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      # For CLI < 4.56, the id field should be a legacy_id (integer)
-      assert is_integer(response["id"])
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
-    end
-
-    test "returns id as id for CLI versions 4.56 and above", %{conn: conn, user: user} do
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tuist-cli-version", "4.56.0")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "4.56.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      # For CLI >= 4.56, the id field should be a UUID (string)
-      assert is_binary(response["id"])
-      assert String.match?(response["id"], ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
-    end
-
-    test "returns id as id when CLI version header is missing", %{conn: conn, user: user} do
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "1.0.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      # When CLI version header is missing, should default to new behavior (UUID)
-      assert is_binary(response["id"])
-      assert String.match?(response["id"], ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
-      assert response["name"] == "generate"
-      assert response["project_id"] == project.id
-      assert String.contains?(response["url"], "/runs/")
-      refute Map.has_key?(response, "uuid")
     end
   end
 

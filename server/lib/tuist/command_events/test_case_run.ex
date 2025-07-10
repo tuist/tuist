@@ -19,7 +19,7 @@ defmodule Tuist.CommandEvents.TestCaseRun do
     field :flaky, :boolean, default: false
     field :xcode_target_id, :string
 
-    belongs_to :command_event, Event, foreign_key: :command_event_id, references: :id, type: Ecto.UUID
+    belongs_to :command_event, Event
     belongs_to :test_case, TestCase
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType

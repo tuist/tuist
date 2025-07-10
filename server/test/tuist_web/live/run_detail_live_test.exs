@@ -33,7 +33,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         user_id: user.id
       )
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: to_string(test_run.id))
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
 
     xcode_project =
       XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
@@ -69,7 +69,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         user_id: user.id
       )
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: to_string(cache_run.id))
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: cache_run.id)
 
     xcode_project =
       XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
