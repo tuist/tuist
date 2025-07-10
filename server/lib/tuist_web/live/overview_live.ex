@@ -268,6 +268,10 @@ defmodule TuistWeb.OverviewLive do
       :test_analytics,
       Analytics.runs_duration_analytics("test", project_id: project.id)
     )
+    |> assign(
+      :build_time_analytics,
+      Analytics.build_time_analytics(opts)
+    )
     |> assign_test_runs_analytics()
     |> assign(
       :latest_app_previews,
