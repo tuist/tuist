@@ -1056,7 +1056,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns build time analytics with real data" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
 
@@ -1105,7 +1104,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles empty results correctly" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
@@ -1121,7 +1119,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by project_id correctly" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project1 = ProjectsFixtures.project_fixture()
@@ -1168,7 +1165,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by is_ci correctly" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
@@ -1216,7 +1212,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles custom date range" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1268,7 +1263,6 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles nil duration events correctly" do
       # Given
-      copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
