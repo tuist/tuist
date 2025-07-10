@@ -63,6 +63,10 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def ipv4_database_url(secrets \\ secrets()) do
+    System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
