@@ -54,65 +54,11 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
-    <HomeCard
-        icon="🤖"
-        title="Agentic Coding"
-        details="Bridge the gap between Apple development and AI-powered coding. Our tools integrate seamlessly with AI assistants and coding agents."
-        linkText="Explore AI integration"
-        link="/guides/features/agentic-coding/mcp"/>
 </HomeCards>
-
-## Ready to transform your development?
-
-**Get started in under 2 minutes.** Add Tuist to any existing project or start fresh – we'll handle the rest.
-
-::: code-group
-
-```bash [Homebrew]
-brew tap tuist/tuist
-brew install --formula tuist
-
-tuist init
-```
-
-```bash [Mise]
-mise x tuist@latest -- tuist init
-```
-:::
-
-**That's it!** Tuist works with your existing project and can be adopted incrementally. You're always one command away from a generated, optimized Xcode project.
-
-Check out our <LocalizedLink href="/guides/quick-start/install-tuist">complete installation guide</LocalizedLink> for more options.
-
-## Why Tuist? Four compelling reasons
-
-### Simplify complex projects 🌱
-
-As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
-
-### Optimize your workflows 🚀
-
-Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds - cutting build times by up to 65%.
-
-### Foster healthy project evolution 📈
-
-We provide insights into your project's dynamics and expert guidance for informed decision-making. This prevents the frustration and productivity loss associated with unhealthy projects, which can lead to developer attrition and missed business goals.
-
-### Break down development silos 💜
-
-Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
-
-## Solving the platform team problem
-
-In Apple platform development, organizations often encounter **productivity roadblocks** - sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
-
-**Tuist serves as your virtual platform team.** We integrate seamlessly with official Apple tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the developer experience.
-
-Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services.
 
 ## Join thousands of developers who've made the switch
 
-**Teams at Trendyol, DraftKings, Bending Spoons, and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
 - **65% faster builds** with intelligent caching
 - **Zero merge conflicts** in Xcode projects
@@ -124,7 +70,7 @@ Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main
         title="Real examples"
         details="See how successful teams structure their projects with Tuist's generated approach."
         linkText="Explore examples"
-        link="/references/examples/app_with_airship_sdk"/>
+        link="/references/examples"/>
     <HomeCard
         icon="✨"
         title="Community showcase"
