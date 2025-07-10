@@ -79,8 +79,8 @@ public final class AuthenticationService: ObservableObject {
            credentials.refreshToken != nil,
            let accessToken = credentials.accessToken
         {
-            let accountHandle = try extractAccountHandle(from: accessToken)
-            authenticationState = .loggedIn(accountHandle: accountHandle)
+            let account = try extractAccount(from: accessToken)
+            authenticationState = .loggedIn(account: account)
         } else {
             authenticationState = .loggedOut
         }
@@ -88,16 +88,16 @@ public final class AuthenticationService: ObservableObject {
         try? appStorage.set(AuthenticationStateKey.self, value: authenticationState)
     }
 
-    private func extractAccountHandle(from accessToken: String) throws -> String {
+    private func extractAccount(from accessToken: String) throws -> Account {
         let jwt = try JWT.parse(accessToken)
 
-        if let email = jwt.email {
-            return email
-        } else if let preferredUsername = jwt.preferredUsername {
-            return preferredUsername
-        } else {
+        guard let email = jwt.email,
+              let handle = jwt.preferredUsername
+        else {
             throw AuthenticationError.missingTokens
         }
+
+        return Account(email: email, handle: handle)
     }
 
     public func signOut() async {

@@ -612,7 +612,7 @@ components:
         created_by:
           $ref: '#/components/schemas/Account'
         created_from_ci:
-          description: Whether the preview was created by CI
+          description: Whether the preview was created from CI
           type: boolean
           x-struct:
           x-validate:

@@ -1941,7 +1941,7 @@ internal enum Components {
             internal var bundle_identifier: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Preview/created_by`.
             internal var created_by: Components.Schemas.Account?
-            /// Whether the preview was created by CI
+            /// Whether the preview was created from CI
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/created_from_ci`.
             internal var created_from_ci: Swift.Bool
@@ -1989,7 +1989,7 @@ internal enum Components {
             ///   - builds:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - created_by:
-            ///   - created_from_ci: Whether the preview was created by CI
+            ///   - created_from_ci: Whether the preview was created from CI
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
             ///   - git_commit_sha: The git commit SHA associated with the preview
