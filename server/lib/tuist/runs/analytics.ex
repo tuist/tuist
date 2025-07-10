@@ -8,6 +8,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
 
   def builds_duration_analytics_grouped_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
@@ -92,7 +93,8 @@ defmodule Tuist.Runs.Analytics do
           from(b in Build,
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id
           ),
           opts
         )
@@ -103,8 +105,12 @@ defmodule Tuist.Runs.Analytics do
             group_by: selected_as(^date_period),
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period), value: avg(b.duration)}
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id,
+            select: %{
+              date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+              value: avg(b.duration)
+            }
           ),
           opts
         )
@@ -122,10 +128,12 @@ defmodule Tuist.Runs.Analytics do
           group_by: selected_as(^date_period),
           where:
             b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
+              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+              b.project_id == ^project_id,
           select: %{
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-            value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
+            value:
+              fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
           }
         ),
         opts
@@ -185,7 +193,10 @@ defmodule Tuist.Runs.Analytics do
               e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
                 e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
                 e.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), value: avg(e.duration)}
+            select: %{
+              date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
+              value: avg(e.duration)
+            }
           ),
           Keyword.put(opts, :name, name)
         )
@@ -305,7 +316,10 @@ defmodule Tuist.Runs.Analytics do
               e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
                 e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
                 e.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period), count: count(e)}
+            select: %{
+              date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
+              count: count(e)
+            }
           ),
           Keyword.put(opts, :name, name)
         )
@@ -513,8 +527,10 @@ defmodule Tuist.Runs.Analytics do
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           cacheable_targets_count: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          local_cache_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
+          remote_cache_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
@@ -549,7 +565,8 @@ defmodule Tuist.Runs.Analytics do
           date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
           cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
           local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          remote_cache_target_hits:
+            sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
@@ -652,8 +669,10 @@ defmodule Tuist.Runs.Analytics do
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           test_targets_count: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits_count: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+          local_test_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
+          remote_test_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
         }
       )
       |> add_filters(opts)
@@ -726,7 +745,11 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  def total_execution_period_average_duration(%{query: query, start_date: start_date, end_date: end_date}) do
+  def total_execution_period_average_duration(%{
+        query: query,
+        start_date: start_date,
+        end_date: end_date
+      }) do
     average =
       start_date
       |> query.(end_date)
@@ -866,7 +889,8 @@ defmodule Tuist.Runs.Analytics do
         where(
           query,
           [e],
-          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+          (e.name == "xcodebuild" and
+             (e.subcommand == "test" or e.subcommand == "test-without-building")) or
             e.name == "test"
         )
 
@@ -901,7 +925,12 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp runs_per_period(%{query: query, start_date: start_date, end_date: end_date, date_period: date_period}) do
+  defp runs_per_period(%{
+         query: query,
+         start_date: start_date,
+         end_date: end_date,
+         date_period: date_period
+       }) do
     runs =
       start_date
       |> query.(end_date, date_period, time_bucket_for_date_period(date_period))
@@ -923,5 +952,152 @@ defmodule Tuist.Runs.Analytics do
           end
       }
     end)
+  end
+
+  def build_time_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
+
+    # First, get command events that have xcode graphs, filtered by project_id and is_ci
+    {command_events_duration, time_saved} =
+      if Tuist.Environment.clickhouse_configured?() do
+        # Step 1: Get command event IDs from ClickHouse xcode_graphs
+        command_event_ids_query =
+          from(xg in XcodeGraph,
+            where:
+              xg.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+                xg.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+            select: xg.command_event_id
+          )
+
+        command_event_ids = Tuist.ClickHouseRepo.all(command_event_ids_query)
+
+        if Enum.empty?(command_event_ids) do
+          {0, 0}
+        else
+          # Step 2: Get filtered command events from PostgreSQL
+          events_query =
+            from(e in Event,
+              where: e.id in ^command_event_ids
+            )
+
+          events_query =
+            if project_id do
+              from(e in events_query, where: e.project_id == ^project_id)
+            else
+              events_query
+            end
+
+          events_query =
+            if is_ci == nil do
+              events_query
+            else
+              from(e in events_query, where: e.is_ci == ^is_ci)
+            end
+
+          # Get final filtered command event IDs
+          filtered_command_event_ids =
+            events_query
+            |> select([e], e.id)
+            |> Repo.all()
+
+          if Enum.empty?(filtered_command_event_ids) do
+            {0, 0}
+          else
+            # Step 3: Sum durations from filtered command events
+            events_duration_result =
+              Repo.one(
+                from(e in Event,
+                  where: e.id in ^filtered_command_event_ids and not is_nil(e.duration),
+                  select: sum(coalesce(e.duration, 0))
+                )
+              )
+
+            events_duration =
+              case events_duration_result do
+                nil -> 0
+                %Decimal{} -> Decimal.to_integer(events_duration_result)
+                value when is_integer(value) -> value
+                value when is_float(value) -> round(value)
+              end
+
+            # Step 4: Sum binary_build_duration from ClickHouse for filtered events
+            time_saved =
+              Tuist.ClickHouseRepo.one(
+                from(xg in XcodeGraph,
+                  where:
+                    xg.command_event_id in ^filtered_command_event_ids and
+                      not is_nil(xg.binary_build_duration),
+                  select: sum(xg.binary_build_duration)
+                )
+              ) || 0
+
+            {events_duration, time_saved}
+          end
+        end
+      else
+        # PostgreSQL only: can query everything in one place
+        alias Tuist.Xcode.Postgres.XcodeGraph, as: PGXcodeGraph
+
+        result =
+          from(e in Event,
+            join: xg in PGXcodeGraph,
+            on: xg.command_event_id == e.id,
+            where:
+              e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59])
+          )
+
+        result =
+          if project_id do
+            from([e, xg] in result, where: e.project_id == ^project_id)
+          else
+            result
+          end
+
+        result =
+          if is_ci == nil do
+            result
+          else
+            from([e, xg] in result, where: e.is_ci == ^is_ci)
+          end
+
+        aggregated =
+          result
+          |> select([e, xg], %{
+            events_duration: sum(coalesce(e.duration, 0)),
+            time_saved: sum(coalesce(xg.binary_build_duration, 0))
+          })
+          |> Repo.one() || %{events_duration: 0, time_saved: 0}
+
+        events_duration =
+          case aggregated.events_duration do
+            nil -> 0
+            %Decimal{} -> Decimal.to_integer(aggregated.events_duration)
+            value when is_integer(value) -> value
+            value when is_float(value) -> round(value)
+          end
+
+        time_saved =
+          case aggregated.time_saved do
+            nil -> 0
+            %Decimal{} -> Decimal.to_integer(aggregated.time_saved)
+            value when is_integer(value) -> value
+            value when is_float(value) -> round(value)
+          end
+
+        {events_duration, time_saved}
+      end
+
+    # Total build time = time_saved + actual_build_time
+    total_time = time_saved + command_events_duration
+
+    %{
+      actual_build_time: command_events_duration,
+      total_time_saved: time_saved,
+      total_build_time: total_time
+    }
   end
 end
