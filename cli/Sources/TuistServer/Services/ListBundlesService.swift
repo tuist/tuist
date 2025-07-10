@@ -51,23 +51,14 @@ public final class ListBundlesService: ListBundlesServicing {
 
         let client = Client.authenticated(serverURL: serverURL)
 
-        var queryItems: [URLQueryItem] = []
-        if let gitBranch {
-            queryItems.append(URLQueryItem(name: "git_branch", value: gitBranch))
-        }
-        if let page {
-            queryItems.append(URLQueryItem(name: "page", value: String(page)))
-        }
-        if let pageSize {
-            queryItems.append(URLQueryItem(name: "page_size", value: String(pageSize)))
-        }
-
         let response = try await client.listBundles(
-            path: .init(account_handle: accountHandle, project_handle: projectHandle),
-            query: .init(
-                git_branch: gitBranch,
-                page: page.map(Int32.init),
-                page_size: pageSize.map(Int32.init)
+            .init(
+                path: .init(account_handle: accountHandle, project_handle: projectHandle),
+                query: .init(
+                    git_branch: gitBranch,
+                    page: page.map(Int32.init),
+                    page_size: pageSize.map(Int32.init)
+                )
             )
         )
 
@@ -75,10 +66,15 @@ public final class ListBundlesService: ListBundlesServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(data):
-                // Temporary implementation until OpenAPI spec is properly updated
-                // We'll need to manually parse the JSON for now
+                // The OpenAPI spec doesn't define the list bundles response yet.
+                // For now, return empty results until the spec is updated.
                 let bundles: [ServerBundle] = []
-                let meta: ServerBundleListMeta? = nil
+                let meta: ServerBundleListMeta? = ServerBundleListMeta(
+                    totalCount: 0,
+                    pageSize: 20,
+                    hasNextPage: false,
+                    hasPreviousPage: false
+                )
                 return ServerBundleListResponse(bundles: bundles, meta: meta)
             }
         case let .forbidden(forbiddenResponse):

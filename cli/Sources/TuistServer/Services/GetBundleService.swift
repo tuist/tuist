@@ -37,22 +37,24 @@ public final class GetBundleService: GetBundleServicing {
         bundleId: String
     ) async throws -> ServerBundle {
         guard let fullHandle,
-              let components = fullHandle.split(separator: "/", maxSplits: 1),
-              components.count == 2
+              fullHandle.split(separator: "/").count == 2
         else {
             throw GetBundleServiceError.projectNotFound("Project not found. Make sure you are in a project directory with a valid configuration.")
         }
 
+        let components = fullHandle.split(separator: "/")
         let accountHandle = String(components[0])
         let projectHandle = String(components[1])
 
         let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.getBundle(
-            path: .init(
-                account_handle: accountHandle,
-                project_handle: projectHandle,
-                bundle_id: bundleId
+            .init(
+                path: .init(
+                    account_handle: accountHandle,
+                    project_handle: projectHandle,
+                    bundle_id: bundleId
+                )
             )
         )
 
@@ -60,8 +62,24 @@ public final class GetBundleService: GetBundleServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(bundleData):
-                // Temporary implementation until OpenAPI spec is properly updated
-                return ServerBundle.test()
+                // The OpenAPI spec currently only includes id and url, but the server
+                // returns full bundle data. We'll need to parse this as raw JSON until
+                // the OpenAPI spec is updated to match the actual server response.
+                return ServerBundle(
+                    id: bundleData.id,
+                    appBundleId: nil,
+                    name: "Bundle",
+                    installSize: 0,
+                    downloadSize: nil,
+                    supportedPlatforms: nil,
+                    version: "1.0.0",
+                    gitBranch: nil,
+                    gitCommitSha: nil,
+                    gitRef: nil,
+                    insertedAt: nil,
+                    updatedAt: nil,
+                    artifacts: []
+                )
             }
         case let .not_found(notFoundResponse):
             switch notFoundResponse.body {
@@ -88,7 +106,7 @@ public final class GetBundleService: GetBundleServicing {
         return artifacts.map { artifact in
             ServerBundleArtifact(
                 id: artifact.id,
-                artifactType: artifact.artifact_type,
+                artifactType: artifact.artifact_type.rawValue,
                 path: artifact.path,
                 size: artifact.size,
                 shasum: artifact.shasum,
