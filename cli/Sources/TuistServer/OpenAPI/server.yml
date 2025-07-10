@@ -2656,6 +2656,102 @@ paths:
       tags:
         - Authentication
   /api/projects/{account_handle}/{project_handle}/bundles:
+    get:
+      callbacks: {}
+      operationId: listBundles
+      parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination (starting from 1).
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page (max 100).
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                properties:
+                  bundles:
+                    items:
+                      $ref: '#/components/schemas/Bundle'
+                    type: array
+                    x-struct:
+                    x-validate:
+                  meta:
+                    properties:
+                      has_next_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: List of bundles
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list bundles
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You are not authorized to list bundles
+      summary: List bundles for a project
+      tags:
+        - Bundles
     post:
       callbacks: {}
       operationId: createBundle
@@ -3812,6 +3908,63 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
+    get:
+      callbacks: {}
+      operationId: getBundle
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: Bundle details
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to get a bundle
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You are not authorized to get a bundle
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bundle not found
+      summary: Get a specific bundle
+      tags:
+        - Bundles
   /api/accounts/{account_handle}/tokens:
     post:
       callbacks: {}
