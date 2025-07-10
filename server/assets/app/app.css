@@ -40,6 +40,15 @@ a {
   outline: unset;
 }
 
+/* This fixes an issue on iOS when an element is zoomed in when selected */
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  select,
+  textarea,
+  input {
+    font-size: 16px;
+  }
+}
+
 .tuist-widget-link {
   text-decoration: unset;
 
