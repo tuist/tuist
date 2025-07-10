@@ -178,6 +178,10 @@ let project = Project(
             bundleId: "dev.tuist.error-handling",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+                .external(name: "OpenAPIRuntime"),
+            ]
         ),
         .target(
             name: "TuistAppStorage",
