@@ -955,25 +955,33 @@ defmodule Tuist.Runs.Analytics do
   end
 
   def build_time_analytics(opts \\ []) do
-    project_id = Keyword.get(opts, :project_id)
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
-    is_ci = Keyword.get(opts, :is_ci)
+    # Only return analytics when ClickHouse is configured
+    # Return zeros for PostgreSQL to hide the chart
+    if not Tuist.Environment.clickhouse_configured?() do
+      %{
+        actual_build_time: 0,
+        total_time_saved: 0,
+        total_build_time: 0
+      }
+    else
+      project_id = Keyword.get(opts, :project_id)
+      start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+      end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+      is_ci = Keyword.get(opts, :is_ci)
 
-    # First, get command events that have xcode graphs, filtered by project_id and is_ci
-    {command_events_duration, time_saved} =
-      if Tuist.Environment.clickhouse_configured?() do
-        # Step 1: Get command event IDs from ClickHouse xcode_graphs
-        command_event_ids_query =
-          from(xg in XcodeGraph,
-            where:
-              xg.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                xg.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
-            select: xg.command_event_id
-          )
+      # Get command events that have xcode graphs, filtered by project_id and is_ci
+      # Step 1: Get command event IDs from ClickHouse xcode_graphs
+      command_event_ids_query =
+        from(xg in XcodeGraph,
+          where:
+            xg.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+              xg.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
+          select: xg.command_event_id
+        )
 
-        command_event_ids = Tuist.ClickHouseRepo.all(command_event_ids_query)
+      command_event_ids = Tuist.ClickHouseRepo.all(command_event_ids_query)
 
+      {command_events_duration, time_saved} =
         if Enum.empty?(command_event_ids) do
           {0, 0}
         else
@@ -1037,67 +1045,15 @@ defmodule Tuist.Runs.Analytics do
             {events_duration, time_saved}
           end
         end
-      else
-        # PostgreSQL only: can query everything in one place
-        alias Tuist.Xcode.Postgres.XcodeGraph, as: PGXcodeGraph
 
-        result =
-          from(e in Event,
-            join: xg in PGXcodeGraph,
-            on: xg.command_event_id == e.id,
-            where:
-              e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-                e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59])
-          )
+      # Total build time = time_saved + actual_build_time
+      total_time = time_saved + command_events_duration
 
-        result =
-          if project_id do
-            from([e, xg] in result, where: e.project_id == ^project_id)
-          else
-            result
-          end
-
-        result =
-          if is_ci == nil do
-            result
-          else
-            from([e, xg] in result, where: e.is_ci == ^is_ci)
-          end
-
-        aggregated =
-          result
-          |> select([e, xg], %{
-            events_duration: sum(coalesce(e.duration, 0)),
-            time_saved: sum(coalesce(xg.binary_build_duration, 0))
-          })
-          |> Repo.one() || %{events_duration: 0, time_saved: 0}
-
-        events_duration =
-          case aggregated.events_duration do
-            nil -> 0
-            %Decimal{} -> Decimal.to_integer(aggregated.events_duration)
-            value when is_integer(value) -> value
-            value when is_float(value) -> round(value)
-          end
-
-        time_saved =
-          case aggregated.time_saved do
-            nil -> 0
-            %Decimal{} -> Decimal.to_integer(aggregated.time_saved)
-            value when is_integer(value) -> value
-            value when is_float(value) -> round(value)
-          end
-
-        {events_duration, time_saved}
-      end
-
-    # Total build time = time_saved + actual_build_time
-    total_time = time_saved + command_events_duration
-
-    %{
-      actual_build_time: command_events_duration,
-      total_time_saved: time_saved,
-      total_build_time: total_time
-    }
+      %{
+        actual_build_time: command_events_duration,
+        total_time_saved: time_saved,
+        total_build_time: total_time
+      }
+    end
   end
 end
