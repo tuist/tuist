@@ -2379,7 +2379,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:133
+#: lib/tuist_web/live/layout_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -2421,12 +2421,12 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:61
+#: lib/tuist_web/live/layout_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:213
+#: lib/tuist_web/live/layout_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -3125,12 +3125,12 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:85
+#: lib/tuist_web/plugs/loader_plug.ex:84
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:33
+#: lib/tuist_web/plugs/loader_plug.ex:32
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -3327,7 +3327,7 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:50
+#: lib/tuist_web/plugs/loader_plug.ex:49
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -3661,7 +3661,7 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:89
+#: lib/tuist_web/plugs/loader_plug.ex:88
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""

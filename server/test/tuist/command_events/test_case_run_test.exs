@@ -69,7 +69,7 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
   defp test_case_run(attrs \\ []) do
     %{
       status: Keyword.get(attrs, :status, :success),
-      command_event_id: Keyword.get(attrs, :command_event_id, UUIDv7.generate()),
+      command_event_id: Keyword.get(attrs, :command_event_id, 1),
       test_case_id: Keyword.get(attrs, :test_case_id, 1),
       xcode_target_id: Keyword.get(attrs, :xcode_target_id, UUIDv7.generate())
     }

@@ -26,8 +26,7 @@ defmodule TuistWeb.LayoutLive do
 
     socket = assign(socket, :selected_project, selected_project)
 
-    if TuistWeb.Authentication.authenticated?(socket.assigns) or
-         selected_project.visibility == :public do
+    if TuistWeb.Authentication.authenticated?(socket.assigns) or selected_project.visibility == :public do
       on_mount(:project, params, session, socket)
     else
       {:cont, socket}

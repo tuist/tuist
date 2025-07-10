@@ -15,11 +15,7 @@ defmodule Tuist.Xcode.Postgres.XcodeGraph do
     # and assuming uncapped parallelism.
     field :binary_build_duration, :integer
 
-    belongs_to :command_event, Tuist.CommandEvents.Event,
-      foreign_key: :command_event_id,
-      references: :id,
-      type: Ecto.UUID
-
+    belongs_to :command_event, Tuist.CommandEvents.Event
     has_many :xcode_projects, Tuist.Xcode.Postgres.XcodeProject
 
     timestamps(type: :utc_datetime)

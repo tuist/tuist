@@ -2,9 +2,7 @@ defmodule Tuist.Repo.Migrations.DropXcodeTables do
   use Ecto.Migration
 
   def change do
-    secrets = Tuist.Environment.decrypt_secrets()
-
-    if !Tuist.Environment.clickhouse_configured?(secrets) || Tuist.Environment.test?() do
+    if not Tuist.Environment.tuist_hosted?() || Tuist.Environment.test?() do
       :ok
     else
       # excellent_migrations:safety-assured-for-next-line table_dropped

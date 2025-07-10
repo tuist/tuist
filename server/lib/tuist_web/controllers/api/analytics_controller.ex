@@ -353,7 +353,7 @@ defmodule TuistWeb.API.AnalyticsController do
     conn
     |> put_status(:ok)
     |> json(%{
-      id: get_id_field(conn, command_event),
+      id: command_event.id,
       project_id: command_event.project_id,
       name: command_event.name,
       url: url
@@ -432,9 +432,9 @@ defmodule TuistWeb.API.AnalyticsController do
     parameters: [
       run_id: [
         in: :path,
-        type: :string,
+        type: :integer,
         required: true,
-        description: "The id of the command event UUID."
+        description: "The id of the command event."
       ]
     ],
     request_body: {"Artifact to upload", "application/json", CommandEventArtifact},
@@ -463,8 +463,7 @@ defmodule TuistWeb.API.AnalyticsController do
         %{path_params: %{"run_id" => run_id}, body_params: %{type: type} = command_event_artifact} = conn,
         _params
       ) do
-    with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
       upload_id = Storage.multipart_start(object_key)
       json(conn, %{status: "success", data: %{upload_id: upload_id}})
     end
@@ -478,7 +477,7 @@ defmodule TuistWeb.API.AnalyticsController do
     parameters: [
       run_id: [
         in: :path,
-        type: :string,
+        type: :integer,
         required: true,
         description: "The id of the command event."
       ]
@@ -511,8 +510,7 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
       expires_in = 120
       content_length = Map.get(multipart_upload_part, :content_length)
 
@@ -536,7 +534,7 @@ defmodule TuistWeb.API.AnalyticsController do
     parameters: [
       run_id: [
         in: :path,
-        type: :string,
+        type: :integer,
         required: true,
         description: "The id of the command event."
       ]
@@ -570,8 +568,7 @@ defmodule TuistWeb.API.AnalyticsController do
         } = conn,
         _params
       ) do
-    with {:ok, object_key} <-
-           get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
+    with {:ok, object_key} <- get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}) do
       :ok =
         Storage.multipart_complete_upload(
           object_key,
@@ -595,7 +592,7 @@ defmodule TuistWeb.API.AnalyticsController do
     parameters: [
       run_id: [
         in: :path,
-        type: :string,
+        type: :integer,
         required: true,
         description: "The id of the command event."
       ]
@@ -619,7 +616,24 @@ defmodule TuistWeb.API.AnalyticsController do
   def complete_artifacts_uploads(%{path_params: %{"run_id" => run_id}} = conn, _params) do
     with {:ok, command_event} <- CommandEvents.get_command_event_by_id(run_id, preload: :project) do
       current_project = Authentication.current_project(conn)
-      process_flaky_test_detection(command_event, current_project)
+
+      if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
+        # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
+        test_summary =
+          CommandEvents.get_test_summary(command_event)
+
+        if not is_nil(test_summary) and not is_nil(current_project) do
+          CommandEvents.create_test_cases(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
+
+          CommandEvents.create_test_case_runs(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
+        end
+      end
 
       conn
       |> put_status(:no_content)
@@ -627,33 +641,8 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp process_flaky_test_detection(command_event, current_project) do
-    if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
-      # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
-      test_summary = CommandEvents.get_test_summary(command_event)
-      create_test_cases_and_runs(test_summary, command_event, current_project)
-    end
-  end
-
-  defp create_test_cases_and_runs(test_summary, command_event, current_project) do
-    if not is_nil(test_summary) and not is_nil(current_project) do
-      CommandEvents.create_test_cases(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-
-      CommandEvents.create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
-    end
-  end
-
   defp get_object_key(%{type: type, run_id: run_id, name: name}) do
     case CommandEvents.get_command_event_by_id(run_id) do
-      {:error, :not_found} ->
-        {:error, :not_found}
-
       {:ok, command_event} ->
         object_key =
           case type do
@@ -668,25 +657,9 @@ defmodule TuistWeb.API.AnalyticsController do
           end
 
         {:ok, object_key}
-    end
-  end
 
-  defp get_id_field(conn, command_event) do
-    cli_version = conn |> get_req_header("x-tuist-cli-version") |> List.first()
-
-    if not is_nil(cli_version) and version_less_than?(cli_version, "4.56.0") do
-      command_event.legacy_id
-    else
-      command_event.id
-    end
-  end
-
-  defp version_less_than?(version, target_version) do
-    with {:ok, version} <- Version.parse(version),
-         :lt <- Version.compare(version, target_version) do
-      true
-    else
-      _ -> false
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 

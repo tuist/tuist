@@ -65,7 +65,8 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
       # When
-      run_id = "00000000-0000-0000-0000-000000000000"
+      run_id = :rand.uniform(100)
+
       conn = assign(%{conn | path_params: %{"run_id" => run_id}}, :caching, false)
 
       assert_raise NotFoundError,

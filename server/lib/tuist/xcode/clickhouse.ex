@@ -49,9 +49,11 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def selective_testing_analytics(run, flop_params \\ %{}) do
+    command_event_id = to_string(run.id)
+
     base_query =
       from(xt in XcodeTargetDenormalized,
-        where: xt.command_event_id == ^run.id,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
           id: xt.id,
@@ -78,9 +80,11 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def binary_cache_analytics(run, flop_params \\ %{}) do
+    command_event_id = to_string(run.id)
+
     base_query =
       from(xt in XcodeTargetDenormalized,
-        where: xt.command_event_id == ^run.id,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
           id: xt.id,
@@ -107,10 +111,12 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def selective_testing_counts(run) do
+    command_event_id = to_string(run.id)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTargetDenormalized,
-          where: xt.command_event_id == ^run.id,
+          where: xt.command_event_id == ^command_event_id,
           where: not is_nil(xt.selective_testing_hash),
           select: %{
             local: fragment("countIf(selective_testing_hit = 'local')"),
@@ -130,10 +136,12 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def binary_cache_counts(run) do
+    command_event_id = to_string(run.id)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTargetDenormalized,
-          where: xt.command_event_id == ^run.id,
+          where: xt.command_event_id == ^command_event_id,
           where: not is_nil(xt.binary_cache_hash),
           select: %{
             local: fragment("countIf(binary_cache_hit = 'local')"),
@@ -153,18 +161,22 @@ defmodule Tuist.Xcode.Clickhouse do
   end
 
   def has_selective_testing_data?(run) do
+    command_event_id = to_string(run.id)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTargetDenormalized,
-        where: xt.command_event_id == ^run.id,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.selective_testing_hash)
       )
     )
   end
 
   def has_binary_cache_data?(run) do
+    command_event_id = to_string(run.id)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTargetDenormalized,
-        where: xt.command_event_id == ^run.id,
+        where: xt.command_event_id == ^command_event_id,
         where: not is_nil(xt.binary_cache_hash)
       )
     )
@@ -173,9 +185,10 @@ defmodule Tuist.Xcode.Clickhouse do
   def xcode_targets_for_command_event(command_event_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 1000)
     offset = Keyword.get(opts, :offset, 0)
+    command_event_id_str = to_string(command_event_id)
 
     from(xt in XcodeTargetDenormalized,
-      where: xt.command_event_id == ^command_event_id,
+      where: xt.command_event_id == ^command_event_id_str,
       order_by: xt.name,
       limit: ^limit,
       offset: ^offset,
