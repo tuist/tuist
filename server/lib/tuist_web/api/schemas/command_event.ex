@@ -7,22 +7,25 @@ defmodule TuistWeb.API.Schemas.CommandEvent do
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
+    title: "CommandEvent",
+    description: "A command event.",
     type: :object,
-    description: "The schema for the command analytics event.",
-    required: [:id, :name, :url],
     properties: %{
       id: %Schema{
-        type: :number,
-        description: "ID of the command event"
-      },
-      name: %Schema{
         type: :string,
-        description: "Name of the command"
+        format: :uuid,
+        description: "The unique identifier of the command event."
       },
-      url: %Schema{
-        type: :string,
-        description: "URL to the command event"
-      }
+      project_id: %Schema{type: :integer, description: "The project identifier"},
+      name: %Schema{type: :string, description: "The name of the command"},
+      url: %Schema{type: :string, description: "The URL to the command event"}
+    },
+    required: [:id, :project_id, :name, :url],
+    example: %{
+      "id" => "123e4567-e89b-12d3-a456-426614174000",
+      "project_id" => 123,
+      "name" => "build",
+      "url" => "https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000"
     }
   })
 end

@@ -26,7 +26,7 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTargetDenormalized do
     field :project_path, :string
     field :xcode_graph_id, :string
     field :graph_name, :string
-    field :command_event_id, :string
+    field :command_event_id, Ch, type: "UUID"
     field :graph_binary_build_duration, Ch, type: "Nullable(UInt32)"
 
     # credo:disable-for-next-line Credo.Checks.TimestampsType

@@ -10,7 +10,7 @@ defmodule Tuist.Xcode.Postgres.XcodeGraphTest do
       got =
         XcodeGraph.create_changeset(%XcodeGraph{}, %{
           name: "XcodeGraph",
-          command_event_id: 1
+          command_event_id: UUIDv7.generate()
         })
 
       # Then
@@ -35,10 +35,12 @@ defmodule Tuist.Xcode.Postgres.XcodeGraphTest do
 
     test "ensures that the command_event_id is unique" do
       # Given
+      uuid = UUIDv7.generate()
+
       changeset =
         XcodeGraph.create_changeset(%XcodeGraph{}, %{
           name: "XcodeGraph",
-          command_event_id: 1
+          command_event_id: uuid
         })
 
       # When
@@ -48,7 +50,7 @@ defmodule Tuist.Xcode.Postgres.XcodeGraphTest do
         %XcodeGraph{}
         |> XcodeGraph.create_changeset(%{
           name: "XcodeGraph",
-          command_event_id: 1
+          command_event_id: uuid
         })
         |> Repo.insert()
 
