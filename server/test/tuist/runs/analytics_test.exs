@@ -1036,4 +1036,280 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got == 0
     end
   end
+
+  describe "build_time_analytics/1" do
+    test "returns zeros when ClickHouse is not configured (PostgreSQL)" do
+      # Given
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.total_time_saved == 0
+      assert got.total_build_time == 0
+      assert got.actual_build_time == 0
+    end
+
+    test "returns build time analytics with real data" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_1 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-29 10:00:00],
+          duration: 1500
+        )
+
+      command_event_2 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-28 10:00:00],
+          duration: 2000
+        )
+
+      # Directly insert into ClickHouse
+      alias Tuist.ClickHouseRepo
+      alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+      ClickHouseRepo.insert_all(XcodeGraph, [
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraph1",
+          command_event_id: command_event_1.id,
+          binary_build_duration: 5000,
+          inserted_at: command_event_1.created_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraph2", 
+          command_event_id: command_event_2.id,
+          binary_build_duration: 3000,
+          inserted_at: command_event_2.created_at
+        }
+      ])
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.total_time_saved == 8000
+      assert got.actual_build_time == 3500
+      assert got.total_build_time == 11500
+    end
+
+    test "handles empty results correctly" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no command events or xcode graphs exist
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.actual_build_time == 0
+      assert got.total_time_saved == 0
+      assert got.total_build_time == 0
+    end
+
+    test "filters by project_id correctly" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+
+      command_event_1 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project1.id,
+          duration: 1500
+        )
+
+      command_event_2 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project2.id,
+          duration: 2000
+        )
+
+      # Directly insert into ClickHouse
+      alias Tuist.ClickHouseRepo
+      alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+      ClickHouseRepo.insert_all(XcodeGraph, [
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraph1",
+          command_event_id: command_event_1.id,
+          binary_build_duration: 3000,
+          inserted_at: command_event_1.created_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraph2",
+          command_event_id: command_event_2.id,
+          binary_build_duration: 4000,
+          inserted_at: command_event_2.created_at
+        }
+      ])
+
+      # When - query for project1 only
+      got = Analytics.build_time_analytics(project_id: project1.id)
+
+      # Then
+      assert got.actual_build_time == 1500
+      assert got.total_time_saved == 3000
+      assert got.total_build_time == 4500
+    end
+
+    test "filters by is_ci correctly" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_ci =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1500,
+          is_ci: true
+        )
+
+      command_event_local =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 2000,
+          is_ci: false
+        )
+
+      # Directly insert into ClickHouse
+      alias Tuist.ClickHouseRepo
+      alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+      ClickHouseRepo.insert_all(XcodeGraph, [
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraphCI",
+          command_event_id: command_event_ci.id,
+          binary_build_duration: 3000,
+          inserted_at: command_event_ci.created_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraphLocal",
+          command_event_id: command_event_local.id,
+          binary_build_duration: 4000,
+          inserted_at: command_event_local.created_at
+        }
+      ])
+
+      # When - query for CI events only
+      got = Analytics.build_time_analytics(project_id: project.id, is_ci: true)
+
+      # Then
+      assert got.actual_build_time == 1500
+      assert got.total_time_saved == 3000
+      assert got.total_build_time == 4500
+    end
+
+    test "handles custom date range" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_in_range =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-20 10:00:00],
+          duration: 1000
+        )
+
+      command_event_out_of_range =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-05-01 10:00:00],
+          duration: 2000
+        )
+
+      # Directly insert into ClickHouse
+      alias Tuist.ClickHouseRepo
+      alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+      ClickHouseRepo.insert_all(XcodeGraph, [
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraphInRange",
+          command_event_id: command_event_in_range.id,
+          binary_build_duration: 2000,
+          inserted_at: command_event_in_range.created_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraphOutOfRange",
+          command_event_id: command_event_out_of_range.id,
+          binary_build_duration: 3000,
+          inserted_at: command_event_out_of_range.created_at
+        }
+      ])
+
+      # When - use custom date range that excludes the second event
+      got =
+        Analytics.build_time_analytics(
+          project_id: project.id,
+          start_date: ~D[2024-04-15],
+          end_date: ~D[2024-04-29]
+        )
+
+      # Then - only the first event should be included
+      assert got.actual_build_time == 1000
+      assert got.total_time_saved == 2000
+      assert got.total_build_time == 3000
+    end
+
+    test "handles nil duration events correctly" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: nil
+        )
+
+      # Directly insert into ClickHouse
+      alias Tuist.ClickHouseRepo
+      alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+      ClickHouseRepo.insert_all(XcodeGraph, [
+        %{
+          id: UUIDv7.generate(),
+          name: "TestGraphNilDuration",
+          command_event_id: command_event.id,
+          binary_build_duration: 1500,
+          inserted_at: command_event.created_at
+        }
+      ])
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.actual_build_time == 0
+      assert got.total_time_saved == 1500
+      assert got.total_build_time == 1500
+    end
+  end
 end
