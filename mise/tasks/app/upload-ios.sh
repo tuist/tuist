@@ -5,7 +5,7 @@ set -eo pipefail
 
 # Run the bundle script first
 echo "Building iOS app bundle..."
-$MISE_PROJECT_ROOT/mise/tasks/app/bundle-ios.sh
+mise/tasks/app/bundle-ios.sh
 
 # Check if the IPA was created successfully
 if [ ! -f "build/Tuist.ipa" ]; then
