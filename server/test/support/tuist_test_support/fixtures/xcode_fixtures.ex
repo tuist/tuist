@@ -45,17 +45,24 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     id = Keyword.get(opts, :id, UUIDv7.generate())
+    binary_build_duration = Keyword.get(opts, :binary_build_duration)
 
     xcode_graph_data = %{
       id: id,
       name: name,
       command_event_id: command_event_id,
+      binary_build_duration: binary_build_duration,
       inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
 
     ClickHouseRepo.insert_all(CHXcodeGraph, [xcode_graph_data])
 
-    %{id: id, name: name, command_event_id: command_event_id}
+    %{
+      id: id,
+      name: name,
+      command_event_id: command_event_id,
+      binary_build_duration: binary_build_duration
+    }
   end
 
   defp clickhouse_xcode_project_fixture(opts) do
@@ -131,7 +138,12 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
     ClickHouseRepo.insert_all(CHXcodeTarget, [xcode_target_data])
 
-    %{id: id, name: name, xcode_project_id: xcode_project_id, binary_cache_hash: binary_cache_hash}
+    %{
+      id: id,
+      name: name,
+      xcode_project_id: xcode_project_id,
+      binary_cache_hash: binary_cache_hash
+    }
   end
 
   # Postgres-specific fixture functions
@@ -143,16 +155,23 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       end)
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
+    binary_build_duration = Keyword.get(opts, :binary_build_duration)
 
     changeset =
       PGXcodeGraph.create_changeset(%PGXcodeGraph{}, %{
         name: name,
-        command_event_id: command_event_id
+        command_event_id: command_event_id,
+        binary_build_duration: binary_build_duration
       })
 
     xcode_graph = Repo.insert!(changeset)
 
-    %{id: xcode_graph.id, name: xcode_graph.name, command_event_id: xcode_graph.command_event_id}
+    %{
+      id: xcode_graph.id,
+      name: xcode_graph.name,
+      command_event_id: xcode_graph.command_event_id,
+      binary_build_duration: binary_build_duration
+    }
   end
 
   def postgres_xcode_project_fixture(opts) do
