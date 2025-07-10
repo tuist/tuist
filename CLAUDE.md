@@ -139,6 +139,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 ## Code Style Guidelines (Elixir)
 - **Formatting:** Follow standard Elixir and Phoenix conventions. Consider using an Elixir formatter.
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
+- **Test Aliases:** Always declare module aliases at the module level in test files, not within individual test functions. This improves readability and avoids repetition.
 - **Types:** Utilize typespecs (`@spec`) for public functions.
 - **Naming Conventions:**
     - Modules: PascalCase (e.g., `MyModule`)

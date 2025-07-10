@@ -78,7 +78,7 @@
         & [data-part="indicator"] {
           align-self: stretch;
           border-radius: var(--noora-radius-xsmall);
-          background-color: var(--noora-chart-legend-primary);
+          background-color: var(--noora-chart-legend-primary-translucent);
           width: 6px;
         }
 

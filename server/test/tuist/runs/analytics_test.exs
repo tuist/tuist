@@ -2,7 +2,9 @@ defmodule Tuist.Runs.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Runs.Analytics
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -1057,7 +1059,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       copy(Tuist.ClickHouseRepo)
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      
+
       project = ProjectsFixtures.project_fixture()
 
       command_event_1 =
@@ -1075,9 +1077,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Directly insert into ClickHouse
-      alias Tuist.ClickHouseRepo
-      alias Tuist.Xcode.Clickhouse.XcodeGraph
-
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
@@ -1088,7 +1087,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         },
         %{
           id: UUIDv7.generate(),
-          name: "TestGraph2", 
+          name: "TestGraph2",
           command_event_id: command_event_2.id,
           binary_build_duration: 3000,
           inserted_at: command_event_2.created_at
@@ -1101,7 +1100,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.total_time_saved == 8000
       assert got.actual_build_time == 3500
-      assert got.total_build_time == 11500
+      assert got.total_build_time == 11_500
     end
 
     test "handles empty results correctly" do
@@ -1141,9 +1140,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Directly insert into ClickHouse
-      alias Tuist.ClickHouseRepo
-      alias Tuist.Xcode.Clickhouse.XcodeGraph
-
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
@@ -1192,9 +1188,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Directly insert into ClickHouse
-      alias Tuist.ClickHouseRepo
-      alias Tuist.Xcode.Clickhouse.XcodeGraph
-
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
@@ -1242,9 +1235,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Directly insert into ClickHouse
-      alias Tuist.ClickHouseRepo
-      alias Tuist.Xcode.Clickhouse.XcodeGraph
-
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
@@ -1290,9 +1280,6 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Directly insert into ClickHouse
-      alias Tuist.ClickHouseRepo
-      alias Tuist.Xcode.Clickhouse.XcodeGraph
-
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
