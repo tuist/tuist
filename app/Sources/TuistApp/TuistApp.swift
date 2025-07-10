@@ -54,21 +54,19 @@ import TuistServer
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
-                            if case .loggedIn = authenticationService.authenticationState {
+                            if case let .loggedIn(account: account) = authenticationService.authenticationState {
                                 TabView {
-                                    NavigationView {
-                                        PreviewsView()
-                                    }
-                                    .tabItem {
-                                        NooraIcon(.deviceMobile)
-                                        Text("Previews")
-                                    }
+                                    PreviewsView()
+                                        .tabItem {
+                                            NooraIcon(.deviceMobile)
+                                            Text("Previews")
+                                        }
 
-                                    ProfileView()
+                                    ProfileView(account: account)
                                         .environmentObject(authenticationService)
                                         .tabItem {
-                                            Image(systemName: "person.crop.circle")
-                                                .font(.system(size: 24))
+                                            NooraIcon(.user)
+                                                .frame(width: 24, height: 24)
                                             Text("Profile")
                                         }
                                 }

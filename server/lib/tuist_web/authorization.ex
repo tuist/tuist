@@ -58,6 +58,23 @@ defmodule TuistWeb.Authorization do
     end
   end
 
+  defp guard_can_user_read_entity(%Preview{} = preview, %Plug.Conn{} = conn) do
+    user = Authentication.current_user(conn)
+    preview = Tuist.Repo.preload(preview, :project)
+
+    cond do
+      is_nil(user) ->
+        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+
+      Authorization.can?(:project_preview_read, user, preview.project) ->
+        conn
+
+      true ->
+        raise NotFoundError,
+              gettext("The page you are looking for doesn't exist or has been moved.")
+    end
+  end
+
   defp guard_can_user_read_entity(entity, %Plug.Conn{} = conn) do
     user = Authentication.current_user(conn)
 

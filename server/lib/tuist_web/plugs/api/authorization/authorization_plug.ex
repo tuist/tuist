@@ -148,6 +148,18 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     Authorization.can?(:project_run_update, subject, project)
   end
 
+  def authorize(subject, :create, project, :preview) do
+    Authorization.can?(:project_preview_create, subject, project)
+  end
+
+  def authorize(subject, :read, project, :preview) do
+    Authorization.can?(:project_preview_read, subject, project)
+  end
+
+  def authorize(subject, :delete, project, :preview) do
+    Authorization.can?(:project_preview_delete, subject, project)
+  end
+
   def authorize(subject, action, project, category) do
     Authorization.can(subject, action, project, category)
   end

@@ -57,3 +57,8 @@ uuid
 # Local development
 .opencode/
 .claude/
+
+# Gettext
+# NOTE: We currently do not utilise gettext for actual translations and relying on key-as-value gettext calls.
+# This will be changed once we start localising the dashboard.
+priv/gettext/default.pot

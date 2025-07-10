@@ -81,8 +81,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.16.0",
-                    "CFBundleVersion": "0.16.0",
+                    "CFBundleShortVersionString": "0.17.0",
+                    "CFBundleVersion": "0.17.0",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -178,6 +178,10 @@ let project = Project(
             bundleId: "dev.tuist.error-handling",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+                .external(name: "OpenAPIRuntime"),
+            ]
         ),
         .target(
             name: "TuistAppStorage",

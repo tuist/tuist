@@ -36,7 +36,7 @@ public struct NooraDropdown<Option: Identifiable & CustomStringConvertible>: Vie
             }
             .padding(Noora.Spacing.spacing3)
             .background(Noora.Colors.surfaceBackgroundTertiary)
-            .cornerRadius(6)
+            .cornerRadius(Noora.CornerRadius.medium)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(

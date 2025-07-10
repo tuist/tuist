@@ -273,6 +273,7 @@ defmodule TuistWeb.Router do
           post "/:preview_id/icons", PreviewsController, :upload_icon
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
+          delete "/:preview_id", PreviewsController, :delete
         end
 
         scope "/tokens" do

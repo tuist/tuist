@@ -1,0 +1,48 @@
+import Foundation
+import SwiftUI
+import TuistNoora
+import TuistServer
+
+struct PreviewRunButton: View {
+    @State private var isLoading = false
+    var isDisabled: Bool {
+        !preview.appBuilds
+            .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
+    }
+
+    let preview: ServerPreview
+
+    var body: some View {
+        NooraButton(
+            title: "Run",
+            isLoading: isLoading,
+            isDisabled: !preview.appBuilds
+                .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
+        ) {
+            run()
+        }
+        .onTapGesture {
+            // We're using tap gesture instead of the Button action to take precedence over navigation tap gesture needed in
+            // PreviewsView
+            run()
+        }
+    }
+
+    private func run() {
+        guard !isDisabled else { return }
+        isLoading = true
+        let url = URL(
+            string: "itms-services://?action=download-manifest&url=\(preview.url.absoluteString)/manifest.plist"
+        )!
+        UIApplication.shared.open(url)
+
+        Task {
+            // It takes some time for the alert to install the app to appear
+            // We don't have a way to hook into the alert displaying, so we're using a hardcoded value to signal
+            // that
+            // something was triggered.
+            try await Task.sleep(for: .seconds(2))
+            isLoading = false
+        }
+    }
+}

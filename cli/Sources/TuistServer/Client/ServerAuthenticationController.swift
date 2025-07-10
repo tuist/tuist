@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import OpenAPIRuntime
 
 #if canImport(TuistSupport)
     import TuistSupport
@@ -239,6 +240,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     serverURL: serverURL
                 )
             return newTokens
+        } catch let error as ClientError {
+            let underlyingError = error.underlyingError as NSError
+            switch URLError.Code(rawValue: underlyingError.code) {
+            case .notConnectedToInternet:
+                throw error
+            default:
+                throw ServerClientAuthenticationError.notAuthenticated
+            }
         } catch {
             throw ServerClientAuthenticationError.notAuthenticated
         }

@@ -13,7 +13,7 @@ public enum ServerClientAuthenticationError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notAuthenticated:
-            return "You must be logged in to do this. To log in, run 'tuist auth login'."
+            return "You must be logged in to do this."
         }
     }
 }
