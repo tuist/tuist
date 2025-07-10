@@ -446,7 +446,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "id" => account.id,
                  "handle" => account.name
                },
-               "created_by_ci" => false
+               "created_from_ci" => false
              }
     end
 
@@ -580,7 +580,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "handle" => account.name
              }
 
-      assert response["created_by_ci"] == false
+      assert response["created_from_ci"] == false
 
       assert Enum.map(
                response["builds"],
@@ -746,7 +746,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                    "id" => account.id,
                    "handle" => account.name
                  },
-                 "created_by_ci" => false
+                 "created_from_ci" => false
                }
              ]
 

@@ -14,12 +14,13 @@ enum DeletePreviewServiceError: LocalizedError {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case badRequest(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The preview could not be deleted due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .unauthorized(message), let .notFound(message):
+        case let .forbidden(message), let .unauthorized(message), let .notFound(message), let .badRequest(message):
             return message
         }
     }
@@ -67,6 +68,11 @@ public final class DeletePreviewService: DeletePreviewServicing {
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
+            case let .json(error):
+                throw DeletePreviewServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
             case let .json(error):
                 throw DeletePreviewServiceError.unauthorized(error.message)
             }

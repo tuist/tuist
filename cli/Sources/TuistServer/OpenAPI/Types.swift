@@ -1943,8 +1943,8 @@ internal enum Components {
             internal var created_by: Components.Schemas.Account?
             /// Whether the preview was created by CI
             ///
-            /// - Remark: Generated from `#/components/schemas/Preview/created_by_ci`.
-            internal var created_by_ci: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/Preview/created_from_ci`.
+            internal var created_from_ci: Swift.Bool
             /// The display name of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
@@ -1989,7 +1989,7 @@ internal enum Components {
             ///   - builds:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - created_by:
-            ///   - created_by_ci: Whether the preview was created by CI
+            ///   - created_from_ci: Whether the preview was created by CI
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
             ///   - git_commit_sha: The git commit SHA associated with the preview
@@ -2004,7 +2004,7 @@ internal enum Components {
                 builds: [Components.Schemas.AppBuild],
                 bundle_identifier: Swift.String? = nil,
                 created_by: Components.Schemas.Account? = nil,
-                created_by_ci: Swift.Bool,
+                created_from_ci: Swift.Bool,
                 display_name: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -2019,7 +2019,7 @@ internal enum Components {
                 self.builds = builds
                 self.bundle_identifier = bundle_identifier
                 self.created_by = created_by
-                self.created_by_ci = created_by_ci
+                self.created_from_ci = created_from_ci
                 self.display_name = display_name
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -2035,7 +2035,7 @@ internal enum Components {
                 case builds
                 case bundle_identifier
                 case created_by
-                case created_by_ci
+                case created_from_ci
                 case display_name
                 case git_branch
                 case git_commit_sha
@@ -15296,6 +15296,57 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deletePreview.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deletePreview.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.deletePreview.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.deletePreview.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }

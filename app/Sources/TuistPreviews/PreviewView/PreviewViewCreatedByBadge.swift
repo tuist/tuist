@@ -8,7 +8,7 @@ struct PreviewViewCreatedByBadge: View {
 
     var body: some View {
         HStack(spacing: Noora.Spacing.spacing2) {
-            NooraIcon(preview.createdByCI ? .settings : .user)
+            NooraIcon(preview.createdFromCI ? .settings : .user)
                 .foregroundStyle(Noora.Colors.badgeInformationLabel)
                 .frame(width: 20, height: 20)
             Text(createdBy)
@@ -21,7 +21,7 @@ struct PreviewViewCreatedByBadge: View {
     }
 
     private var createdBy: String {
-        if preview.createdByCI {
+        if preview.createdFromCI {
             "CI"
         } else {
             preview.createdBy?.handle ?? "Unknown"
