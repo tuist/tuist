@@ -1004,11 +1004,13 @@ defmodule Tuist.Runs.Analytics do
   end
 
   defp apply_project_filter(query, nil), do: query
+
   defp apply_project_filter(query, project_id) do
     from(e in query, where: e.project_id == ^project_id)
   end
 
   defp apply_ci_filter(query, nil), do: query
+
   defp apply_ci_filter(query, is_ci) do
     from(e in query, where: e.is_ci == ^is_ci)
   end
