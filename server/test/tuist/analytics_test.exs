@@ -1,4 +1,4 @@
-defmodule Tuist.Runs.AnalyticsTest do
+defmodule Tuist.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
@@ -1042,10 +1042,11 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
-  describe "build_time_analytics/1" do
+  describe "build_time_analytics/1 with PostgreSQL" do
     test "returns build time analytics for the last 30 days by default" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
       project = ProjectsFixtures.project_fixture()
 
       # Create command events with xcode graphs that have binary build durations
@@ -1100,6 +1101,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "returns time saved analytics with custom date range" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
       project = ProjectsFixtures.project_fixture()
 
       # Create command events
@@ -1154,6 +1156,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "filters by CI environment when specified" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
       project = ProjectsFixtures.project_fixture()
 
       # Create CI and local events
@@ -1222,6 +1225,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "calculates total build time with only event duration when no binary build duration" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
       project = ProjectsFixtures.project_fixture()
 
       # Create command event with duration but no xcode graph
@@ -1249,6 +1253,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     test "filters total build time by CI environment when specified" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
       project = ProjectsFixtures.project_fixture()
 
       # Create CI and local events
@@ -1294,10 +1299,80 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Then
-      # 0 (no ClickHouse) + 1000
-      assert got_ci.total_build_time == 1000
-      # 0 (no ClickHouse) + 500
-      assert got_local.total_build_time == 500
+      # 5000 (time saved) + 1000 (command duration) = 6000
+      assert got_ci.total_build_time == 6000
+      # 3000 (time saved) + 500 (command duration) = 3500
+      assert got_local.total_build_time == 3500
+    end
+  end
+
+  describe "build_time_analytics/1 with ClickHouse" do
+    test "returns build time analytics for the last 30 days by default" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create command events
+      command_event_1 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-29 10:00:00],
+          duration: 1500
+        )
+
+      command_event_2 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-28 10:00:00],
+          duration: 2000
+        )
+
+      command_event_3 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ~N[2024-04-15 10:00:00],
+          duration: 1000
+        )
+
+      # Mock ClickHouse repository calls
+      stub(Tuist.ClickHouseRepo, :all, fn _query ->
+        [command_event_1.id, command_event_2.id, command_event_3.id]
+      end)
+
+      stub(Tuist.ClickHouseRepo, :one, fn _query ->
+        10_000  # Total binary_build_duration: 5000 + 3000 + 2000
+      end)
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      # Total time saved: 10000ms (from mocked ClickHouse)
+      assert got.total_time_saved == 10_000
+
+      # Total build time = time_saved + command_events_duration = 10000 + (1500 + 2000 + 1000) = 14500ms
+      assert got.total_build_time == 14_500
+    end
+
+    test "handles ClickHouse path when no command events found" do
+      # Given
+      copy(Tuist.ClickHouseRepo)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Mock ClickHouse repository calls to return empty results
+      stub(Tuist.ClickHouseRepo, :all, fn _query -> [] end)
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      # Should return 0 values when no events are found
+      assert got.total_time_saved == 0
+      assert got.total_build_time == 0
     end
   end
 end
