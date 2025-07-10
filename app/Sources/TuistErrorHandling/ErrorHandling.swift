@@ -1,4 +1,6 @@
+import OpenAPIRuntime
 import SwiftUI
+import TuistServer
 
 struct ErrorAlert: Identifiable {
     var id = UUID()
@@ -9,8 +11,21 @@ struct ErrorAlert: Identifiable {
 public final class ErrorHandling: ObservableObject {
     @Published var currentAlert: ErrorAlert?
 
+    @MainActor
     public func handle(error: Error) {
-        currentAlert = ErrorAlert(message: error.localizedDescription)
+        let errorDescription: String
+        if let clientError = error as? ClientError {
+            if let underlyingServerClientError = clientError.underlyingError
+                as? ServerClientAuthenticationError
+            {
+                errorDescription = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
+            } else {
+                errorDescription = clientError.underlyingError.localizedDescription
+            }
+        } else {
+            errorDescription = error.localizedDescription
+        }
+        currentAlert = ErrorAlert(message: errorDescription)
     }
 }
 
@@ -50,7 +65,7 @@ extension ErrorHandling {
             do {
                 try await action()
             } catch {
-                handle(error: error)
+                await handle(error: error)
             }
         }
     }

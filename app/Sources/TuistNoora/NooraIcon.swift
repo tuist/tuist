@@ -20,6 +20,7 @@ public struct NooraIcon: View {
         case deviceWatchShare = "device-watch-share"
         case gitBranch = "git-branch"
         case history
+        case refresh
         case settings
         case timelineEvent = "timeline-event"
         case user

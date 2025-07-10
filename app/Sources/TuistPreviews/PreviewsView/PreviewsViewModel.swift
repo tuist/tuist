@@ -22,6 +22,9 @@ final class PreviewsViewModel: Sendable {
     private var currentPage = 1
     private(set) var isLoadingMore = false
     private(set) var hasMorePreviews = true
+    private(set) var isRefreshingPreviews = false
+    private(set) var isRefreshingProjects = false
+    private(set) var isInitialLoading = true
 
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
@@ -36,16 +39,11 @@ final class PreviewsViewModel: Sendable {
     }
 
     func onAppear() async throws {
-        projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
-
-        if let selectedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self),
-           let storedProject = projects.first(where: { $0.fullName == selectedProjectFullHandle })
-        {
-            selectedProject = storedProject
-            try await loadPreviews(for: storedProject)
-        } else if let firstProject = projects.first {
-            selectedProject = firstProject
-            try await loadPreviews(for: firstProject)
+        do {
+            try await loadProjects()
+        } catch {
+            isInitialLoading = false
+            throw error
         }
     }
 
@@ -76,8 +74,68 @@ final class PreviewsViewModel: Sendable {
     }
 
     func refreshPreviews() async throws {
+        isRefreshingPreviews = true
+        let refreshStartTime = Date()
+
+        defer {
+            // If the refresh is too fast, it can make the UI feel glitchy, so we're ensuring the loading state preserved for at
+            // least 1 second
+            Task {
+                let elapsed = Date().timeIntervalSince(refreshStartTime)
+                let remainingDelay: TimeInterval = max(0, 1.0 - elapsed)
+                if remainingDelay > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(remainingDelay * 1_000_000_000))
+                }
+                isRefreshingPreviews = false
+            }
+        }
+
         guard let selectedProject else { return }
-        try await loadPreviews(for: selectedProject)
+        do {
+            try await loadPreviews(for: selectedProject)
+        } catch {
+            isRefreshingPreviews = false
+            throw error
+        }
+    }
+
+    func refreshProjects() async throws {
+        isRefreshingProjects = true
+        let refreshStartTime = Date()
+
+        defer {
+            // If the refresh is too fast, it can make the UI feel glitchy, so we're ensuring the loading state preserved for at
+            // least 1 second
+            Task {
+                let elapsed = Date().timeIntervalSince(refreshStartTime)
+                let remainingDelay: TimeInterval = max(0, 1.0 - elapsed)
+                if remainingDelay > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(remainingDelay * 1_000_000_000))
+                }
+                isRefreshingProjects = false
+            }
+        }
+
+        do {
+            try await loadProjects()
+        } catch {
+            isRefreshingProjects = false
+            throw error
+        }
+    }
+
+    private func loadProjects() async throws {
+        projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
+
+        if let selectedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self),
+           let storedProject = projects.first(where: { $0.fullName == selectedProjectFullHandle })
+        {
+            selectedProject = storedProject
+            try await loadPreviews(for: storedProject)
+        } else if let firstProject = projects.first {
+            selectedProject = firstProject
+            try await loadPreviews(for: firstProject)
+        }
     }
 
     private func loadPreviewsPage(for project: ServerProject, page: Int) async throws {
