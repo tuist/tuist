@@ -1,3 +1,10 @@
+## What's Changed in app@0.17.0
+* feat: implement profile by @fortmarek in [#7800](https://github.com/tuist/tuist/pull/7800)
+* feat: previews empty states by @fortmarek in [#7803](https://github.com/tuist/tuist/pull/7803)
+* feat: implement preview detail by @fortmarek in [#7792](https://github.com/tuist/tuist/pull/7792)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.16.0...app@0.17.0
+
 ## What's Changed in app@0.16.0
 * feat: show previews list by @fortmarek in [#7783](https://github.com/tuist/tuist/pull/7783)
 
