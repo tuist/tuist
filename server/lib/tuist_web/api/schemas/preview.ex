@@ -69,7 +69,7 @@ defmodule TuistWeb.API.Schemas.Preview do
       created_by: Account,
       created_from_ci: %Schema{
         type: :boolean,
-        description: "Whether the preview was created by CI"
+        description: "Whether the preview was created from CI"
       }
     }
   })
