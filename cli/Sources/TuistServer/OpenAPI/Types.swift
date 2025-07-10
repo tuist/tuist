@@ -1941,15 +1941,10 @@ internal enum Components {
             internal var bundle_identifier: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Preview/created_by`.
             internal var created_by: Components.Schemas.Account?
-            /// Whether the preview was created by CI
+            /// Whether the preview was created from CI
             ///
-<<<<<<< HEAD
-            /// - Remark: Generated from `#/components/schemas/Preview/created_by_ci`.
-            internal var created_by_ci: Swift.Bool
-=======
             /// - Remark: Generated from `#/components/schemas/Preview/created_from_ci`.
             internal var created_from_ci: Swift.Bool
->>>>>>> origin/main
             /// The display name of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
@@ -1994,11 +1989,7 @@ internal enum Components {
             ///   - builds:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - created_by:
-<<<<<<< HEAD
-            ///   - created_by_ci: Whether the preview was created by CI
-=======
-            ///   - created_from_ci: Whether the preview was created by CI
->>>>>>> origin/main
+            ///   - created_from_ci: Whether the preview was created from CI
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
             ///   - git_commit_sha: The git commit SHA associated with the preview
@@ -2013,11 +2004,7 @@ internal enum Components {
                 builds: [Components.Schemas.AppBuild],
                 bundle_identifier: Swift.String? = nil,
                 created_by: Components.Schemas.Account? = nil,
-<<<<<<< HEAD
-                created_by_ci: Swift.Bool,
-=======
                 created_from_ci: Swift.Bool,
->>>>>>> origin/main
                 display_name: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
