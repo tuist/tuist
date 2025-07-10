@@ -94,6 +94,8 @@ jobs:
           key: spm-ext-v1-${{ hashFiles('cli-ext/Package.resolved') }}
           restore-keys: spm-ext-v1-${{ hashFiles('cli-ext/Package.resolved') }}
       - uses: jdx/mise-action@v2
+        with:
+          working_directory: cli-ext
       - name: Install dependencies
         working-directory: cli-ext
         run: tuist install
