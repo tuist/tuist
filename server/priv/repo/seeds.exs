@@ -342,7 +342,7 @@ test_previews =
     git_branch = Enum.random(branches)
 
     %{
-      display_name: "MyApp - Preview #{index}",
+      display_name: "MyApp",
       bundle_identifier: bundle_identifier,
       version: version,
       supported_platforms: supported_platforms,
@@ -350,6 +350,15 @@ test_previews =
       git_commit_sha: git_commit_sha,
       project_id: ios_app_with_frameworks_project.id,
       created_by_account_id: organization.id,
+      inserted_at:
+        DateTime.new!(
+          Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+          Time.new!(
+            Enum.random(0..23),
+            Enum.random(0..59),
+            Enum.random(0..59)
+          )
+        ),
       visibility: :public
     }
   end)
@@ -361,7 +370,9 @@ Enum.each(test_previews, fn preview_attrs ->
   supported_platforms = preview_attrs.supported_platforms
 
   Enum.each(1..Enum.random(1..3), fn _ ->
-    build_platforms = Enum.take_random(supported_platforms, Enum.random(1..length(supported_platforms)))
+    build_platforms =
+      Enum.take_random(supported_platforms, Enum.random(1..length(supported_platforms)))
+
     build_type = Enum.random([:app_bundle, :ipa])
 
     app_build_attrs = %{

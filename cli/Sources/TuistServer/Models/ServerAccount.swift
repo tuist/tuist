@@ -1,7 +1,7 @@
 import Foundation
 
 /// Server account
-public struct ServerAccount: Codable {
+public struct ServerAccount: Sendable, Codable, Equatable, Hashable {
     public let id: Int
     public let handle: String
 

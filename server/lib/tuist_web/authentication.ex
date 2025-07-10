@@ -340,7 +340,12 @@ defmodule TuistWeb.Authentication do
         require_authenticated_user(conn, opts)
 
       {:ok, preview} ->
-        if Authorization.can(nil, :read, Repo.preload(preview, :project)) do
+        if preview.visibility == :public or
+             Authorization.can?(
+               :project_preview_read,
+               nil,
+               Repo.preload(preview, :project).project
+             ) do
           conn
         else
           require_authenticated_user(conn, opts)

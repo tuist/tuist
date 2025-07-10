@@ -2,17 +2,20 @@ import Foundation
 import TuistSimulator
 import XcodeGraph
 
-public struct ServerPreview: Sendable, Equatable, Codable, Identifiable {
+public struct ServerPreview: Sendable, Equatable, Codable, Identifiable, Hashable {
     public let id: String
     public let url: URL
     public let qrCodeURL: URL
     public let iconURL: URL
+    public let version: Version?
     public let bundleIdentifier: String?
     public var displayName: String?
     public let gitCommitSHA: String?
     public let gitBranch: String?
     public let appBuilds: [AppBuild]
     public let supportedPlatforms: [DestinationType]
+    public let createdFromCI: Bool
+    public let createdBy: ServerAccount?
     public let insertedAt: Date
 }
 
@@ -29,12 +32,23 @@ extension ServerPreview {
         self.url = url
         self.qrCodeURL = qrCodeURL
         self.iconURL = iconURL
+        if let version = preview.version {
+            self.version = Version(string: version)
+        } else {
+            version = nil
+        }
         bundleIdentifier = preview.bundle_identifier
         displayName = preview.display_name
         gitCommitSHA = preview.git_commit_sha
         gitBranch = preview.git_branch
         appBuilds = preview.builds.compactMap(AppBuild.init)
         supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
+        createdFromCI = preview.created_from_ci
+        if let createdBy = preview.created_by {
+            self.createdBy = ServerAccount(createdBy)
+        } else {
+            createdBy = nil
+        }
         self.insertedAt = insertedAt
     }
 }
@@ -50,6 +64,7 @@ extension ServerPreview {
             // swiftlint:disable:this force_try
             iconURL: URL =
                 URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png")!,
+            version: Version = "1.0.0",
             // swiftlint:disable:this force_try
             bundleIdentifier: String? = "dev.tuist.app",
             displayName: String? = "App",
@@ -62,6 +77,8 @@ extension ServerPreview {
                 .device(.iOS),
                 .simulator(.iOS),
             ],
+            createdFromCI: Bool = false,
+            createdBy: ServerAccount? = .test(),
             insertedAt: Date = Date(timeIntervalSince1970: 0)
         ) -> Self {
             .init(
@@ -69,12 +86,15 @@ extension ServerPreview {
                 url: url,
                 qrCodeURL: qrCodeURL,
                 iconURL: iconURL,
+                version: version,
                 bundleIdentifier: bundleIdentifier,
                 displayName: displayName,
                 gitCommitSHA: gitCommitSHA,
                 gitBranch: gitBranch,
                 appBuilds: appBuilds,
                 supportedPlatforms: supportedPlatforms,
+                createdFromCI: createdFromCI,
+                createdBy: createdBy,
                 insertedAt: insertedAt
             )
         }

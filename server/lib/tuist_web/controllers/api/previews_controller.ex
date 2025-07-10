@@ -342,7 +342,10 @@ defmodule TuistWeb.API.PreviewsController do
 
         Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
-        {:ok, preview} = AppBuilds.preview_by_id(app_build.preview.id, preload: [:app_builds])
+        {:ok, preview} =
+          AppBuilds.preview_by_id(app_build.preview.id,
+            preload: [:app_builds, :created_by_account]
+          )
 
         conn
         |> put_status(:ok)
@@ -404,7 +407,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _args
       ) do
-    case AppBuilds.preview_by_id(preview_id, preload: [:app_builds]) do
+    case AppBuilds.preview_by_id(preview_id, preload: [:app_builds, :created_by_account]) do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
@@ -545,7 +548,7 @@ defmodule TuistWeb.API.PreviewsController do
         },
         distinct: distinct,
         supported_platforms: Map.get(params, :supported_platforms),
-        preload: [:app_builds]
+        preload: [:app_builds, :created_by_account]
       )
 
     json(conn, %{
@@ -679,6 +682,69 @@ defmodule TuistWeb.API.PreviewsController do
     }
   end
 
+  operation(:delete,
+    summary: "Deletes a preview.",
+    description: "This endpoint deletes a preview with a given id.",
+    operation_id: "deletePreview",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      preview_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The id of the preview to delete."
+      ]
+    ],
+    responses: %{
+      no_content: "The preview was deleted",
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The preview does not exist", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
+    }
+  )
+
+  def delete(
+        %{
+          path_params: %{
+            "account_handle" => _account_handle,
+            "project_handle" => _project_handle,
+            "preview_id" => preview_id
+          }
+        } = conn,
+        _params
+      ) do
+    case AppBuilds.preview_by_id(preview_id) do
+      {:ok, preview} ->
+        AppBuilds.delete_preview!(preview)
+
+        conn
+        |> put_status(:no_content)
+        |> json(%{})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
+    end
+  end
+
   defp map_preview(preview, account_handle, project_handle, opts \\ []) do
     builds =
       preview.app_builds
@@ -697,7 +763,14 @@ defmodule TuistWeb.API.PreviewsController do
       git_branch: preview.git_branch,
       builds: builds,
       supported_platforms: preview.supported_platforms,
-      inserted_at: preview.inserted_at
+      inserted_at: preview.inserted_at,
+      created_by:
+        preview.created_by_account &&
+          %{
+            id: preview.created_by_account.id,
+            handle: preview.created_by_account.name
+          },
+      created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
     }
   end
 end

@@ -189,13 +189,18 @@ public enum Noora {
         public static let buttonEnabledLabel = Color(light: purple500, dark: purple400)
         public static let buttonEnabledBackground = Color(light: purple500.opacity(0.15), dark: purple500.opacity(0.20))
         public static let buttonDisabledLabel = Color(
-            light: Color(hex: 0x3C3C_434D, alpha: 0.3),
-            dark: Color(hex: 0x3C3C43, alpha: 0.3)
+            light: Color(hex: 0x3C3C43, alpha: 0.3),
+            dark: Color(hex: 0x696C72, alpha: 0.6)
         )
         public static let buttonDisabledBackground = Color(
             light: Color(hex: 0x787880, alpha: 0.12),
             dark: Color(hex: 0x787880, alpha: 0.24)
         )
+
+        // MARK: Badge
+
+        public static let badgeInformationLabel = Color(light: azure700, dark: azure400)
+        public static let badgeInformationBackground = Color(light: azure50, dark: azureAlpha)
     }
 
     public enum Spacing {
@@ -222,10 +227,10 @@ public enum Noora {
         public static let none: CGFloat = 0
         public static let xsmall: CGFloat = 2
         public static let small: CGFloat = 4
-        public static let medium: CGFloat = 8
-        public static let large: CGFloat = 12
-        public static let xlarge: CGFloat = 16
-        public static let xxlarge: CGFloat = 20
+        public static let medium: CGFloat = 6
+        public static let large: CGFloat = 8
+        public static let xlarge: CGFloat = 12
+        public static let xxlarge: CGFloat = 16
         public static let max: CGFloat = 9999
     }
 }

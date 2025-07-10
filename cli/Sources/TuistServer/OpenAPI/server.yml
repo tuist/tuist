@@ -609,6 +609,13 @@ components:
           type: string
           x-struct:
           x-validate:
+        created_by:
+          $ref: '#/components/schemas/Account'
+        created_from_ci:
+          description: Whether the preview was created by CI
+          type: boolean
+          x-struct:
+          x-validate:
         display_name:
           description: The display name of the preview
           type: string
@@ -656,6 +663,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        version:
+          description: The app version of the preview
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - url
@@ -664,6 +676,7 @@ components:
         - builds
         - supported_platforms
         - inserted_at
+        - created_from_ci
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
@@ -4436,6 +4449,65 @@ paths:
       tags:
         - Organizations
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
+    delete:
+      callbacks: {}
+      description: This endpoint deletes a preview with a given id.
+      operationId: deletePreview
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The id of the preview to delete.
+          in: path
+          name: preview_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        204:
+          description: The preview was deleted
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The preview does not exist
+      summary: Deletes a preview.
+      tags:
+        - Previews
     get:
       callbacks: {}
       description: This endpoint returns a preview with a given id, including the url to download the preview.

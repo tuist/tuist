@@ -3,12 +3,22 @@ defmodule TuistWeb.API.Schemas.Preview do
   The schema for the Tuist Preview response.
   """
   alias OpenApiSpex.Schema
+  alias TuistWeb.API.Schemas.Account
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :url, :qr_code_url, :icon_url, :builds, :supported_platforms, :inserted_at],
+    required: [
+      :id,
+      :url,
+      :qr_code_url,
+      :icon_url,
+      :builds,
+      :supported_platforms,
+      :inserted_at,
+      :created_from_ci
+    ],
     properties: %{
       id: %Schema{
         type: :string,
@@ -55,6 +65,11 @@ defmodule TuistWeb.API.Schemas.Preview do
         type: :string,
         format: :date_time,
         description: "The date and time when the preview was inserted"
+      },
+      created_by: Account,
+      created_from_ci: %Schema{
+        type: :boolean,
+        description: "Whether the preview was created from CI"
       }
     }
   })
