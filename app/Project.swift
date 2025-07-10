@@ -143,7 +143,9 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistNoora/**"],
             resources: ["Resources/TuistNoora/**"],
-            dependencies: []
+            dependencies: [
+                .external(name: "NukeUI"),
+            ]
         ),
         .target(
             name: "TuistOnboarding",
