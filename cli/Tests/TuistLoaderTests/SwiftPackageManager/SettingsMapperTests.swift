@@ -55,6 +55,44 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
+    func test_set_SWIFT_OBJC_INTEROP_MODE_when_cplusplus() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .interoperabilityMode, condition: nil, value: ["Cxx"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["SWIFT_OBJC_INTEROP_MODE"],
+            .string("objcxx")
+        )
+    }
+
+    func test_set_SWIFT_OBJC_INTEROP_MODE_when_c() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .interoperabilityMode, condition: nil, value: ["C"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["SWIFT_OBJC_INTEROP_MODE"],
+            .string("objc")
+        )
+    }
+
     func test_set_HEADER_SEARCH_PATHS() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cPath"]),
