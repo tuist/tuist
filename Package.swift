@@ -441,6 +441,18 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistCASPlugin",
+        dependencies: [
+            "TuistServer",
+            "TuistCore",
+            "TuistSupport",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCASPlugin",
+        exclude: ["README.md"],
+        publicHeadersPath: "include"
+    ),
 ]
 
 #if TUIST
@@ -550,6 +562,11 @@ let package = Package(
             name: "TuistGenerator",
             targets: ["TuistGenerator"]
         ),
+        .library(
+            name: "TuistCASPlugin",
+            type: .dynamic,
+            targets: ["TuistCASPlugin"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
@@ -604,14 +621,15 @@ let package = Package(
             .upToNextMajor(from: "1.18.1")
         ),
         .package(
-            url: "https://github.com/modelcontextprotocol/swift-sdk.git", .upToNextMajor(from: "0.9.0")
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+            .upToNextMajor(from: "0.9.0")
         ),
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(
             url: "https://github.com/tuist/Rosalind",
             .upToNextMajor(from: "0.5.31")
         ),
-        .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0"))
+        .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
     ],
     targets: targets
 )

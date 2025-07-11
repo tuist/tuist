@@ -1,0 +1,4 @@
+module CTuistCASPlugin {
+    header "include/cas_plugin.h"
+    export *
+}
