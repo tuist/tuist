@@ -263,7 +263,11 @@
                 type: "value",
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: if(@build_time_analytics.total_build_time < 3_600_000, do: "fn:formatSeconds", else: "fn:formatHours"),
+                  formatter:
+                    if(@build_time_analytics.total_build_time < 3_600_000,
+                      do: "fn:formatSeconds",
+                      else: "fn:formatHours"
+                    ),
                   hideOverlap: true
                 },
                 axisLine: %{show: false},
@@ -283,7 +287,11 @@
               tooltip: %{
                 trigger: "axis",
                 axisPointer: %{type: "none"},
-                valueFormat: if(@build_time_analytics.total_build_time < 3_600_000, do: "fn:formatSeconds", else: "fn:formatHours")
+                valueFormat:
+                  if(@build_time_analytics.total_build_time < 3_600_000,
+                    do: "fn:formatSeconds",
+                    else: "fn:formatHours"
+                  )
               }
             }
           }
@@ -298,14 +306,16 @@
               },
               data: [
                 if(@build_time_analytics.total_build_time < 3_600_000,
-                  do: ((@build_time_analytics.total_build_time -
-                          @build_time_analytics.total_time_saved) / 1000)
-                      |> Decimal.from_float()
-                      |> Decimal.round(1),
-                  else: ((@build_time_analytics.total_build_time -
-                            @build_time_analytics.total_time_saved) / 3_600_000)
-                        |> Decimal.from_float()
-                        |> Decimal.round(2)
+                  do:
+                    ((@build_time_analytics.total_build_time -
+                        @build_time_analytics.total_time_saved) / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1),
+                  else:
+                    ((@build_time_analytics.total_build_time -
+                        @build_time_analytics.total_time_saved) / 3_600_000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(2)
                 )
               ]
             },
@@ -319,12 +329,14 @@
               },
               data: [
                 if(@build_time_analytics.total_build_time < 3_600_000,
-                  do: (@build_time_analytics.total_time_saved / 1000)
-                      |> Decimal.from_float()
-                      |> Decimal.round(1),
-                  else: (@build_time_analytics.total_time_saved / 3_600_000)
-                        |> Decimal.from_float()
-                        |> Decimal.round(2)
+                  do:
+                    (@build_time_analytics.total_time_saved / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1),
+                  else:
+                    (@build_time_analytics.total_time_saved / 3_600_000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(2)
                 )
               ]
             }
