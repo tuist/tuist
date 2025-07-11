@@ -258,7 +258,9 @@ defmodule TuistWeb.Router do
         put "/", ProjectsController, :update
 
         scope "/bundles" do
+          get "/", BundlesController, :index
           post "/", BundlesController, :create
+          get "/:bundle_id", BundlesController, :show
         end
 
         scope "/runs" do

@@ -313,6 +313,18 @@ public enum EnvKey: String, CaseIterable {
 
     case hashTestPath = "TUIST_HASH_TEST_PATH"
     case hashTestConfiguration = "TUIST_HASH_TEST_CONFIGURATION"
+
+    // BUNDLE LIST
+
+    case bundleListJson = "TUIST_BUNDLE_LIST_JSON"
+    case bundleListPath = "TUIST_BUNDLE_LIST_PATH"
+    case bundleListGitBranch = "TUIST_BUNDLE_LIST_GIT_BRANCH"
+    case bundleListPage = "TUIST_BUNDLE_LIST_PAGE"
+    case bundleListPageSize = "TUIST_BUNDLE_LIST_PAGE_SIZE"
+
+    // BUNDLE SHOW
+
+    case bundleShowPath = "TUIST_BUNDLE_SHOW_PATH"
 }
 
 extension EnvKey {
