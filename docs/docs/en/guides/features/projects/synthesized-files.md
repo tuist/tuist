@@ -54,6 +54,9 @@ In Objective-C, you'll get an interface `{Target}Resources` to access the bundle
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
+> [!WARNING] LIMITATION WITH INTERNAL TARGETS
+> Currently, Tuist does not generate resource bundle accessors for internal targets that contain only Objective-C sources. This is a known limitation tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
+
 > [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 > If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
 
