@@ -171,6 +171,7 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
             ]
         ),
         .target(
