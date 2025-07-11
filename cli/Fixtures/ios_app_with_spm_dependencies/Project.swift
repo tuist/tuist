@@ -17,8 +17,10 @@ let project = Project(
                 .external(name: "Pay"),
                 .external(name: "Installations"),
                 .external(name: "JWTKit"),
+                .external(name: "Spine"),
                 .sdk(name: "c++", type: .library, status: .required),
-            ]
+            ],
+            settings: .settings(base: ["SWIFT_OBJC_INTEROP_MODE": "objcxx"])
         ),
         .target(
             name: "AppTests",
@@ -28,7 +30,8 @@ let project = Project(
             deploymentTargets: .iOS("16.0"),
             infoPlist: .default,
             sources: "AppTests/**",
-            dependencies: [.target(name: "App")]
+            dependencies: [.target(name: "App")],
+            settings: .settings(base: ["SWIFT_OBJC_INTEROP_MODE": "objcxx"])
         ),
     ]
 )
