@@ -338,6 +338,8 @@ let targets: [Target] = [
             "TuistSupport",
             "TuistCache",
             "TuistXCActivityLog",
+            "TuistAutomation",
+            "TuistSimulator",
             "FileSystem",
             "XcodeGraph",
             "Mockable",
@@ -450,6 +452,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistCASPlugin",
+        exclude: ["README.md"],
         publicHeadersPath: "include"
     ),
 ]
