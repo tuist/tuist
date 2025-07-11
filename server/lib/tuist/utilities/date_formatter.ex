@@ -42,4 +42,40 @@ defmodule Tuist.Utilities.DateFormatter do
         Enum.join(parts, " ")
     end
   end
+
+  def format_duration_based_on_max(duration_ms, max_duration_ms) do
+    cond do
+      duration_ms == 0 ->
+        if max_duration_ms < 3_600_000, do: "0m", else: "0h"
+
+      max_duration_ms < 3_600_000 ->
+        # Show in minutes when max is less than 1 hour
+        minutes = div(trunc(duration_ms), 60_000)
+        remainder = rem(trunc(duration_ms), 60_000)
+        seconds = div(remainder, 1_000)
+        
+        if minutes > 0 and seconds > 30 do
+          "#{minutes + 1}m"
+        else
+          "#{max(minutes, 1)}m"
+        end
+
+      true ->
+        # Show in hours when max is 1 hour or more
+        hours = div(trunc(duration_ms), 3_600_000)
+        remainder = rem(trunc(duration_ms), 3_600_000)
+        minutes = div(remainder, 60_000)
+        
+        if hours > 0 and minutes > 30 do
+          "#{hours + 1}h"
+        else
+          "#{max(hours, 1)}h"
+        end
+    end
+  end
+
+  def format_hours_only(duration_seconds) do
+    hours = (duration_seconds / 3600) |> Float.round(1)
+    "#{hours}h"
+  end
 end
