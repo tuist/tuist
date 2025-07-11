@@ -38,6 +38,9 @@ public struct RunAction: Equatable, Codable, Sendable {
     /// The launch style of the action
     public var launchStyle: LaunchStyle
 
+    /// The URL string used to invoke the app clip, if available.
+    public var appClipInvocationURLString: String?
+
     init(
         configuration: ConfigurationName,
         attachDebugger: Bool = true,
@@ -50,7 +53,8 @@ public struct RunAction: Equatable, Codable, Sendable {
         diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         metalOptions: MetalOptions = .options(),
         expandVariableFromTarget: TargetReference? = nil,
-        launchStyle: LaunchStyle = .automatically
+        launchStyle: LaunchStyle = .automatically,
+        appClipInvocationURLString: String? = nil
     ) {
         self.configuration = configuration
         self.attachDebugger = attachDebugger
@@ -64,6 +68,7 @@ public struct RunAction: Equatable, Codable, Sendable {
         self.metalOptions = metalOptions
         self.expandVariableFromTarget = expandVariableFromTarget
         self.launchStyle = launchStyle
+        self.appClipInvocationURLString = appClipInvocationURLString
     }
 
     /// Returns a run action.
@@ -79,6 +84,7 @@ public struct RunAction: Equatable, Codable, Sendable {
     ///   - metalOptions: List of metal options to set to the action.
     ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables
     /// definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
+    ///   - appClipInvocationURLString: The URL string used to invoke the app clip, if available.
     ///   - launchStyle: The launch style of the action
     /// - Returns: Run action.
     public static func runAction(
@@ -93,7 +99,8 @@ public struct RunAction: Equatable, Codable, Sendable {
         diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         metalOptions: MetalOptions = .options(),
         expandVariableFromTarget: TargetReference? = nil,
-        launchStyle: LaunchStyle = .automatically
+        launchStyle: LaunchStyle = .automatically,
+        appClipInvocationURLString: String? = nil
     ) -> RunAction {
         RunAction(
             configuration: configuration,
@@ -107,7 +114,8 @@ public struct RunAction: Equatable, Codable, Sendable {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariableFromTarget,
-            launchStyle: launchStyle
+            launchStyle: launchStyle,
+            appClipInvocationURLString: appClipInvocationURLString
         )
     }
 }
