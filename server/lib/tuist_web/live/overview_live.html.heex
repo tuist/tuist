@@ -250,7 +250,7 @@
         <.chart
           id="time-saved-segmented-chart"
           type="bar"
-          style="height: 80px"
+          style="height: 100px"
           extra_options={
             %{
               grid: %{
@@ -263,7 +263,7 @@
                 type: "value",
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: "fn:formatSeconds",
+                  formatter: if(@build_time_analytics.total_build_time < 3_600_000, do: "fn:formatSeconds", else: "fn:formatHours"),
                   hideOverlap: true
                 },
                 axisLine: %{show: false},
@@ -282,8 +282,8 @@
               legend: %{show: false},
               tooltip: %{
                 trigger: "axis",
-                axisPointer: %{type: "shadow"},
-                valueFormat: "fn:formatSeconds"
+                axisPointer: %{type: "none"},
+                valueFormat: if(@build_time_analytics.total_build_time < 3_600_000, do: "fn:formatSeconds", else: "fn:formatHours")
               }
             }
           }
@@ -297,10 +297,16 @@
                 borderRadius: [4, 0, 0, 4]
               },
               data: [
-                ((@build_time_analytics.total_build_time -
-                    @build_time_analytics.total_time_saved) / 1000)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
+                if(@build_time_analytics.total_build_time < 3_600_000,
+                  do: ((@build_time_analytics.total_build_time -
+                          @build_time_analytics.total_time_saved) / 1000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1),
+                  else: ((@build_time_analytics.total_build_time -
+                            @build_time_analytics.total_time_saved) / 3_600_000)
+                        |> Decimal.from_float()
+                        |> Decimal.round(2)
+                )
               ]
             },
             %{
@@ -312,9 +318,14 @@
                 borderRadius: [0, 4, 4, 0]
               },
               data: [
-                (@build_time_analytics.total_time_saved / 1000)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
+                if(@build_time_analytics.total_build_time < 3_600_000,
+                  do: (@build_time_analytics.total_time_saved / 1000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1),
+                  else: (@build_time_analytics.total_time_saved / 3_600_000)
+                        |> Decimal.from_float()
+                        |> Decimal.round(2)
+                )
               ]
             }
           ]}
