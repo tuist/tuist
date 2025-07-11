@@ -66,8 +66,8 @@
     }
 
     & [data-part="time-saved-card-chart-section"] {
-      flex: 1;
       display: flex;
+      flex: 1;
       flex-direction: column;
 
       & [data-part="footer"] {

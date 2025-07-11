@@ -132,8 +132,7 @@ defmodule Tuist.Runs.Analytics do
               b.project_id == ^project_id,
           select: %{
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-            value:
-              fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
+            value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
           }
         ),
         opts
@@ -527,10 +526,8 @@ defmodule Tuist.Runs.Analytics do
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           cacheable_targets_count: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits_count:
-            sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits_count:
-            sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          local_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
+          remote_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
@@ -565,8 +562,7 @@ defmodule Tuist.Runs.Analytics do
           date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
           cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
           local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits:
-            sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          remote_cache_target_hits: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
@@ -669,10 +665,8 @@ defmodule Tuist.Runs.Analytics do
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           test_targets_count: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits_count:
-            sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits_count:
-            sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+          local_test_target_hits_count: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
+          remote_test_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
         }
       )
       |> add_filters(opts)
@@ -745,11 +739,7 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  def total_execution_period_average_duration(%{
-        query: query,
-        start_date: start_date,
-        end_date: end_date
-      }) do
+  def total_execution_period_average_duration(%{query: query, start_date: start_date, end_date: end_date}) do
     average =
       start_date
       |> query.(end_date)
@@ -925,12 +915,7 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp runs_per_period(%{
-         query: query,
-         start_date: start_date,
-         end_date: end_date,
-         date_period: date_period
-       }) do
+  defp runs_per_period(%{query: query, start_date: start_date, end_date: end_date, date_period: date_period}) do
     runs =
       start_date
       |> query.(end_date, date_period, time_bucket_for_date_period(date_period))

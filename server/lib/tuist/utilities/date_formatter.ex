@@ -53,7 +53,7 @@ defmodule Tuist.Utilities.DateFormatter do
         minutes = div(trunc(duration_ms), 60_000)
         remainder = rem(trunc(duration_ms), 60_000)
         seconds = div(remainder, 1_000)
-        
+
         if minutes > 0 and seconds > 30 do
           "#{minutes + 1}m"
         else
@@ -65,7 +65,7 @@ defmodule Tuist.Utilities.DateFormatter do
         hours = div(trunc(duration_ms), 3_600_000)
         remainder = rem(trunc(duration_ms), 3_600_000)
         minutes = div(remainder, 60_000)
-        
+
         if hours > 0 and minutes > 30 do
           "#{hours + 1}h"
         else
@@ -75,7 +75,7 @@ defmodule Tuist.Utilities.DateFormatter do
   end
 
   def format_hours_only(duration_seconds) do
-    hours = (duration_seconds / 3600) |> Float.round(1)
+    hours = Float.round(duration_seconds / 3600, 1)
     "#{hours}h"
   end
 end
