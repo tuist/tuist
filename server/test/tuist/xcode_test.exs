@@ -1346,6 +1346,7 @@ defmodule Tuist.XcodeTest do
       if condition_fn.(result) do
         {:halt, result}
       else
+        # credo:disable-for-next-line
         if attempt < max_attempts do
           Process.sleep(delay_ms)
           {:cont, nil}
