@@ -3516,6 +3516,7 @@ paths:
   /api/organizations/{organization_name}:
     delete:
       callbacks: {}
+      deprecated: true
       description: Deletes the organization with the given name.
       operationId: deleteOrganization
       parameters:
@@ -5623,6 +5624,43 @@ paths:
       tags:
         - Projects
   /api/accounts/{account_handle}:
+    delete:
+      callbacks: {}
+      description: Deletes the account with the given handle.
+      operationId: deleteAccount
+      parameters:
+        - description: The handle of the account to delete.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        204:
+          description: The account was deleted
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account with the given handle was not found
+      summary: Deletes an account
+      tags:
+        - Account
     patch:
       callbacks: {}
       description: Updates the given account

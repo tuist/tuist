@@ -61,7 +61,7 @@ public final class GetOrganizationService: GetOrganizationServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw GetOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetOrganizationServiceError.unknownError(statusCode)

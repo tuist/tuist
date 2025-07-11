@@ -68,6 +68,67 @@ defmodule TuistWeb.API.AccountController do
     end
   end
 
+  operation(:delete_account,
+    summary: "Deletes an account",
+    description: "Deletes the account with the given handle.",
+    operation_id: "deleteAccount",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account to delete."
+      ]
+    ],
+    responses: %{
+      no_content: "The account was deleted",
+      not_found: {"The account with the given handle was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
+    }
+  )
+
+  def delete_account(%{path_params: %{"account_handle" => handle}} = conn, _params) do
+    with {:ok, account} <- get_account(handle),
+         :ok <- Authorization.authorize(:account_delete, conn.assigns.current_user, account) do
+      cond do
+        !is_nil(account.user_id) ->
+          account_user = Accounts.get_user_by_id(account.user_id)
+          Accounts.delete_user(account_user)
+
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
+
+        true ->
+          case Accounts.get_organization_by_id(account.organization_id) do
+            {:ok, organization} ->
+              Accounts.delete_organization!(organization)
+
+              conn
+              |> put_status(:no_content)
+              |> json(%{})
+
+            {:error, :not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{message: "Organization not found."})
+          end
+
+      end
+    else
+      {:error, :not_found, "account"} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Account #{handle} not found."})
+
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+    end
+  end
+
   defp get_account(handle) do
     case Accounts.get_account_by_handle(handle) do
       %Account{} = account -> {:ok, account}

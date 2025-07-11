@@ -57,7 +57,7 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CompleteAnalyticsArtifactsUploadsServiceError.unauthorized(error.message)
             }
         }
     }

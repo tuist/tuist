@@ -3,10 +3,13 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistServer
 
 public struct ProfileView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
+    @State private var viewModel = ProfileViewModel()
+    private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
 
     private let account: Account
 
@@ -81,6 +84,20 @@ public struct ProfileView: View {
                     }
                 }) {
                     Text("Sign out")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.accent)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            Section {
+                Button(action: {
+                    errorHandler.fireAndHandleError {
+                        try await viewModel.deleteAccount(account)
+                        await authenticationService.signOut()
+                    }
+                }) {
+                    Text("Delete account")
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelDestructive)
                         .frame(maxWidth: .infinity)

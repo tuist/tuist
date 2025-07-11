@@ -77,7 +77,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw MultipartUploadGenerateURLAnalyticsServiceError.unauthorized(error.message)
             }
         }
     }

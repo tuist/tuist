@@ -68,7 +68,7 @@ public final class RemoveOrganizationMemberService: RemoveOrganizationMemberServ
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw RemoveOrganizationMemberServiceError.unauthorized(error.message)
             }
         }
     }
