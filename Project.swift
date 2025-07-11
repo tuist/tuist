@@ -186,7 +186,7 @@ let project = Project(
             .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
         ]
     ),
-    targets: Module.allCases.flatMap(\.targets),
+    targets: Module.allTargets(),
     schemes: schemes(),
     additionalFiles: []
 )
