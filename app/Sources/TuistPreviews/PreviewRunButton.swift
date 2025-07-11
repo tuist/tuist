@@ -5,6 +5,7 @@ import TuistServer
 
 struct PreviewRunButton: View {
     @State private var isLoading = false
+    @Environment(\.openURL) private var openURL
     var isDisabled: Bool {
         !preview.appBuilds
             .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
@@ -31,10 +32,7 @@ struct PreviewRunButton: View {
     private func run() {
         guard !isDisabled else { return }
         isLoading = true
-        let url = URL(
-            string: "itms-services://?action=download-manifest&url=\(preview.url.absoluteString)/manifest.plist"
-        )!
-        UIApplication.shared.open(url)
+        openURL(preview.deviceURL)
 
         Task {
             // It takes some time for the alert to install the app to appear

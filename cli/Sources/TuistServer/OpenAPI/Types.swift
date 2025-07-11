@@ -1945,6 +1945,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/created_from_ci`.
             internal var created_from_ci: Swift.Bool
+            /// The URL to download the preview on a device
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/device_url`.
+            internal var device_url: Swift.String
             /// The display name of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
@@ -1990,6 +1994,7 @@ internal enum Components {
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - created_by:
             ///   - created_from_ci: Whether the preview was created from CI
+            ///   - device_url: The URL to download the preview on a device
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
             ///   - git_commit_sha: The git commit SHA associated with the preview
@@ -2005,6 +2010,7 @@ internal enum Components {
                 bundle_identifier: Swift.String? = nil,
                 created_by: Components.Schemas.Account? = nil,
                 created_from_ci: Swift.Bool,
+                device_url: Swift.String,
                 display_name: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -2020,6 +2026,7 @@ internal enum Components {
                 self.bundle_identifier = bundle_identifier
                 self.created_by = created_by
                 self.created_from_ci = created_from_ci
+                self.device_url = device_url
                 self.display_name = display_name
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -2036,6 +2043,7 @@ internal enum Components {
                 case bundle_identifier
                 case created_by
                 case created_from_ci
+                case device_url
                 case display_name
                 case git_branch
                 case git_commit_sha

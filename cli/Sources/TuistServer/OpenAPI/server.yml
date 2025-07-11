@@ -616,6 +616,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        device_url:
+          description: The URL to download the preview on a device
+          type: string
+          x-struct:
+          x-validate:
         display_name:
           description: The display name of the preview
           type: string
@@ -677,6 +682,7 @@ components:
         - supported_platforms
         - inserted_at
         - created_from_ci
+        - device_url
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
