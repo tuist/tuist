@@ -39,7 +39,8 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   defp clickhouse_xcode_graph_fixture(opts) do
     command_event_id =
       Keyword.get_lazy(opts, :command_event_id, fn ->
-        CommandEventsFixtures.command_event_fixture().id
+        command_event = CommandEventsFixtures.command_event_fixture()
+        command_event.id
       end)
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
@@ -137,7 +138,8 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
   def postgres_xcode_graph_fixture(opts) do
     command_event_id =
       Keyword.get_lazy(opts, :command_event_id, fn ->
-        CommandEventsFixtures.command_event_fixture().id
+        command_event = CommandEventsFixtures.command_event_fixture()
+        command_event.id
       end)
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")

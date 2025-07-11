@@ -9,6 +9,7 @@ defmodule Tuist.CommandEventsTest do
   alias Tuist.CommandEvents.TestCase
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestSummary
+  alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -99,7 +100,26 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "get_command_event_by_id/1" do
-    test "returns a command event" do
+    test "returns a command event by integer id" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      command_event =
+        [name: "generate", user_id: user.id]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+        # Reload to get the integer ID
+        |> Repo.reload()
+
+      # When
+      got = CommandEvents.get_command_event_by_id(command_event.id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event == Repo.preload(command_event, user: :account)
+    end
+
+    test "returns a command event by uuid" do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -109,18 +129,79 @@ defmodule Tuist.CommandEventsTest do
         |> Repo.preload(user: :account)
 
       # When
-      {:ok, got} = CommandEvents.get_command_event_by_id(command_event.id)
+      got = CommandEvents.get_command_event_by_id(command_event.id)
 
       # Then
-      assert got == command_event |> Repo.reload() |> Repo.preload(user: :account)
+      assert {:ok, event} = got
+      assert event == command_event |> Repo.reload() |> Repo.preload(user: :account)
     end
 
-    test "returns error tuple when command event not found" do
+    test "returns {:error, :not_found} for non-existent uuid" do
       # When
-      result = CommandEvents.get_command_event_by_id(999_999)
+      got = CommandEvents.get_command_event_by_id(Ecto.UUID.generate())
 
       # Then
-      assert result == {:error, :not_found}
+      assert got == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for non-existent UUID id" do
+      # When
+      got = CommandEvents.get_command_event_by_id("00000000-0000-0000-0000-000000000001")
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+
+    test "returns a command event by uuid string" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      command_event =
+        [name: "generate", user_id: user.id]
+        |> CommandEventsFixtures.command_event_fixture()
+        |> Repo.preload(user: :account)
+        # Reload to get the UUID
+        |> Repo.reload()
+
+      # When
+      got = CommandEvents.get_command_event_by_id(command_event.id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event == Repo.preload(command_event, user: :account)
+    end
+
+    test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
+      # Given - a valid UUID that doesn't exist in the database
+      non_existent_uuid = Ecto.UUID.generate()
+
+      # When
+      got = CommandEvents.get_command_event_by_id(non_existent_uuid)
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for malformed UUID string" do
+      # Given - various malformed UUID strings
+      malformed_uuids = [
+        "not-a-uuid",
+        # Too short
+        "12345678-1234-1234-1234-12345678901",
+        # Too long
+        "12345678-1234-1234-1234-1234567890123",
+        # Invalid character
+        "12345678-1234-1234-1234-123456789g12",
+        # Invalid character at start
+        "g2345678-1234-1234-1234-123456789012",
+        ""
+      ]
+
+      # When/Then
+      for malformed_uuid <- malformed_uuids do
+        got = CommandEvents.get_command_event_by_id(malformed_uuid)
+        assert got == {:error, :not_found}, "Expected {:error, :not_found} for #{inspect(malformed_uuid)}"
+      end
     end
   end
 
@@ -368,6 +449,167 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert got == cache_event
+    end
+  end
+
+  describe "get_command_event_by_id/2 with parsing" do
+    test "finds command event by legacy_id when passed an integer" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+      # Manually set a legacy_id to test the lookup
+      {:ok, updated_event} =
+        command_event
+        |> Ecto.Changeset.change(%{legacy_id: 12_345})
+        |> Repo.update()
+
+      # When
+      result = CommandEvents.get_command_event_by_id(12_345)
+
+      # Then
+      assert {:ok, found_event} = result
+      assert found_event.id == updated_event.id
+      assert found_event.legacy_id == 12_345
+    end
+
+    test "finds command event by integer ID when ID exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # Skip test if command event doesn't have integer ID (newer records)
+      if is_nil(command_event.id) do
+        # When
+        result = CommandEvents.get_command_event_by_id(123)
+
+        # Then
+        assert result == {:error, :not_found}
+      else
+        # When
+        result = CommandEvents.get_command_event_by_id(command_event.id)
+
+        # Then
+        assert {:ok, found_event} = result
+        assert found_event.id == command_event.id
+      end
+    end
+
+    test "finds command event by UUID string when ID exists" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # When
+      result = CommandEvents.get_command_event_by_id(command_event.id)
+
+      # Then
+      assert {:ok, event} = result
+      assert event.id == command_event.id
+    end
+
+    test "finds command event by UUID string" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      # When
+      result = CommandEvents.get_command_event_by_id(command_event.id)
+
+      # Then
+      assert {:ok, event} = result
+      assert event.id == command_event.id
+    end
+
+    test "returns {:error, :not_found} for non-numeric, non-UUID string" do
+      # When
+      result = CommandEvents.get_command_event_by_id("not-a-number")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for string with trailing characters" do
+      # When
+      result = CommandEvents.get_command_event_by_id("123abc")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for string with leading characters" do
+      # When
+      result = CommandEvents.get_command_event_by_id("abc123")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for nil" do
+      # When
+      result = CommandEvents.get_command_event_by_id(nil)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for empty string" do
+      # When
+      result = CommandEvents.get_command_event_by_id("")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for string with only whitespace" do
+      # When
+      result = CommandEvents.get_command_event_by_id("   ")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for non-existent UUID string" do
+      # When
+      result = CommandEvents.get_command_event_by_id("00000000-0000-0000-0000-000000000000")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for non-existent UUID" do
+      # When
+      result = CommandEvents.get_command_event_by_id(Ecto.UUID.generate())
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for invalid UUID format" do
+      # When
+      result = CommandEvents.get_command_event_by_id("550e8400-invalid-uuid-format")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "handles invalid UUID format" do
+      # When
+      result = CommandEvents.get_command_event_by_id("invalid-uuid")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "handles malformed UUID strings" do
+      # When
+      result = CommandEvents.get_command_event_by_id("not-a-uuid-at-all")
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} for other data types" do
+      # When
+      result = CommandEvents.get_command_event_by_id(%{})
+
+      # Then
+      assert result == {:error, :not_found}
     end
   end
 

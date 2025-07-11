@@ -76,7 +76,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   def test_case_run_fixture(attrs \\ []) do
     command_event_id =
       Keyword.get_lazy(attrs, :command_event_id, fn ->
-        command_event_fixture().id
+        command_event = command_event_fixture()
+        command_event.id
       end)
 
     test_case_id =

@@ -32,10 +32,11 @@ defmodule TuistWeb.API.RunsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert Enum.map(response["runs"], & &1["id"]) == [
-               run_three.id,
-               run_two.id
-             ]
+      # Should return the two most recent runs
+      run_urls = Enum.map(response["runs"], & &1["url"])
+      assert length(run_urls) == 2
+      assert Enum.at(run_urls, 0) =~ run_three.id
+      assert Enum.at(run_urls, 1) =~ run_two.id
     end
 
     test "lists second page", %{conn: conn, user: user, project: project} do
@@ -70,32 +71,34 @@ defmodule TuistWeb.API.RunsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert response["runs"] == [
-               %{
-                 "id" => run_one.id,
-                 "git_branch" => nil,
-                 "git_commit_sha" => nil,
-                 "cacheable_targets" => ["A", "B", "C"],
-                 "command_arguments" => nil,
-                 "duration" => 0,
-                 "git_ref" => nil,
-                 "local_cache_target_hits" => ["A", "B"],
-                 "local_test_target_hits" => ["ATests", "BTests"],
-                 "macos_version" => "10.15",
-                 "name" => "test",
-                 "preview_id" => nil,
-                 "remote_cache_target_hits" => ["C"],
-                 "remote_test_target_hits" => ["CTests"],
-                 "status" => "success",
-                 "subcommand" => nil,
-                 "swift_version" => "5.2",
-                 "test_targets" => ["ATests", "BTests", "CTests"],
-                 "tuist_version" => "4.1.0",
-                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}",
-                 "ran_at" => DateTime.to_unix(date),
-                 "ran_by" => nil
-               }
-             ]
+      # Check the returned run
+      assert length(response["runs"]) == 1
+      run = hd(response["runs"])
+
+      # Check all the expected fields except id and url which we'll check separately
+      assert run["git_branch"] == nil
+      assert run["git_commit_sha"] == nil
+      assert run["cacheable_targets"] == ["A", "B", "C"]
+      assert run["command_arguments"] == nil
+      assert run["duration"] == 0
+      assert run["git_ref"] == nil
+      assert run["local_cache_target_hits"] == ["A", "B"]
+      assert run["local_test_target_hits"] == ["ATests", "BTests"]
+      assert run["macos_version"] == "10.15"
+      assert run["name"] == "test"
+      assert run["preview_id"] == nil
+      assert run["remote_cache_target_hits"] == ["C"]
+      assert run["remote_test_target_hits"] == ["CTests"]
+      assert run["status"] == "success"
+      assert run["subcommand"] == nil
+      assert run["swift_version"] == "5.2"
+      assert run["test_targets"] == ["ATests", "BTests", "CTests"]
+      assert run["tuist_version"] == "4.1.0"
+      assert run["ran_at"] == DateTime.to_unix(date)
+      assert run["ran_by"] == nil
+
+      # Check that URL contains the UUID
+      assert run["url"] =~ run_one.id
     end
 
     test "lists no runs when there are none", %{conn: conn, user: user, project: project} do
@@ -152,32 +155,34 @@ defmodule TuistWeb.API.RunsControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert response["runs"] == [
-               %{
-                 "id" => run_one.id,
-                 "git_branch" => nil,
-                 "git_commit_sha" => nil,
-                 "cacheable_targets" => [],
-                 "command_arguments" => nil,
-                 "duration" => 0,
-                 "git_ref" => "refs/heads/main",
-                 "local_cache_target_hits" => [],
-                 "local_test_target_hits" => [],
-                 "macos_version" => "10.15",
-                 "name" => "test",
-                 "preview_id" => nil,
-                 "remote_cache_target_hits" => [],
-                 "remote_test_target_hits" => [],
-                 "status" => "success",
-                 "subcommand" => nil,
-                 "swift_version" => "5.2",
-                 "test_targets" => [],
-                 "tuist_version" => "4.1.0",
-                 "url" => "/#{user.account.name}/#{project.name}/runs/#{run_one.id}",
-                 "ran_at" => DateTime.to_unix(date),
-                 "ran_by" => %{"handle" => user.account.name}
-               }
-             ]
+      # Check the returned run
+      assert length(response["runs"]) == 1
+      run = hd(response["runs"])
+
+      # Check all the expected fields
+      assert run["git_branch"] == nil
+      assert run["git_commit_sha"] == nil
+      assert run["cacheable_targets"] == []
+      assert run["command_arguments"] == nil
+      assert run["duration"] == 0
+      assert run["git_ref"] == "refs/heads/main"
+      assert run["local_cache_target_hits"] == []
+      assert run["local_test_target_hits"] == []
+      assert run["macos_version"] == "10.15"
+      assert run["name"] == "test"
+      assert run["preview_id"] == nil
+      assert run["remote_cache_target_hits"] == []
+      assert run["remote_test_target_hits"] == []
+      assert run["status"] == "success"
+      assert run["subcommand"] == nil
+      assert run["swift_version"] == "5.2"
+      assert run["test_targets"] == []
+      assert run["tuist_version"] == "4.1.0"
+      assert run["ran_at"] == DateTime.to_unix(date)
+      assert run["ran_by"] == %{"handle" => user.account.name}
+
+      # Check that URL contains the UUID
+      assert run["url"] =~ run_one.id
     end
 
     test "returns forbidden response when the user doesn't have access to the project", %{

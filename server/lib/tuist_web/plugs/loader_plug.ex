@@ -29,7 +29,8 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         |> assign(:selected_run, run)
 
       {:error, :not_found} ->
-        raise NotFoundError, gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
+        raise NotFoundError,
+              gettext("The run with ID %{run_id} was not found.", %{run_id: run_id})
     end
   end
 

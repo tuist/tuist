@@ -29,8 +29,10 @@ defmodule Tuist.CommandEvents.Event do
     sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }
 
+  @primary_key {:id, :binary_id, autogenerate: true}
   schema "command_events" do
-    field :uuid, :binary_id
+    field :legacy_id, :integer
+    field :legacy_artifact_path, :boolean, default: false
     field :name, :string
     field :duration, :integer
     field :subcommand, :string
@@ -79,6 +81,7 @@ defmodule Tuist.CommandEvents.Event do
   def create_changeset(event, attrs) do
     changeset =
       cast(event, attrs, [
+        :legacy_artifact_path,
         :project_id,
         :name,
         :subcommand,
