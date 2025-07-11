@@ -441,6 +441,17 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistCASPlugin",
+        dependencies: [
+            "TuistServer",
+            "TuistCore",
+            "TuistSupport",
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCASPlugin",
+        publicHeadersPath: "include"
+    ),
 ]
 
 #if TUIST
@@ -549,6 +560,11 @@ let package = Package(
         .library(
             name: "TuistGenerator",
             targets: ["TuistGenerator"]
+        ),
+        .library(
+            name: "TuistCASPlugin",
+            type: .dynamic,
+            targets: ["TuistCASPlugin"]
         ),
     ],
     dependencies: [

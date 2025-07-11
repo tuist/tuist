@@ -33,6 +33,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - To check for linting issues: `mise run lint`
 - To automatically fix fixable linting issues: `mise run lint --fix`
 
+## TuistCASPlugin
+- The TuistCASPlugin implementation references Apple's Swift build repository: https://github.com/swiftlang/swift-build
+
 # Tuist Server (Elixir/Phoenix)
 
 ## Project Architecture

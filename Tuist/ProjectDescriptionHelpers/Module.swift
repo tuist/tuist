@@ -28,6 +28,7 @@ public enum Module: String, CaseIterable {
     case xcActivityLog = "TuistXCActivityLog"
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
+    case casPlugin = "TuistCASPlugin"
 
     public var isRunnable: Bool {
         switch self {
@@ -114,7 +115,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
             .projectDescription,
-            .acceptanceTesting, .simulator, .testing:
+            .acceptanceTesting, .simulator, .testing, .casPlugin:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -129,7 +130,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
-        case .projectAutomation, .projectDescription:
+        case .projectAutomation, .projectDescription, .casPlugin:
             return .framework
         default:
             return .staticFramework
@@ -461,6 +462,12 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                 ]
+            case .casPlugin:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -645,6 +652,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName)
                 ]
+            case .casPlugin:
+                []
             }
         dependencies =
             dependencies + sharedDependencies + [
