@@ -227,6 +227,7 @@ defmodule TuistWeb.Router do
 
     scope "/accounts/:account_handle" do
       patch "/", AccountController, :update_account
+      delete "/", AccountController, :delete_account
 
       scope "/tokens" do
         post "/", AccountTokensController, :create

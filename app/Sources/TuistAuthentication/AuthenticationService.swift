@@ -42,13 +42,16 @@ public final class AuthenticationService: ObservableObject {
     private var credentialsListenerTask: Task<Void, Never>?
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let redirectURI = "tuist://oauth-callback"
+    private let deleteAccountService: DeleteAccountServicing
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        appStorage: AppStoring = AppStorage()
+        appStorage: AppStoring = AppStorage(),
+        deleteAccountService: DeleteAccountServicing = DeleteAccountService(),
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage
+        self.deleteAccountService = deleteAccountService
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
 
@@ -105,6 +108,14 @@ public final class AuthenticationService: ObservableObject {
         await MainActor.run {
             try? updateAuthenticationState(with: nil)
         }
+    }
+
+    public func deleteAccount(_ account: Account) async throws {
+        try await deleteAccountService.deleteAccount(
+            handle: account.handle,
+            serverURL: serverEnvironmentService.url()
+        )
+        await signOut()
     }
 
     public func signIn() async throws {

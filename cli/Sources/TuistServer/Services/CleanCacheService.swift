@@ -73,7 +73,7 @@ public final class CleanCacheService: CleanCacheServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CleanCacheServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CleanCacheServiceError.unknownError(statusCode)
