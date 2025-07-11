@@ -58,7 +58,7 @@ public final class CancelOrganizationInviteService: CancelOrganizationInviteServ
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CancelOrganizationInviteServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CancelOrganizationInviteServiceError.unknownError(statusCode)

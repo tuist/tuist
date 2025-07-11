@@ -66,7 +66,7 @@ public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServ
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw UpdateOrganizationMemberServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateOrganizationMemberServiceError.unknownError(statusCode)

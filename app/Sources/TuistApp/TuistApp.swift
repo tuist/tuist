@@ -57,6 +57,7 @@ import TuistServer
                             if case let .loggedIn(account: account) = authenticationService.authenticationState {
                                 TabView {
                                     PreviewsView()
+                                        .environmentObject(authenticationService)
                                         .tabItem {
                                             NooraIcon(.deviceMobile)
                                             Text("Previews")
@@ -70,7 +71,7 @@ import TuistServer
                                             Text("Profile")
                                         }
                                 }
-                                .accentColor(Color(light: Noora.Colors.purple500, dark: Noora.Colors.purple400))
+                                .accentColor(Noora.Colors.accent)
                             } else {
                                 LogInView()
                             }

@@ -70,7 +70,7 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CreateOrganizationInviteServiceError.unauthorized(error.message)
             }
         }
     }

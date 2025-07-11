@@ -1,9 +1,9 @@
 import Foundation
 import OpenAPIURLSession
 
-public protocol DeleteOrganizationServicing {
-    func deleteOrganization(
-        name: String,
+public protocol DeleteAccountServicing: Sendable {
+    func deleteAccount(
+        handle: String,
         serverURL: URL
     ) async throws
 }
@@ -24,19 +24,19 @@ enum DeleteOrganizationServiceError: LocalizedError {
     }
 }
 
-public final class DeleteOrganizationService: DeleteOrganizationServicing {
+public final class DeleteAccountService: DeleteAccountServicing {
     public init() {}
 
-    public func deleteOrganization(
-        name: String,
+    public func deleteAccount(
+        handle: String,
         serverURL: URL
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
 
-        let response = try await client.deleteOrganization(
+        let response = try await client.deleteAccount(
             .init(
                 path: .init(
-                    organization_name: name
+                    account_handle: handle
                 )
             )
         )
