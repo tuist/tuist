@@ -131,6 +131,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: updated-files
+          path: app
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Bundle Tuist App
@@ -186,6 +187,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: updated-files
+          path: app
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Upload iOS App to App Store Connect
@@ -211,6 +213,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: updated-files
+          path: app
       - name: Download macOS artifacts
         uses: actions/download-artifact@v4
         with:
