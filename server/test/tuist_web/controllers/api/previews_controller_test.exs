@@ -426,6 +426,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
+               "device_url" =>
+                 "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist")}",
                "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
@@ -726,6 +728,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
                  "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
+                 "device_url" =>
+                   "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist")}",
                  "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",

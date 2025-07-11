@@ -17,7 +17,8 @@ defmodule TuistWeb.API.Schemas.Preview do
       :builds,
       :supported_platforms,
       :inserted_at,
-      :created_from_ci
+      :created_from_ci,
+      :device_url
     ],
     properties: %{
       id: %Schema{
@@ -25,6 +26,7 @@ defmodule TuistWeb.API.Schemas.Preview do
         description: "Unique identifier of the preview."
       },
       url: %Schema{type: :string, description: "The URL to download the preview"},
+      device_url: %Schema{type: :string, description: "The URL to download the preview on a device"},
       qr_code_url: %Schema{
         type: :string,
         description: "The URL for the QR code image to dowload the preview"
