@@ -1,5 +1,5 @@
 {
-  "originHash" : "57e8e560522d98da034eecf136da2a0571e102267ae8fa09d2264359afbe28cd",
+  "originHash" : "2048c5fe8dbf44f4bf79abb427645c2613d58a306d4f46e63711dfe972781bc4",
   "pins" : [
     {
       "identity" : "bigint",
@@ -35,6 +35,14 @@
       "state" : {
         "revision" : "6bd23c2f6243f73ef6ec135723d4909bc068409e",
         "version" : "12.0.0"
+      }
+    },
+    {
+      "identity" : "spine-runtimes",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/EsotericSoftware/spine-runtimes",
+      "state" : {
+        "revision" : "33cf98b4677e1ee51e60ed0020b41b783e7fc01f"
       }
     },
     {

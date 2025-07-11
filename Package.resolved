@@ -1,5 +1,5 @@
 {
-  "originHash" : "c1baa4dac421db955540f2059a4e88ad7461612925d9bd987dc40ab94c7a7156",
+  "originHash" : "d21af5d1c36aa63c8af986573e79b786190f92c3b1613e274227b986b2098d32",
   "pins" : [
     {
       "identity" : "aexml",
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "60c522a208d1c0ba222ac27df17dca42f6904a45",
-        "version" : "0.10.14"
+        "revision" : "1fa815a9fae52c8df462f80a7d19f2d72afb2a0c",
+        "version" : "0.10.15"
       }
     },
     {
@@ -492,8 +492,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "df599d851b52ec2036f96376ca75c772cb309607",
-        "version" : "1.16.6"
+        "branch" : "rename-claude-to-agent",
+        "revision" : "a60fea1764a22c0ba25c261f84b8e48d8a33c2ef"
       }
     },
     {
