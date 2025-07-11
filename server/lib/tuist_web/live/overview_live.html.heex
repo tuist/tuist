@@ -171,7 +171,7 @@
                     formatter: "fn:toLocaleDate",
                     customValues: [
                       @binary_cache_hit_rate_analytics.dates |> hd(),
-                      @binary_cache_hit_rate_analytics.dates |> Enum.reverse() |> hd()
+                      @binary_cache_hit_rate_analytics.dates |> List.last()
                     ],
                     padding: [10, 0, 0, 0]
                   }
