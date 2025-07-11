@@ -88,7 +88,7 @@ public struct LogInView: View {
                     bottomTrailingRadius: 0,
                     topTrailingRadius: 32
                 )
-                .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.6)))
+                .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.8)))
                 .overlay(
                     UnevenRoundedRectangle(
                         topLeadingRadius: 32,
