@@ -1366,6 +1366,18 @@ defmodule Tuist.Accounts do
     end)
   end
 
+  def delete_account!(%Account{} = account) do
+    cond do
+      user?(account) ->
+        account_user = get_user_by_id(account.user_id)
+        delete_user(account_user)
+
+          organization?(account) ->
+        {:ok, account_organization} = get_organization_by_id(account.organization_id)
+        delete_organization!(account_organization)
+    end
+  end
+
   def organization?(account), do: !is_nil(account.organization_id)
   def user?(account), do: !is_nil(account.user_id)
 end

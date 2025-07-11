@@ -8,7 +8,6 @@ import TuistServer
 public struct ProfileView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
-    @State private var viewModel = ProfileViewModel()
     private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
 
     private let account: Account
@@ -93,8 +92,7 @@ public struct ProfileView: View {
             Section {
                 Button(action: {
                     errorHandler.fireAndHandleError {
-                        try await viewModel.deleteAccount(account)
-                        await authenticationService.signOut()
+                        try await authenticationService.deleteAccount(account)
                     }
                 }) {
                     Text("Delete account")

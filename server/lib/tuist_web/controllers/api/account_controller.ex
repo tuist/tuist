@@ -91,31 +91,11 @@ defmodule TuistWeb.API.AccountController do
   def delete_account(%{path_params: %{"account_handle" => handle}} = conn, _params) do
     with {:ok, account} <- get_account(handle),
          :ok <- Authorization.authorize(:account_delete, conn.assigns.current_user, account) do
-      cond do
-        !is_nil(account.user_id) ->
-          account_user = Accounts.get_user_by_id(account.user_id)
-          Accounts.delete_user(account_user)
-
+      Accounts.delete_account!(account)
           conn
           |> put_status(:no_content)
           |> json(%{})
 
-        true ->
-          case Accounts.get_organization_by_id(account.organization_id) do
-            {:ok, organization} ->
-              Accounts.delete_organization!(organization)
-
-              conn
-              |> put_status(:no_content)
-              |> json(%{})
-
-            {:error, :not_found} ->
-              conn
-              |> put_status(:not_found)
-              |> json(%{message: "Organization not found."})
-          end
-
-      end
     else
       {:error, :not_found, "account"} ->
         conn
