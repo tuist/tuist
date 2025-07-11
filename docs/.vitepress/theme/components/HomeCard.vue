@@ -1,7 +1,7 @@
 <script setup>
 import LocalizedLink from "./LocalizedLink.vue";
 
-defineProps({
+const props = defineProps({
     icon: String,
     title: String,
     details: String,
@@ -10,15 +10,58 @@ defineProps({
     rel: { type: String, required: false },
     target: { type: String, required: false },
 });
+
+// Check if the link is external (starts with http:// or https://)
+const isExternalLink = (url) => {
+    return url && (url.startsWith('http://') || url.startsWith('https://'));
+};
 </script>
 
 <template>
+    <!-- Use regular <a> tag for external links -->
+    <a
+        v-if="isExternalLink(link)"
+        class="HomeCard"
+        :href="link"
+        :rel="rel"
+        :target="target || '_blank'"
+    >
+        <article class="box">
+            <div v-if="typeof icon === 'object' && icon.wrap" class="icon">
+                <VPImage
+                    :image="icon"
+                    :alt="icon.alt"
+                    :height="icon.height || 48"
+                    :width="icon.width || 48"
+                />
+            </div>
+            <VPImage
+                v-else-if="typeof icon === 'object'"
+                :image="icon"
+                :alt="icon.alt"
+                :height="icon.height || 48"
+                :width="icon.width || 48"
+            />
+            <div v-else-if="icon" class="icon" v-html="icon"></div>
+            <h2 class="title" v-html="title"></h2>
+            <p v-if="details" class="details" v-html="details"></p>
+
+            <div v-if="linkText" class="link-text">
+                <p class="link-text-value">
+                    {{ linkText }}
+                    <span class="vpi-arrow-right link-text-icon" />
+                </p>
+            </div>
+        </article>
+    </a>
+    
+    <!-- Use LocalizedLink for internal links -->
     <LocalizedLink
+        v-else-if="link"
         class="HomeCard"
         :href="link"
         :rel="rel"
         :target="target"
-        :tag="link ? 'a' : 'div'"
     >
         <article class="box">
             <div v-if="typeof icon === 'object' && icon.wrap" class="icon">
@@ -48,6 +91,40 @@ defineProps({
             </div>
         </article>
     </LocalizedLink>
+    
+    <!-- Use div for no link -->
+    <div
+        v-else
+        class="HomeCard"
+    >
+        <article class="box">
+            <div v-if="typeof icon === 'object' && icon.wrap" class="icon">
+                <VPImage
+                    :image="icon"
+                    :alt="icon.alt"
+                    :height="icon.height || 48"
+                    :width="icon.width || 48"
+                />
+            </div>
+            <VPImage
+                v-else-if="typeof icon === 'object'"
+                :image="icon"
+                :alt="icon.alt"
+                :height="icon.height || 48"
+                :width="icon.width || 48"
+            />
+            <div v-else-if="icon" class="icon" v-html="icon"></div>
+            <h2 class="title" v-html="title"></h2>
+            <p v-if="details" class="details" v-html="details"></p>
+
+            <div v-if="linkText" class="link-text">
+                <p class="link-text-value">
+                    {{ linkText }}
+                    <span class="vpi-arrow-right link-text-icon" />
+                </p>
+            </div>
+        </article>
+    </div>
 </template>
 
 <style scoped>

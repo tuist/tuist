@@ -85,7 +85,7 @@ mise x tuist@latest -- tuist init
         title="Examples"
         details="Check out examples of generated Xcode projects."
         linkText="Show me examples"
-        link="/references/examples/app_with_airship_sdk"/>
+        link="/guides/examples/generated-projects/app_with_airship_sdk"/>
     <HomeCard
         icon="🌈"
         title="awesome-tuist"

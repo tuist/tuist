@@ -207,6 +207,14 @@
         "features": {
           "text": "Возможности"
         },
+        "examples": {
+          "text": "Примеры",
+          "items": {
+            "generated-projects": {
+              "text": "Сгенерированные проекты"
+            }
+          }
+        },
         "develop": {
           "text": "Разработка",
           "items": {

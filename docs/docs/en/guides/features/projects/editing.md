@@ -1,6 +1,6 @@
 ---
 title: Editing
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities.
 ---
 

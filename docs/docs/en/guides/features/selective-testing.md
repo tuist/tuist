@@ -1,6 +1,6 @@
 ---
 title: Selective testing
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Use selective testing to run only the tests that have changed since the last successful test run.
 ---
 
@@ -10,7 +10,7 @@ As your project grows, so does the amount of your tests. For a long time, runnin
 
 On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.
 
-Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/features/build/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
+Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
@@ -25,7 +25,7 @@ Selective testing works with `xcodebuild`, which supports any Xcode project, or 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/selective-testing/github-app-comment.png)

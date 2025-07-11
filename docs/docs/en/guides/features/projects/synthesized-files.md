@@ -1,6 +1,6 @@
 ---
 title: Synthesized files
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn about synthesized files in Tuist projects.
 ---
 
@@ -100,4 +100,4 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
 > [!NOTE] REFERENCE
-> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
+> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
