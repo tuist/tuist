@@ -38,8 +38,10 @@ import TuistServer
     }
 #else
     import TuistErrorHandling
+    import TuistNoora
     import TuistOnboarding
     import TuistPreviews
+    import TuistProfile
 
     @main
     struct TuistApp: App {
@@ -52,18 +54,24 @@ import TuistServer
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
-                            if case .loggedIn = authenticationService.authenticationState {
-                                NavigationView {
+                            if case let .loggedIn(account: account) = authenticationService.authenticationState {
+                                TabView {
                                     PreviewsView()
-                                        .navigationBarItems(
-                                            trailing:
-                                            Button("Log Out") {
-                                                Task {
-                                                    await authenticationService.signOut()
-                                                }
-                                            }
-                                        )
+                                        .environmentObject(authenticationService)
+                                        .tabItem {
+                                            NooraIcon(.deviceMobile)
+                                            Text("Previews")
+                                        }
+
+                                    ProfileView(account: account)
+                                        .environmentObject(authenticationService)
+                                        .tabItem {
+                                            NooraIcon(.user)
+                                                .frame(width: 24, height: 24)
+                                            Text("Profile")
+                                        }
                                 }
+                                .accentColor(Noora.Colors.accent)
                             } else {
                                 LogInView()
                             }

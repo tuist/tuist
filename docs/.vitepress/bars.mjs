@@ -1,13 +1,6 @@
 import {
-  cube02Icon,
-  cube01Icon,
-  tuistIcon,
-  building07Icon,
-  server04Icon,
   bookOpen01Icon,
   codeBrowserIcon,
-  star06Icon,
-  playIcon,
   cacheIcon,
   testIcon,
   registryIcon,
@@ -73,6 +66,7 @@ export async function referencesSidebar(locale) {
             locale,
             "sidebars.references.items.examples.text",
           ),
+          link: `/${locale}/references/examples`,
           collapsed: true,
           items: (await loadExamplesData()).map((item) => {
             return {
@@ -109,7 +103,7 @@ export function navBar(locale) {
         locale,
         "navbar.guides.text",
       )} ${bookOpen01Icon()}</span>`,
-      link: `/${locale}/guides/tuist/about`,
+      link: `/${locale}/`,
     },
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
@@ -223,27 +217,10 @@ export function contributorsSidebar(locale) {
   ];
 }
 
-
-export function guidesSidebar(locale) {
+export async function guidesSidebar(locale) {
   return [
     {
-      text: "Tuist",
-      link: `/${locale}/`,
-      items: [
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.tuist.items.about.text",
-          ),
-          link: `/${locale}/guides/tuist/about`,
-        },
-      ],
-    },
-    {
-      text: localizedString(
-        locale,
-        "sidebars.guides.items.quick-start.text",
-      ),
+      text: localizedString(locale, "sidebars.guides.items.quick-start.text"),
       items: [
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installTuistIcon()} ${localizedString(
@@ -262,10 +239,7 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: localizedString(
-        locale,
-        "sidebars.guides.items.features.text",
-      ),
+      text: localizedString(locale, "sidebars.guides.items.features.text"),
       items: [
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${projectsIcon()} ${localizedString(
@@ -560,10 +534,26 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: localizedString(
-        locale,
-        "sidebars.guides.items.integrations.text",
-      ),
+      text: localizedString(locale, "sidebars.guides.items.examples.text"),
+      items: [
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${codeBrowserIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.examples.items.generated-projects.text",
+          )}</span>`,
+          link: `/${locale}/guides/examples/generated-projects`,
+          collapsed: true,
+          items: (await loadExamplesData()).map((item) => {
+            return {
+              text: item.title,
+              link: `/${locale}/guides/examples/generated-projects/${item.name}`,
+            };
+          }),
+        },
+      ],
+    },
+    {
+      text: localizedString(locale, "sidebars.guides.items.integrations.text"),
       items: [
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ciIcon()} ${localizedString(

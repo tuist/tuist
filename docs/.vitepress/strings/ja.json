@@ -207,6 +207,14 @@
         "features": {
           "text": "機能"
         },
+        "examples": {
+          "text": "例",
+          "items": {
+            "generated-projects": {
+              "text": "生成されたプロジェクト"
+            }
+          }
+        },
         "develop": {
           "text": "開発",
           "items": {

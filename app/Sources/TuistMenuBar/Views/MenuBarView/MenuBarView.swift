@@ -68,9 +68,9 @@ public struct MenuBarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch authenticationService.authenticationState {
-            case let .loggedIn(accountHandle):
+            case let .loggedIn(account):
                 MenuHeader(
-                    accountHandle: accountHandle
+                    accountHandle: account.handle
                 )
 
                 AppPreviews(

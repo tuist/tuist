@@ -42,13 +42,16 @@ public final class AuthenticationService: ObservableObject {
     private var credentialsListenerTask: Task<Void, Never>?
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let redirectURI = "tuist://oauth-callback"
+    private let deleteAccountService: DeleteAccountServicing
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        appStorage: AppStoring = AppStorage()
+        appStorage: AppStoring = AppStorage(),
+        deleteAccountService: DeleteAccountServicing = DeleteAccountService(),
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage
+        self.deleteAccountService = deleteAccountService
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
 
@@ -79,8 +82,8 @@ public final class AuthenticationService: ObservableObject {
            credentials.refreshToken != nil,
            let accessToken = credentials.accessToken
         {
-            let accountHandle = try extractAccountHandle(from: accessToken)
-            authenticationState = .loggedIn(accountHandle: accountHandle)
+            let account = try extractAccount(from: accessToken)
+            authenticationState = .loggedIn(account: account)
         } else {
             authenticationState = .loggedOut
         }
@@ -88,16 +91,16 @@ public final class AuthenticationService: ObservableObject {
         try? appStorage.set(AuthenticationStateKey.self, value: authenticationState)
     }
 
-    private func extractAccountHandle(from accessToken: String) throws -> String {
+    private func extractAccount(from accessToken: String) throws -> Account {
         let jwt = try JWT.parse(accessToken)
 
-        if let email = jwt.email {
-            return email
-        } else if let preferredUsername = jwt.preferredUsername {
-            return preferredUsername
-        } else {
+        guard let email = jwt.email,
+              let handle = jwt.preferredUsername
+        else {
             throw AuthenticationError.missingTokens
         }
+
+        return Account(email: email, handle: handle)
     }
 
     public func signOut() async {
@@ -105,6 +108,14 @@ public final class AuthenticationService: ObservableObject {
         await MainActor.run {
             try? updateAuthenticationState(with: nil)
         }
+    }
+
+    public func deleteAccount(_ account: Account) async throws {
+        try await deleteAccountService.deleteAccount(
+            handle: account.handle,
+            serverURL: serverEnvironmentService.url()
+        )
+        await signOut()
     }
 
     public func signIn() async throws {
@@ -209,8 +220,11 @@ public final class AuthenticationService: ObservableObject {
                 url: authURL,
                 callbackURLScheme: "tuist"
             ) { callbackURL, error in
-                if let error {
-                    continuation.resume(throwing: error)
+                if error != nil {
+                    // The error often happens here when the user just cancels the authentication. Additionally, the errors coming
+                    // from the callback are cryptic.
+                    // The best thing here to do UX-wise is not to show any errors.
+                    continuation.resume(returning: nil)
                     return
                 }
 

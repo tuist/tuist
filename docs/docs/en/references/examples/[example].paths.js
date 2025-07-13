@@ -2,6 +2,7 @@ import { paths } from "./../../../../.vitepress/data/examples";
 
 export default {
   async paths() {
-    return await paths("en");
+    const examplePaths = await paths("en");
+    return examplePaths;
   },
 };

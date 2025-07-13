@@ -8,7 +8,7 @@ import Path
 public protocol UploadPreviewIconServicing {
     func uploadPreviewIcon(
         _ icon: AbsolutePath,
-        preview: Preview,
+        preview: ServerPreview,
         serverURL: URL,
         fullHandle: String
     ) async throws
@@ -58,7 +58,7 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
 
     public func uploadPreviewIcon(
         _ icon: AbsolutePath,
-        preview: Preview,
+        preview: ServerPreview,
         serverURL: URL,
         fullHandle: String
     ) async throws {

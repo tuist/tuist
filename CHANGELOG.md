@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.55.6 - 2025-07-03
+
+### CLI
+
+#### Fixed
+
+- Upgrade XCLogParser to fix parsing some activity logs [#7779](https://github.com/tuist/tuist/pull/7779) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.55.5 - 2025-07-02
 
 ### CLI

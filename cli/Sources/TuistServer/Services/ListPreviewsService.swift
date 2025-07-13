@@ -17,7 +17,7 @@ public protocol ListPreviewsServicing: Sendable {
         distinctField: ListPreviewsDistinctField?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> [Preview]
+    ) async throws -> ServerPreviewsPage
 }
 
 public enum ListPreviewsServiceError: LocalizedError, Equatable {
@@ -59,7 +59,7 @@ public final class ListPreviewsService: ListPreviewsServicing {
         distinctField: ListPreviewsDistinctField?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> [Preview] {
+    ) async throws -> ServerPreviewsPage {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.listPreviews(
@@ -87,7 +87,7 @@ public final class ListPreviewsService: ListPreviewsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(previewsIndex):
-                return previewsIndex.previews.compactMap(Preview.init)
+                return ServerPreviewsPage(previewsIndex)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw ListPreviewsServiceError.unknownError(statusCode)

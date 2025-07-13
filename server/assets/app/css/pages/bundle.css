@@ -1,0 +1,479 @@
+#bundle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-0);
+
+  & > [data-part="action-buttons"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--noora-spacing-4);
+  }
+
+  & .noora-card {
+    width: 100%;
+  }
+
+  & > [data-part="details-card"] {
+    & > [data-part="details-card-section"] {
+      & > [data-part="metadata-grid"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-9);
+
+        & > [data-part="metadata-row"] {
+          display: flex;
+          flex-direction: row;
+          gap: var(--noora-spacing-7);
+
+          @media (max-width: 768px) {
+            & {
+              flex-direction: column;
+            }
+          }
+
+          & > [data-part="metadata"] {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--noora-spacing-4);
+
+            & > [data-part="trend"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-4);
+
+              & > [data-part="label"] {
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              }
+            }
+
+            & > [data-part="title"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="title-with-tooltip"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-4);
+
+              & > [data-part="title"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              }
+
+              & .noora-tooltip {
+                display: inline-block;
+                width: var(--noora-icon-size-medium);
+                height: var(--noora-icon-size-medium);
+                color: var(--noora-surface-label-secondary);
+
+                & svg {
+                  width: 100%;
+                  height: 100%;
+                }
+              }
+            }
+
+            & > [data-part="label"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-2);
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+              & > svg {
+                width: var(--noora-icon-size-medium);
+                height: var(--noora-icon-size-medium);
+                color: var(--noora-surface-label-secondary);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & > .noora-tab-menu-horizontal {
+    align-self: stretch;
+  }
+
+  & > [data-part="bundle-size-analysis-card"] {
+    & > [data-part="bundle-size-analysis-card-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      & > [data-part="header"] {
+        display: flex;
+        flex-direction: row;
+        align-self: flex-end;
+        padding-top: var(--noora-spacing-2);
+        & > [data-part="legend"] {
+          display: flex;
+          gap: var(--noora-spacing-4);
+          @media (max-width: 768px) {
+            & {
+              flex-direction: column;
+            }
+          }
+          & > [data-part="item"] {
+            display: flex;
+            align-items: center;
+            gap: var(--noora-spacing-3);
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+            }
+
+            & > [data-part="indicator"] {
+              border-radius: var(--noora-radius-max);
+              width: 12px;
+              height: 6px;
+
+              &[data-type="directory"] {
+                background-color: var(--noora-sunburst-directory);
+              }
+
+              &[data-type="binaries"] {
+                background-color: var(--noora-sunburst-binaries);
+              }
+
+              &[data-type="localizations"] {
+                background-color: var(--noora-sunburst-localizations);
+              }
+
+              &[data-type="fonts"] {
+                background-color: var(--noora-sunburst-fonts);
+              }
+
+              &[data-type="assets"] {
+                background-color: var(--noora-sunburst-assets);
+              }
+
+              &[data-type="duplicates"] {
+                background-color: var(--noora-sunburst-duplicates);
+              }
+
+              &[data-type="unknown"] {
+                background-color: var(--noora-sunburst-unknown);
+              }
+
+              &[data-type="file"] {
+                background-color: var(--noora-sunburst-files);
+              }
+            }
+          }
+        }
+      }
+
+      & > [data-part="breadcrumbs"] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-large);
+        padding: var(--noora-spacing-2);
+        overflow: scroll;
+        .noora-breadcrumbs {
+          max-width: 100%;
+          .noora-breadcrumb {
+            & [data-part="trigger"] {
+              &[data-state="open"] {
+                box-shadow: unset;
+                border-radius: unset;
+                background-color: unset;
+              }
+            }
+          }
+          .noora-breadcrumb:nth-last-child(3) {
+            & [data-part="trigger"] {
+              box-shadow: var(--noora-border-light-default);
+              border-radius: var(--noora-radius-medium);
+              background-color: var(--noora-breadcrumb-background);
+            }
+          }
+        }
+      }
+
+      & > [data-part="chart"] {
+        display: flex;
+        flex-direction: row;
+
+        @media (max-width: 768px) {
+          & {
+            flex-direction: column;
+          }
+        }
+        @media (min-width: 768px) {
+          & {
+            height: 410px;
+          }
+        }
+
+        & > #bundle-size-analysis-sunburst {
+          flex-grow: 1;
+          margin-top: -40px;
+          margin-left: -40px;
+          height: 410px;
+          @media (max-width: 768px) {
+            & {
+              margin-top: -40px;
+              margin-left: -15px;
+            }
+          }
+        }
+
+        & > #bundle-size-analysis-current-contents {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          width: 500px;
+          @media (max-width: 768px) {
+            & {
+              width: 100%;
+            }
+          }
+
+          & [data-part="artifact-cell-name"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-5);
+            padding-left: var(--noora-spacing-5);
+
+            & > [data-part="dot"] {
+              border-radius: 1.33px;
+              width: 6px;
+              height: 6px;
+
+              &[data-type="directory"] {
+                background-color: var(--noora-sunburst-directory);
+              }
+
+              &[data-type="binary"] {
+                background-color: var(--noora-sunburst-binaries);
+              }
+
+              &[data-type="localization"] {
+                background-color: var(--noora-sunburst-localizations);
+              }
+
+              &[data-type="font"] {
+                background-color: var(--noora-sunburst-fonts);
+              }
+
+              &[data-type="asset"] {
+                background-color: var(--noora-sunburst-assets);
+              }
+
+              &[data-type="unknown"] {
+                background-color: var(--noora-sunburst-unknown);
+              }
+
+              &[data-type="file"] {
+                background-color: var(--noora-sunburst-files);
+              }
+
+              &[data-duplicate] {
+                background-color: var(--noora-sunburst-duplicates);
+              }
+            }
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+          }
+
+          & table {
+            align-self: stretch;
+            & td:first-child {
+              & > div {
+                width: 360px;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="file-breakdown-card"] {
+    & > [data-part="file-breakdown-card-section"] {
+      & > [data-part="filters"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+
+        & .noora-dropdown-item:not([data-selected]) svg {
+          visibility: hidden;
+        }
+      }
+    }
+  }
+
+  & > [data-part="module-breakdown-card"] {
+    & > [data-part="module-breakdown-card-section"] {
+      & > [data-part="filters"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-4);
+
+        & .noora-dropdown-item:not([data-selected]) svg {
+          visibility: hidden;
+        }
+      }
+    }
+  }
+
+  & > [data-part="insights-card"] {
+    & > [data-part="insights-card-section"] {
+      & > [data-part="insights-category"] {
+        & > [data-part="root"] {
+          & > [data-part="trigger"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+
+            & > [data-part="header"] {
+              display: flex;
+              flex-grow: 1;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-4);
+              padding: var(--noora-spacing-3) var(--noora-spacing-4);
+
+              & > [data-part="title"] {
+                flex-grow: 1;
+                margin: 0;
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              }
+
+              & > [data-part="savings-label"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              }
+
+              & > [data-part="savings-value"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+              }
+            }
+
+            &[data-state="open"] {
+              & > [data-part="closed-collapsible-button"] {
+                display: none;
+              }
+            }
+
+            &[data-state="closed"] {
+              & > [data-part="open-collapsible-button"] {
+                display: none;
+              }
+            }
+          }
+          & > [data-part="content"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-4);
+            margin-top: var(--noora-spacing-4);
+            box-shadow: var(--noora-border-light-default);
+            border-radius: var(--noora-radius-medium);
+            background: var(--noora-surface-background-tertiary);
+            padding: var(--noora-spacing-4);
+
+            &[data-state="closed"] {
+              display: none;
+            }
+
+            & > [data-part="collapsible"] > [data-part="root"] {
+              overflow: scroll;
+              & > [data-part="trigger"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-4);
+
+                & > [data-part="header"] {
+                  display: flex;
+                  flex-grow: 1;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: var(--noora-spacing-4);
+
+                  & > [data-part="title"] {
+                    flex-grow: 1;
+                    margin: 0;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                  }
+                }
+
+                &[data-state="open"] {
+                  & > [data-part="closed-collapsible-button"] {
+                    display: none;
+                  }
+                }
+
+                &[data-state="closed"] {
+                  & > [data-part="open-collapsible-button"] {
+                    display: none;
+                  }
+                }
+              }
+              & > [data-part="content"] {
+                display: flex;
+                flex-direction: column;
+                gap: var(--noora-spacing-1);
+                &[data-state="closed"] {
+                  display: none;
+                }
+                & > [data-part="duplicate"] {
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: var(--noora-spacing-8);
+                  padding: var(--noora-spacing-3);
+                  & > [data-part="title"] {
+                    flex-grow: 1;
+                    color: var(--noora-surface-label-primary);
+                    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    & > [data-part="empty-insights-card-section"] {
+      padding-top: var(--noora-spacing-8);
+      padding-bottom: var(--noora-spacing-8);
+      & > [data-part="title"] {
+        padding-top: var(--noora-spacing-5);
+      }
+      & > [data-part="image"] {
+        & > img {
+          &[data-theme="light"] {
+            box-shadow: unset;
+          }
+          &[data-theme="dark"] {
+            box-shadow: unset;
+          }
+        }
+      }
+    }
+  }
+}

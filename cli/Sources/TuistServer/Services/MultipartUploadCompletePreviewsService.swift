@@ -10,7 +10,7 @@ public protocol MultipartUploadCompletePreviewsServicing {
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Preview
+    ) async throws -> ServerPreview
 }
 
 public enum MultipartUploadCompletePreviewsServiceError: LocalizedError, Equatable {
@@ -53,7 +53,7 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> Preview {
+    ) async throws -> ServerPreview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.completePreviewsMultipartUpload(
@@ -79,7 +79,7 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
         case let .ok(previewUploadCompletionResponse):
             switch previewUploadCompletionResponse.body {
             case let .json(previewUploadCompletionResponse):
-                guard let preview = Preview(previewUploadCompletionResponse)
+                guard let preview = ServerPreview(previewUploadCompletionResponse)
                 else {
                     throw MultipartUploadCompletePreviewsServiceError.invalidPreview(previewUploadCompletionResponse.id)
                 }

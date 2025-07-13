@@ -207,6 +207,14 @@
         "features": {
           "text": "Features"
         },
+        "examples": {
+          "text": "Examples",
+          "items": {
+            "generated-projects": {
+              "text": "Generated projects"
+            }
+          }
+        },
         "develop": {
           "text": "Develop",
           "items": {

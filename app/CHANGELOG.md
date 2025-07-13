@@ -1,3 +1,31 @@
+## What's Changed in app@0.17.0
+* feat: implement profile by @fortmarek in [#7800](https://github.com/tuist/tuist/pull/7800)
+* feat: previews empty states by @fortmarek in [#7803](https://github.com/tuist/tuist/pull/7803)
+* feat: implement preview detail by @fortmarek in [#7792](https://github.com/tuist/tuist/pull/7792)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.16.0...app@0.17.0
+
+## What's Changed in app@0.16.0
+* feat: show previews list by @fortmarek in [#7783](https://github.com/tuist/tuist/pull/7783)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.15.0...app@0.16.0
+
+## What's Changed in app@0.15.0
+* feat: update log in view based on the latest design by @fortmarek in [#7782](https://github.com/tuist/tuist/pull/7782)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.14.0...app@0.15.0
+
+## What's Changed in app@0.14.0
+* feat: iOS app launch screen by @fortmarek in [#7781](https://github.com/tuist/tuist/pull/7781)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.13.1...app@0.14.0
+
+## What's Changed in app@0.13.1
+* fix: don't show error when cancelling authentication by @fortmarek in [#7776](https://github.com/tuist/tuist/pull/7776)
+* fix: clear credentials on authentication failure by @fortmarek in [#7775](https://github.com/tuist/tuist/pull/7775)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.13.0...app@0.13.1
+
 ## What's Changed in app@0.13.0
 * fix: macOS app release by making Sign in with Apple entitlements iOS-only by @fortmarek in [#7773](https://github.com/tuist/tuist/pull/7773)
 * feat: add Sign in with Apple by @fortmarek in [#7756](https://github.com/tuist/tuist/pull/7756)

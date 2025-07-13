@@ -1,6 +1,6 @@
 ---
 title: Generated project with the Xcode package integration
-titleTemplate: :title · Registry · Develop · Guides · Tuist
+titleTemplate: :title · Registry · Features · Guides · Tuist
 description: Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration.
 ---
 
@@ -18,13 +18,15 @@ let project = Project(
         // Registry resolution
         .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
     ],
-    .target(
-        name: "App",
-        product: .app,
-        bundleId: "dev.tuist.App",
-        dependencies: [
-            .package(product: "ComposableArchitecture"),
-        ]
-    )
+    targets: [
+        .target(
+            name: "App",
+            product: .app,
+            bundleId: "dev.tuist.App",
+            dependencies: [
+                .package(product: "ComposableArchitecture"),
+            ]
+        )
+    ]
 )
 ```

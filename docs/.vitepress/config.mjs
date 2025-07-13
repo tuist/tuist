@@ -14,10 +14,10 @@ import llmstxtPlugin from "vitepress-plugin-llmstxt";
 async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
-  sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
-  sidebar[`/${locale}/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/`] = await guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
@@ -348,6 +348,8 @@ export default defineConfig({
 /:locale/guides/server/install /:locale/guides/server/self-host/install 301
 /:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
 /:locale/server /:locale/guides/server/accounts-and-projects 301
+/:locale/references/examples /:locale/guides/examples/generated-projects 301
+/:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

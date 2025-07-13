@@ -2,7 +2,7 @@ import Foundation
 import TuistSimulator
 import XcodeGraph
 
-public struct AppBuild: Equatable, Codable {
+public struct AppBuild: Hashable, Sendable, Equatable, Codable {
     public let id: String
     public let url: URL
     public let supportedPlatforms: [DestinationType]
@@ -38,7 +38,7 @@ extension AppBuild {
     }
 #endif
 
-public enum AppBuildType: Equatable, Codable {
+public enum AppBuildType: Sendable, Equatable, Codable {
     case appBundle, ipa
 }
 

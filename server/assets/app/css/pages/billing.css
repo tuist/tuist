@@ -1,0 +1,445 @@
+#billing {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="current-plan-card"] {
+    & > [data-part="current-plan-card-sections"] {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: var(--noora-spacing-4);
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+
+      & > * {
+        flex: 1;
+      }
+
+      & > [data-part="usage-card-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+
+        & > [data-part="current-bill"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-2);
+
+          & > [data-part="next-payment"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+          }
+
+          & > [data-part="next-charge-date"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="usage-details-title"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+        }
+
+        & [data-part="description"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-2);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+      }
+
+      & > [data-part="current-plan-card-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="header"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="title"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+
+            & > [data-part="label"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+            }
+          }
+
+          & > [data-part="subtitle"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+
+        & > #billing-upgrade-modal {
+          align-self: flex-end;
+
+          & [data-part="content"] {
+            padding: var(--noora-spacing-8);
+          }
+
+          & [data-part="footer"] {
+            padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-0);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="usage-card"] {
+    & > [data-part="usage-card-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+
+      & > [data-part="info-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="plans"],
+  #billing-upgrade-modal [data-part="plans"] {
+    display: flex;
+    flex-direction: row;
+    align-self: center;
+    gap: var(--noora-spacing-9);
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  & > [data-part="billing-email-card-section"],
+  & > [data-part="billing-payment-method-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    border-radius: var(--noora-radius-2xlarge);
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      width: 530px;
+      @media (max-width: 768px) {
+        & {
+          flex-direction: 40vw;
+        }
+      }
+    }
+  }
+  & > [data-part="billing-payment-method-card-section"] {
+    & > [data-part="content"] {
+      & > [data-part="update-button"] {
+        align-self: flex-end;
+      }
+      & [data-part="card"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-start;
+        box-shadow: var(--noora-border-medium);
+        border-radius: var(--noora-radius-2xlarge);
+        background: linear-gradient(252deg, rgba(255, 255, 255, 0) 0%, rgba(235, 235, 235, 0.2) 100%),
+          var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-8);
+        height: 294px;
+        overflow: hidden;
+        html[data-theme="dark"] & {
+          background: linear-gradient(252deg, rgba(0, 0, 0, 0) 0%, rgba(43, 43, 43, 0.2) 100%),
+            var(--noora-surface-background-primary);
+        }
+
+        & > [data-part="top-row"] {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-self: stretch;
+        }
+
+        & > [data-part="payment-card-details"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-5);
+
+          & > [data-part="name"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+          & > [data-part="expiry-date"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+          & > [data-part="card-number"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="blur-top-left"] {
+          position: absolute;
+          top: 32px;
+          left: -56px;
+          filter: blur(75px);
+          background: rgba(113, 53, 255, 0.4);
+          width: 142px;
+          height: 47px;
+
+          html[data-theme="dark"] & {
+            filter: blur(60px);
+          }
+        }
+
+        & > [data-part="blur-bottom-right"] {
+          position: absolute;
+          right: -37px;
+          bottom: -11px;
+          filter: blur(75px);
+          background: rgba(111, 44, 255, 0.5);
+          width: 131px;
+          height: 64px;
+          html[data-theme="dark"] & {
+            filter: blur(60px);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="billing-email-card-section"] {
+    & > [data-part="content"] {
+      & > [data-part="update-button"] {
+        align-self: flex-end;
+      }
+
+      & > [data-part="email"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="billing-email"] {
+          cursor: not-allowed;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-medium);
+          background: var(--noora-surface-background-tertiary);
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
+  }
+}
+
+.tuist-pricing-card {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-2xlarge);
+  padding: var(--noora-spacing-8);
+  width: 252px;
+  overflow: hidden;
+
+  &[data-most-popular] {
+    background: linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%),
+      var(--noora-surface-background-primary);
+    html[data-theme="dark"] & {
+      background: linear-gradient(217deg, rgba(0, 0, 0, 0) 1.35%, rgba(111, 44, 255, 0.08) 100%),
+        var(--noora-surface-background-primary);
+    }
+  }
+
+  & > [data-part="most-popular"] {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    flex-direction: column;
+    align-items: center;
+    border-radius: var(--noora-radius-2xlarge);
+
+    & > [data-part="label"] {
+      z-index: var(--noora-z-index-2);
+      padding-top: var(--noora-spacing-2);
+      color: var(--noora-neutral-light-50);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    }
+
+    & > [data-part="bezel"] {
+      position: absolute;
+      top: 0;
+      right: 0px;
+      left: 0px;
+      z-index: var(--noora-z-index-1);
+
+      & > svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    & > [data-part="name"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+
+  & > [data-part="price-with-button"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="price"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="title"] {
+        background: linear-gradient(152.805deg, transparent, rgba(135, 135, 135, 1)), var(--noora-surface-label-primary);
+        background-clip: text;
+        color: transparent;
+        font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
+        text-shadow: 0px 1px 1px oklch(0% 0 0 / 0.25);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+}
+
+#billing [data-part="feature-list"],
+.tuist-pricing-card [data-part="feature-list"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+
+  & > li {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="icon"] {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+      color: var(--noora-icon-primary-label);
+      & > svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+}
+
+.tuist-shine {
+  position: relative;
+  overflow: hidden;
+  &::before {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: -75%;
+    transform: skewX(-25deg);
+    z-index: 2;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 100%);
+    width: 50%;
+    height: 100%;
+    content: "";
+  }
+
+  &:hover,
+  &:focus {
+    &::before {
+      animation: shine 0.85s;
+    }
+  }
+}
+@keyframes shine {
+  to {
+    left: 125%;
+  }
+}

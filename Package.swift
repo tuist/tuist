@@ -577,7 +577,7 @@ let package = Package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.15.1")),
+        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.16.6")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
@@ -591,8 +591,8 @@ let package = Package(
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(
-            url: "https://github.com/MobileNativeFoundation/XCLogParser",
-            .upToNextMajor(from: "0.2.42")
+            url: "https://github.com/tuist/XCLogParser",
+            .upToNextMajor(from: "0.2.43")
         ),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
         .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.40.1")),
@@ -611,6 +611,7 @@ let package = Package(
             url: "https://github.com/tuist/Rosalind",
             .upToNextMajor(from: "0.5.31")
         ),
+        .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0"))
     ],
     targets: targets
 )

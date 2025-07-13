@@ -156,6 +156,7 @@ internal protocol APIProtocol: Sendable {
     ///
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
+    @available(*, deprecated)
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output
     /// It generates a signed URL for uploading a part.
     ///
@@ -239,6 +240,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
     func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
+    /// Deletes a preview.
+    ///
+    /// This endpoint deletes a preview with a given id.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
+    func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -314,6 +322,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
     func updateAccount(_ input: Operations.updateAccount.Input) async throws -> Operations.updateAccount.Output
+    /// Deletes an account
+    ///
+    /// Deletes the account with the given handle.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
+    func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output
     /// Completes artifacts uploads for a given command event
     ///
     /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -648,6 +663,7 @@ extension APIProtocol {
     ///
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
+    @available(*, deprecated)
     internal func deleteOrganization(
         path: Operations.deleteOrganization.Input.Path,
         headers: Operations.deleteOrganization.Input.Headers = .init()
@@ -843,6 +859,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Deletes a preview.
+    ///
+    /// This endpoint deletes a preview with a given id.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
+    internal func deletePreview(
+        path: Operations.deletePreview.Input.Path,
+        headers: Operations.deletePreview.Input.Headers = .init()
+    ) async throws -> Operations.deletePreview.Output {
+        try await deletePreview(Operations.deletePreview.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -1024,6 +1055,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Deletes an account
+    ///
+    /// Deletes the account with the given handle.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
+    internal func deleteAccount(
+        path: Operations.deleteAccount.Input.Path,
+        headers: Operations.deleteAccount.Input.Headers = .init()
+    ) async throws -> Operations.deleteAccount.Output {
+        try await deleteAccount(Operations.deleteAccount.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Completes artifacts uploads for a given command event
@@ -1925,6 +1971,16 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/bundle_identifier`.
             internal var bundle_identifier: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/Preview/created_by`.
+            internal var created_by: Components.Schemas.Account?
+            /// Whether the preview was created from CI
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/created_from_ci`.
+            internal var created_from_ci: Swift.Bool
+            /// The URL to download the preview on a device
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/device_url`.
+            internal var device_url: Swift.String
             /// The display name of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
@@ -1945,6 +2001,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/id`.
             internal var id: Swift.String
+            /// The date and time when the preview was inserted
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/inserted_at`.
+            internal var inserted_at: Swift.String
             /// The URL for the QR code image to dowload the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
@@ -1955,53 +2015,77 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/url`.
             internal var url: Swift.String
+            /// The app version of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/version`.
+            internal var version: Swift.String?
             /// Creates a new `Preview`.
             ///
             /// - Parameters:
             ///   - builds:
             ///   - bundle_identifier: The bundle identifier of the preview
+            ///   - created_by:
+            ///   - created_from_ci: Whether the preview was created from CI
+            ///   - device_url: The URL to download the preview on a device
             ///   - display_name: The display name of the preview
             ///   - git_branch: The git branch associated with the preview
             ///   - git_commit_sha: The git commit SHA associated with the preview
             ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
+            ///   - inserted_at: The date and time when the preview was inserted
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - supported_platforms:
             ///   - url: The URL to download the preview
+            ///   - version: The app version of the preview
             internal init(
                 builds: [Components.Schemas.AppBuild],
                 bundle_identifier: Swift.String? = nil,
+                created_by: Components.Schemas.Account? = nil,
+                created_from_ci: Swift.Bool,
+                device_url: Swift.String,
                 display_name: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
                 icon_url: Swift.String,
                 id: Swift.String,
+                inserted_at: Swift.String,
                 qr_code_url: Swift.String,
                 supported_platforms: [Components.Schemas.PreviewSupportedPlatform],
-                url: Swift.String
+                url: Swift.String,
+                version: Swift.String? = nil
             ) {
                 self.builds = builds
                 self.bundle_identifier = bundle_identifier
+                self.created_by = created_by
+                self.created_from_ci = created_from_ci
+                self.device_url = device_url
                 self.display_name = display_name
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
                 self.icon_url = icon_url
                 self.id = id
+                self.inserted_at = inserted_at
                 self.qr_code_url = qr_code_url
                 self.supported_platforms = supported_platforms
                 self.url = url
+                self.version = version
             }
             internal enum CodingKeys: String, CodingKey {
                 case builds
                 case bundle_identifier
+                case created_by
+                case created_from_ci
+                case device_url
                 case display_name
                 case git_branch
                 case git_commit_sha
                 case icon_url
                 case id
+                case inserted_at
                 case qr_code_url
                 case supported_platforms
                 case url
+                case version
             }
         }
         /// - Remark: Generated from `#/components/schemas/ValidationError`.
@@ -2800,6 +2884,8 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PreviewsIndex`.
         internal struct PreviewsIndex: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PreviewsIndex/pagination_metadata`.
+            internal var pagination_metadata: Components.Schemas.PaginationMetadata
             /// Previews list.
             ///
             /// - Remark: Generated from `#/components/schemas/PreviewsIndex/previews`.
@@ -2807,11 +2893,17 @@ internal enum Components {
             /// Creates a new `PreviewsIndex`.
             ///
             /// - Parameters:
+            ///   - pagination_metadata:
             ///   - previews: Previews list.
-            internal init(previews: [Components.Schemas.Preview]) {
+            internal init(
+                pagination_metadata: Components.Schemas.PaginationMetadata,
+                previews: [Components.Schemas.Preview]
+            ) {
+                self.pagination_metadata = pagination_metadata
                 self.previews = previews
             }
             internal enum CodingKeys: String, CodingKey {
+                case pagination_metadata
                 case previews
             }
         }
@@ -3747,6 +3839,67 @@ internal enum Components {
                 case targets
                 case _type = "type"
                 case xcode_version
+            }
+        }
+        /// Pagination metadata.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PaginationMetadata`.
+        internal struct PaginationMetadata: Codable, Hashable, Sendable {
+            /// Current page number. Always `nil` when using cursor-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
+            internal var current_page: Swift.Int?
+            /// Whether there are more pages available.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_next_page`.
+            internal var has_next_page: Swift.Bool
+            /// Whether there are previous pages available.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_previous_page`.
+            internal var has_previous_page: Swift.Bool
+            /// Number of items per page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
+            internal var page_size: Swift.Int
+            /// Total number of items.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_count`.
+            internal var total_count: Swift.Int
+            /// Total number of pages. Always `nil` when using cursor-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_pages`.
+            internal var total_pages: Swift.Int?
+            /// Creates a new `PaginationMetadata`.
+            ///
+            /// - Parameters:
+            ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
+            ///   - has_next_page: Whether there are more pages available.
+            ///   - has_previous_page: Whether there are previous pages available.
+            ///   - page_size: Number of items per page.
+            ///   - total_count: Total number of items.
+            ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
+            internal init(
+                current_page: Swift.Int? = nil,
+                has_next_page: Swift.Bool,
+                has_previous_page: Swift.Bool,
+                page_size: Swift.Int,
+                total_count: Swift.Int,
+                total_pages: Swift.Int? = nil
+            ) {
+                self.current_page = current_page
+                self.has_next_page = has_next_page
+                self.has_previous_page = has_previous_page
+                self.page_size = page_size
+                self.total_count = total_count
+                self.total_pages = total_pages
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case current_page
+                case has_next_page
+                case has_previous_page
+                case page_size
+                case total_count
+                case total_pages
             }
         }
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
@@ -13414,6 +13567,8 @@ internal enum Operations {
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/pagination_metadata`.
+                        internal var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// Previews list.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
@@ -13421,11 +13576,17 @@ internal enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - previews: Previews list.
-                        internal init(previews: [Components.Schemas.Preview]) {
+                        internal init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            previews: [Components.Schemas.Preview]
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.previews = previews
                         }
                         internal enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case previews
                         }
                     }
@@ -15044,6 +15205,334 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.downloadPreview.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Deletes a preview.
+    ///
+    /// This endpoint deletes a preview with a given id.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
+    internal enum deletePreview {
+        internal static let id: Swift.String = "deletePreview"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The id of the preview to delete.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/path/preview_id`.
+                internal var preview_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - preview_id: The id of the preview to delete.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.preview_id = preview_id
+                }
+            }
+            internal var path: Operations.deletePreview.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deletePreview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deletePreview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.deletePreview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.deletePreview.Input.Path,
+                headers: Operations.deletePreview.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The preview was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deletePreview.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.deletePreview.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deletePreview.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deletePreview.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.deletePreview.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.deletePreview.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deletePreview.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deletePreview.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deletePreview.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.deletePreview.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deletePreview.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deletePreview.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deletePreview.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.deletePreview.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deletePreview.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deletePreview.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The preview does not exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deletePreview.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.deletePreview.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -19542,6 +20031,267 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.updateAccount.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Deletes an account
+    ///
+    /// Deletes the account with the given handle.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
+    internal enum deleteAccount {
+        internal static let id: Swift.String = "deleteAccount"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account to delete.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account to delete.
+                internal init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            internal var path: Operations.deleteAccount.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteAccount.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteAccount.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.deleteAccount.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.deleteAccount.Input.Path,
+                headers: Operations.deleteAccount.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The account was deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deleteAccount.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.deleteAccount.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deleteAccount.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deleteAccount.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteAccount.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.deleteAccount.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deleteAccount.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deleteAccount.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteAccount.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.deleteAccount.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.deleteAccount.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.deleteAccount.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The account with the given handle was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteAccount.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.deleteAccount.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

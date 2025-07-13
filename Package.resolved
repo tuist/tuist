@@ -1,5 +1,5 @@
 {
-  "originHash" : "9c6494859cd2ed846846b03e7322118538f262a0e95c3c50fe663acd6122211c",
+  "originHash" : "c1baa4dac421db955540f2059a4e88ad7461612925d9bd987dc40ab94c7a7156",
   "pins" : [
     {
       "identity" : "aexml",
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "95ae649dd2f2800ebcdf0dfca92233d59f87787b",
-        "version" : "0.10.2"
+        "revision" : "60c522a208d1c0ba222ac27df17dca42f6904a45",
+        "version" : "0.10.14"
       }
     },
     {
@@ -123,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "753461938fafdcdbcd19b68b34b137dc37367d22",
-        "version" : "0.34.0"
+        "revision" : "d0b543aa795d83539691b80959b0adb152b072e7",
+        "version" : "0.35.1"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "118a0b8934e585b80952586db30bcb72aef45a74",
-        "version" : "0.3.2"
+        "revision" : "ee133a696dce312da292b00d0944aafaa808eaca",
+        "version" : "0.4.0"
       }
     },
     {
@@ -143,6 +143,15 @@
       "state" : {
         "revision" : "4858805eccada342572f7ccb0c5e4d78135c51f2",
         "version" : "0.40.1"
+      }
+    },
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke",
+      "state" : {
+        "revision" : "0ead44350d2737db384908569c012fe67c421e4d",
+        "version" : "12.8.0"
       }
     },
     {
@@ -357,8 +366,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "34d486b01cd891297ac615e40d5999536a1e138d",
-        "version" : "2.83.0"
+        "revision" : "ad6b5f17270a7008f60d35ec5378e6144a575162",
+        "version" : "2.84.0"
       }
     },
     {
@@ -472,19 +481,19 @@
     {
       "identity" : "xclogparser",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MobileNativeFoundation/XCLogParser",
+      "location" : "https://github.com/tuist/XCLogParser",
       "state" : {
-        "revision" : "5facacc3813b38514e759c5ce5aec4b0fdcfa8d1",
-        "version" : "0.2.42"
+        "revision" : "1f67215fd92aded27821151b50098de933162ba2",
+        "version" : "0.2.43"
       }
     },
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "revision" : "6daad18195ec32fc31fbb9ad0a5971b966523f4e",
-        "version" : "1.15.1"
+        "revision" : "df599d851b52ec2036f96376ca75c772cb309607",
+        "version" : "1.16.6"
       }
     },
     {

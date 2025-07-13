@@ -188,13 +188,15 @@ import TuistSupport
             configuration: ConfigurationName = .debug,
             executable: TargetReference? = nil,
             arguments: Arguments? = nil,
-            options: RunActionOptions = .options()
+            options: RunActionOptions = .options(),
+            appClipInvocationURLString: String? = nil
         ) -> RunAction {
             RunAction(
                 configuration: configuration,
                 executable: executable,
                 arguments: arguments,
-                options: options
+                options: options,
+                appClipInvocationURLString: appClipInvocationURLString
             )
         }
     }

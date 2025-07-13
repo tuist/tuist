@@ -81,23 +81,28 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.13.0",
-                    "CFBundleVersion": "0.13.0",
-                    "UILaunchScreen": [
-                        "UIColorName": "",
-                        "UIImageName": "",
+                    "CFBundleShortVersionString": "0.17.0",
+                    "CFBundleVersion": "0.17.0",
+                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "UISupportedInterfaceOrientations": [
+                        "UIInterfaceOrientationPortrait",
                     ],
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
-            resources: ["Resources/TuistApp/**"],
+            resources: [
+                .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
+                .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
+            ],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
+                .target(name: "TuistProfile", condition: .when([.ios])),
             ],
             settings: .settings(
                 base: [
@@ -125,6 +130,22 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistAppStorage"),
+                .target(name: "TuistAuthentication"),
+                .external(name: "NukeUI"),
+            ]
+        ),
+        .target(
+            name: "TuistNoora",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.noora",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistNoora/**"],
+            resources: ["Resources/TuistNoora/**"],
+            dependencies: [
+                .external(name: "NukeUI"),
             ]
         ),
         .target(
@@ -138,6 +159,21 @@ let project = Project(
                 .project(target: "TuistServer", path: "../"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora"),
+            ]
+        ),
+        .target(
+            name: "TuistProfile",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.profile",
+            deploymentTargets: .iOS("18.0"),
+            sources: ["Sources/TuistProfile/**"],
+            dependencies: [
+                .target(name: "TuistAuthentication"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
+                .project(target: "TuistServer", path: "../"),
             ]
         ),
         .target(
@@ -147,6 +183,10 @@ let project = Project(
             bundleId: "dev.tuist.error-handling",
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
+            dependencies: [
+                .project(target: "TuistServer", path: "../"),
+                .external(name: "OpenAPIRuntime"),
+            ]
         ),
         .target(
             name: "TuistAppStorage",

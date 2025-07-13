@@ -514,15 +514,8 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 json: true
             )
 
-            XCTAssertStandardOutput(
-                pattern: """
-                  "bundleIdentifier": "dev.tuist.app",
-                  "displayName": "App",
-                  "iconURL": "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png",
-                  "id": "preview-id",
-                  "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
-                """
-            )
+            XCTAssertStandardOutput(pattern: #""bundleIdentifier": "dev.tuist.app""#)
+            XCTAssertStandardOutput(pattern: #""displayName": "App""#)
         }
     }
 

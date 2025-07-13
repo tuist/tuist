@@ -2,75 +2,111 @@ import AuthenticationServices
 import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
+import TuistNoora
 
 public struct LogInView: View {
-    @EnvironmentObject var errorHandling: ErrorHandling
+    @EnvironmentObject var errorHandler: ErrorHandling
     @StateObject private var authenticationService = AuthenticationService()
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var appleSignInDelegate: AppleSignInDelegate?
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
+            Spacer()
+
+            Image("TuistRoundedIcon")
+                .resizable()
+                .frame(width: 60, height: 60)
+                .padding(.bottom, Noora.Spacing.spacing9)
+
             Text("Welcome to Tuist")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .font(.title.weight(.medium))
+                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                .padding(.bottom, Noora.Spacing.spacing5)
 
-            Text("Sign in to access your projects and collaborate with your team")
+            Text("Sign in to access your projects and\ncollaborate with your team")
+                .font(.subheadline.weight(.regular))
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                .padding(.bottom, 80)
 
-            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signIn() } }) {
-                HStack {
-                    Image(systemName: "person.crop.circle")
-                    Text("Sign in with Tuist")
+            Spacer()
+
+            VStack(spacing: Noora.Spacing.spacing5) {
+                SocialButton(
+                    title: "Sign in with Tuist",
+                    style: .primary,
+                    icon: "TuistLogo"
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.signIn() }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-            }
 
-            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signInWithGitHub() } }) {
-                HStack {
-                    Image(systemName: "person.crop.circle.badge.checkmark")
-                    Text("Sign in with GitHub")
+                SocialButton(
+                    title: "Sign in with Apple",
+                    style: .secondary,
+                    icon: "AppleLogo"
+                ) {
+                    let request = ASAuthorizationAppleIDProvider().createRequest()
+                    request.requestedScopes = [.fullName, .email]
+
+                    let controller = ASAuthorizationController(authorizationRequests: [request])
+                    appleSignInDelegate = AppleSignInDelegate(
+                        authenticationService: authenticationService,
+                        errorHandler: errorHandler
+                    )
+                    controller.delegate = appleSignInDelegate
+                    controller.presentationContextProvider = appleSignInDelegate
+                    controller.performRequests()
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.black)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-            }
 
-            Button(action: { errorHandling.fireAndHandleError { try await authenticationService.signInWithGoogle() } }) {
-                HStack {
-                    Image(systemName: "globe")
-                    Text("Sign in with Google")
+                SocialButton(
+                    title: "Sign in with Google",
+                    style: .secondary,
+                    icon: "GoogleLogo"
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGoogle() }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-            }
 
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.fullName, .email]
-            } onCompletion: { result in
-                switch result {
-                case let .success(authorization):
-                    errorHandling.fireAndHandleError {
-                        try await authenticationService.signInWithApple(authorization: authorization)
-                    }
-                case let .failure(error):
-                    errorHandling.handle(error: error)
+                SocialButton(
+                    title: "Sign in with GitHub",
+                    style: .secondary,
+                    icon: "GitHubLogo"
+                ) {
+                    errorHandler.fireAndHandleError { try await authenticationService.signInWithGitHub() }
                 }
             }
-            .frame(height: 50)
-            .cornerRadius(10)
+            .padding(.horizontal, Noora.Spacing.spacing8)
+            .padding(.top, Noora.Spacing.spacing9)
+            .padding(.bottom, Noora.Spacing.spacing4)
+            .frame(maxWidth: .infinity)
+            .background(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 32,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 32
+                )
+                .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.8)))
+                .overlay(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 32,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 32
+                    )
+                    .stroke(Color(light: Color.white, dark: Color(hex: 0x1F1F1F)), lineWidth: 2)
+                )
+                .ignoresSafeArea(.container, edges: .bottom)
+            )
         }
-        .padding()
+        .background(
+            Image("LaunchScreenBackground")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .ignoresSafeArea()
+        )
     }
 }
 

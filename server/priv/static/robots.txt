@@ -1,0 +1,37 @@
+User-agent: *
+
+# Block authentication and user pages
+Disallow: /dashboard
+Disallow: /users/
+Disallow: /auth/
+Disallow: /oauth2/
+Disallow: /organizations/
+Disallow: /projects/
+
+# Block admin/ops pages
+Disallow: /ops/
+Disallow: /live/
+
+# Block API endpoints
+Disallow: /api/
+
+# Block download endpoints
+Disallow: /download
+
+# Block all account/project specific pages
+Disallow: /*/projects
+Disallow: /*/members
+Disallow: /*/billing
+Disallow: /*/settings
+Disallow: /*/previews
+Disallow: /*/tests
+Disallow: /*/binary-cache
+Disallow: /*/connect
+Disallow: /*/analytics
+Disallow: /*/bundles
+Disallow: /*/builds
+Disallow: /*/runs
+Disallow: /*/test-runs
+Disallow: /*/cache-runs
+Disallow: /*/generate-runs
+Disallow: /*/build-runs

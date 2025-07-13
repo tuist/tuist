@@ -1,0 +1,259 @@
+name: Server
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - server/**
+      - .github/workflows/server.yml
+      - pnpm-lock.yaml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-server-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  MISE_EXPERIMENTAL: "1"
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  test:
+    name: Test
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - run: mise run server:clickhouse:start
+      - run: mise run server:db:reset
+      - name: Run tests
+        run: mix test --warnings-as-errors
+  credo:
+    name: Credo
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Run Credo
+        run: mix credo
+  format:
+    name: Format
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Check format
+        run: mise run server:format --check
+  esbuild:
+    name: esbuild
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Install esbuild
+        run: mix esbuild.install
+      - name: Check esbuild output
+        run: |
+          if ! mix esbuild app --log-level=warning | grep .; then
+            echo "No esbuild warnings detected."
+            exit 0
+          else
+            echo "::error title=esbuild output detected::asset build has warnings."
+            exit 1
+          fi
+  security:
+    name: Security
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Check
+        run: mise run server:security
+  docker_build:
+    name: Docker build
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: "{{defaultContext}}:server"
+          file: Dockerfile
+          push: false
+          tags: tuist/tuist
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=1.24.11.11
+            MIX_ENV=prod
+  seed:
+    name: Seed
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+      - run: mise run server:clickhouse:start
+      - run: mise run server:db:reset
+      - name: Run migrations
+        run: mix ecto.migrate
+      - name: Seed the database
+        run: mix run priv/repo/seeds.exs

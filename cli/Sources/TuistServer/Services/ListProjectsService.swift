@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIURLSession
 
 @Mockable
-public protocol ListProjectsServicing {
+public protocol ListProjectsServicing: Sendable {
     func listProjects(
         serverURL: URL
     ) async throws -> [ServerProject]
@@ -63,7 +63,7 @@ public final class ListProjectsService: ListProjectsServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw ListProjectsServiceError.unauthorized(error.message)
             }
         }
     }
