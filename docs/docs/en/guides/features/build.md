@@ -1,6 +1,6 @@
 ---
 title: Build
-titleTemplate: :title · Develop · Guides · Tuist
+titleTemplate: :title · Features · Guides · Tuist
 description: Learn how to use Tuist to build your projects efficiently.
 ---
 
@@ -12,7 +12,7 @@ You might wonder what's the value of using `tuist build` over generating the pro
 
 - **Single command:** `tuist build` ensures the project is generated if needed before compiling the project.
 - **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
-- <LocalizedLink href="/guides/features/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
+- <LocalizedLink href="/guides/features/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
 - **Analytics:** It collects and reports metrics that are correlated with other data points to provide you with actionable information to make informed decisions.
 
 ## Usage {#usage}

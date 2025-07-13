@@ -132,6 +132,7 @@ let project = Project(
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
+                .target(name: "TuistAuthentication"),
                 .external(name: "NukeUI"),
             ]
         ),
@@ -143,7 +144,9 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistNoora/**"],
             resources: ["Resources/TuistNoora/**"],
-            dependencies: []
+            dependencies: [
+                .external(name: "NukeUI"),
+            ]
         ),
         .target(
             name: "TuistOnboarding",
@@ -169,6 +172,8 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
+                .project(target: "TuistServer", path: "../"),
             ]
         ),
         .target(

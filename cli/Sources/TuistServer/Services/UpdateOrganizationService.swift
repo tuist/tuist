@@ -87,7 +87,7 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw UpdateOrganizationServiceError.unauthorized(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

@@ -17,16 +17,22 @@ permissions:
   packages: write
 
 env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_APP_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   MISE_EXPERIMENTAL: "1"
 
 jobs:
-  release:
-    name: Release
+  setup:
+    name: Setup and Check Release
     runs-on: macos-15
-    timeout-minutes: 50
+    timeout-minutes: 20
     if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
+    outputs:
+      should-release: ${{ env.should-release }}
+      next-version: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      next-version-number: ${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,10 +97,44 @@ jobs:
         working-directory: app
         if: env.should-release == 'true'
         run: git cliff --include-path "app/**/*" --repository "../" --bump -o CHANGELOG.md
+      - name: Upload updated files as artifact
+        if: env.should-release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-files
+          path: |
+            app/Project.swift
+            app/CHANGELOG.md
+
+  release-macos:
+    name: Release macOS App
+    runs-on: macos-15
+    timeout-minutes: 30
+    needs: setup
+    if: needs.setup.outputs.should-release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
+      - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
+        with:
+          version: 2025.7.0
+          experimental: true
+      - name: Download updated files
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-files
+          path: app
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Bundle Tuist App
-        if: env.should-release == 'true'
         run: mise run app:bundle
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
@@ -103,40 +143,107 @@ jobs:
           CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_APP_CONFIG_TOKEN }}
       - name: Generate Sparkle appcast
-        if: env.should-release == 'true'
         env:
           TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
-        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.setup.outputs.next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            app/build/artifacts/Tuist.dmg
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
+            app/appcast.xml
+
+  release-ios:
+    name: Release iOS App
+    runs-on: macos-15
+    timeout-minutes: 30
+    needs: setup
+    if: needs.setup.outputs.should-release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.7.0
+          experimental: true
+      - name: Download updated files
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-files
+          path: app
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp
+      - name: Upload iOS App to App Store Connect
+        run: mise run app:upload-ios
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
+
+  update-main:
+    name: Update main with released apps
+    runs-on: macos-15
+    timeout-minutes: 10
+    needs: [setup, release-macos, release-ios]
+    if: needs.setup.outputs.should-release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Download updated files
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-files
+          path: app
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: app/build/artifacts
       - name: Commit changes
-        if: env.should-release == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add app/CHANGELOG.md app/Project.swift app/appcast.xml
-          git commit -m "[Release] [skip ci] Tuist App ${{ steps.next-version.outputs.NEXT_VERSION }}"
-          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+          git commit -m "[Release] [skip ci] Tuist App ${{ needs.setup.outputs.next-version }}"
+          git tag ${{ needs.setup.outputs.next-version }}
           git push origin main
           git push origin main --tags
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: env.should-release == 'true'
         with:
           draft: false
           repository: tuist/tuist
-          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          body: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-          target_commitish: ${{ steps.auto-commit-action.outputs.commit_hash }}
+          name: ${{ needs.setup.outputs.next-version }}
+          tag_name: ${{ needs.setup.outputs.next-version }}
+          body: ${{ needs.setup.outputs.release-notes }}
           files: |
             app/build/artifacts/Tuist.dmg
             app/build/artifacts/SHASUMS256.txt
             app/build/artifacts/SHASUMS512.txt
       - name: Get DMG SHA256
         id: sha256
-        if: env.should-release == 'true'
         run: |
           SHA256=$(grep "Tuist.dmg" app/build/artifacts/SHASUMS256.txt | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
       - name: Release Homebrew cask
-        if: env.should-release == 'true'
-        run: mise run cli:release:homebrew-cask --version ${{ steps.next-version.outputs.NEXT_VERSION }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+        run: mise run cli:release:homebrew-cask --version ${{ needs.setup.outputs.next-version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}

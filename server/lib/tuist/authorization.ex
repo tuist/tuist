@@ -133,6 +133,13 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :account do
+    action :delete do
+      desc("Allows the admin of an account to delete the account.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
   object :account_token do
     action :create do
       desc("Allows users of an account to create an account token.")

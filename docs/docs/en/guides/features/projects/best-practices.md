@@ -1,6 +1,6 @@
 ---
 title: Best practices
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn about the best practices for working with Tuist and Xcode projects.
 ---
 

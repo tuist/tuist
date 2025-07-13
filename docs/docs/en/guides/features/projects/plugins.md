@@ -1,6 +1,6 @@
 ---
 title: Plugins
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn how to create and use plugins in Tuist to extend its functionality.
 ---
 

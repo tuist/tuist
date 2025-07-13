@@ -201,6 +201,10 @@ public enum Noora {
 
         public static let badgeInformationLabel = Color(light: azure700, dark: azure400)
         public static let badgeInformationBackground = Color(light: azure50, dark: azureAlpha)
+
+        // MARK: Accent
+
+        public static let accent = Color(light: purple500, dark: purple400)
     }
 
     public enum Spacing {

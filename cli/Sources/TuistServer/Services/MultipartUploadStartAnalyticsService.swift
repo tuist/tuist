@@ -63,7 +63,7 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw MultipartUploadStartAnalyticsServiceError.unauthorized(error.message)
             }
         }
     }

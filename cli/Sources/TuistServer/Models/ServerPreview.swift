@@ -7,6 +7,7 @@ public struct ServerPreview: Sendable, Equatable, Codable, Identifiable, Hashabl
     public let url: URL
     public let qrCodeURL: URL
     public let iconURL: URL
+    public let deviceURL: URL
     public let version: Version?
     public let bundleIdentifier: String?
     public var displayName: String?
@@ -27,11 +28,13 @@ extension ServerPreview {
         guard let url = URL(string: preview.url),
               let qrCodeURL = URL(string: preview.qr_code_url),
               let iconURL = URL(string: preview.icon_url),
+              let deviceURL = URL(string: preview.device_url),
               let insertedAt = Self.dateFormatter.date(from: preview.inserted_at)
         else { return nil }
         self.url = url
         self.qrCodeURL = qrCodeURL
         self.iconURL = iconURL
+        self.deviceURL = deviceURL
         if let version = preview.version {
             self.version = Version(string: version)
         } else {
@@ -64,6 +67,7 @@ extension ServerPreview {
             // swiftlint:disable:this force_try
             iconURL: URL =
                 URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png")!,
+            deviceURL: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!,
             version: Version = "1.0.0",
             // swiftlint:disable:this force_try
             bundleIdentifier: String? = "dev.tuist.app",
@@ -86,6 +90,7 @@ extension ServerPreview {
                 url: url,
                 qrCodeURL: qrCodeURL,
                 iconURL: iconURL,
+                deviceURL: deviceURL,
                 version: version,
                 bundleIdentifier: bundleIdentifier,
                 displayName: displayName,

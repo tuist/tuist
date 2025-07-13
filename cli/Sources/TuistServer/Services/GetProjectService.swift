@@ -75,7 +75,7 @@ public final class GetProjectService: GetProjectServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw GetProjectServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetProjectServiceError.unknownError(statusCode)

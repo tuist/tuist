@@ -57,7 +57,7 @@ public final class DeleteProjectService: DeleteProjectServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw DeleteProjectServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw DeleteProjectServiceError.unknownError(statusCode)

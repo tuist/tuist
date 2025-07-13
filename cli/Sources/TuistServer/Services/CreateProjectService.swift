@@ -65,7 +65,7 @@ public final class CreateProjectService: CreateProjectServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw CreateProjectServiceError.unauthorized(error.message)
             }
         }
     }

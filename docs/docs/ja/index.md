@@ -86,7 +86,7 @@ Tuist を少し試してみて、Tuist を最大限に活用する方法を学�
         title="Examples"
         details="Check out examples of generated Xcode projects."
         linkText="Show me examples"
-        link="/references/examples/app_with_airship_sdk"/>
+        link="/guides/examples/generated-projects/app_with_airship_sdk"/>
     <HomeCard
         icon="🌈"
         title="awesome-tuist"

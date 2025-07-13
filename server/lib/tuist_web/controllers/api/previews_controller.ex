@@ -754,6 +754,8 @@ defmodule TuistWeb.API.PreviewsController do
     %{
       id: preview.id,
       url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}"),
+      device_url:
+        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}",
       qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/qr-code.png"),
       icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"),
       version: preview.version,

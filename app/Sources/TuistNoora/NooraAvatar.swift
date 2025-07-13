@@ -93,7 +93,7 @@ public struct NooraAvatar: View {
         let emailData = Data(trimmedEmail.utf8)
         let hash = Insecure.MD5.hash(data: emailData)
 
-        let colorIndex = Int(hash.hashValue) % AvatarColor.allCases.count
+        let colorIndex = abs(Int(hash.hashValue)) % AvatarColor.allCases.count
         return AvatarColor.allCases[colorIndex]
     }
 

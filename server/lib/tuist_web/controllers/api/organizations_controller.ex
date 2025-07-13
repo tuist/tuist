@@ -154,6 +154,7 @@ defmodule TuistWeb.API.OrganizationsController do
     summary: "Deletes an organization",
     description: "Deletes the organization with the given name.",
     operation_id: "deleteOrganization",
+    deprecated: true,
     parameters: [
       organization_name: [
         in: :path,

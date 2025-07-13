@@ -1,11 +1,13 @@
 import Nuke
 import SwiftUI
+import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
 import TuistServer
 
 public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
+    @EnvironmentObject private var authenticationService: AuthenticationService
     @State var viewModel = PreviewsViewModel()
     @State private var searchText = ""
     @State private var navigationPath = NavigationPath()
@@ -122,6 +124,10 @@ public struct PreviewsView: View {
                 }
             }
             .onAppear {
+                // When deleting an account, there's a bug when onAppear is called even when already logged out.
+                // This should never happen due to the check in TuistApp.swift, but it seems there's a race condition in the
+                // SwiftUI lifecycle
+                guard case .loggedIn = authenticationService.authenticationState else { return }
                 errorHandling.fireAndHandleError {
                     try await viewModel.onAppear()
                 }

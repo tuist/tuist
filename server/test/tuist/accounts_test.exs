@@ -2514,6 +2514,36 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "delete_account/1" do
+    test "deletes a user account successfully" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert Accounts.get_user_by_id(user.id) == nil
+      assert Accounts.get_account_by_id(account.id) == nil
+    end
+
+    test "deletes an organization account successfully" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org", creator: user})
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
+      assert Accounts.get_account_by_id(account.id) == nil
+    end
+
+  end
+
   describe "okta_organization_for_user_email/1" do
     test "returns organization when user exists and has okta organization" do
       # Given

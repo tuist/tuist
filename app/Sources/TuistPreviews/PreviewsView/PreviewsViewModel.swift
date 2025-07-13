@@ -41,6 +41,7 @@ final class PreviewsViewModel: Sendable {
     func onAppear() async throws {
         do {
             try await loadProjects()
+            isInitialLoading = false
         } catch {
             isInitialLoading = false
             throw error
@@ -118,6 +119,7 @@ final class PreviewsViewModel: Sendable {
 
         do {
             try await loadProjects()
+            isRefreshingProjects = false
         } catch {
             isRefreshingProjects = false
             throw error

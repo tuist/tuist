@@ -3,10 +3,13 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistServer
 
 public struct ProfileView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
+    private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
+    @State private var showDeleteConfirmation = false
 
     private let account: Account
 
@@ -82,6 +85,17 @@ public struct ProfileView: View {
                 }) {
                     Text("Sign out")
                         .font(.body)
+                        .foregroundColor(Noora.Colors.accent)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            Section {
+                Button(action: {
+                    showDeleteConfirmation = true
+                }) {
+                    Text("Delete account")
+                        .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelDestructive)
                         .frame(maxWidth: .infinity)
                 }
@@ -89,5 +103,15 @@ public struct ProfileView: View {
         }
         .listStyle(.insetGrouped)
         .background(Noora.Colors.surfaceBackgroundPrimary)
+        .alert("Delete Account", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                errorHandler.fireAndHandleError {
+                    try await authenticationService.deleteAccount(account)
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? This action cannot be undone.")
+        }
     }
 }

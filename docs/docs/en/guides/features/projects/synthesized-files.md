@@ -1,6 +1,6 @@
 ---
 title: Synthesized files
-titleTemplate: :title · Projects · Develop · Guides · Tuist
+titleTemplate: :title · Projects · Features · Guides · Tuist
 description: Learn about synthesized files in Tuist projects.
 ---
 
@@ -54,6 +54,9 @@ In Objective-C, you'll get an interface `{Target}Resources` to access the bundle
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
+> [!WARNING] LIMITATION WITH INTERNAL TARGETS
+> Currently, Tuist does not generate resource bundle accessors for internal targets that contain only Objective-C sources. This is a known limitation tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
+
 > [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 > If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
 
@@ -100,4 +103,4 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
 > [!NOTE] REFERENCE
-> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
+> You can check out [this fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
