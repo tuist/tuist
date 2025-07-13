@@ -5,7 +5,7 @@ import Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
     func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: Int,
+        commandEventId: String,
         serverURL: URL
     ) async throws -> String
 }
@@ -32,7 +32,7 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
 
     public func uploadAnalyticsArtifact(
         _ artifact: ServerCommandEvent.Artifact,
-        commandEventId: Int,
+        commandEventId: String,
         serverURL: URL
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)

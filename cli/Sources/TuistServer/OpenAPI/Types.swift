@@ -1435,40 +1435,48 @@ internal enum Components {
                 case upload_id
             }
         }
-        /// The schema for the command analytics event.
+        /// A command event.
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
         internal struct CommandEvent: Codable, Hashable, Sendable {
-            /// ID of the command event
+            /// The unique identifier of the command event.
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/id`.
-            internal var id: Swift.Double
-            /// Name of the command
+            internal var id: Swift.String
+            /// The name of the command
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/name`.
             internal var name: Swift.String
-            /// URL to the command event
+            /// The project identifier
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEvent/project_id`.
+            internal var project_id: Swift.Int
+            /// The URL to the command event
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/url`.
             internal var url: Swift.String
             /// Creates a new `CommandEvent`.
             ///
             /// - Parameters:
-            ///   - id: ID of the command event
-            ///   - name: Name of the command
-            ///   - url: URL to the command event
+            ///   - id: The unique identifier of the command event.
+            ///   - name: The name of the command
+            ///   - project_id: The project identifier
+            ///   - url: The URL to the command event
             internal init(
-                id: Swift.Double,
+                id: Swift.String,
                 name: Swift.String,
+                project_id: Swift.Int,
                 url: Swift.String
             ) {
                 self.id = id
                 self.name = name
+                self.project_id = project_id
                 self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
                 case id
                 case name
+                case project_id
                 case url
             }
         }
@@ -6722,15 +6730,15 @@ internal enum Operations {
         internal struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path`.
             internal struct Path: Sendable, Hashable {
-                /// The id of the command event.
+                /// The id of the command event UUID.
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path/run_id`.
-                internal var run_id: Swift.Int
+                internal var run_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
+                ///   - run_id: The id of the command event UUID.
+                internal init(run_id: Swift.String) {
                     self.run_id = run_id
                 }
             }
@@ -12216,12 +12224,12 @@ internal enum Operations {
                 /// The id of the command event.
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/path/run_id`.
-                internal var run_id: Swift.Int
+                internal var run_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
+                internal init(run_id: Swift.String) {
                     self.run_id = run_id
                 }
             }
@@ -14136,12 +14144,12 @@ internal enum Operations {
                 /// The id of the command event.
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/path/run_id`.
-                internal var run_id: Swift.Int
+                internal var run_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
+                internal init(run_id: Swift.String) {
                     self.run_id = run_id
                 }
             }
@@ -20341,12 +20349,12 @@ internal enum Operations {
                 /// The id of the command event.
                 ///
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/path/run_id`.
-                internal var run_id: Swift.Int
+                internal var run_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
+                internal init(run_id: Swift.String) {
                     self.run_id = run_id
                 }
             }
