@@ -64,9 +64,7 @@ defmodule Tuist.XcodeTest do
       assert graph_ch.name == "TestGraph"
       assert graph_ch.command_event_id == command_event.id
 
-      [project_ch] =
-        ClickHouseRepo.all(from p in CHXcodeProject, where: p.xcode_graph_id == ^graph_ch.id)
-
+      [project_ch] = ClickHouseRepo.all(from p in CHXcodeProject, where: p.xcode_graph_id == ^graph_ch.id)
       assert project_ch.name == "ProjectA"
       assert project_ch.path == "App"
       assert project_ch.xcode_graph_id == graph_ch.id
@@ -133,7 +131,6 @@ defmodule Tuist.XcodeTest do
 
       assert graph_pg.name == "TestGraph"
       assert graph_pg.command_event_id == command_event.id
-
       [project_pg] = Repo.all(from p in PGXcodeProject, where: p.xcode_graph_id == ^graph_pg.id)
       assert project_pg.name == "ProjectA"
       assert project_pg.path == "App"
