@@ -23,8 +23,10 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
   """
 
   def up do
+    secrets = Tuist.Environment.decrypt_secrets()
+
     # PRE-MIGRATION VALIDATION: Ensure data integrity before proceeding
-    validate_clickhouse_migration_prerequisites!()
+    validate_clickhouse_migration_prerequisites!(secrets)
 
     # Create the new table structure with command_event_id as UUID type
     # All other columns remain the same
@@ -47,7 +49,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
 
     # Try DATABASE_URL first (for production), then fall back to Mix config
     {username, password, host, port, database} =
-      if database_url = System.get_env("DATABASE_URL") do
+      if database_url = Tuist.Environment.ipv4_database_url(secrets) do
         uri = URI.parse(database_url)
         [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
         db_host = uri.host || "localhost"
@@ -103,6 +105,8 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
   end
 
   def down do
+    secrets = Tuist.Environment.decrypt_secrets()
+
     # REVERSAL: Restore the original table structure with integer foreign keys
     # This follows the same pattern as the up migration but in reverse
 
@@ -128,7 +132,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
 
     # Try DATABASE_URL first (for production), then fall back to Mix config
     {username, password, host, port, database} =
-      if database_url = System.get_env("DATABASE_URL") do
+      if database_url = Tuist.Environment.ipv4_database_url(secrets) do
         uri = URI.parse(database_url)
         [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
         db_host = uri.host || "localhost"
@@ -186,14 +190,14 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateClickhouseXcodeGraphCommandEvent
   # 1. PostgreSQL migration has been completed
   # 2. All command_event_ids in ClickHouse exist in PostgreSQL
   # 3. PostgreSQL connection is working
-  defp validate_clickhouse_migration_prerequisites! do
+  defp validate_clickhouse_migration_prerequisites!(secrets) do
     IO.puts("Validating ClickHouse migration prerequisites...")
 
     # Extract PostgreSQL connection details
     repo_config = Application.get_env(:tuist, Tuist.Repo, [])
 
     {username, password, host, port, database} =
-      if database_url = System.get_env("DATABASE_URL") do
+      if database_url = Tuist.Environment.ipv4_database_url(secrets) do
         uri = URI.parse(database_url)
         [user, pass] = String.split(uri.userinfo || "postgres:postgres", ":")
         db_host = uri.host || "localhost"
