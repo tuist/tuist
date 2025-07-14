@@ -26,33 +26,33 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
   schema "command_events" do
     field :legacy_id, Ch, type: "UInt64"
     field :legacy_artifact_path, :boolean, default: false
-    field :name, :string
-    field :subcommand, :string
-    field :command_arguments, :string
-    field :duration, Ch, type: "Int32"
-    field :client_id, :string
-    field :tuist_version, :string
-    field :swift_version, :string
-    field :macos_version, :string
+    field :name, Ch, type: "Nullable(String)"
+    field :subcommand, Ch, type: "Nullable(String)"
+    field :command_arguments, Ch, type: "Nullable(String)"
+    field :duration, Ch, type: "Nullable(Int32)"
+    field :client_id, Ch, type: "Nullable(String)"
+    field :tuist_version, Ch, type: "Nullable(String)"
+    field :swift_version, Ch, type: "Nullable(String)"
+    field :macos_version, Ch, type: "Nullable(String)"
     field :project_id, Ch, type: "Int64"
-    field :is_ci, :boolean, default: false
-    field :status, Ch, type: "Int32", default: 0
-    field :error_message, :string
+    field :is_ci, Ch, type: "Nullable(Bool)", default: false
+    field :status, Ch, type: "Nullable(Int32)", default: 0
+    field :error_message, Ch, type: "Nullable(String)"
     field :cacheable_targets, {:array, :string}, default: []
     field :local_cache_target_hits, {:array, :string}, default: []
     field :remote_cache_target_hits, {:array, :string}, default: []
-    field :remote_cache_target_hits_count, Ch, type: "Int32", default: 0
+    field :remote_cache_target_hits_count, Ch, type: "Nullable(Int32)", default: 0
     field :test_targets, {:array, :string}, default: []
     field :local_test_target_hits, {:array, :string}, default: []
     field :remote_test_target_hits, {:array, :string}, default: []
-    field :remote_test_target_hits_count, Ch, type: "Int32", default: 0
-    field :git_commit_sha, :string
-    field :git_ref, :string
-    field :git_branch, :string
-    field :user_id, Ch, type: "Int32"
+    field :remote_test_target_hits_count, Ch, type: "Nullable(Int32)", default: 0
+    field :git_commit_sha, Ch, type: "Nullable(String)"
+    field :git_ref, Ch, type: "Nullable(String)"
+    field :git_branch, Ch, type: "Nullable(String)"
+    field :user_id, Ch, type: "Nullable(Int32)"
     field :preview_id, Ecto.UUID
     field :build_run_id, Ecto.UUID
-    field :ran_at, Ch, type: "DateTime64(6)"
+    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :created_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
     field :hit_rate, :float, virtual: true
