@@ -35,9 +35,17 @@ defmodule Tuist.Utilities.DateFormatter do
         parts = if minutes > 0, do: parts ++ ["#{minutes}m"], else: parts
 
         parts =
-          if duration_ms > 60_000 and seconds > 0,
-            do: parts ++ ["#{seconds}s"],
-            else: parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
+          cond do
+            hours > 0 and seconds > 0 ->
+              # For times over 1 hour, don't include seconds
+              parts
+
+            duration_ms > 60_000 and seconds > 0 ->
+              parts ++ ["#{seconds}s"]
+
+            true ->
+              parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
+          end
 
         Enum.join(parts, " ")
     end
