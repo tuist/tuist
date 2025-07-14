@@ -25,7 +25,7 @@ env:
 jobs:
   setup:
     name: Setup and Check Release
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 20
     if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
     outputs:
@@ -158,7 +158,7 @@ jobs:
 
   release-ios:
     name: Release iOS App
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     needs: setup
     if: needs.setup.outputs.should-release == 'true'

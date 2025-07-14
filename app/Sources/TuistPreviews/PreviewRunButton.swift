@@ -19,9 +19,7 @@ struct PreviewRunButton: View {
         } else {
             NooraButton(
                 title: "Run",
-                isLoading: isLoading,
-                isDisabled: !preview.appBuilds
-                    .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
+                isLoading: isLoading
             ) {
                 run()
             }
