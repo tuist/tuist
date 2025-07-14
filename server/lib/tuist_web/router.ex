@@ -217,11 +217,15 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/" do
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app]
 
-    get "/ready", TuistWeb.PageController, :ready
-    get "/api/docs", TuistWeb.APIController, :docs
+    get "/ready", PageController, :ready
+    get "/api/docs", APIController, :docs
+    
+    # OpenID Configuration endpoints
+    get "/.well-known/openid-configuration", WellKnownController, :openid_configuration
+    get "/.well-known/jwks.json", WellKnownController, :jwks
   end
 
   scope path: "/api",
@@ -326,6 +330,10 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+
+    scope "/qa" do
+      put "/runs/:qa_run_id", QAController, :update
+    end
   end
 
   scope "/api", TuistWeb.API do
@@ -357,6 +365,12 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
+  end
+
+  scope "/webhooks", TuistWeb.Webhooks do
+    pipe_through [:non_authenticated_api]
+
+    post "/github", GitHubController, :webhook
   end
 
   scope "/oauth2", TuistWeb.Oauth do

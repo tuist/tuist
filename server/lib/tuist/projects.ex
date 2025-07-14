@@ -286,6 +286,14 @@ defmodule Tuist.Projects do
     end
   end
 
+  def get_project_by_vcs_repository_full_handle(vcs_repository_full_handle) do
+    Repo.one(
+      from p in Project,
+      where: p.vcs_repository_full_handle == ^vcs_repository_full_handle,
+      preload: [:account]
+    )
+  end
+
   def platforms(project, opts \\ []) do
     device_platforms_only? = Keyword.get(opts, :device_platforms_only?, false)
 

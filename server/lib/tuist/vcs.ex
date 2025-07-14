@@ -168,7 +168,7 @@ defmodule Tuist.VCS do
         command_run_url: command_run_url,
         bundle_url: bundle_url,
         build_url: build_url
-      }) do
+      } = args) do
     repository_full_handle =
       if is_nil(git_remote_url_origin) do
         nil
@@ -207,7 +207,8 @@ defmodule Tuist.VCS do
           command_run_url: command_run_url,
           build_url: build_url,
           bundle_url: bundle_url,
-          project: project
+          project: project,
+          qa_summary: Map.get(args, :qa_summary)
         })
 
       update_or_create_vcs_comment(%{
@@ -266,7 +267,7 @@ defmodule Tuist.VCS do
          build_url: build_url,
          bundle_url: bundle_url,
          project: project
-       }) do
+       } = args) do
     previews =
       latest_previews(%{
         git_ref: git_ref,
@@ -320,14 +321,16 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    qa_body = get_qa_body(Map.get(args, :qa_summary))
+
     if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and
-         is_nil(builds_body) do
+         is_nil(builds_body) and is_nil(qa_body) do
       nil
     else
       """
       ### 🛠️ Tuist Run Report 🛠️
       """ <>
-        (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
+        (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "") <> (qa_body || "")
     end
   end
 
@@ -605,5 +608,17 @@ defmodule Tuist.VCS do
       :failure -> "❌"
       :success -> "✅"
     end
+  end
+
+  defp get_qa_body(nil), do: nil
+  defp get_qa_body(""), do: nil
+
+  defp get_qa_body(qa_summary) when is_binary(qa_summary) do
+    """
+
+    #### QA Testing 🤖
+
+    #{qa_summary}
+    """
   end
 end

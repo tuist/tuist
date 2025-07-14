@@ -10,7 +10,9 @@ defmodule Tuist.MixProject do
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers()
+      compilers: [:boundary] ++ Mix.compilers(),
+      escript: escript(),
+      releases: releases()
     ]
   end
 
@@ -20,7 +22,7 @@ defmodule Tuist.MixProject do
   def application do
     [
       mod: {Tuist.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :ssh]
     ]
   end
 
@@ -131,7 +133,10 @@ defmodule Tuist.MixProject do
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.6.1"},
       {:zstream, "~> 0.6"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      {:rambo, "~> 0.3"},
+      {:langchain, "0.4.0-rc.1"},
+      {:burrito, "~> 1.0"}
     ]
   end
 
@@ -166,6 +171,23 @@ defmodule Tuist.MixProject do
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"
+      ]
+    ]
+  end
+
+  defp escript do
+    [main_module: QAAgentCLI]
+  end
+
+  defp releases do
+    [
+      qa_agent: [
+        steps: [:assemble, &Burrito.wrap/1],
+        burrito: [
+          targets: [
+            macos: [os: :darwin, cpu: :aarch64]
+          ]
+        ]
       ]
     ]
   end

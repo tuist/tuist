@@ -151,7 +151,14 @@ defmodule Tuist.Application do
           count: 1,
           protocols: [:http2, :http1],
           start_pool_metrics?: true
-        ]
+        ],
+        "http://localhost:80" => [
+                    conn_opts: [
+                      socket_opts: [
+                        {:local, ~c"/.fly/api"}
+                      ]
+            ]
+          ]
       }
     end
   end
@@ -195,4 +202,5 @@ defmodule Tuist.Application do
         Keyword.merge(opts, auth_opts)
     end
   end
+
 end

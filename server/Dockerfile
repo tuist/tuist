@@ -31,8 +31,22 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git xz-utils p7zip-full wget \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# install zig manually since it's not available via apt-get
+RUN wget -q https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz \
+  && tar -xf zig-linux-x86_64-0.14.0.tar.xz \
+  && mv zig-linux-x86_64-0.14.0 /usr/local/zig \
+  && ln -s /usr/local/zig/zig /usr/local/bin/zig \
+  && rm zig-linux-x86_64-0.14.0.tar.xz
+
+# Build qa-agent binary
+COPY qa-agent /app/qa-agent
+WORKDIR /app/qa-agent
+RUN mix deps.get && MIX_ENV=prod mix release qa_agent
+RUN mkdir -p /app/build
+RUN cp burrito_out/qa_agent_macos /app/build/qa-agent
 
 # prepare build dir
 WORKDIR /app
@@ -85,7 +99,7 @@ FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip jq \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
@@ -124,6 +138,9 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
+
+# Copy the qa-agent binary
+COPY --from=builder /app/build/qa-agent /app/bin/qa-agent
 
 USER nobody
 

@@ -73,7 +73,8 @@ defmodule Tuist.Environment do
   end
 
   def log_level do
-    "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
+    :debug
+    # "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
   end
 
   def use_ssl_for_database? do
@@ -299,6 +300,38 @@ defmodule Tuist.Environment do
 
   def github_token_update_package_releases(secrets \\ secrets()) do
     get([:github, :token, :update_package_releases], secrets)
+  end
+
+  def anthropic_api_key(secrets \\ secrets()) do
+    get([:anthropic, :api_key], secrets)
+  end
+
+  def namespace_token(secrets \\ secrets()) do
+    get([:namespace_token], secrets)
+  end
+
+  def namespace_ssh_private_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_private_key], secrets)
+  end
+
+  def namespace_ssh_public_key(secrets \\ secrets()) do
+    get([:namespace, :ssh_public_key], secrets)
+  end
+
+  def namespace_partner_id(secrets \\ secrets()) do
+    get([:namespace, :partner_id], secrets)
+  end
+
+  def namespace_jwt_private_key(secrets \\ secrets()) do
+    case get([:namespace, :jwt_private_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  def namespace_enabled?(secrets \\ secrets()) do
+    namespace_token(secrets) != nil or
+      (namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil)
   end
 
   def github_app_client_id(secrets \\ secrets()) do
