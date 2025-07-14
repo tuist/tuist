@@ -6,7 +6,6 @@ defmodule TuistWeb.BuildsLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
@@ -16,7 +15,7 @@ defmodule TuistWeb.BuildsLive do
       socket
       |> assign(
         :head_title,
-        "#{gettext("Builds")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+        "#{gettext("Builds")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()

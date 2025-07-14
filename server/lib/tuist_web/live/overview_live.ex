@@ -8,12 +8,11 @@ defmodule TuistWeb.OverviewLive do
 
   alias Tuist.Bundles
   alias Tuist.CommandEvents
-  alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
 
-  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     {:ok,
      socket
      |> assign(
@@ -22,7 +21,7 @@ defmodule TuistWeb.OverviewLive do
      )
      |> assign(
        :head_title,
-       "#{gettext("Overview")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+       "#{gettext("Overview")} · #{account.name}/#{project.name} · Tuist"
      )}
   end
 
