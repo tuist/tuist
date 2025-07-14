@@ -101,10 +101,23 @@ extension XcodeGraph.TargetScript {
             if path.pathString.contains("$") {
                 return [try generatorPaths.resolve(path: path)]
             }
+            // Avoid globbing paths that are not glob patterns.
+            // More than that - globbing requires the path to be existing at the moment of the globbing
+            // which is not always the case.
+            // For example, output paths of a script that are not created yet.
+            if !isGlobPattern(path) {
+                return [try generatorPaths.resolve(path: path)]
+            }
+
             let absolutePath = try generatorPaths.resolve(path: path)
             let base = try AbsolutePath(validating: absolutePath.dirname)
             return try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
         }.reduce([], +)
+    }
+
+    private static func isGlobPattern(_ path: Path) -> Bool {
+        let pathString = path.pathString
+        return pathString.contains("*") || pathString.contains("?") || pathString.contains("[")
     }
 }
 
