@@ -7,9 +7,10 @@ public enum Entitlements: Codable, Equatable, Sendable {
     /// A dictionary with the entitlements content. Tuist generates the .entitlements file at the generation time.
     case dictionary([String: Plist.Value])
 
-    /// A user defined xcconfig variable map to .entitlements file.
+    /// A build setting variable that points to an .entitlements file.
     ///
-    /// This should be used when the project has different entitlements files per config (aka: debug, release, staging, etc.).
+    /// This should be used when you have an xcconfig file or build setting that defines a variable pointing to the entitlements file path.
+    /// This is particularly useful when the project has different entitlements files per configuration (e.g., debug, release, staging).
     ///
     /// Example:
     ///
@@ -25,7 +26,7 @@ public enum Entitlements: Codable, Equatable, Sendable {
     /// ```
     /// .target(
     ///     ...
-    ///     entitlements: $(ENTITLEMENT_FILE_VARIABLE)
+    ///     entitlements: "$(ENTITLEMENT_FILE_VARIABLE)"
     /// )
     /// ```
     ///
