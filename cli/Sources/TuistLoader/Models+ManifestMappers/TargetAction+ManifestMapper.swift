@@ -105,7 +105,7 @@ extension XcodeGraph.TargetScript {
             // More than that - globbing requires the path to be existing at the moment of the globbing
             // which is not always the case.
             // For example, output paths of a script that are not created yet.
-            if !isGlobPattern(path) {
+            if !isLikelyAGlobPattern(path) {
                 return [try generatorPaths.resolve(path: path)]
             }
 
@@ -115,9 +115,11 @@ extension XcodeGraph.TargetScript {
         }.reduce([], +)
     }
 
-    private static func isGlobPattern(_ path: Path) -> Bool {
+    private static let globSpecialCharacters: Set<Character> = ["*", "?", "[", "]"]
+
+    private static func isLikelyAGlobPattern(_ path: Path) -> Bool {
         let pathString = path.pathString
-        return pathString.contains("*") || pathString.contains("?") || pathString.contains("[")
+        return pathString.contains { globSpecialCharacters.contains($0) }
     }
 }
 

@@ -106,6 +106,54 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_doesntGlob_whenNotGlobPattern() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
+            "foo/bar/a.swift",
+            "foo/bar/b.swift",
+        ])
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "MyScript",
+            tool: "my_tool",
+            order: .pre,
+            arguments: ["arg1", "arg2"],
+            inputPaths: [],
+            inputFileListPaths: ["foo/bar/inputPathList1.swift"],
+            outputPaths: ["foo/bar/outputPath1.swift"],
+            outputFileListPaths: ["foo/bar/outputPathList1.swift"]
+        )
+        // When
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(model.name, "MyScript")
+        XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
+        XCTAssertEqual(model.order, .pre)
+        XCTAssertEqual(
+            model.inputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "foo/bar/inputPathList1.swift")).pathString]
+        )
+        XCTAssertEqual(
+            model.outputPaths,
+            [temporaryPath.appending(try RelativePath(validating: "foo/bar/outputPath1.swift")).pathString]
+        )
+        XCTAssertEqual(
+            model.outputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "foo/bar/outputPathList1.swift")).pathString]
+        )
+    }
+
     func test_glob_whenExcluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
