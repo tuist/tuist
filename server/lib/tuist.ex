@@ -87,6 +87,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
-      OAuth.Okta
+      OAuth.Okta,
+      Namespace.JWTToken
     ]
 end
