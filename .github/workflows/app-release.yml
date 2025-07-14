@@ -189,7 +189,7 @@ jobs:
           name: updated-files
           path: app
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
