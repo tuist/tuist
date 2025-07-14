@@ -316,10 +316,8 @@ defmodule Tuist.Projects do
     project_ids = Enum.map(projects, & &1.id)
     preload = Keyword.get(opts, :preload, [])
 
-    # Get interaction data from CommandEvents
     interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
 
-    # Load projects with preloads and merge interaction data
     from(p in Project,
       where: p.id in ^project_ids,
       preload: ^preload

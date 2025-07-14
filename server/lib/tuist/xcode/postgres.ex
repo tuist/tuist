@@ -5,14 +5,13 @@ defmodule Tuist.Xcode.Postgres do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias Tuist.CommandEvents.Postgres.Event
   alias Tuist.Repo
   alias Tuist.Xcode.Postgres.XcodeGraph
   alias Tuist.Xcode.Postgres.XcodeProject
   alias Tuist.Xcode.Postgres.XcodeTarget
 
   def create_xcode_graph(%{
-        command_event: %Event{id: command_event_id},
+        command_event: %{id: command_event_id},
         xcode_graph: %{name: name, projects: projects} = xcode_graph
       }) do
     {:ok, %{xcode_graph: xcode_graph}} =

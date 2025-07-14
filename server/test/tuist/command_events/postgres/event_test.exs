@@ -1,4 +1,4 @@
-defmodule Tuist.CommandEvents.EventTest do
+defmodule Tuist.CommandEvents.Postgres.EventTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 

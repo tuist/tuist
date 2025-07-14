@@ -92,10 +92,10 @@ defmodule TuistWeb.API.AccountController do
     with {:ok, account} <- get_account(handle),
          :ok <- Authorization.authorize(:account_delete, conn.assigns.current_user, account) do
       Accounts.delete_account!(account)
-          conn
-          |> put_status(:no_content)
-          |> json(%{})
 
+      conn
+      |> put_status(:no_content)
+      |> json(%{})
     else
       {:error, :not_found, "account"} ->
         conn

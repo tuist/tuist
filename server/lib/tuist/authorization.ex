@@ -11,7 +11,6 @@ defmodule Tuist.Authorization do
   alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.Projects.Project
-  alias Tuist.Repo
   alias Tuist.VCS
 
   object :project_run do
@@ -356,23 +355,6 @@ defmodule Tuist.Authorization do
 
   def can(user, :access, %Project{visibility: :private, account: %Account{} = account}, :url) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
-  end
-
-  def can(_, :read, %Project{visibility: :public}, :preview) do
-    true
-  end
-
-  def can(nil, :read, %Project{visibility: :private}, :preview) do
-    false
-  end
-
-  def can(_, :read, %Preview{visibility: :public}) do
-    true
-  end
-
-  def can(subject, :read, %Preview{} = preview) do
-    preview = Repo.preload(preview, :project)
-    can(subject, :read, preview.project, :preview)
   end
 
   def can(subject, :read, command_event)

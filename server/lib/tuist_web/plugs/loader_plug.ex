@@ -21,7 +21,6 @@ defmodule TuistWeb.Plugs.LoaderPlug do
 
     case run_result do
       {:ok, run} ->
-        # Get project and account separately since we can't preload across databases
         {:ok, project} = CommandEvents.get_project_for_command_event(run, preload: :account)
 
         conn

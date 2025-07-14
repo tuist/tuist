@@ -1336,7 +1336,7 @@ defmodule Tuist.Accounts do
         account_user = get_user_by_id(account.user_id)
         delete_user(account_user)
 
-          organization?(account) ->
+      organization?(account) ->
         {:ok, account_organization} = get_organization_by_id(account.organization_id)
         delete_organization!(account_organization)
     end
