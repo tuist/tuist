@@ -9,12 +9,6 @@ let package = Package(
         // Has targets with slash symbols in their names
         .package(url: "https://github.com/kstenerud/KSCrash", exact: "2.0.0-rc.3"),
         // Has custom `swiftSettings` and uses the package access level
-        .package(
-            url: "https://github.com/vapor/jwt-kit.git", .upToNextMajor(from: "5.0.0-beta.2.1")
-        ),
-        .package(
-            url: "https://github.com/EsotericSoftware/spine-runtimes",
-            revision: "33cf98b4677e1ee51e60ed0020b41b783e7fc01f"
-        ),
+        .package(url: "https://github.com/vapor/jwt-kit.git", .upToNextMajor(from: "5.0.0-beta.2.1")),
     ]
 )

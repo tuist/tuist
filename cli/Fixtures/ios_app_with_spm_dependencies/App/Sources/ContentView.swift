@@ -2,12 +2,9 @@ import Buy
 import JWTKit
 import KSCrashInstallations
 import Pay
-import Spine
 import SwiftUI
 
 struct ContentView: View {
-    let spineController = SpineController()
-
     init() {
         // Use Mobile Buy SDK
         _ = Card.CreditCard(firstName: "", lastName: "", number: "", expiryMonth: "", expiryYear: "")

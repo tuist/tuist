@@ -235,3 +235,12 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
+
+final class BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability: TuistAcceptanceTestCase {
+    func test() async throws {
+        try await setUpFixture("ios_app_with_cplusplus_interoperability")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}
