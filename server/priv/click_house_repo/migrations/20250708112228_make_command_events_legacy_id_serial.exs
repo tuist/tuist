@@ -9,7 +9,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.MakeCommandEventsLegacyIDSerial do
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
       # Set the start of our serial to the maximum legacy_id in the command_events table.
       execute """
-      WITH (SELECT max(id) AS seq_start FROM command_events) AS start_query_number
+      WITH (SELECT max(legacy_id) AS seq_start FROM command_events) AS start_query_number
       SELECT number, generateSerialID('command_events_legacy_id')
       FROM numbers(toUInt64(COALESCE((start_query_number), 0)) + 1)
       """
