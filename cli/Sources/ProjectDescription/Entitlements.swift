@@ -30,15 +30,17 @@ public enum Entitlements: Codable, Equatable, Sendable {
     /// )
     /// ```
     ///
-    /// > Note: For per-configuration entitlements, you should:
-    /// > 1. Set the `CODE_SIGN_ENTITLEMENTS` build setting using `Target.settings` for each configuration
-    /// > 2. If you want the entitlement files to be included in the project navigator, add them using `Project.additionalFiles`
+    /// > Note: For per-configuration entitlements, you can also:
+    /// > 1. Keep `Target.entitlements` as `nil`
+    /// > 2. Set the `CODE_SIGN_ENTITLEMENTS` build setting using `Target.settings` for each configuration
+    /// > 3. If you want the entitlement files to be included in the project navigator, add them using `Project.additionalFiles`
     /// >
     /// > Example:
     /// > ```swift
     /// > let target = Target(
     /// >     name: "MyApp",
     /// >     // ... other properties
+    /// >     entitlements: nil, // Important: keep this as nil
     /// >     settings: .settings(
     /// >         configurations: [
     /// >             .debug(name: "Debug", settings: ["CODE_SIGN_ENTITLEMENTS": "Debug.entitlements"]),

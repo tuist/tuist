@@ -35,7 +35,36 @@ public struct Target: Codable, Equatable, Sendable {
     /// The headers for the target.
     public var headers: Headers?
 
-    /// The entitlements representation
+    /// The entitlements representation.
+    ///
+    /// > Note: For per-configuration entitlements, you should:
+    /// > 1. Keep this property as `nil`
+    /// > 2. Set the `CODE_SIGN_ENTITLEMENTS` build setting using `Target.settings` for each configuration
+    /// > 3. If you want the entitlement files to be included in the project navigator, add them using `Project.additionalFiles`
+    /// >
+    /// > Example:
+    /// > ```swift
+    /// > let target = Target(
+    /// >     name: "MyApp",
+    /// >     // ... other properties
+    /// >     entitlements: nil, // Important: keep this as nil
+    /// >     settings: .settings(
+    /// >         configurations: [
+    /// >             .debug(name: "Debug", settings: ["CODE_SIGN_ENTITLEMENTS": "Debug.entitlements"]),
+    /// >             .release(name: "Release", settings: ["CODE_SIGN_ENTITLEMENTS": "Release.entitlements"])
+    /// >         ]
+    /// >     )
+    /// > )
+    /// >
+    /// > let project = Project(
+    /// >     name: "MyProject",
+    /// >     targets: [target],
+    /// >     additionalFiles: [
+    /// >         "Debug.entitlements",
+    /// >         "Release.entitlements"
+    /// >     ]
+    /// > )
+    /// > ```
     public var entitlements: Entitlements?
 
     /// The build phase scripts actions for the target.
