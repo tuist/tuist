@@ -14,18 +14,22 @@ struct PreviewRunButton: View {
     let preview: ServerPreview
 
     var body: some View {
-        NooraButton(
-            title: "Run",
-            isLoading: isLoading,
-            isDisabled: !preview.appBuilds
-                .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
-        ) {
-            run()
-        }
-        .onTapGesture {
-            // We're using tap gesture instead of the Button action to take precedence over navigation tap gesture needed in
-            // PreviewsView
-            run()
+        if isDisabled {
+            EmptyView()
+        } else {
+            NooraButton(
+                title: "Run",
+                isLoading: isLoading,
+                isDisabled: !preview.appBuilds
+                    .contains(where: { $0.type == .ipa && $0.supportedPlatforms.contains(.device(.iOS)) })
+            ) {
+                run()
+            }
+            .onTapGesture {
+                // We're using tap gesture instead of the Button action to take precedence over navigation tap gesture needed in
+                // PreviewsView
+                run()
+            }
         }
     }
 
