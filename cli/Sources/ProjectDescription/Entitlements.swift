@@ -28,6 +28,33 @@ public enum Entitlements: Codable, Equatable, Sendable {
     ///     entitlements: $(ENTITLEMENT_FILE_VARIABLE)
     /// )
     /// ```
+    ///
+    /// > Note: For per-configuration entitlements, you should:
+    /// > 1. Set the `CODE_SIGN_ENTITLEMENTS` build setting using `Target.settings` for each configuration
+    /// > 2. If you want the entitlement files to be included in the project navigator, add them using `Project.additionalFiles`
+    /// >
+    /// > Example:
+    /// > ```swift
+    /// > let target = Target(
+    /// >     name: "MyApp",
+    /// >     // ... other properties
+    /// >     settings: .settings(
+    /// >         configurations: [
+    /// >             .debug(name: "Debug", settings: ["CODE_SIGN_ENTITLEMENTS": "Debug.entitlements"]),
+    /// >             .release(name: "Release", settings: ["CODE_SIGN_ENTITLEMENTS": "Release.entitlements"])
+    /// >         ]
+    /// >     )
+    /// > )
+    /// >
+    /// > let project = Project(
+    /// >     name: "MyProject",
+    /// >     targets: [target],
+    /// >     additionalFiles: [
+    /// >         "Debug.entitlements",
+    /// >         "Release.entitlements"
+    /// >     ]
+    /// > )
+    /// > ```
     case variable(String)
 
     // MARK: - Error
