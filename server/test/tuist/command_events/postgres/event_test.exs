@@ -1,8 +1,8 @@
-defmodule Tuist.CommandEvents.EventTest do
+defmodule Tuist.CommandEvents.Postgres.EventTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.Postgres.Event
 
   describe "create_changeset" do
     test "ensures status is either success or failure" do

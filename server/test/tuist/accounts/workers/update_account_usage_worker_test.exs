@@ -16,14 +16,15 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
   describe "perform/1" do
     test "updates the current month usage for the account", %{project: project, account: account} do
       # Given
+      updated_at = ~U[2025-04-18 15:55:00Z]
+
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         remote_cache_target_hits: ["foo", "bar"],
         remote_test_target_hits: [],
-        created_at: ~U[2025-04-18 15:54:00Z]
+        # Earlier in the same month
+        created_at: ~U[2025-04-15 10:00:00Z]
       )
-
-      updated_at = ~U[2025-04-18 15:55:00Z]
 
       # When
       {:ok, _} =

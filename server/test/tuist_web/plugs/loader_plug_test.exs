@@ -21,43 +21,35 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
   end
 
   describe "call/2 when the 'run_id' path param is present" do
-    test "returns a cache response on consecutive calls", %{conn: conn, cache: cache} do
+    test "loads run, project and account correctly", %{conn: conn, cache: cache} do
       # Given
       run =
         %{id: run_id} =
-        CommandEventsFixtures.command_event_fixture(preload: [user: :account, project: :account])
+        CommandEventsFixtures.command_event_fixture()
 
       plug_opts = TuistWeb.Plugs.LoaderPlug.init([])
 
-      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id,
-                                                            [
-                                                              preload: [
-                                                                user: :account,
-                                                                project: :account
-                                                              ]
-                                                            ] ->
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id ->
         {:ok, run}
       end)
 
-      # When
-      first_response =
-        %{conn | path_params: %{"run_id" => run.id}}
-        |> assign(:cache, cache)
-        |> LoaderPlug.call(plug_opts)
+      project_with_account = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture(preload: [:account])
 
-      second_response =
+      expect(CommandEvents, :get_project_for_command_event, 1, fn ^run, [preload: :account] ->
+        {:ok, project_with_account}
+      end)
+
+      # When
+      response =
         %{conn | path_params: %{"run_id" => run.id}}
         |> assign(:cache, cache)
+        |> assign(:caching, false)
         |> LoaderPlug.call(plug_opts)
 
       # Then
-      assert first_response.assigns[:selected_account] == run.project.account
-      assert first_response.assigns[:selected_project] == run.project
-      assert first_response.assigns[:selected_run] == run
-
-      assert second_response.assigns[:selected_account] == run.project.account
-      assert second_response.assigns[:selected_project] == run.project
-      assert second_response.assigns[:selected_run] == run
+      assert response.assigns[:selected_account].id == project_with_account.account.id
+      assert response.assigns[:selected_project].id == project_with_account.id
+      assert response.assigns[:selected_run].id == run.id
     end
 
     test "raises when the run id is not found", %{conn: conn} do

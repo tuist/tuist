@@ -9,11 +9,10 @@ defmodule TuistWeb.GenerateRunsLive do
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
-  alias Tuist.Projects
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    slug = Projects.get_project_slug_from_id(project.id)
+    slug = "#{account.name}/#{project.name}"
 
     socket =
       socket
@@ -81,7 +80,6 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_info({:command_event_created, %{name: "generate"}}, socket) do
-    # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
     else

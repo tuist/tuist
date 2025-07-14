@@ -6,7 +6,6 @@ defmodule TuistWeb.BuildsLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Utilities.Query
@@ -16,7 +15,7 @@ defmodule TuistWeb.BuildsLive do
       socket
       |> assign(
         :head_title,
-        "#{gettext("Builds")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
+        "#{gettext("Builds")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()
@@ -83,35 +82,36 @@ defmodule TuistWeb.BuildsLive do
         _ -> opts
       end
 
+    analytics_tasks = [
+      Task.async(fn -> Analytics.builds_duration_analytics(project.id, opts) end),
+      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.99, opts) end),
+      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.9, opts) end),
+      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.5, opts) end),
+      Task.async(fn -> Analytics.builds_analytics(project.id, opts) end),
+      Task.async(fn ->
+        Analytics.builds_analytics(project.id, Keyword.put(opts, :status, :failure))
+      end),
+      Task.async(fn -> Analytics.builds_success_rate_analytics(project.id, opts) end)
+    ]
+
+    [
+      builds_duration_analytics,
+      builds_p99_durations,
+      builds_p90_durations,
+      builds_p50_durations,
+      total_builds_analytics,
+      failed_builds_analytics,
+      build_success_rate_analytics
+    ] = Task.await_many(analytics_tasks, 10_000)
+
     socket
-    |> assign(
-      :builds_duration_analytics,
-      Analytics.builds_duration_analytics(project.id, opts)
-    )
-    |> assign(
-      :builds_p99_durations,
-      Analytics.builds_percentile_durations(project.id, 0.99, opts)
-    )
-    |> assign(
-      :builds_p90_durations,
-      Analytics.builds_percentile_durations(project.id, 0.9, opts)
-    )
-    |> assign(
-      :builds_p50_durations,
-      Analytics.builds_percentile_durations(project.id, 0.5, opts)
-    )
-    |> assign(
-      :total_builds_analytics,
-      Analytics.builds_analytics(project.id, opts)
-    )
-    |> assign(
-      :failed_builds_analytics,
-      Analytics.builds_analytics(project.id, Keyword.put(opts, :status, :failure))
-    )
-    |> assign(
-      :build_success_rate_analytics,
-      Analytics.builds_success_rate_analytics(project.id, opts)
-    )
+    |> assign(:builds_duration_analytics, builds_duration_analytics)
+    |> assign(:builds_p99_durations, builds_p99_durations)
+    |> assign(:builds_p90_durations, builds_p90_durations)
+    |> assign(:builds_p50_durations, builds_p50_durations)
+    |> assign(:total_builds_analytics, total_builds_analytics)
+    |> assign(:failed_builds_analytics, failed_builds_analytics)
+    |> assign(:build_success_rate_analytics, build_success_rate_analytics)
     |> assign(
       :analytics_selected_widget,
       params["analytics-selected-widget"] || "build-duration"

@@ -97,7 +97,7 @@
             <.text_cell icon="git_branch" label={cache_run.git_branch || "None"} />
           </:col>
           <:col :let={cache_run} label={gettext("Ran by")}>
-            <.run_ran_by_badge_cell run={cache_run} />
+            <.run_ran_by_badge_cell run={cache_run} ran_by_name={cache_run.user_account_name} />
           </:col>
           <:col
             :let={cache_run}

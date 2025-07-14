@@ -2541,7 +2541,6 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == nil
     end
-
   end
 
   describe "okta_organization_for_user_email/1" do

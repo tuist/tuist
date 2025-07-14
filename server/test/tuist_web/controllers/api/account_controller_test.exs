@@ -111,7 +111,7 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> delete("/api/accounts/#{user.account.name}")
         |> json_response(:no_content)
 
-        # Then
+      # Then
       assert response == %{}
       assert Accounts.get_user_by_id(user.id) == nil
     end
@@ -140,7 +140,7 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> delete("/api/accounts/non-existent-account")
         |> json_response(:not_found)
 
-        # Then
+      # Then
       assert response["message"] == "Account non-existent-account not found."
     end
 
@@ -155,7 +155,7 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> delete("/api/accounts/#{other_user.account.name}")
         |> json_response(:forbidden)
 
-        # Then
+      # Then
       assert response["message"] == "The authenticated subject is not authorized to perform this action"
     end
 
@@ -170,7 +170,7 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> delete("/api/accounts/#{organization.account.name}")
         |> json_response(:forbidden)
 
-        # Then
+      # Then
       assert response["message"] == "The authenticated subject is not authorized to perform this action"
     end
 
@@ -186,7 +186,7 @@ defmodule TuistWeb.API.AccountControllerTest do
         |> delete("/api/accounts/#{organization.account.name}")
         |> json_response(:no_content)
 
-        # Then
+      # Then
       assert response == %{}
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
     end

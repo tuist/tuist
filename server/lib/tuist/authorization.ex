@@ -11,7 +11,6 @@ defmodule Tuist.Authorization do
   alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.Projects.Project
-  alias Tuist.Repo
   alias Tuist.VCS
 
   object :project_run do
@@ -358,9 +357,12 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
-  def can(subject, :read, %CommandEvents.Event{} = command_event) do
-    command_event = Repo.preload(command_event, :project)
-    can?(:project_run_read, subject, command_event.project)
+  def can(subject, :read, command_event)
+      when command_event.__struct__ in [Tuist.CommandEvents.Postgres.Event, Tuist.CommandEvents.Clickhouse.Event] do
+    case CommandEvents.get_project_for_command_event(command_event) do
+      {:ok, project} -> can?(:project_run_read, subject, project)
+      {:error, _} -> false
+    end
   end
 
   def can(%User{} = user, :read, :ops) do

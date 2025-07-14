@@ -4,9 +4,12 @@ defmodule Tuist.CommandEvents do
   """
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.User
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.CacheEvent
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.Clickhouse
+  alias Tuist.CommandEvents.Postgres
   alias Tuist.CommandEvents.ResultBundle.ActionRecord
   alias Tuist.CommandEvents.ResultBundle.ActionResult
   alias Tuist.CommandEvents.ResultBundle.ActionsInvocationRecord
@@ -20,11 +23,20 @@ defmodule Tuist.CommandEvents do
   alias Tuist.CommandEvents.TestCase
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestSummary
+  alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Time
   alias Tuist.Xcode.Clickhouse.XcodeGraph
+
+  defp storage_module do
+    if Environment.clickhouse_configured?() and FunWithFlags.enabled?(:clickhouse_events) do
+      Clickhouse
+    else
+      Postgres
+    end
+  end
 
   def create_cache_event(
         %{name: name, event_type: event_type, size: size, hash: hash, project_id: project_id},
@@ -66,291 +78,84 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  def list_command_events(attrs, opts \\ []) do
-    query =
-      Event
-      |> preload(^Keyword.get(opts, :preload, user: :account))
-      |> Event.with_hit_rate()
-
-    preload_preview = opts |> Keyword.get(:preload, []) |> Enum.member?(:preview)
-
-    query =
-      if preload_preview do
-        query
-        |> join(:left, [e], p in assoc(e, :preview), as: :preview)
-        |> preload(:preview)
-      else
-        query
-      end
-
-    {hit_rate_filter, other_filters} = extract_hit_rate_filter(attrs)
-
-    query =
-      if hit_rate_filter do
-        apply_hit_rate_filter_to_query(query, hit_rate_filter)
-      else
-        query
-      end
-
-    {modified_attrs, query} = handle_hit_rate_sort(other_filters, query)
-
-    Flop.validate_and_run!(query, modified_attrs, for: Event)
-  end
-
-  defp extract_hit_rate_filter(%{filters: filters} = attrs) when is_list(filters) do
-    {hit_rate_filters, other_filters} = Enum.split_with(filters, &(&1.field == :hit_rate))
-
-    hit_rate_filter =
-      Enum.find_value(hit_rate_filters, fn
-        %{value: value, op: op} when not is_nil(value) -> {op, value}
-        _ -> nil
-      end)
-
-    {hit_rate_filter, %{attrs | filters: other_filters}}
-  end
-
-  defp extract_hit_rate_filter(attrs), do: {nil, attrs}
-
-  defp handle_hit_rate_sort(%{order_by: order_by, order_directions: directions} = attrs, query)
-       when is_list(order_by) and is_list(directions) do
-    hit_rate_index = Enum.find_index(order_by, &(&1 == :hit_rate))
-
-    if hit_rate_index && hit_rate_index < length(directions) do
-      direction = Enum.at(directions, hit_rate_index)
-
-      {new_order_by, new_directions} =
-        remove_hit_rate_from_ordering(order_by, directions, hit_rate_index)
-
-      modified_query = apply_hit_rate_ordering(query, direction)
-
-      {%{attrs | order_by: new_order_by, order_directions: new_directions}, modified_query}
-    else
-      {attrs, query}
-    end
-  end
-
-  defp handle_hit_rate_sort(attrs, query), do: {attrs, query}
-
-  defp remove_hit_rate_from_ordering(order_by, directions, hit_rate_index) do
-    new_order_by = List.delete_at(order_by, hit_rate_index)
-    new_directions = List.delete_at(directions, hit_rate_index)
-
-    if Enum.empty?(new_order_by) do
-      {[:ran_at], [:desc]}
-    else
-      {new_order_by, new_directions}
-    end
-  end
-
-  defp apply_hit_rate_ordering(query, :desc) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END DESC NULLS LAST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
-    )
-  end
-
-  defp apply_hit_rate_ordering(query, _direction) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END ASC NULLS FIRST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
-    )
-  end
-
-  defp apply_hit_rate_filter_to_query(query, {op, value}) do
-    case op do
-      :> ->
-        where(
-          query,
-          [e],
-          fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) > TRUNC(CAST(? AS NUMERIC), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      :>= ->
-        where(
-          query,
-          [e],
-          fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) >= TRUNC(CAST(? AS NUMERIC), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      :< ->
-        where(
-          query,
-          [e],
-          fragment(
-            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) < TRUNC(CAST(? AS NUMERIC), 1)",
-            e.cacheable_targets,
-            fragment(
-              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
-            ^value
-          )
-        )
-
-      :<= ->
-        where(
-          query,
-          [e],
-          fragment(
-            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) <= TRUNC(CAST(? AS NUMERIC), 1)",
-            e.cacheable_targets,
-            fragment(
-              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
-            ^value
-          )
-        )
-
-      :== ->
-        where(
-          query,
-          [e],
-          fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) = TRUNC(CAST(? AS NUMERIC), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      _ ->
-        query
-    end
+  def list_command_events(attrs, _opts \\ []) do
+    storage_module().list_command_events(attrs)
   end
 
   def list_test_runs(attrs) do
-    query =
-      Event
-      |> preload(user: :account)
-      |> where(
-        [e],
-        e.name == "test" or
-          (e.name == "xcodebuild" and
-             (e.subcommand == "test" or e.subcommand == "test-without-building"))
-      )
-
-    Flop.validate_and_run!(query, attrs, for: Event)
+    storage_module().list_test_runs(attrs)
   end
 
-  def get_command_events_by_name_git_ref_and_project(
-        %{name: name, git_ref: git_ref, project: %Project{id: project_id}},
-        opts \\ []
-      ) do
+  def get_command_events_by_name_git_ref_and_project(attrs, _opts \\ []) do
+    storage_module().get_command_events_by_name_git_ref_and_project(attrs)
+  end
+
+  def get_command_event_by_id(id, opts \\ []) do
+    storage_module().get_command_event_by_id(id, opts)
+  end
+
+  def get_user_for_command_event(command_event, opts \\ []) do
+    # NOTE: This should be moved back to `belongs_to` once we remove Postgres backward compatibility and have one `Event` schema.
     preload = Keyword.get(opts, :preload, [])
 
-    from(e in Event,
-      where:
-        e.name == ^name and e.git_ref == ^git_ref and
-          e.project_id == ^project_id,
-      select: e
-    )
-    |> Repo.all()
-    |> Repo.preload(preload)
-  end
-
-  def get_command_event_by_id(id, opts \\ [])
-
-  def get_command_event_by_id(nil, _opts), do: {:error, :not_found}
-
-  def get_command_event_by_id(id, opts) when is_binary(id) do
-    case Integer.parse(id) do
-      {int_id, ""} ->
-        get_command_event_by_id(int_id, opts)
-
-      _ ->
-        get_command_event_by_uuid(id, opts)
-    end
-  end
-
-  def get_command_event_by_id(id, opts) when is_integer(id) do
-    preload = Keyword.get(opts, :preload, user: :account)
-
-    case Repo.one(from(e in Event, where: e.legacy_id == ^id, preload: ^preload)) do
-      nil -> {:error, :not_found}
-      event -> {:ok, event}
-    end
-  end
-
-  def get_command_event_by_id(_id, _opts), do: {:error, :not_found}
-
-  defp get_command_event_by_uuid(id, opts) do
-    preload = Keyword.get(opts, :preload, user: :account)
-
-    with {:ok, uuid} <- Ecto.UUID.cast(id),
-         event when not is_nil(event) <-
-           Repo.one(from(e in Event, where: e.id == ^uuid, preload: ^preload)) do
-      {:ok, event}
+    with %{user_id: user_id} when not is_nil(user_id) <- command_event,
+         user when not is_nil(user) <- Repo.get(User, user_id) do
+      user = Repo.preload(user, preload)
+      {:ok, user}
     else
-      _ ->
-        {:error, :not_found}
+      _ -> {:error, :not_found}
     end
   end
 
-  def has_result_bundle?(%Event{} = command_event) do
+  def get_user_account_names_for_runs(runs) do
+    case runs |> Enum.map(& &1.user_id) |> Enum.reject(&is_nil/1) do
+      user_ids when user_ids != [] ->
+        users = Tuist.Accounts.list_users_with_accounts_by_ids(user_ids)
+        user_map = Map.new(users, &{&1.id, &1.account.name})
+
+        build_run_user_map(runs, user_map)
+
+      [] ->
+        Map.new(runs, &{&1.id, nil})
+    end
+  end
+
+  def get_project_for_command_event(command_event, opts \\ []) do
+    # NOTE: This should be moved back to `belongs_to` once we remove Postgres backward compatibility and have one `Event` schema.
+    preload = Keyword.get(opts, :preload, [])
+
+    with %{project_id: project_id} when not is_nil(project_id) <- command_event,
+         project when not is_nil(project) <- Repo.get(Project, project_id) do
+      project = Repo.preload(project, preload)
+      {:ok, project}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def has_result_bundle?(command_event) do
     Storage.object_exists?(get_result_bundle_key(command_event))
   end
 
-  def generate_result_bundle_url(%Event{} = command_event) do
+  def generate_result_bundle_url(command_event) do
     Storage.generate_download_url(get_result_bundle_key(command_event))
   end
 
-  def get_result_bundle_key(%Event{} = command_event) do
-    command_event = Repo.preload(command_event, project: :account)
-
+  def get_result_bundle_key(command_event) do
     "#{get_command_event_artifact_base_path_key(command_event)}/result_bundle.zip"
   end
 
-  def get_result_bundle_invocation_record_key(%Event{} = command_event) do
-    command_event = Repo.preload(command_event, project: :account)
-
+  def get_result_bundle_invocation_record_key(command_event) do
     "#{get_command_event_artifact_base_path_key(command_event)}/invocation_record.json"
   end
 
-  def get_result_bundle_object_key(%Event{} = command_event, result_bundle_object_id) do
-    command_event = Repo.preload(command_event, project: :account)
-
+  def get_result_bundle_object_key(command_event, result_bundle_object_id) do
     "#{get_command_event_artifact_base_path_key(command_event)}/#{result_bundle_object_id}.json"
   end
 
-  defp get_command_event_artifact_base_path_key(%Event{} = command_event) do
-    command_event = Repo.preload(command_event, project: :account)
+  defp get_command_event_artifact_base_path_key(command_event) do
+    project = Repo.get!(Project, command_event.project_id)
+    account = Repo.get!(Account, project.account_id)
 
     identifier =
       if command_event.legacy_artifact_path do
@@ -359,7 +164,7 @@ defmodule Tuist.CommandEvents do
         command_event.id
       end
 
-    "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{identifier}"
+    "#{account.name}/#{project.name}/runs/#{identifier}"
   end
 
   def list_flaky_test_cases(%Project{} = project, attrs) do
@@ -383,91 +188,42 @@ defmodule Tuist.CommandEvents do
   end
 
   def list_test_case_runs(attrs) do
-    TestCaseRun
-    |> preload(command_event: [user: :account])
-    |> Flop.validate_and_run!(attrs, for: TestCaseRun)
+    Flop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
   end
 
   def get_test_case_by_identifier(identifier) do
     Repo.get_by(TestCase, identifier: identifier)
   end
 
-  def create_command_event(
-        %{
-          name: name,
-          subcommand: subcommand,
-          command_arguments: command_arguments,
-          duration: duration,
-          tuist_version: tuist_version,
-          swift_version: swift_version,
-          macos_version: macos_version,
-          project_id: project_id,
-          cacheable_targets: cacheable_targets,
-          local_cache_target_hits: local_cache_target_hits,
-          remote_cache_target_hits: remote_cache_target_hits,
-          test_targets: test_targets,
-          local_test_target_hits: local_test_target_hits,
-          remote_test_target_hits: remote_test_target_hits,
-          is_ci: is_ci,
-          user_id: user_id,
-          client_id: client_id,
-          status: status,
-          error_message: error_message,
-          preview_id: preview_id,
-          git_commit_sha: git_commit_sha,
-          git_ref: git_ref,
-          git_branch: git_branch,
-          ran_at: ran_at,
-          build_run_id: build_run_id
-        } = event,
-        opts \\ []
-      ) do
-    command_event =
-      %Event{}
-      |> Event.create_changeset(%{
-        name: name,
-        subcommand: subcommand,
-        command_arguments: Enum.join(command_arguments, " "),
-        duration: duration,
-        tuist_version: tuist_version,
-        swift_version: swift_version,
-        macos_version: macos_version,
-        project_id: project_id,
-        cacheable_targets: cacheable_targets,
-        local_cache_target_hits: local_cache_target_hits,
-        remote_cache_target_hits: remote_cache_target_hits,
+  def create_command_event(event, _opts \\ []) do
+    # Process the command arguments to be a string for both databases
+    processed_event =
+      Map.merge(event, %{
+        command_arguments:
+          if(is_list(Map.get(event, :command_arguments)),
+            do: Enum.join(Map.get(event, :command_arguments), " "),
+            else: Map.get(event, :command_arguments)
+          ),
+        error_message: truncate_error_message(Map.get(event, :error_message)),
         remote_cache_target_hits_count: Map.get(event, :remote_cache_target_hits_count, 0),
-        test_targets: test_targets,
-        local_test_target_hits: local_test_target_hits,
-        remote_test_target_hits: remote_test_target_hits,
         remote_test_target_hits_count: Map.get(event, :remote_test_target_hits_count, 0),
-        is_ci: is_ci,
-        user_id: user_id,
-        client_id: client_id,
-        status: status,
-        error_message: truncate_error_message(error_message),
-        preview_id: preview_id,
-        git_commit_sha: git_commit_sha,
-        git_branch: git_branch,
-        git_ref: git_ref,
-        created_at: Map.get(event, :created_at, Time.utc_now()),
-        ran_at: ran_at,
-        build_run_id: build_run_id
+        created_at: Map.get(event, :created_at, Time.utc_now())
       })
-      |> Repo.insert!()
-      # NOTE: The `id` field is generated by Postgres on insert and not automatically loaded by Ecto, so we have to reload the record.
-      |> Repo.reload()
-      |> Repo.preload(Keyword.merge([project: :account], Keyword.get(opts, :preload, [])))
+
+    command_event = storage_module().create_command_event(processed_event)
+
+    project = Repo.get!(Project, command_event.project_id)
+    account = Repo.get!(Account, project.account_id)
 
     Tuist.PubSub.broadcast(
       command_event,
-      "#{command_event.project.account.name}/#{command_event.project.name}",
+      "#{account.name}/#{project.name}",
       :command_event_created
     )
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_run_command(),
-      %{duration: duration},
+      %{duration: event.duration},
       %{command_event: command_event}
     )
 
@@ -475,22 +231,22 @@ defmodule Tuist.CommandEvents do
       Tuist.Telemetry.event_name_cache(),
       %{
         count:
-          length(cacheable_targets) - length(local_cache_target_hits) -
-            length(remote_cache_target_hits)
+          length(event.cacheable_targets) - length(event.local_cache_target_hits) -
+            length(event.remote_cache_target_hits)
       },
       %{event_type: :miss}
     )
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_cache(),
-      %{count: length(local_cache_target_hits)},
+      %{count: length(event.local_cache_target_hits)},
       %{event_type: :local_hit}
     )
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_cache(),
       %{
-        count: length(remote_cache_target_hits)
+        count: length(event.remote_cache_target_hits)
       },
       %{event_type: :remote_hit}
     )
@@ -565,7 +321,15 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_test_summary(%Event{} = command_event) do
+  def get_test_summary(%Postgres.Event{} = command_event) do
+    do_get_test_summary(command_event)
+  end
+
+  def get_test_summary(%Clickhouse.Event{} = command_event) do
+    do_get_test_summary(command_event)
+  end
+
+  defp do_get_test_summary(command_event) do
     invocation_record_key = get_result_bundle_invocation_record_key(command_event)
 
     if Storage.object_exists?(invocation_record_key) do
@@ -612,40 +376,34 @@ defmodule Tuist.CommandEvents do
   end
 
   def create_test_cases(%{test_summary: %TestSummary{} = test_summary, command_event: command_event}) do
-    map_project_tests(test_summary.project_tests, fn %{
-                                                       project_identifier: project_identifier,
-                                                       module_name: module_name,
-                                                       target_test_summary: target_test_summary
-                                                     } ->
-      tests = target_test_summary.tests
-      identifiers = Enum.map(tests, & &1.identifier_url)
+    {all_identifiers, all_test_cases} =
+      Enum.reduce(test_summary.project_tests, {[], []}, fn {project_identifier, module_tests},
+                                                           {acc_identifiers, acc_test_cases} ->
+        Enum.reduce(module_tests, {acc_identifiers, acc_test_cases}, fn {module_name, target_test_summary},
+                                                                        {identifiers, test_cases} ->
+          tests = target_test_summary.tests
+          test_identifiers = Enum.map(tests, & &1.identifier_url)
 
-      existing_test_case_identifiers =
-        from(
-          t in TestCase,
-          where: t.identifier in ^identifiers
-        )
-        |> Repo.all()
-        |> MapSet.new(& &1.identifier)
+          new_test_cases = build_test_cases(tests, module_name, project_identifier, command_event)
 
-      missing_test_cases =
-        tests
-        |> Enum.reject(fn test ->
-          MapSet.member?(existing_test_case_identifiers, test.identifier_url)
+          {identifiers ++ test_identifiers, test_cases ++ new_test_cases}
         end)
-        |> Enum.map(fn test ->
-          %{
-            name: test.name,
-            module_name: module_name,
-            identifier: test.identifier_url,
-            project_identifier: project_identifier,
-            project_id: command_event.project_id,
-            inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
-          }
-        end)
+      end)
 
-      Repo.insert_all(TestCase, missing_test_cases)
-    end)
+    existing_test_case_identifiers =
+      from(
+        t in TestCase,
+        where: t.identifier in ^all_identifiers
+      )
+      |> Repo.all()
+      |> MapSet.new(& &1.identifier)
+
+    missing_test_cases =
+      Enum.reject(all_test_cases, fn test_case ->
+        MapSet.member?(existing_test_case_identifiers, test_case.identifier)
+      end)
+
+    Repo.insert_all(TestCase, missing_test_cases)
   end
 
   def create_test_case_runs(%{test_summary: test_summary, command_event: command_event}) do
@@ -843,18 +601,6 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  defp map_project_tests(project_tests, map_f) do
-    Enum.each(project_tests, fn {project_identifier, module_tests} ->
-      Enum.each(module_tests, fn {module_name, target_test_summary} ->
-        map_f.(%{
-          project_identifier: project_identifier,
-          module_name: module_name,
-          target_test_summary: target_test_summary
-        })
-      end)
-    end)
-  end
-
   defp get_project_tests_map(testable_summaries) do
     Enum.reduce(testable_summaries, %{}, fn testable_summary, tests_map ->
       tests = Enum.flat_map(testable_summary.tests, &get_test_summary_group_tests/1)
@@ -999,5 +745,119 @@ defmodule Tuist.CommandEvents do
         value["_type"]["_name"] == type
       end)
     end
+  end
+
+  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
+    storage_module().account_month_usage(account_id, date)
+  end
+
+  def delete_account_events(account_id) do
+    storage_module().delete_account_events(account_id)
+  end
+
+  def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
+    storage_module().list_customer_id_and_remote_cache_hits_count_pairs(attrs)
+  end
+
+  def delete_project_events(project_id) do
+    storage_module().delete_project_events(project_id)
+  end
+
+  def get_project_last_interaction_data(project_ids) do
+    storage_module().get_project_last_interaction_data(project_ids)
+  end
+
+  def get_all_project_last_interaction_data do
+    storage_module().get_all_project_last_interaction_data()
+  end
+
+  def get_command_event_by_build_run_id(build_run_id) do
+    storage_module().get_command_event_by_build_run_id(build_run_id)
+  end
+
+  def runs_analytics(project_id, start_date, end_date, opts) do
+    storage_module().runs_analytics(project_id, start_date, end_date, opts)
+  end
+
+  def runs_analytics_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    storage_module().runs_analytics_average_durations(
+      project_id,
+      start_date,
+      end_date,
+      date_period,
+      time_bucket,
+      name,
+      opts
+    )
+  end
+
+  def runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    storage_module().runs_analytics_count(
+      project_id,
+      start_date,
+      end_date,
+      date_period,
+      time_bucket,
+      name,
+      opts
+    )
+  end
+
+  def cache_hit_rate(project_id, start_date, end_date, opts) do
+    storage_module().cache_hit_rate(project_id, start_date, end_date, opts)
+  end
+
+  def cache_hit_rates(project_id, start_date, end_date, date_period, time_bucket, opts) do
+    storage_module().cache_hit_rates(
+      project_id,
+      start_date,
+      end_date,
+      date_period,
+      time_bucket,
+      opts
+    )
+  end
+
+  def selective_testing_hit_rate(project_id, start_date, end_date, opts) do
+    storage_module().selective_testing_hit_rate(project_id, start_date, end_date, opts)
+  end
+
+  def selective_testing_hit_rates(project_id, start_date, end_date, date_period, time_bucket, opts) do
+    storage_module().selective_testing_hit_rates(
+      project_id,
+      start_date,
+      end_date,
+      date_period,
+      time_bucket,
+      opts
+    )
+  end
+
+  def count_events_in_period(start_date, end_date) do
+    storage_module().count_events_in_period(start_date, end_date)
+  end
+
+  def count_all_events do
+    storage_module().count_all_events()
+  end
+
+  defp build_run_user_map(runs, user_map) do
+    Map.new(runs, fn run ->
+      user_name = if run.user_id, do: Map.get(user_map, run.user_id)
+      {run.id, user_name}
+    end)
+  end
+
+  defp build_test_cases(tests, module_name, project_identifier, command_event) do
+    Enum.map(tests, fn test ->
+      %{
+        name: test.name,
+        module_name: module_name,
+        identifier: test.identifier_url,
+        project_identifier: project_identifier,
+        project_id: command_event.project_id,
+        inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+      }
+    end)
   end
 end

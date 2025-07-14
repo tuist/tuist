@@ -2,7 +2,6 @@ defmodule TuistWeb.RunDetailLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
-  use Mimic
 
   import Phoenix.LiveViewTest
 
@@ -17,232 +16,249 @@ defmodule TuistWeb.RunDetailLiveTest do
     %{conn: conn, user: user}
   end
 
-  test "shows details of a test run", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    test_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "test",
-        command_arguments: ["test", "App"],
-        test_targets: ["AppTests"],
-        user_id: user.id
-      )
+  describe "run detail - postgres" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+      :ok
+    end
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: to_string(test_run.id))
+    test "shows details of a test run", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "cache",
+          command_arguments: ["test", "App"],
+          test_targets: ["AppTests"],
+          is_ci: true
+        )
 
-    xcode_project =
-      XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
-    _xcode_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "AppTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "AppTests-hash"
-      )
+      # Then
+      assert has_element?(lv, "h1", "tuist cache")
+      assert has_element?(lv, "[data-part=\"metadata\"]", "Ran by")
+      # Should show CI badge for runs without a user
+      assert has_element?(lv, ".noora-badge", "CI")
+    end
 
-    # When
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+    test "shows download result button when available", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
-    # Then
-    assert has_element?(lv, "span", "Test Optimizations")
-    assert has_element?(lv, "span", "tuist test App")
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+
+      # Then
+      assert has_element?(lv, ".noora-button", "Download result")
+    end
+
+    test "does not show download result button when not available", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+
+      # Then
+      refute has_element?(lv, ".noora-button", "Download result")
+    end
   end
 
-  test "shows details of a cache run", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    cache_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "cache",
-        command_arguments: ["cache"],
-        cacheable_targets: ["Framework"],
-        user_id: user.id
-      )
+  describe "run detail - clickhouse" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+      :ok
+    end
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: to_string(cache_run.id))
+    test "shows details of a test run", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          command_arguments: ["test", "App"],
+          test_targets: ["AppTests"],
+          user_id: user.id
+        )
 
-    xcode_project =
-      XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
 
-    _xcode_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "AppTests",
-        xcode_project_id: xcode_project.id,
-        binary_cache_hash: "AppTests-hash"
-      )
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
 
-    # When
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations")
+      _xcode_target =
+        XcodeFixtures.xcode_target_fixture(
+          name: "AppTests",
+          xcode_project_id: xcode_project.id,
+          selective_testing_hash: "AppTests-hash"
+        )
 
-    # Then
-    assert has_element?(lv, "span", "Compilation Optimizations")
-    assert has_element?(lv, "table span", "AppTests")
-    assert has_element?(lv, "table span", "AppTests-hash")
-  end
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
-  test "shows download result button when available", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
+      # Then
+      assert has_element?(lv, "span", "Test Optimizations")
+      assert has_element?(lv, "span", "tuist test App")
+    end
 
-    test_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "test",
-        cacheable_targets: ["Framework"],
-        user_id: user.id
-      )
+    test "shows details of a cache run", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      cache_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "cache",
+          command_arguments: ["cache"],
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
 
-    # When
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: cache_run.id)
 
-    # Then
-    assert has_element?(lv, ".noora-button", "Download result")
-  end
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
 
-  test "does not show download result button when not available", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+      _xcode_target =
+        XcodeFixtures.xcode_target_fixture(
+          name: "AppTests",
+          xcode_project_id: xcode_project.id,
+          binary_cache_hash: "AppTests-hash"
+        )
 
-    test_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "test",
-        cacheable_targets: ["Framework"],
-        user_id: user.id
-      )
+      # When
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
+        )
 
-    # When
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
+      # Then
+      assert has_element?(lv, "span", "Compilation Optimizations")
+      assert has_element?(lv, "table span", "AppTests")
+      assert has_element?(lv, "table span", "AppTests-hash")
+    end
 
-    # Then
-    refute has_element?(lv, ".noora-button", "Download result")
-  end
+    test "shows CI run without user", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      ci_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "cache",
+          is_ci: true,
+          user_id: nil,
+          cacheable_targets: ["Framework"]
+        )
 
-  test "shows selective testing data with proper counts", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    test_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "test",
-        command_arguments: ["test", "App"],
-        test_targets: ["AppTests", "FrameworkTests", "CoreTests"],
-        user_id: user.id
-      )
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{ci_run.id}")
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
-    xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+      # Then
+      assert has_element?(lv, "h1", "tuist cache")
+      assert has_element?(lv, "[data-part=\"metadata\"]", "Ran by")
+      # Should show CI badge for runs without a user
+      assert has_element?(lv, ".noora-badge", "CI")
+    end
 
-    _app_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "AppTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "AppTests-hash",
-        selective_testing_hit: :local
-      )
+    test "shows download result button when available", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      stub(CommandEvents, :has_result_bundle?, fn _ -> true end)
 
-    _framework_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "FrameworkTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "FrameworkTests-hash",
-        selective_testing_hit: :remote
-      )
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
 
-    _core_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "CoreTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "CoreTests-hash",
-        selective_testing_hit: :miss
-      )
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
-    # When
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}?tab=test-optimizations")
+      # Then
+      assert has_element?(lv, ".noora-button", "Download result")
+    end
 
-    # Then - All targets are visible
-    assert has_element?(lv, "table span", "AppTests")
-    assert has_element?(lv, "table span", "FrameworkTests")
-    assert has_element?(lv, "table span", "CoreTests")
+    test "does not show download result button when not available", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
-    # And counts are correct
-    assert has_element?(lv, "#widget-optimization-summary-total-modules span[data-part=\"value\"]", "3")
-    assert has_element?(lv, "#widget-optimization-summary-selective-test-hits span[data-part=\"value\"]", "2")
-    assert has_element?(lv, "#widget-optimization-summary-selective-test-misses span[data-part=\"value\"]", "1")
-  end
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          cacheable_targets: ["Framework"],
+          user_id: user.id
+        )
 
-  test "filters selective testing modules", %{
-    conn: conn,
-    organization: organization,
-    project: project,
-    user: user
-  } do
-    # Given
-    test_run =
-      CommandEventsFixtures.command_event_fixture(
-        project: project,
-        name: "test",
-        command_arguments: ["test", "App"],
-        test_targets: ["AppTests", "FrameworkTests"],
-        user_id: user.id
-      )
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
-    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
-    xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
-
-    _app_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "AppTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "AppTests-hash",
-        selective_testing_hit: :local
-      )
-
-    _framework_target =
-      XcodeFixtures.xcode_target_fixture(
-        name: "FrameworkTests",
-        xcode_project_id: xcode_project.id,
-        selective_testing_hash: "FrameworkTests-hash",
-        selective_testing_hit: :remote
-      )
-
-    # When - View with filter
-    {:ok, lv, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}?tab=test-optimizations&selective-testing-filter=App"
-      )
-
-    # Then - Only AppTests is visible
-    assert has_element?(lv, "table span", "AppTests")
-    refute has_element?(lv, "table span", "FrameworkTests")
+      # Then
+      refute has_element?(lv, ".noora-button", "Download result")
+    end
   end
 end

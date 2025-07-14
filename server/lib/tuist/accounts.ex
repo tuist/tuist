@@ -19,10 +19,9 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
-  alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.Projects.Project
   alias Tuist.Repo
 
   require Logger
@@ -218,6 +217,10 @@ defmodule Tuist.Accounts do
     Repo.one(from u in User, where: u.id == ^id, preload: [:account])
   end
 
+  def list_users_with_accounts_by_ids(ids) when is_list(ids) do
+    Repo.all(from u in User, where: u.id in ^ids, preload: [:account])
+  end
+
   def get_oauth2_identity_by_provider_and_id(provider, id_in_provider) do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
@@ -333,15 +336,10 @@ defmodule Tuist.Accounts do
 
     {:ok, _} =
       Ecto.Multi.new()
-      |> Ecto.Multi.delete_all(
-        :delete_command_events,
-        from(
-          c in Event,
-          join: p in Project,
-          on: c.project_id == p.id,
-          where: p.account_id == ^account.id
-        )
-      )
+      |> Ecto.Multi.run(:delete_command_events, fn _repo, _changes ->
+        CommandEvents.delete_account_events(account.id)
+        {:ok, :deleted}
+      end)
       |> Ecto.Multi.delete(:delete_account, account)
       |> Ecto.Multi.delete(:delete_user, user)
       |> Repo.transaction()
@@ -550,17 +548,7 @@ defmodule Tuist.Accounts do
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    beginning_of_month = Timex.beginning_of_month(date)
-
-    query =
-      from c in Event,
-        join: p in Project,
-        on: p.id == c.project_id and p.account_id == ^account_id,
-        where: c.created_at >= ^beginning_of_month,
-        where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
-        select: %{remote_cache_hits_count: count(c.id)}
-
-    Repo.one(query)
+    CommandEvents.account_month_usage(account_id, date)
   end
 
   def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do
@@ -577,31 +565,7 @@ defmodule Tuist.Accounts do
   end
 
   def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
-    query =
-      from e in Event,
-        join: p in Project,
-        on: e.project_id == p.id,
-        join: a in Account,
-        on: p.account_id == a.id,
-        where:
-          e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday and
-            not is_nil(a.customer_id),
-        group_by: a.customer_id,
-        select:
-          {a.customer_id,
-           count(
-             fragment(
-               "CASE WHEN COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0 THEN 1 ELSE NULL END",
-               e.remote_cache_target_hits,
-               e.remote_test_target_hits
-             )
-           )}
-
-    Flop.validate_and_run!(query, attrs, for: Account)
+    CommandEvents.list_customer_id_and_remote_cache_hits_count_pairs(attrs)
   end
 
   defp create_oauth2_identity(%{
@@ -1372,7 +1336,7 @@ defmodule Tuist.Accounts do
         account_user = get_user_by_id(account.user_id)
         delete_user(account_user)
 
-          organization?(account) ->
+      organization?(account) ->
         {:ok, account_organization} = get_organization_by_id(account.organization_id)
         delete_organization!(account_organization)
     end
