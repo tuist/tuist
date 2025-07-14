@@ -17,7 +17,7 @@ permissions:
   packages: write
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_APP_CONFIG_TOKEN }}
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   MISE_EXPERIMENTAL: "1"
