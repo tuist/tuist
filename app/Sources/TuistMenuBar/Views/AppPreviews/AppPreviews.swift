@@ -18,7 +18,7 @@ struct AppPreviews: View {
                     AppPreviewsEmptyStateView()
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
-                        ForEach(viewModel.appPreviews) { appPreview in
+                        ForEach(viewModel.appPreviews.prefix(4)) { appPreview in
                             Button {
                                 errorHandling.fireAndHandleError {
                                     try await viewModel.launchAppPreview(appPreview)
