@@ -252,22 +252,27 @@ defmodule TuistWeb.OverviewLive do
       :analytics_environment_label,
       environment_label(analytics_environment)
     )
-    |> assign(
-      :binary_cache_hit_rate_analytics,
-      Analytics.cache_hit_rate_analytics(opts)
-    )
-    |> assign(
-      :selective_testing_analytics,
-      Analytics.selective_testing_analytics(opts)
-    )
-    |> assign(
-      :build_analytics,
-      Analytics.builds_duration_analytics(project.id, opts)
-    )
-    |> assign(
-      :test_analytics,
-      Analytics.runs_duration_analytics("test", project_id: project.id)
-    )
+    |> then(fn socket ->
+      analytics_tasks = [
+        Task.async(fn -> Analytics.cache_hit_rate_analytics(opts) end),
+        Task.async(fn -> Analytics.selective_testing_analytics(opts) end),
+        Task.async(fn -> Analytics.builds_duration_analytics(project.id, opts) end),
+        Task.async(fn -> Analytics.runs_duration_analytics("test", project_id: project.id) end)
+      ]
+
+      [
+        binary_cache_hit_rate_analytics,
+        selective_testing_analytics,
+        build_analytics,
+        test_analytics
+      ] = Task.await_many(analytics_tasks, 10_000)
+
+      socket
+      |> assign(:binary_cache_hit_rate_analytics, binary_cache_hit_rate_analytics)
+      |> assign(:selective_testing_analytics, selective_testing_analytics)
+      |> assign(:build_analytics, build_analytics)
+      |> assign(:test_analytics, test_analytics)
+    end)
     |> assign_test_runs_analytics()
     |> assign(
       :latest_app_previews,

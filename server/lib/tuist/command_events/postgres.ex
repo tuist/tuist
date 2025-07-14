@@ -24,7 +24,11 @@ defmodule Tuist.CommandEvents.Postgres do
 
     {modified_attrs, query} = handle_hit_rate_sort(other_filters, query)
 
-    Flop.validate_and_run!(query, modified_attrs, for: Event)
+    {results, meta} = Flop.validate_and_run!(query, modified_attrs, for: Event)
+
+    results = attach_user_account_names(results)
+
+    {results, meta}
   end
 
   def list_test_runs(attrs) do
@@ -37,7 +41,11 @@ defmodule Tuist.CommandEvents.Postgres do
              (e.subcommand == "test" or e.subcommand == "test-without-building"))
       )
 
-    Flop.validate_and_run!(query, attrs, for: Event)
+    {results, meta} = Flop.validate_and_run!(query, attrs, for: Event)
+
+    results = attach_user_account_names(results)
+
+    {results, meta}
   end
 
   def get_command_events_by_name_git_ref_and_project(%{name: name, git_ref: git_ref, project: %Project{id: project_id}}) do
@@ -99,22 +107,24 @@ defmodule Tuist.CommandEvents.Postgres do
     beginning_of_month = Timex.beginning_of_month(date)
 
     query =
-      from c in Event,
+      from(c in Event,
         join: p in Project,
         on: p.id == c.project_id and p.account_id == ^account_id,
         where: c.created_at >= ^beginning_of_month,
         where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
+      )
 
     Repo.one(query)
   end
 
   def delete_account_events(account_id) do
     query =
-      from c in Event,
+      from(c in Event,
         join: p in Project,
         on: c.project_id == p.id,
         where: p.account_id == ^account_id
+      )
 
     Repo.delete_all(query)
   end
@@ -125,7 +135,7 @@ defmodule Tuist.CommandEvents.Postgres do
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
     query =
-      from e in Event,
+      from(e in Event,
         join: p in Project,
         on: e.project_id == p.id,
         join: a in Account,
@@ -143,12 +153,13 @@ defmodule Tuist.CommandEvents.Postgres do
                e.remote_test_target_hits
              )
            )}
+      )
 
     Flop.validate_and_run!(query, attrs, for: Account)
   end
 
   def delete_project_events(project_id) do
-    query = from c in Event, where: c.project_id == ^project_id
+    query = from(c in Event, where: c.project_id == ^project_id)
     Repo.delete_all(query)
   end
 
@@ -545,5 +556,27 @@ defmodule Tuist.CommandEvents.Postgres do
       _ ->
         query
     end
+  end
+
+  defp attach_user_account_names(events) do
+    user_ids =
+      events
+      |> Enum.map(& &1.user_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    user_account_map =
+      if Enum.empty?(user_ids) do
+        %{}
+      else
+        user_ids
+        |> Tuist.Accounts.list_users_with_accounts_by_ids()
+        |> Map.new(&{&1.id, &1.account.name})
+      end
+
+    Enum.map(events, fn event ->
+      user_account_name = Map.get(user_account_map, event.user_id)
+      Map.put(event, :user_account_name, user_account_name)
+    end)
   end
 end

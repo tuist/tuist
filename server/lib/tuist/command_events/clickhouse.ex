@@ -27,7 +27,10 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(query, modified_attrs, for: Event)
 
-    results = Enum.map(results, &Event.normalize_enums/1)
+    results =
+      results
+      |> Enum.map(&Event.normalize_enums/1)
+      |> attach_user_account_names()
 
     {results, meta}
   end
@@ -44,7 +47,10 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
 
-    results = Enum.map(results, &Event.normalize_enums/1)
+    results =
+      results
+      |> Enum.map(&Event.normalize_enums/1)
+      |> attach_user_account_names()
 
     {results, meta}
   end
@@ -595,4 +601,26 @@ defmodule Tuist.CommandEvents.Clickhouse do
   defp get_date_format("1 week"), do: "%Y-%u"
   defp get_date_format("1 month"), do: "%Y-%m"
   defp get_date_format(_), do: "%Y-%m-%d"
+
+  defp attach_user_account_names(events) do
+    user_ids =
+      events
+      |> Enum.map(& &1.user_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    user_account_map =
+      if Enum.empty?(user_ids) do
+        %{}
+      else
+        user_ids
+        |> Tuist.Accounts.list_users_with_accounts_by_ids()
+        |> Map.new(&{&1.id, &1.account.name})
+      end
+
+    Enum.map(events, fn event ->
+      user_account_name = Map.get(user_account_map, event.user_id)
+      Map.put(event, :user_account_name, user_account_name)
+    end)
+  end
 end

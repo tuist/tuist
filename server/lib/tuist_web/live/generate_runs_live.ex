@@ -112,13 +112,10 @@ defmodule TuistWeb.GenerateRunsLive do
     {generate_runs, generate_runs_meta} =
       list_generate_runs(project.id, params, order_by, order_direction, filters)
 
-    user_account_names = CommandEvents.get_user_account_names_for_runs(generate_runs)
-
     socket
     |> assign(:active_filters, filters)
     |> assign(:generate_runs, generate_runs)
     |> assign(:generate_runs_meta, generate_runs_meta)
-    |> assign(:user_account_names, user_account_names)
   end
 
   defp list_generate_runs(project_id, %{"after" => after_cursor}, order_by, order_direction, filters) do

@@ -50,12 +50,13 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :git_ref, Ch, type: "Nullable(String)"
     field :git_branch, Ch, type: "Nullable(String)"
     field :user_id, Ch, type: "Nullable(Int32)"
-    field :preview_id, Ecto.UUID
-    field :build_run_id, Ecto.UUID
+    field :preview_id, Ch, type: "Nullable(UUID)"
+    field :build_run_id, Ch, type: "Nullable(UUID)"
     field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :created_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
     field :hit_rate, :float, virtual: true
+    field :user_account_name, :string, virtual: true
   end
 
   def with_hit_rate(query) do

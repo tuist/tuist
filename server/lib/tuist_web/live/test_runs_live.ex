@@ -162,14 +162,16 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    test_runs_analytics =
-      Analytics.runs_analytics(project.id, "test", opts)
+    analytics_tasks = [
+      Task.async(fn -> Analytics.runs_analytics(project.id, "test", opts) end),
+      Task.async(fn ->
+        Analytics.runs_analytics(project.id, "test", Keyword.put(opts, :status, :failure))
+      end),
+      Task.async(fn -> Analytics.runs_duration_analytics("test", opts) end)
+    ]
 
-    failed_test_runs_analytics =
-      Analytics.runs_analytics(project.id, "test", Keyword.put(opts, :status, :failure))
-
-    test_runs_duration_analytics =
-      Analytics.runs_duration_analytics("test", opts)
+    [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
+      Task.await_many(analytics_tasks, 10_000)
 
     analytics_selected_widget = analytics_selected_widget(params)
 
@@ -334,13 +336,10 @@ defmodule TuistWeb.TestRunsLive do
 
     {test_runs, test_runs_meta} = CommandEvents.list_test_runs(options)
 
-    user_account_names = CommandEvents.get_user_account_names_for_runs(test_runs)
-
     socket
     |> assign(:active_filters, filters)
     |> assign(:test_runs, test_runs)
     |> assign(:test_runs_meta, test_runs_meta)
-    |> assign(:user_account_names, user_account_names)
   end
 
   defp build_flop_filters(filters) do

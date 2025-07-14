@@ -49,6 +49,7 @@ defmodule Tuist.CommandEvents.Postgres.Event do
     field :git_branch, :string
     field :ran_at, :utc_datetime
     field :hit_rate, :float, virtual: true
+    field :user_account_name, :string, virtual: true
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
