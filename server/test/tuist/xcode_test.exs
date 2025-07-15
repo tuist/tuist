@@ -1335,14 +1335,13 @@ defmodule Tuist.XcodeTest do
   # For querying Xcode data, we are using a materialized view in ClickHouse that can take a few milliseconds to populate.
   # In testing, where we run the assertions immediately, this can lead to flakiness if the update hasn't completed.
   # In order to be able to properly test the materialized view, we use this query helper that retries.
-  defp wait_for_clickhouse_data(query_fn, condition_fn, max_attempts \\ 10, delay_ms \\ 100) do
+  defp wait_for_clickhouse_data(query_fn, condition_fn, max_attempts \\ 10, delay_ms \\ 250) do
     Enum.reduce_while(1..max_attempts, nil, fn attempt, _acc ->
       result = query_fn.()
 
       if condition_fn.(result) do
         {:halt, result}
       else
-        # credo:disable-for-next-line
         if attempt < max_attempts do
           Process.sleep(delay_ms)
           {:cont, nil}
