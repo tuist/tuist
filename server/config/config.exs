@@ -233,8 +233,7 @@ config :tuist, :blocked_handles, [
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
-  grafana_dashboard:
-    "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
+  grafana_dashboard: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
   slack: "https://slack.tuist.dev",
   bluesky: "https://bsky.app/profile/tuist.dev",
   github: "https://github.com/tuist",
