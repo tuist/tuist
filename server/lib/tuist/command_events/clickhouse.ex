@@ -103,7 +103,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     ClickHouseRepo.one(
       from(c in Event,
         where: c.project_id in ^project_ids,
-        where: c.created_at >= ^beginning_of_month,
+        where: c.ran_at >= ^beginning_of_month,
         where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
       )
@@ -143,7 +143,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
       ClickHouseRepo.all(
         from(e in Event,
           where:
-            e.created_at >= ^start_of_yesterday and e.created_at <= ^end_of_yesterday and
+            e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
               e.project_id in ^Map.keys(project_to_account),
           group_by: e.project_id,
           select:
@@ -209,8 +209,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
     query =
       from(e in Event,
         where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
             e.project_id == ^project_id
       )
 
@@ -225,13 +225,13 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
-        group_by: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           value: avg(e.duration)
         }
       )
@@ -246,13 +246,13 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
-        group_by: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           count: count(e.id)
         }
       )
@@ -267,8 +267,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
       from(e in Event,
         where:
           e.project_id == ^project_id and
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
+            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           cacheable_targets_count: sum(e.cacheable_targets_count),
           local_cache_target_hits_count: sum(e.local_cache_hits_count),
@@ -289,13 +289,13 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
-        group_by: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           cacheable_targets: sum(e.cacheable_targets_count),
           local_cache_target_hits: sum(e.local_cache_hits_count),
           remote_cache_target_hits: sum(e.remote_cache_hits_count)
@@ -312,8 +312,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
       from(e in Event,
         where:
           e.project_id == ^project_id and
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
+            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           test_targets_count: sum(e.test_targets_count),
           local_test_target_hits_count: sum(e.local_test_hits_count),
@@ -334,13 +334,13 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
-        group_by: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
+          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           test_targets: sum(e.test_targets_count),
           local_test_target_hits: sum(e.local_test_hits_count),
           remote_test_target_hits: sum(e.remote_test_hits_count)
@@ -355,7 +355,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   def count_events_in_period(start_date, end_date) do
     ClickHouseRepo.aggregate(
       from(e in Event,
-        where: e.created_at >= ^start_date and e.created_at <= ^end_date
+        where: e.ran_at >= ^start_date and e.ran_at <= ^end_date
       ),
       :count
     )
