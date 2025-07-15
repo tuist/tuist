@@ -109,6 +109,20 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
     execute(
       "ALTER TABLE command_events ADD INDEX idx_project_name (project_id, name) TYPE minmax GRANULARITY 4"
     )
+
+    execute(
+      "ALTER TABLE command_events ADD INDEX idx_build_run_id build_run_id TYPE bloom_filter GRANULARITY 8"
+    )
+
+    execute("ALTER TABLE command_events ADD INDEX idx_id id TYPE bloom_filter GRANULARITY 4")
+
+    execute(
+      "ALTER TABLE command_events ADD INDEX idx_legacy_id legacy_id TYPE bloom_filter GRANULARITY 8"
+    )
+
+    execute(
+      "ALTER TABLE command_events ADD INDEX idx_subcommand subcommand TYPE bloom_filter GRANULARITY 8"
+    )
   end
 
   def down do
