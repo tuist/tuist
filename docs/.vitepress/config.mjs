@@ -7,7 +7,7 @@ import {
   referencesSidebar,
   navBar,
 } from "./bars.mjs";
-import { cliSidebar } from "./data/cli";
+import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
@@ -140,6 +140,7 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  zh: getSearchOptionsForLocale("zh"),
 };
 
 export default defineConfig({
@@ -181,6 +182,11 @@ export default defineConfig({
       label: "Português (Portuguese)",
       lang: "pt",
       themeConfig: await themeConfig("pt"),
+    },
+    zh: {
+      label: "中文 (Chinese)",
+      lang: "zh",
+      themeConfig: await themeConfig("zh"),
     },
   },
   cleanUrls: true,
