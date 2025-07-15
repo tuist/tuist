@@ -39,10 +39,12 @@ public enum Module: String, CaseIterable {
             .appendingPathComponent("TuistCacheEE")
     }
     
-    private static func isCacheEEAvailable() -> Bool {
-        var isDirectory: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: cacheEEDirectory().path(), isDirectory: &isDirectory)
-        return exists && isDirectory.boolValue
+    private static func includeEE() -> Bool {
+        if case let .string(value) = Environment.ee {
+                return value == "1"
+            } else {
+                return false
+            }
     }
     
     public static func allTargets() -> [Target] {
@@ -52,7 +54,8 @@ public enum Module: String, CaseIterable {
     }
     
     public static func cacheEETargets() -> [Target] {
-        guard isCacheEEAvailable() else { return [] }
+        guard includeEE() else { return [] }
+        
         return [
             .target(
                 name: "TuistCacheEE",
@@ -62,7 +65,13 @@ public enum Module: String, CaseIterable {
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
                 sources: ["\(cacheEEDirectory().path())/Sources/**/*.swift"],
-                dependencies: [],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem")
+                ],
                 settings: .settings(
                     configurations: [
                         .debug(
@@ -78,7 +87,20 @@ public enum Module: String, CaseIterable {
                         ),
                     ]
                 )
+            ),
+            .target(
+                name: "TuistCacheEETests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCacheEETests",
+                deploymentTargets: .macOS("14.0"),
+                infoPlist: .default,
+                sources: ["\(cacheEEDirectory().path())/Tests/**/*.swift"],
+                dependencies: [
+                    .target(name: "TuistCacheEE")
+                ]
             )
+            
         ]
     }
 
@@ -349,7 +371,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
-                ]
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -487,7 +509,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
-                ]
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .simulator:
                 [
                     .external(name: "XcodeGraph"),
