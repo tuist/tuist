@@ -105,7 +105,7 @@ extension XcodeGraph.TargetScript {
             // More than that - globbing requires the path to be existing at the moment of the globbing
             // which is not always the case.
             // For example, output paths of a script that are not created yet.
-            if !isLikelyAGlobPattern(path) {
+            if !fileSystem.isGlobPattern(path) {
                 return [try generatorPaths.resolve(path: path)]
             }
 
@@ -113,13 +113,6 @@ extension XcodeGraph.TargetScript {
             let base = try AbsolutePath(validating: absolutePath.dirname)
             return try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
         }.reduce([], +)
-    }
-
-    private static let globSpecialCharacters: Set<Character> = ["*", "?", "[", "]"]
-
-    private static func isLikelyAGlobPattern(_ path: Path) -> Bool {
-        let pathString = path.pathString
-        return pathString.contains { globSpecialCharacters.contains($0) }
     }
 }
 
