@@ -9,8 +9,10 @@ public enum Entitlements: Codable, Equatable, Sendable {
 
     /// A build setting variable that points to an .entitlements file.
     ///
-    /// This should be used when you have an xcconfig file or build setting that defines a variable pointing to the entitlements file path.
-    /// This is particularly useful when the project has different entitlements files per configuration (e.g., debug, release, staging).
+    /// This should be used when you have an xcconfig file or build setting that defines a variable pointing to the entitlements
+    /// file path.
+    /// This is particularly useful when the project has different entitlements files per configuration (e.g., debug, release,
+    /// staging).
     ///
     /// Example:
     ///
