@@ -12,20 +12,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   alias Tuist.Repo
 
   def list_command_events(attrs) do
-    query = Event.with_hit_rate(Event)
-
-    {hit_rate_filter, other_filters} = extract_hit_rate_filter(attrs)
-
-    query =
-      if hit_rate_filter do
-        apply_hit_rate_filter_to_query(query, hit_rate_filter)
-      else
-        query
-      end
-
-    {modified_attrs, query} = handle_hit_rate_sort(other_filters, query)
-
-    {results, meta} = ClickHouseFlop.validate_and_run!(query, modified_attrs, for: Event)
+    {results, meta} = ClickHouseFlop.validate_and_run!(Event, attrs, for: Event)
 
     results =
       results
@@ -283,9 +270,9 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
-          cacheable_targets_count: sum(fragment("length(?)", e.cacheable_targets)),
-          local_cache_target_hits_count: sum(fragment("length(?)", e.local_cache_target_hits)),
-          remote_cache_target_hits_count: sum(fragment("length(?)", e.remote_cache_target_hits))
+          cacheable_targets_count: sum(e.cacheable_targets_count),
+          local_cache_target_hits_count: sum(e.local_cache_hits_count),
+          remote_cache_target_hits_count: sum(e.remote_cache_hits_count)
         }
       )
 
@@ -309,9 +296,9 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
-          cacheable_targets: sum(fragment("length(?)", e.cacheable_targets)),
-          local_cache_target_hits: sum(fragment("length(?)", e.local_cache_target_hits)),
-          remote_cache_target_hits: sum(fragment("length(?)", e.remote_cache_target_hits))
+          cacheable_targets: sum(e.cacheable_targets_count),
+          local_cache_target_hits: sum(e.local_cache_hits_count),
+          remote_cache_target_hits: sum(e.remote_cache_hits_count)
         }
       )
 
@@ -328,9 +315,9 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
-          test_targets_count: sum(fragment("length(?)", e.test_targets)),
-          local_test_target_hits_count: sum(fragment("length(?)", e.local_test_target_hits)),
-          remote_test_target_hits_count: sum(fragment("length(?)", e.remote_test_target_hits))
+          test_targets_count: sum(e.test_targets_count),
+          local_test_target_hits_count: sum(e.local_test_hits_count),
+          remote_test_target_hits_count: sum(e.remote_test_hits_count)
         }
       )
 
@@ -354,9 +341,9 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.project_id == ^project_id,
         select: %{
           date: fragment("formatDateTime(?, ?)", e.created_at, ^date_format),
-          test_targets: sum(fragment("length(?)", e.test_targets)),
-          local_test_target_hits: sum(fragment("length(?)", e.local_test_target_hits)),
-          remote_test_target_hits: sum(fragment("length(?)", e.remote_test_target_hits))
+          test_targets: sum(e.test_targets_count),
+          local_test_target_hits: sum(e.local_test_hits_count),
+          remote_test_target_hits: sum(e.remote_test_hits_count)
         }
       )
 
@@ -376,164 +363,6 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
   def count_all_events do
     ClickHouseRepo.aggregate(from(e in Event, []), :count)
-  end
-
-  defp extract_hit_rate_filter(%{filters: filters} = attrs) when is_list(filters) do
-    {hit_rate_filters, other_filters} = Enum.split_with(filters, &(&1.field == :hit_rate))
-
-    hit_rate_filter =
-      Enum.find_value(hit_rate_filters, fn
-        %{value: value, op: op} when not is_nil(value) -> {op, value}
-        _ -> nil
-      end)
-
-    {hit_rate_filter, %{attrs | filters: other_filters}}
-  end
-
-  defp extract_hit_rate_filter(attrs), do: {nil, attrs}
-
-  defp handle_hit_rate_sort(%{order_by: order_by, order_directions: directions} = attrs, query)
-       when is_list(order_by) and is_list(directions) do
-    hit_rate_index = Enum.find_index(order_by, &(&1 == :hit_rate))
-
-    if hit_rate_index && hit_rate_index < length(directions) do
-      direction = Enum.at(directions, hit_rate_index)
-
-      {new_order_by, new_directions} =
-        remove_hit_rate_from_ordering(order_by, directions, hit_rate_index)
-
-      modified_query = apply_hit_rate_ordering(query, direction)
-
-      {%{attrs | order_by: new_order_by, order_directions: new_directions}, modified_query}
-    else
-      {attrs, query}
-    end
-  end
-
-  defp handle_hit_rate_sort(attrs, query), do: {attrs, query}
-
-  defp remove_hit_rate_from_ordering(order_by, directions, hit_rate_index) do
-    new_order_by = List.delete_at(order_by, hit_rate_index)
-    new_directions = List.delete_at(directions, hit_rate_index)
-
-    if Enum.empty?(new_order_by) do
-      {[:ran_at], [:desc]}
-    else
-      {new_order_by, new_directions}
-    end
-  end
-
-  defp apply_hit_rate_ordering(query, :desc) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE NULL END DESC NULLS LAST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
-    )
-  end
-
-  defp apply_hit_rate_ordering(query, _direction) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE NULL END ASC NULLS FIRST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
-    )
-  end
-
-  defp apply_hit_rate_filter_to_query(query, {op, value}) do
-    case op do
-      :> ->
-        where(
-          query,
-          [e],
-          fragment(
-            "ROUND(CAST(CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE 0 END AS Decimal(10, 1)), 1) > ROUND(CAST(? AS Decimal(10, 1)), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      :>= ->
-        where(
-          query,
-          [e],
-          fragment(
-            "ROUND(CAST(CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE 0 END AS Decimal(10, 1)), 1) >= ROUND(CAST(? AS Decimal(10, 1)), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      :< ->
-        where(
-          query,
-          [e],
-          fragment(
-            "length(?) = 0 OR ROUND(CAST(? AS Decimal(10, 1)), 1) < ROUND(CAST(? AS Decimal(10, 1)), 1)",
-            e.cacheable_targets,
-            fragment(
-              "CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
-            ^value
-          )
-        )
-
-      :<= ->
-        where(
-          query,
-          [e],
-          fragment(
-            "length(?) = 0 OR ROUND(CAST(? AS Decimal(10, 1)), 1) <= ROUND(CAST(? AS Decimal(10, 1)), 1)",
-            e.cacheable_targets,
-            fragment(
-              "CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
-            ^value
-          )
-        )
-
-      :== ->
-        where(
-          query,
-          [e],
-          fragment(
-            "ROUND(CAST(CASE WHEN length(?) > 0 THEN (COALESCE(length(?), 0) + COALESCE(length(?), 0))::float / length(?) * 100 ELSE 0 END AS Decimal(10, 1)), 1) = ROUND(CAST(? AS Decimal(10, 1)), 1)",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets,
-            ^value
-          )
-        )
-
-      _ ->
-        query
-    end
   end
 
   defp add_filters(query, opts) do

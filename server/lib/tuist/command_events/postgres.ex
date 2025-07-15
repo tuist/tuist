@@ -11,7 +11,7 @@ defmodule Tuist.CommandEvents.Postgres do
   alias Tuist.Repo
 
   def list_command_events(attrs) do
-    query = Event.with_hit_rate(Event)
+    query = Event.with_analytics(Event)
 
     {hit_rate_filter, other_filters} = extract_hit_rate_filter(attrs)
 
@@ -249,9 +249,9 @@ defmodule Tuist.CommandEvents.Postgres do
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
-          cacheable_targets_count: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          cacheable_targets_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.cacheable_targets)),
+          local_cache_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_cache_target_hits)),
+          remote_cache_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_cache_target_hits))
         }
       )
 
@@ -273,9 +273,9 @@ defmodule Tuist.CommandEvents.Postgres do
             e.project_id == ^project_id,
         select: %{
           date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          remote_cache_target_hits: sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
+          cacheable_targets: sum(fragment("COALESCE(array_length(?, 1), 0)", e.cacheable_targets)),
+          local_cache_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_cache_target_hits)),
+          remote_cache_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_cache_target_hits))
         }
       )
 
@@ -292,9 +292,9 @@ defmodule Tuist.CommandEvents.Postgres do
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
-          test_targets_count: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits_count: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits_count: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+          test_targets_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.test_targets)),
+          local_test_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_test_target_hits)),
+          remote_test_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_test_target_hits))
         }
       )
 
@@ -316,9 +316,9 @@ defmodule Tuist.CommandEvents.Postgres do
             e.project_id == ^project_id,
         select: %{
           date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          test_targets: sum(fragment("array_length(?, 1)", e.test_targets)),
-          local_test_target_hits: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
-          remote_test_target_hits: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+          test_targets: sum(fragment("COALESCE(array_length(?, 1), 0)", e.test_targets)),
+          local_test_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_test_target_hits)),
+          remote_test_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_test_target_hits))
         }
       )
 
@@ -388,30 +388,28 @@ defmodule Tuist.CommandEvents.Postgres do
   end
 
   defp apply_hit_rate_ordering(query, :desc) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END DESC NULLS LAST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
+    order_by(query, [e],
+      desc_nulls_last:
+        fragment(
+          "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END",
+          e.cacheable_targets,
+          e.local_cache_target_hits,
+          e.remote_cache_target_hits,
+          e.cacheable_targets
+        )
     )
   end
 
   defp apply_hit_rate_ordering(query, _direction) do
-    order_by(
-      query,
-      [e],
-      fragment(
-        "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END ASC NULLS FIRST",
-        e.cacheable_targets,
-        e.local_cache_target_hits,
-        e.remote_cache_target_hits,
-        e.cacheable_targets
-      )
+    order_by(query, [e],
+      asc_nulls_first:
+        fragment(
+          "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END",
+          e.cacheable_targets,
+          e.local_cache_target_hits,
+          e.remote_cache_target_hits,
+          e.cacheable_targets
+        )
     )
   end
 
@@ -422,7 +420,7 @@ defmodule Tuist.CommandEvents.Postgres do
           query,
           [e],
           fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) > TRUNC(CAST(? AS NUMERIC), 1)",
+            "COALESCE(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END, 0) > ?",
             e.cacheable_targets,
             e.local_cache_target_hits,
             e.remote_cache_target_hits,
@@ -436,7 +434,7 @@ defmodule Tuist.CommandEvents.Postgres do
           query,
           [e],
           fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) >= TRUNC(CAST(? AS NUMERIC), 1)",
+            "COALESCE(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END, 0) >= ?",
             e.cacheable_targets,
             e.local_cache_target_hits,
             e.remote_cache_target_hits,
@@ -450,15 +448,11 @@ defmodule Tuist.CommandEvents.Postgres do
           query,
           [e],
           fragment(
-            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) < TRUNC(CAST(? AS NUMERIC), 1)",
+            "COALESCE(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END, 0) < ?",
             e.cacheable_targets,
-            fragment(
-              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets,
             ^value
           )
         )
@@ -468,15 +462,11 @@ defmodule Tuist.CommandEvents.Postgres do
           query,
           [e],
           fragment(
-            "array_length(?, 1) = 0 OR TRUNC(CAST(? AS NUMERIC), 1) <= TRUNC(CAST(? AS NUMERIC), 1)",
+            "COALESCE(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END, 0) <= ?",
             e.cacheable_targets,
-            fragment(
-              "CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END",
-              e.cacheable_targets,
-              e.local_cache_target_hits,
-              e.remote_cache_target_hits,
-              e.cacheable_targets
-            ),
+            e.local_cache_target_hits,
+            e.remote_cache_target_hits,
+            e.cacheable_targets,
             ^value
           )
         )
@@ -486,7 +476,7 @@ defmodule Tuist.CommandEvents.Postgres do
           query,
           [e],
           fragment(
-            "TRUNC(CAST(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE 0 END AS NUMERIC), 1) = TRUNC(CAST(? AS NUMERIC), 1)",
+            "COALESCE(CASE WHEN array_length(?, 1) > 0 THEN (COALESCE(array_length(?, 1), 0) + COALESCE(array_length(?, 1), 0))::float / array_length(?, 1) * 100 ELSE NULL END, 0) = ?",
             e.cacheable_targets,
             e.local_cache_target_hits,
             e.remote_cache_target_hits,

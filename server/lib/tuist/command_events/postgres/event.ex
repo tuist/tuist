@@ -48,8 +48,15 @@ defmodule Tuist.CommandEvents.Postgres.Event do
     field :git_ref, :string
     field :git_branch, :string
     field :ran_at, :utc_datetime
-    field :hit_rate, :float, virtual: true
     field :user_account_name, :string, virtual: true
+
+    field :cacheable_targets_count, :integer, virtual: true
+    field :local_cache_hits_count, :integer, virtual: true
+    field :remote_cache_hits_count, :integer, virtual: true
+    field :test_targets_count, :integer, virtual: true
+    field :local_test_hits_count, :integer, virtual: true
+    field :remote_test_hits_count, :integer, virtual: true
+    field :hit_rate, :float, virtual: true
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -135,8 +142,8 @@ defmodule Tuist.CommandEvents.Postgres.Event do
     |> validate_inclusion(:status, [:success, :failure])
   end
 
-  def with_hit_rate(query) do
-    from e in query,
+  def with_analytics(query) do
+    from(e in query,
       select_merge: %{
         hit_rate:
           fragment(
@@ -145,7 +152,14 @@ defmodule Tuist.CommandEvents.Postgres.Event do
             e.local_cache_target_hits,
             e.remote_cache_target_hits,
             e.cacheable_targets
-          )
+          ),
+        cacheable_targets_count: fragment("array_length(?, 1)", e.cacheable_targets),
+        local_cache_hits_count: fragment("array_length(?, 1)", e.local_cache_target_hits),
+        remote_cache_hits_count: fragment("array_length(?, 1)", e.remote_cache_target_hits),
+        test_targets_count: fragment("array_length(?, 1)", e.test_targets),
+        local_test_hits_count: fragment("array_length(?, 1)", e.local_test_target_hits),
+        remote_test_hits_count: fragment("array_length(?, 1)", e.remote_test_target_hits)
       }
+    )
   end
 end
