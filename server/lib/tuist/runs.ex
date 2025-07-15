@@ -22,11 +22,14 @@ defmodule Tuist.Runs do
          |> Build.create_changeset(attrs)
          |> Repo.insert() do
       {:ok, build} ->
-        Task.await_many([
-          Task.async(fn -> create_build_issues(build, attrs.issues) end),
-          Task.async(fn -> create_build_files(build, attrs.files) end),
-          Task.async(fn -> create_build_targets(build, attrs.targets) end)
-        ])
+        Task.await_many(
+          [
+            Task.async(fn -> create_build_issues(build, attrs.issues) end),
+            Task.async(fn -> create_build_files(build, attrs.files) end),
+            Task.async(fn -> create_build_targets(build, attrs.targets) end)
+          ],
+          30_000
+        )
 
         build = Repo.preload(build, project: :account)
 
