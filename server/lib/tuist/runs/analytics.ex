@@ -6,8 +6,10 @@ defmodule Tuist.Runs.Analytics do
   import Timescale.Hyperfunctions
 
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
 
   def builds_duration_analytics_grouped_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
@@ -131,8 +133,7 @@ defmodule Tuist.Runs.Analytics do
               b.project_id == ^project_id,
           select: %{
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-            value:
-              fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
+            value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
           }
         ),
         opts
@@ -682,11 +683,7 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  def total_execution_period_average_duration(%{
-        query: query,
-        start_date: start_date,
-        end_date: end_date
-      }) do
+  def total_execution_period_average_duration(%{query: query, start_date: start_date, end_date: end_date}) do
     result = calculate_average_duration(query, start_date, end_date)
     normalize_result(result)
   end
@@ -892,12 +889,7 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp runs_per_period(%{
-         query: query,
-         start_date: start_date,
-         end_date: end_date,
-         date_period: date_period
-       }) do
+  defp runs_per_period(%{query: query, start_date: start_date, end_date: end_date, date_period: date_period}) do
     runs =
       case query do
         query_fn when is_function(query_fn) ->
@@ -995,7 +987,7 @@ defmodule Tuist.Runs.Analytics do
     |> apply_project_filter(project_id)
     |> apply_ci_filter(is_ci)
     |> select([e], e.id)
-    |> Repo.all()
+    |> Tuist.ClickHouseRepo.all()
   end
 
   defp apply_project_filter(query, nil), do: query
@@ -1022,7 +1014,7 @@ defmodule Tuist.Runs.Analytics do
 
   defp calculate_events_duration(filtered_event_ids) do
     result =
-      Repo.one(
+      Tuist.ClickHouseRepo.one(
         from(e in Event,
           where: e.id in ^filtered_event_ids and not is_nil(e.duration),
           select: sum(coalesce(e.duration, 0))
