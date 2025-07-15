@@ -241,7 +241,8 @@
             title={gettext("Build time saved")}
             value={
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @build_time_analytics.total_time_saved
+                @build_time_analytics.total_time_saved,
+                include_seconds: true
               )
             }
             style="primary-translucent"
@@ -349,7 +350,8 @@
           <span data-part="value">
             {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               @build_time_analytics.total_build_time -
-                @build_time_analytics.total_time_saved
+                @build_time_analytics.total_time_saved,
+              include_seconds: true
             )}
           </span>
         </div>

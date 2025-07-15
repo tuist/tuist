@@ -9,7 +9,9 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
-  def format_duration_from_milliseconds(duration_ms) do
+  def format_duration_from_milliseconds(duration_ms, opts \\ []) do
+    include_seconds = Keyword.get(opts, :include_seconds, true)
+    
     cond do
       duration_ms == 0 ->
         "0.0s"
@@ -36,8 +38,8 @@ defmodule Tuist.Utilities.DateFormatter do
 
         parts =
           cond do
-            hours > 0 and seconds > 0 ->
-              # For times over 1 hour, don't include seconds
+            hours > 0 and seconds > 0 and not include_seconds ->
+              # For times over 1 hour, don't include seconds only if include_seconds is false
               parts
 
             duration_ms > 60_000 and seconds > 0 ->
