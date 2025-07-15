@@ -80,34 +80,19 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
 
     execute("RENAME TABLE command_events_new TO command_events")
 
+    # Essential bloom filters for high-cardinality fields
     execute("ALTER TABLE command_events ADD INDEX idx_name name TYPE bloom_filter GRANULARITY 4")
 
     execute(
-      "ALTER TABLE command_events ADD INDEX idx_git_branch git_branch TYPE bloom_filter GRANULARITY 8"
+      "ALTER TABLE command_events ADD INDEX idx_git_branch git_branch TYPE bloom_filter GRANULARITY 16"
     )
 
     execute(
-      "ALTER TABLE command_events ADD INDEX idx_git_ref git_ref TYPE bloom_filter GRANULARITY 8"
+      "ALTER TABLE command_events ADD INDEX idx_git_ref git_ref TYPE bloom_filter GRANULARITY 16"
     )
 
     execute(
-      "ALTER TABLE command_events ADD INDEX idx_git_commit_sha git_commit_sha TYPE bloom_filter GRANULARITY 8"
-    )
-
-    execute("ALTER TABLE command_events ADD INDEX idx_status status TYPE minmax GRANULARITY 32")
-    execute("ALTER TABLE command_events ADD INDEX idx_is_ci is_ci TYPE minmax GRANULARITY 64")
-    execute("ALTER TABLE command_events ADD INDEX idx_user_id user_id TYPE minmax GRANULARITY 16")
-
-    execute(
-      "ALTER TABLE command_events ADD INDEX idx_project_id project_id TYPE minmax GRANULARITY 8"
-    )
-
-    execute(
-      "ALTER TABLE command_events ADD INDEX idx_hit_rate hit_rate TYPE minmax GRANULARITY 8"
-    )
-
-    execute(
-      "ALTER TABLE command_events ADD INDEX idx_project_name (project_id, name) TYPE minmax GRANULARITY 4"
+      "ALTER TABLE command_events ADD INDEX idx_git_commit_sha git_commit_sha TYPE bloom_filter GRANULARITY 16"
     )
 
     execute(
@@ -116,12 +101,13 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
 
     execute("ALTER TABLE command_events ADD INDEX idx_id id TYPE bloom_filter GRANULARITY 4")
 
-    execute(
-      "ALTER TABLE command_events ADD INDEX idx_legacy_id legacy_id TYPE bloom_filter GRANULARITY 8"
-    )
+    # MinMax indexes for low-cardinality fields and ranges
+    execute("ALTER TABLE command_events ADD INDEX idx_status status TYPE minmax GRANULARITY 64")
+    execute("ALTER TABLE command_events ADD INDEX idx_is_ci is_ci TYPE minmax GRANULARITY 128")
+    execute("ALTER TABLE command_events ADD INDEX idx_user_id user_id TYPE minmax GRANULARITY 32")
 
     execute(
-      "ALTER TABLE command_events ADD INDEX idx_subcommand subcommand TYPE bloom_filter GRANULARITY 8"
+      "ALTER TABLE command_events ADD INDEX idx_hit_rate hit_rate TYPE minmax GRANULARITY 16"
     )
   end
 
