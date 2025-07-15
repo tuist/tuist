@@ -11,7 +11,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
-    
+
     cond do
       duration_ms == 0 ->
         "0.0s"

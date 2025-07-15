@@ -3,6 +3,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   use Mimic
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.Runs.Analytics
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -1075,21 +1076,39 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: 2000
         )
 
-      # Directly insert into ClickHouse
+      # Insert into ClickHouse Event table
+      ClickHouseRepo.insert_all(Event, [
+        %{
+          id: command_event_1.id,
+          project_id: project.id,
+          duration: 1500,
+          created_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond)
+        },
+        %{
+          id: command_event_2.id,
+          project_id: project.id,
+          duration: 2000,
+          created_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond)
+        }
+      ])
+
+      # Insert into ClickHouse XcodeGraph table
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
           binary_build_duration: 5000,
-          inserted_at: command_event_1.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_1.created_at, :second)
         },
         %{
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
           binary_build_duration: 3000,
-          inserted_at: command_event_2.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_2.created_at, :second)
         }
       ])
 
@@ -1136,21 +1155,39 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: 2000
         )
 
-      # Directly insert into ClickHouse
+      # Insert into ClickHouse Event table
+      ClickHouseRepo.insert_all(Event, [
+        %{
+          id: command_event_1.id,
+          project_id: project1.id,
+          duration: 1500,
+          created_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_1.created_at, 0, :microsecond)
+        },
+        %{
+          id: command_event_2.id,
+          project_id: project2.id,
+          duration: 2000,
+          created_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_2.created_at, 0, :microsecond)
+        }
+      ])
+
+      # Insert into ClickHouse XcodeGraph table
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
           binary_build_duration: 3000,
-          inserted_at: command_event_1.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_1.created_at, :second)
         },
         %{
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
           binary_build_duration: 4000,
-          inserted_at: command_event_2.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_2.created_at, :second)
         }
       ])
 
@@ -1183,21 +1220,41 @@ defmodule Tuist.Runs.AnalyticsTest do
           is_ci: false
         )
 
-      # Directly insert into ClickHouse
+      # Insert into ClickHouse Event table
+      ClickHouseRepo.insert_all(Event, [
+        %{
+          id: command_event_ci.id,
+          project_id: project.id,
+          duration: 1500,
+          is_ci: true,
+          created_at: NaiveDateTime.add(command_event_ci.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_ci.created_at, 0, :microsecond)
+        },
+        %{
+          id: command_event_local.id,
+          project_id: project.id,
+          duration: 2000,
+          is_ci: false,
+          created_at: NaiveDateTime.add(command_event_local.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_local.created_at, 0, :microsecond)
+        }
+      ])
+
+      # Insert into ClickHouse XcodeGraph table
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphCI",
           command_event_id: command_event_ci.id,
           binary_build_duration: 3000,
-          inserted_at: command_event_ci.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_ci.created_at, :second)
         },
         %{
           id: UUIDv7.generate(),
           name: "TestGraphLocal",
           command_event_id: command_event_local.id,
           binary_build_duration: 4000,
-          inserted_at: command_event_local.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_local.created_at, :second)
         }
       ])
 
@@ -1229,21 +1286,39 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: 2000
         )
 
-      # Directly insert into ClickHouse
+      # Insert into ClickHouse Event table
+      ClickHouseRepo.insert_all(Event, [
+        %{
+          id: command_event_in_range.id,
+          project_id: project.id,
+          duration: 1000,
+          created_at: NaiveDateTime.add(command_event_in_range.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_in_range.created_at, 0, :microsecond)
+        },
+        %{
+          id: command_event_out_of_range.id,
+          project_id: project.id,
+          duration: 2000,
+          created_at: NaiveDateTime.add(command_event_out_of_range.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event_out_of_range.created_at, 0, :microsecond)
+        }
+      ])
+
+      # Insert into ClickHouse XcodeGraph table
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphInRange",
           command_event_id: command_event_in_range.id,
           binary_build_duration: 2000,
-          inserted_at: command_event_in_range.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_in_range.created_at, :second)
         },
         %{
           id: UUIDv7.generate(),
           name: "TestGraphOutOfRange",
           command_event_id: command_event_out_of_range.id,
           binary_build_duration: 3000,
-          inserted_at: command_event_out_of_range.created_at
+          inserted_at: NaiveDateTime.truncate(command_event_out_of_range.created_at, :second)
         }
       ])
 
@@ -1273,14 +1348,25 @@ defmodule Tuist.Runs.AnalyticsTest do
           duration: nil
         )
 
-      # Directly insert into ClickHouse
+      # Insert into ClickHouse Event table
+      ClickHouseRepo.insert_all(Event, [
+        %{
+          id: command_event.id,
+          project_id: project.id,
+          duration: nil,
+          created_at: NaiveDateTime.add(command_event.created_at, 0, :microsecond),
+          ran_at: NaiveDateTime.add(command_event.created_at, 0, :microsecond)
+        }
+      ])
+
+      # Insert into ClickHouse XcodeGraph table
       ClickHouseRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphNilDuration",
           command_event_id: command_event.id,
           binary_build_duration: 1500,
-          inserted_at: command_event.created_at
+          inserted_at: NaiveDateTime.truncate(command_event.created_at, :second)
         }
       ])
 
