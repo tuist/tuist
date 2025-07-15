@@ -53,6 +53,28 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:about, layout: false)
   end
 
+  def support(conn, _params) do
+    conn
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {gettext("Support"), Tuist.Environment.app_url(path: ~p"/support")}
+      ])
+    )
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/support.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      "Get help with Tuist. Access our support channels, documentation, and community resources."
+    )
+    |> assign(:head_title, "Support · Tuist")
+    |> render(:support, layout: false)
+  end
+
   def newsletter(conn, _params) do
     conn
     |> assign_structured_data(get_organization_structured_data())
