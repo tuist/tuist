@@ -12,9 +12,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   alias Tuist.Repo
 
   def list_command_events(attrs) do
-    query = Event
-
-    {results, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
+    {results, meta} = ClickHouseFlop.validate_and_run!(Event, attrs, for: Event)
 
     results =
       results
