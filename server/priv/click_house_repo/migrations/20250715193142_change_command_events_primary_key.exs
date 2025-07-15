@@ -60,7 +60,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
     INSERT INTO command_events_new
     SELECT
         id, legacy_id, legacy_artifact_path,
-        COALESCE(name, 'unknown') as name,
+        COALESCE(name, '') as name,
         subcommand, command_arguments,
         duration, client_id, tuist_version, swift_version, macos_version,
         project_id, created_at, updated_at, cacheable_targets,
