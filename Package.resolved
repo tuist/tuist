@@ -1,5 +1,5 @@
 {
-  "originHash" : "d21af5d1c36aa63c8af986573e79b786190f92c3b1613e274227b986b2098d32",
+  "originHash" : "5bb12664ad97077500b1a99ac37e018e00f5eb4bf9a14d6103dfe1bd83ee213a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -492,8 +492,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph",
       "state" : {
-        "branch" : "rename-claude-to-agent",
-        "revision" : "a60fea1764a22c0ba25c261f84b8e48d8a33c2ef"
+        "revision" : "d65980cf291174ad007e8b265eab84590d0ea7e5",
+        "version" : "1.17.0"
       }
     },
     {

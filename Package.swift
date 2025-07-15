@@ -51,7 +51,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistCore",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -94,7 +94,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistKit",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .executableTarget(
@@ -138,7 +138,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistSupport",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -190,7 +190,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistGenerator",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -208,7 +208,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistScaffold",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -226,7 +226,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistAutomation",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -242,7 +242,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistDependencies",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -258,7 +258,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistMigration",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -275,7 +275,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistAsyncQueue",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -294,7 +294,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistLoader",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -311,7 +311,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistAnalytics",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -328,7 +328,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistPlugin",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -351,7 +351,7 @@ let targets: [Target] = [
         path: "cli/Sources/TuistServer",
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -367,7 +367,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistHasher",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -383,7 +383,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistCache",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -395,7 +395,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistSimulator",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -412,7 +412,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistXCActivityLog",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -425,7 +425,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistGit",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -438,7 +438,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
 ]
@@ -577,7 +577,7 @@ let package = Package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph", branch: "rename-claude-to-agent"),
+        .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.17.0")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
@@ -604,14 +604,15 @@ let package = Package(
             .upToNextMajor(from: "1.18.1")
         ),
         .package(
-            url: "https://github.com/modelcontextprotocol/swift-sdk.git", .upToNextMajor(from: "0.9.0")
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+            .upToNextMajor(from: "0.9.0")
         ),
         .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(
             url: "https://github.com/tuist/Rosalind",
             .upToNextMajor(from: "0.5.31")
         ),
-        .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0"))
+        .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
     ],
     targets: targets
 )
