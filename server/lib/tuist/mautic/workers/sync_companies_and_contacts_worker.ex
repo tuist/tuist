@@ -13,6 +13,8 @@ defmodule Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker do
   alias Tuist.Mautic
   alias Tuist.Repo
 
+  require Logger
+
   @impl Oban.Worker
   def perform(job) do
     args = job.args || %{}
@@ -126,9 +128,21 @@ defmodule Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker do
       existing_company = find_company_by_account_id(mautic_companies, organization.account.id)
 
       if existing_company do
-        {:ok, _} = Mautic.update_company(existing_company["id"], company_data)
+        case Mautic.update_company(existing_company["id"], company_data) do
+          {:ok, _} ->
+            :ok
+
+          {:error, error} ->
+            Logger.error("Failed to update company #{existing_company["id"]}: #{inspect(error)}")
+        end
       else
-        {:ok, _} = Mautic.create_company(company_data)
+        case Mautic.create_company(company_data) do
+          {:ok, _} ->
+            :ok
+
+          {:error, error} ->
+            Logger.error("Failed to create company for organization #{organization.id}: #{inspect(error)}")
+        end
       end
     end)
 
@@ -224,8 +238,10 @@ defmodule Tuist.Mautic.Workers.SyncCompaniesAndContactsWorker do
     subscription = get_current_active_subscription(account)
     subscription_type = if subscription, do: to_string(subscription.plan), else: "air"
 
+    company_name = account.name || account.email || "Organization #{organization.id}"
+
     %{
-      "companyname" => account.name || account.email,
+      "companyname" => company_name,
       "companyemail" => account.billing_email || account.email,
       "custom_fields" => %{
         "tuist_account_id" => Integer.to_string(account.id),

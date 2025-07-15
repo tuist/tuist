@@ -26,6 +26,7 @@ defmodule Tuist.Mautic do
            retry: retry()
          ) do
       %{status: status, body: body} when status in 200..299 -> {:ok, body}
+      %{status: status, body: body} -> {:error, %{status: status, body: body}}
     end
   end
 
@@ -37,6 +38,7 @@ defmodule Tuist.Mautic do
            retry: retry()
          ) do
       %{status: status, body: body} when status in 200..299 -> {:ok, body}
+      %{status: status, body: body} -> {:error, %{status: status, body: body}}
     end
   end
 
