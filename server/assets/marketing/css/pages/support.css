@@ -60,9 +60,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-24);
-  padding: var(--spacing-32);
-  background: var(--gray-violet);
   border-radius: var(--radius-l);
+  background: var(--gray-violet);
+  padding: var(--spacing-32);
 }
 
 .marketing__support__channels__items__channel__content {
@@ -82,11 +82,11 @@
 }
 
 .marketing__support__channels__items__channel__content__link {
-  color: var(--violet);
-  text-decoration: none;
-  cursor: pointer;
   align-items: center;
   transition: color 0.2s ease;
+  cursor: pointer;
+  color: var(--violet);
+  text-decoration: none;
 }
 
 .marketing__support__channels__items__channel__content__link:hover {
