@@ -4,8 +4,6 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
   """
   use Ecto.Schema
 
-  import Ecto.Query
-
   @derive {
     Flop.Schema,
     filterable: [
@@ -17,9 +15,10 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
       :git_branch,
       :status,
       :is_ci,
-      :user_id
+      :user_id,
+      :hit_rate
     ],
-    sortable: [:created_at, :ran_at, :duration]
+    sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
@@ -55,22 +54,16 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :created_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
-    field :hit_rate, :float, virtual: true
-    field :user_account_name, :string, virtual: true
-  end
 
-  def with_hit_rate(query) do
-    from e in query,
-      select_merge: %{
-        hit_rate:
-          fragment(
-            "CASE WHEN length(?) > 0 THEN (length(?) + length(?))::float / length(?) * 100 ELSE NULL END",
-            e.cacheable_targets,
-            e.local_cache_target_hits,
-            e.remote_cache_target_hits,
-            e.cacheable_targets
-          )
-      }
+    field :cacheable_targets_count, Ch, type: "UInt32"
+    field :local_cache_hits_count, Ch, type: "UInt32"
+    field :remote_cache_hits_count, Ch, type: "UInt32"
+    field :test_targets_count, Ch, type: "UInt32"
+    field :local_test_hits_count, Ch, type: "UInt32"
+    field :remote_test_hits_count, Ch, type: "UInt32"
+    field :hit_rate, Ch, type: "Nullable(Float32)"
+
+    field :user_account_name, :string, virtual: true
   end
 
   def changeset(event_attrs) do
