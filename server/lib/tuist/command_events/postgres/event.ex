@@ -142,7 +142,7 @@ defmodule Tuist.CommandEvents.Postgres.Event do
     |> validate_inclusion(:status, [:success, :failure])
   end
 
-  def with_hit_rate(query) do
+  def with_analytics(query) do
     from(e in query,
       select_merge: %{
         hit_rate:

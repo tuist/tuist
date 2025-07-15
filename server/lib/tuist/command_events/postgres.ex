@@ -11,7 +11,7 @@ defmodule Tuist.CommandEvents.Postgres do
   alias Tuist.Repo
 
   def list_command_events(attrs) do
-    query = Event.with_hit_rate(Event)
+    query = Event.with_analytics(Event)
 
     {hit_rate_filter, other_filters} = extract_hit_rate_filter(attrs)
 
