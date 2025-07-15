@@ -17,7 +17,7 @@ developers_dropdown_selector = ".marketing__header__bar__links > #developers"
 reset_dopdowns_state_js =
   %JS{}
   # App Lifecycle
-  |> JS.hide(to: ".marketing__header__bar__app-lifecycle")
+  |> JS.hide(to: ".marketing__header__bar__features")
   |> JS.hide(to: app_lifecycle_close_icon_selector)
   |> JS.show(to: app_lifecycle_open_icon_selector)
   |> JS.set_attribute({"aria-expanded", "false"}, to: app_lifecycle_dropdown_selector)
@@ -29,14 +29,14 @@ reset_dopdowns_state_js =
 
 <% show_app_lifecycle_js =
   reset_dopdowns_state_js
-  |> JS.toggle(to: ".marketing__header__bar__app-lifecycle", display: "grid")
+  |> JS.toggle(to: ".marketing__header__bar__features", display: "grid")
   |> JS.toggle(to: app_lifecycle_open_icon_selector)
   |> JS.toggle(to: app_lifecycle_close_icon_selector)
   |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: app_lifecycle_dropdown_selector) %>
 
 <% show_developers_js =
   reset_dopdowns_state_js
-  |> JS.hide(to: ".marketing__header__bar__app-lifecycle")
+  |> JS.hide(to: ".marketing__header__bar__features")
   |> JS.toggle(to: ".marketing__header__bar__developers", display: "grid")
   |> JS.toggle(to: developers_open_icon_selector)
   |> JS.toggle(to: developers_close_icon_selector)
@@ -65,7 +65,7 @@ reset_dopdowns_state_js =
         aria-haspopup="true"
         phx-click={show_app_lifecycle_js}
       >
-        {gettext("App lifecycle")}
+        {gettext("Features")}
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
@@ -137,23 +137,23 @@ reset_dopdowns_state_js =
       <.marketing_mobile_menu_dropdown
         key="app-lifecycle"
         current_path={@current_path}
-        title={gettext("App lifecycle")}
+        title={gettext("Features")}
         children={[
           %{
-            title: gettext("Start"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+            title: gettext("Generated Projects"),
+            href: Tuist.Environment.get_url(:feature_generated_projects)
           },
           %{
-            title: gettext("Develop"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+            title: gettext("Cache"),
+            href: Tuist.Environment.get_url(:feature_cache)
           },
           %{
-            title: gettext("Share"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+            title: gettext("Previews"),
+            href: Tuist.Environment.get_url(:feature_previews)
           },
           %{
-            title: gettext("Measure"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_measure)
+            title: gettext("Insights"),
+            href: Tuist.Environment.get_url(:feature_insights)
           }
         ]}
       />
@@ -231,61 +231,61 @@ reset_dopdowns_state_js =
       </div>
     </div>
   </nav>
-  <!-- App Lifecycle Menu -->
-  <nav class="marketing__header__bar__app-lifecycle" aria-labelledby="app-lifecycle">
+  <!-- Features Menu -->
+  <nav class="marketing__header__bar__features" aria-labelledby="app-lifecycle">
     <.link
-      class="marketing__header__bar__app-lifecycle__phase"
-      href={Tuist.Environment.get_url(:app_lifecycle_phase_start)}
+      class="marketing__header__bar__features__phase"
+      href={Tuist.Environment.get_url(:feature_generated_projects)}
       target="_blank"
     >
-      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        {gettext("Start")}
+      <h2 class="marketing__header__bar__features__phase__title">
+        {gettext("Generated projects")}
       </h2>
-      <p class="marketing__header__bar__app-lifecycle__phase__description">
-        {gettext("Start a new project or add Tuist to an existing one.")}
+      <p class="marketing__header__bar__features__phase__description">
+        {gettext("Make modular Xcode projects more manageable")}
       </p>
-      <.app_lifecycle_start_artwork />
+      <.feature_generated_projects_artwork />
     </.link>
 
     <.link
-      class="marketing__header__bar__app-lifecycle__phase"
-      href={Tuist.Environment.get_url(:app_lifecycle_phase_develop)}
+      class="marketing__header__bar__features__phase"
+      href={Tuist.Environment.get_url(:feature_cache)}
       target="_blank"
     >
-      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        {gettext("Develop")}
+      <h2 class="marketing__header__bar__features__phase__title">
+        {gettext("Cache")}
       </h2>
-      <p class="marketing__header__bar__app-lifecycle__phase__description">
-        {gettext("Develop top-notch apps fast and with confidence.")}
+      <p class="marketing__header__bar__features__phase__description">
+        {gettext("Speed up your builds and test runs.")}
       </p>
-      <.app_lifecycle_develop_artwork />
+      <.feature_cache_artwork />
     </.link>
     <.link
-      class="marketing__header__bar__app-lifecycle__phase"
-      href={Tuist.Environment.get_url(:app_lifecycle_phase_share)}
+      class="marketing__header__bar__features__phase"
+      href={Tuist.Environment.get_url(:feature_previews)}
       target="_blank"
     >
-      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        {gettext("Share")}
+      <h2 class="marketing__header__bar__features__phase__title">
+        {gettext("Previews")}
       </h2>
-      <p class="marketing__header__bar__app-lifecycle__phase__description">
+      <p class="marketing__header__bar__features__phase__description">
         {gettext("Effortlessly share your app with a single URL.")}
       </p>
-      <.app_lifecycle_share_artwork />
+      <.feature_previews_artwork />
     </.link>
 
     <.link
-      class="marketing__header__bar__app-lifecycle__phase"
-      href={Tuist.Environment.get_url(:app_lifecycle_phase_measure)}
+      class="marketing__header__bar__features__phase"
+      href={Tuist.Environment.get_url(:feature_insights)}
       target="_blank"
     >
-      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        {gettext("Measure")}
+      <h2 class="marketing__header__bar__features__phase__title">
+        {gettext("Insights")}
       </h2>
-      <p class="marketing__header__bar__app-lifecycle__phase__description">
-        {gettext("Enhance your product and development with actionable insights.")}
+      <p class="marketing__header__bar__features__phase__description">
+        {gettext("Enhance your development environment with actionable insights.")}
       </p>
-      <.app_lifecycle_measure_artwork />
+      <.feature_insights_artwork />
     </.link>
   </nav>
   <!-- Developers Menu -->

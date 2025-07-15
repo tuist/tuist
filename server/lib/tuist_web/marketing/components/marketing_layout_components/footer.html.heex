@@ -60,20 +60,20 @@
         title={gettext("App lifecycle")}
         items={[
           %{
-            text: gettext("Start"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+            text: gettext("Generated Projects"),
+            href: Tuist.Environment.get_url(:feature_generated_projects)
           },
           %{
-            text: gettext("Develop"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_develop)
+            text: gettext("Cache"),
+            href: Tuist.Environment.get_url(:feature_cache)
           },
           %{
-            text: gettext("Share"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+            text: gettext("Previews"),
+            href: Tuist.Environment.get_url(:feature_previews)
           },
           %{
-            text: gettext("Measure"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_measure)
+            text: gettext("Insights"),
+            href: Tuist.Environment.get_url(:feature_insights)
           }
         ]}
       />
@@ -82,7 +82,7 @@
         items={[
           %{
             text: gettext("Docs"),
-            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+            href: Tuist.Environment.get_url(:documentation)
           },
           %{text: gettext("Changelog"), href: ~p"/changelog"},
           %{

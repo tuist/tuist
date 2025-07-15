@@ -129,7 +129,7 @@ body {
   display: none;
   font: var(--font-xxs);
 }
-.marketing__header__bar__app-lifecycle {
+.marketing__header__bar__features {
   display: none;
   position: absolute;
   grid-template-columns: repeat(4, 1fr);
@@ -141,7 +141,7 @@ body {
   max-width: 100%;
 }
 
-.marketing__header__bar__app-lifecycle__phase {
+.marketing__header__bar__features__phase {
   display: grid;
   grid-template-rows: auto;
   row-gap: var(--spacing-16);
@@ -153,7 +153,7 @@ body {
   }
 }
 
-.marketing__header__bar__app-lifecycle__phase__title {
+.marketing__header__bar__features__phase__title {
   cursor: pointer;
   margin: 0px 0px;
   font: var(--font-m-strong);
@@ -173,7 +173,7 @@ body {
   }
 }
 
-.marketing__header__bar__app-lifecycle__phase__description {
+.marketing__header__bar__features__phase__description {
   margin: 0px 0px;
   font: var(--font-xs);
   text-decoration: none;
