@@ -25,16 +25,16 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
   schema "command_events" do
     field :legacy_id, Ch, type: "UInt64"
     field :legacy_artifact_path, :boolean, default: false
-    field :name, Ch, type: "Nullable(String)"
+    field :name, Ch, type: "String"
     field :subcommand, Ch, type: "Nullable(String)"
     field :command_arguments, Ch, type: "Nullable(String)"
-    field :duration, Ch, type: "Nullable(Int32)"
-    field :client_id, Ch, type: "Nullable(String)"
-    field :tuist_version, Ch, type: "Nullable(String)"
-    field :swift_version, Ch, type: "Nullable(String)"
-    field :macos_version, Ch, type: "Nullable(String)"
+    field :duration, Ch, type: "Int32"
+    field :client_id, Ch, type: "String"
+    field :tuist_version, Ch, type: "String"
+    field :swift_version, Ch, type: "String"
+    field :macos_version, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
-    field :is_ci, Ch, type: "Nullable(Bool)", default: false
+    field :is_ci, Ch, type: "Bool", default: false
     field :status, Ch, type: "Nullable(Int32)", default: 0
     field :error_message, Ch, type: "Nullable(String)"
     field :cacheable_targets, {:array, :string}, default: []
@@ -51,7 +51,10 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :user_id, Ch, type: "Nullable(Int32)"
     field :preview_id, Ch, type: "Nullable(UUID)"
     field :build_run_id, Ch, type: "Nullable(UUID)"
-    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
+
+    # When the command was run - provided by the CLI, defaulting to current server time when missing.
+    field :ran_at, Ch, type: "DateTime64(6)"
+    # Database timestamps defaulting to current server time on insertion or update.
     field :created_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
 

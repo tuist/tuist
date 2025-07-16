@@ -364,7 +364,8 @@ defmodule Tuist.VCS do
   end
 
   defp project_bundle_size_deviations(project, bundle) do
-    last_bundle = Bundles.last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    last_bundle =
+      Bundles.last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
 
     if is_nil(last_bundle) do
       {"", ""}
@@ -425,8 +426,8 @@ defmodule Tuist.VCS do
 
       if current_event == nil or
            NaiveDateTime.after?(
-             command_event.created_at,
-             current_event.created_at
+             command_event.ran_at,
+             current_event.ran_at
            ) do
         Map.put(acc, identifier, command_event)
       else
