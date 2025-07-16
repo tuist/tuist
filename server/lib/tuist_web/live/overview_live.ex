@@ -256,7 +256,7 @@ defmodule TuistWeb.OverviewLive do
         Task.async(fn -> Analytics.cache_hit_rate_analytics(opts) end),
         Task.async(fn -> Analytics.selective_testing_analytics(opts) end),
         Task.async(fn -> Analytics.builds_duration_analytics(project.id, opts) end),
-        Task.async(fn -> Analytics.runs_duration_analytics("test", project_id: project.id) end)
+        Task.async(fn -> Analytics.runs_duration_analytics("test", opts) end)
       ]
 
       [
