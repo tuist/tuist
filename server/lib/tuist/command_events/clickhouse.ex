@@ -202,6 +202,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   def runs_analytics(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
+        as: :event,
         where:
           e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
@@ -290,6 +291,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
+        as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
           e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -309,6 +311,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   def cache_hit_rate(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
+        as: :event,
         where:
           e.project_id == ^project_id and
             e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -333,6 +336,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
+        as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
           e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -354,6 +358,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   def selective_testing_hit_rate(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
+        as: :event,
         where:
           e.project_id == ^project_id and
             e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -378,6 +383,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query =
       from(e in Event,
+        as: :event,
         group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
         where:
           e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
