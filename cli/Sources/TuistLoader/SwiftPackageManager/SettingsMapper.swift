@@ -67,6 +67,14 @@ struct SettingsMapper {
         var settingsDictionary = XcodeGraph.SettingsDictionary()
         for setting in settings {
             switch (setting.tool, setting.name) {
+            case (.swift, .interoperabilityMode):
+                if setting.value == ["Cxx"] {
+                    settingsDictionary["SWIFT_OBJC_INTEROP_MODE"] = "objcxx"
+                } else if setting.value == ["C"] {
+                    settingsDictionary["SWIFT_OBJC_INTEROP_MODE"] = "objc"
+                }
+            case (_, .interoperabilityMode):
+                break
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])".quotedIfContainsSpaces)
             case (.c, .define), (.cxx, .define):
