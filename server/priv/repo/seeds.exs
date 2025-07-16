@@ -4,7 +4,9 @@ alias Tuist.Accounts
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing.Subscription
+alias Tuist.ClickHouseRepo
 alias Tuist.CommandEvents
+alias Tuist.CommandEvents.Clickhouse.Event
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
@@ -121,122 +123,122 @@ builds =
 
 Repo.insert_all(Build, builds)
 
-for _event <- 1..8000 do
-  names = ["test", "cache", "generate"]
-  name = Enum.random(names)
-  status = Enum.random([:success, :failure])
-  is_ci = Enum.random([true, false])
-  user_id = if is_ci, do: nil, else: user.id
+command_events =
+  Enum.map(1..8000, fn _event ->
+    names = ["test", "cache", "generate"]
+    name = Enum.random(names)
+    status = Enum.random([0, 1])
+    is_ci = Enum.random([true, false])
+    user_id = if is_ci, do: nil, else: user.id
 
-  cacheable_targets = [
-    "TargetOne",
-    "TargetTwo",
-    "TargetThree",
-    "TargetFour",
-    "TargetFive",
-    "TargetSix",
-    "TargetSeven",
-    "TargetEight",
-    "TargetNine",
-    "TargetTen",
-    "TargetEleven",
-    "TargetTwelve",
-    "TargetThirteen",
-    "TargetFourteen",
-    "TargetFifteen"
-  ]
+    cacheable_targets = [
+      "TargetOne",
+      "TargetTwo",
+      "TargetThree",
+      "TargetFour",
+      "TargetFive",
+      "TargetSix",
+      "TargetSeven",
+      "TargetEight",
+      "TargetNine",
+      "TargetTen",
+      "TargetEleven",
+      "TargetTwelve",
+      "TargetThirteen",
+      "TargetFourteen",
+      "TargetFifteen"
+    ]
 
-  remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..14))
+    remote_cache_target_hits = Enum.take(cacheable_targets, Enum.random(0..14))
 
-  local_cache_target_hits =
-    cacheable_targets
-    |> Enum.reverse()
-    |> Enum.take(Enum.random(0..(14 - length(remote_cache_target_hits))))
+    local_cache_target_hits =
+      cacheable_targets
+      |> Enum.reverse()
+      |> Enum.take(Enum.random(0..(14 - length(remote_cache_target_hits))))
 
-  test_targets =
-    if name == "test" do
-      [
-        "TestTargetOne",
-        "TestTargetTwo",
-        "TestTargetThree",
-        "TestTargetFour",
-        "TestTargetFive",
-        "TestTargetSix",
-        "TestTargetSeven",
-        "TestTargetEight",
-        "TestTargetNine",
-        "TestTargetTen",
-        "TestTargetEleven",
-        "TestTargetTwelve",
-        "TestTargetThirteen",
-        "TestTargetFourteen",
-        "TestTargetFifteen"
-      ]
-    else
-      []
-    end
+    test_targets =
+      if name == "test" do
+        [
+          "TestTargetOne",
+          "TestTargetTwo",
+          "TestTargetThree",
+          "TestTargetFour",
+          "TestTargetFive",
+          "TestTargetSix",
+          "TestTargetSeven",
+          "TestTargetEight",
+          "TestTargetNine",
+          "TestTargetTen",
+          "TestTargetEleven",
+          "TestTargetTwelve",
+          "TestTargetThirteen",
+          "TestTargetFourteen",
+          "TestTargetFifteen"
+        ]
+      else
+        []
+      end
 
-  remote_test_target_hits = Enum.take(test_targets, Enum.random(0..14))
+    remote_test_target_hits = Enum.take(test_targets, Enum.random(0..14))
 
-  local_test_target_hits =
-    test_targets
-    |> Enum.reverse()
-    |> Enum.take(Enum.random(0..(14 - length(remote_test_target_hits))))
+    local_test_target_hits =
+      test_targets
+      |> Enum.reverse()
+      |> Enum.take(Enum.random(0..(14 - length(remote_test_target_hits))))
 
-  created_at =
-    NaiveDateTime.new!(
-      Date.add(DateTime.utc_now(), -Enum.random(0..400)),
-      Time.new!(
-        Enum.random(0..23),
-        Enum.random(0..59),
-        Enum.random(0..59),
-        Enum.random(0..999_999)
-      )
-    )
-
-  ran_at = created_at
-
-  CommandEvents.create_command_event(%{
-    name: name,
-    duration: Enum.random(10_000..100_000),
-    tuist_version: "4.1.0",
-    project_id: ios_app_with_frameworks_project.id,
-    cacheable_targets: cacheable_targets,
-    local_cache_target_hits: local_cache_target_hits,
-    remote_cache_target_hits: remote_cache_target_hits,
-    test_targets: test_targets,
-    local_test_target_hits: local_test_target_hits,
-    remote_test_target_hits: remote_test_target_hits,
-    swift_version: "5.2",
-    macos_version: "10.15",
-    subcommand: "",
-    command_arguments: [],
-    is_ci: is_ci,
-    user_id: user_id,
-    client_id: "client-id",
-    status: status,
-    error_message: nil,
-    preview_id: nil,
-    git_ref: nil,
-    git_commit_sha: nil,
-    git_branch: nil,
-    created_at:
+    created_at =
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
         Time.new!(
           Enum.random(0..23),
           Enum.random(0..59),
           Enum.random(0..59),
-          Enum.random(0..999_999)
+          Enum.random(0..999)
         )
-      ),
-    ran_at: ran_at,
-    build_run_id: nil
-  })
-end
+      )
+
+    ran_at = created_at
+
+    %{
+      id: UUIDv7.generate(),
+      name: name,
+      duration: Enum.random(10_000..100_000),
+      tuist_version: "4.1.0",
+      project_id: ios_app_with_frameworks_project.id,
+      cacheable_targets: cacheable_targets,
+      local_cache_target_hits: local_cache_target_hits,
+      remote_cache_target_hits: remote_cache_target_hits,
+      test_targets: test_targets,
+      local_test_target_hits: local_test_target_hits,
+      remote_test_target_hits: remote_test_target_hits,
+      swift_version: "5.2",
+      macos_version: "10.15",
+      subcommand: "",
+      command_arguments: "",
+      is_ci: is_ci,
+      user_id: user_id,
+      client_id: "client-id",
+      status: status,
+      error_message: nil,
+      preview_id: nil,
+      git_ref: nil,
+      git_commit_sha: nil,
+      git_branch: nil,
+      created_at: created_at,
+      updated_at: created_at,
+      ran_at: ran_at,
+      build_run_id: nil
+    }
+  end)
+
+command_events
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  ClickHouseRepo.insert_all(Event, chunk)
+end)
 
 test_command_events =
-  Tuist.Repo.all(from(c in Tuist.CommandEvents.Postgres.Event, where: c.name == "test"))
+  ClickHouseRepo.all(from(c in Event, where: c.name == "test"))
 
 test_command_events
 |> Enum.shuffle()
@@ -332,7 +334,7 @@ branches = [
 ]
 
 test_previews =
-  Enum.map(1..40, fn index ->
+  Enum.map(1..40, fn _index ->
     bundle_identifier = Enum.random(bundle_identifiers)
     supported_platforms = Enum.random(platform_combinations)
 
