@@ -7,109 +7,93 @@ description: Apple 標準の開発ツールを強化し、より大規模で優�
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# アイデアからストア公開まで
+# A virtual platform team for developers who ship
 
-
+**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
 
 <0/>
 
 <HomeCards>
     <HomeCard icon="📝"
         title="Generated projects"
-        details="A Swift-based DSL to make Xcode projects more managleable and scalable."
-        linkText="Create or migrate project"
-        link="/guides/develop/projects"/>
-    <HomeCard icon="📦"
+        details="Make Xcode projects easier to manage for humans and LLMs. Generate consistent projects from Swift code that eliminate merge conflicts."
+        linkText="Simplify project management"
+        link="/guides/features/projects"/>
+    <HomeCard icon="⚡"
         title="Cache"
-        details="Get faster compilations by skipping compilation with cached binaries."
-        linkText="Speed up compilations"
-        link="/guides/develop/cache"/>
+        details="Cut build times by up to 65% with intelligent binary caching. Stop waiting, start shipping."
+        linkText="Accelerate development"
+        link="/guides/features/cache"/>
     <HomeCard
-        icon="✅"
+        icon="🎯"
         title="Selective testing"
-        details="Skip test targets when the dependent-upon code hasn't changed."
-        linkText="Speed up test runs"
-        link="/guides/develop/selective-testing"/>
+        details="Run only the tests that matter. Selective testing based on your changes means faster feedback loops."
+        linkText="Test smarter, not harder"
+        link="/guides/features/selective-testing"/>
     <HomeCard
         icon="📱"
         title="Previews"
-        details="Share previews of your app with a URL that launches the app on a click."
-        linkText="Share your apps"
-        link="/guides/share/previews"/>
+        details="Share your app instantly with a simple URL. No TestFlight delays, no complex setup."
+        linkText="Share and iterate faster"
+        link="/guides/features/previews"/>
     <HomeCard
         icon="📦"
-        title="Registry"
-        details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
+        title="Package Registry"
+        details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
         linkText="Speed up package resolution"
-        link="/guides/develop/registry"/>
+        link="/guides/features/registry"/>
     <HomeCard
         icon="📊"
         title="Insights"
-        details="Get project insights to maintain a productive developer environment."
-        linkText="Track project health"
-        link="/guides/develop/insights"/>
+        details="Monitor build performance and project health with actionable metrics that prevent problems before they happen."
+        linkText="Stay ahead of issues"
+        link="/guides/features/insights"/>
     <HomeCard
-        icon="🧰"
+        icon="🎯"
         title="Bundle size"
-        details="Find out how to make and keep your app's memory footprint as small as possible."
-        linkText="Analyze your app bundle"
-        link="/guides/develop/bundle-size"/>
+        details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
+        linkText="Optimize your app"
+        link="/guides/features/bundle-size"/>
 </HomeCards>
 
-## インストール方法
+## Join thousands of developers who've made the switch
 
-早速Tuist をインストールして `tuist init` を実行してみましょう：
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
 
-::: code-group
-
-```bash [Homebrew]
-brew tap tuist/tuist
-brew install --formula tuist
-
-tuist init
-```
-
-```bash [Mise]
-mise x tuist@latest -- tuist init
-```
-
-:::
-
-詳細については、 <LocalizedLink href="/guides/quick-start/install-tuist">導入の手順</LocalizedLink> をご覧ください。
-
-## もっと詳しく
-
-Tuist を少し試してみて、Tuist を最大限に活用する方法を学びましょう。
+- **65% faster builds** with intelligent caching
+- **Zero merge conflicts** in Xcode projects
+- **Minutes to seconds** package resolution
+- **Happy developers** who can focus on building features
 
 <HomeCards type="carousel">
-    <HomeCard icon="⚙️"
-        title="Examples"
-        details="Check out examples of generated Xcode projects."
-        linkText="Show me examples"
-        link="/references/examples/app_with_airship_sdk"/>
+    <HomeCard icon="🚀"
+        title="Real examples"
+        details="See how successful teams structure their projects with Tuist's generated approach."
+        linkText="Explore examples"
+        link="/guides/examples/generated-projects"/>
     <HomeCard
-        icon="🌈"
-        title="awesome-tuist"
-        details="A community-driven collection of Tuist related blog posts, tasks, projects, and more."
-        linkText="Show me the awesomeness"
+        icon="✨"
+        title="Community showcase"
+        details="Discover blogs, tools, and projects from the thriving Tuist community."
+        linkText="Join the movement"
         link="https://github.com/tuist/awesome-tuist"/>
     <HomeCard
-        icon="📚"
-        title="Handbook"
-        details="Learn more about the open company behind Tuist."
-        linkText="Read the hadnbook"
+        icon="🏢"
+        title="Inside Tuist"
+        details="Learn about our open company culture and how we're building the future of app development."
+        linkText="Read our handbook"
         link="https://handbook.tuist.dev"/>
 </HomeCards>
 
-## 最新の登壇一覧
+## See Tuist in action
 
-Tuistのこれまでの発表内容をご覧ください。 最新情報をキャッチし、専門知識を身につけましょう。
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
 
-<HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
+<HomeVideos/>
 
 ## コミュニティに参加する
 
-ソースコードを確認し、他の開発者とつながりましょう。
+**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
