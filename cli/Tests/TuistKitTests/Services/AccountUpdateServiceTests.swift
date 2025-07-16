@@ -44,7 +44,7 @@ struct AccountUpdateServiceTests {
         given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
-    @Test func test_update_with_implicit_handle() async throws {
+    @Test func update_with_implicit_handle() async throws {
         // Given
         given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
@@ -65,7 +65,7 @@ struct AccountUpdateServiceTests {
         given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
-    @Test func test_update_with_explicit_handle() async throws {
+    @Test func update_with_explicit_handle() async throws {
         // Given
         given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 

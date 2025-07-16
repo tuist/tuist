@@ -22,7 +22,7 @@ struct ServerAuthenticationControllerTests {
         )
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func test_when_config_token_is_present_and_is_ci() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies()) func when_config_token_is_present_and_is_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         let serverURL: URL = .test()
@@ -50,7 +50,7 @@ struct ServerAuthenticationControllerTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
-    ) func test_when_config_token_is_present_and_is_not_ci() async throws {
+    ) func when_config_token_is_present_and_is_not_ci() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         let serverURL: URL = .test()

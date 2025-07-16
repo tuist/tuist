@@ -146,7 +146,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     ///   - moduleMapContent: contents of the moduleMap file to write
     ///   - path: destination to write file contents to
     ///   - atomically: whether to write atomically
-    func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically: Bool) async throws {
+    func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically _: Bool) async throws {
         let newContentHash = try contentHasher.hash(moduleMapContent)
         let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {

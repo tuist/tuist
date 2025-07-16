@@ -9,7 +9,7 @@ struct XcodeBuildArgumentParserTests {
     private let subject = XcodeBuildArgumentParser()
 
     @Test
-    func test_parse_with_no_destination() async throws {
+    func parse_with_no_destination() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme"])
 
@@ -20,7 +20,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test
-    func test_parse_with_destination_name_and_os() async throws {
+    func parse_with_destination_name_and_os() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-destination", "name=iPhone 16,OS=16.0"])
 
@@ -38,7 +38,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test
-    func test_parse_with_destination_id() async throws {
+    func parse_with_destination_id() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-destination", "id=some-id"])
 
@@ -56,7 +56,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test(.withMockedEnvironment())
-    func test_parse_with_workspace() async throws {
+    func parse_with_workspace() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-workspace", "App.xcworkspace"])
 
@@ -69,7 +69,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test(.withMockedEnvironment())
-    func test_parse_with_project() async throws {
+    func parse_with_project() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-project", "App.xcodeproj"])
 
@@ -82,7 +82,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test(.withMockedEnvironment())
-    func test_parse_with_derived_data_path() async throws {
+    func parse_with_derived_data_path() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-derivedDataPath", "DerivedData"])
 
@@ -95,7 +95,7 @@ struct XcodeBuildArgumentParserTests {
     }
 
     @Test
-    func test_parse_with_invalid_destination() async throws {
+    func parse_with_invalid_destination() async throws {
         // When
         let got = try await subject.parse(["-scheme", "MyScheme", "-destination", "invalid_value=some-id"])
 

@@ -9,7 +9,7 @@ public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
     /// - Parameter didPersistEvent: It's called when the event has been persisted, to make sure it can't get lost
-    func dispatch<T: AsyncQueueEvent>(event: T) throws
+    func dispatch(event: some AsyncQueueEvent) throws
 
     /// Waits for the queue to be fulfilled if on the CI
     func waitIfCI()

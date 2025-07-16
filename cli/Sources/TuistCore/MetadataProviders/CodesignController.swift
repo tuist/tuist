@@ -3,8 +3,8 @@ import Foundation
 import Mockable
 import Path
 
-@Mockable
 /// Utility to interact with the `codesign` CLI.
+@Mockable
 public protocol CodesignControlling {
     /// Provides the signature of the XCFramework at the given `xcframeworkPath`, or `nil` if unsigned.
     func signature(of xcframeworkPath: AbsolutePath) async throws -> String?

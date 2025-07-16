@@ -27,8 +27,8 @@ enum DeviceControllerError: FatalError {
     }
 }
 
-@Mockable
 /// Utility to interact with the `devicectl` CLI.
+@Mockable
 public protocol DeviceControlling {
     func findAvailableDevices() async throws -> [PhysicalDevice]
     func installApp(

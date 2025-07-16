@@ -125,7 +125,7 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         hash = expectedContent(for: moduleMap)
 
         // generate a 2nd time to validate that we dont write content that is already on disk
-        let _ = try await subject.generate(
+        _ = try await subject.generate(
             packageDirectory: packageDirectory,
             moduleName: "Module",
             publicHeadersPath: publicHeadersPath

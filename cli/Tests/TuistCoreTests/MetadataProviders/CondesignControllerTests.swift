@@ -26,7 +26,7 @@ import TuistTesting
         )
     }
 
-    @Test func test_signature_returnsSignature() async throws {
+    @Test func signature_returnsSignature() async throws {
         let expected = "mockSignature"
         given(commandRunner)
             .run(
@@ -45,7 +45,7 @@ import TuistTesting
         #expect(result == expected)
     }
 
-    @Test func test_signature_returnsNilIfUnsigned() async throws {
+    @Test func signature_returnsNilIfUnsigned() async throws {
         let stderr = "code object is not signed at all"
         given(commandRunner)
             .run(
@@ -64,7 +64,7 @@ import TuistTesting
         #expect(result == nil)
     }
 
-    @Test func test_signature_throwsForOtherErrors() async throws {
+    @Test func signature_throwsForOtherErrors() async throws {
         let stderr = "some error"
         let expectedCode: Int32 = 1
         given(commandRunner)
@@ -92,7 +92,7 @@ import TuistTesting
         }
     }
 
-    @Test func test_extractSignature_extractionSucceeds() async throws {
+    @Test func extractSignature_extractionSucceeds() async throws {
         let outputDir = try TemporaryDirectory(removeTreeOnDeinit: true).path
         given(commandRunner)
             .run(
@@ -114,7 +114,7 @@ import TuistTesting
         try await subject.extractSignature(of: signedPath, into: outputDir)
     }
 
-    @Test func test_extractSignature_extractionFails() async throws {
+    @Test func extractSignature_extractionFails() async throws {
         let outputDir = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let stderr = "some error"
         let error = CommandError.terminated(1, stderr: stderr)

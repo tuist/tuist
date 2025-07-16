@@ -91,7 +91,7 @@ struct HashCacheCommandServiceTests {
         )
     }
 
-    @Test func test_run_withFullPath_loads_the_graph() async throws {
+    @Test func run_withFullPath_loads_the_graph() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -126,7 +126,7 @@ struct HashCacheCommandServiceTests {
             .called(1)
     }
 
-    @Test func test_run_withoutPath_loads_the_graph() async throws {
+    @Test func run_withoutPath_loads_the_graph() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -159,7 +159,7 @@ struct HashCacheCommandServiceTests {
             .called(1)
     }
 
-    @Test func test_run_withRelativePath__loads_the_graph() async throws {
+    @Test func run_withRelativePath__loads_the_graph() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -199,7 +199,7 @@ struct HashCacheCommandServiceTests {
             .called(1)
     }
 
-    @Test func test_run_loads_the_graph() async throws {
+    @Test func run_loads_the_graph() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -232,7 +232,7 @@ struct HashCacheCommandServiceTests {
             .called(1)
     }
 
-    @Test func test_run_content_hasher_gets_correct_graph() async throws {
+    @Test func run_content_hasher_gets_correct_graph() async throws {
         // Given
         let subject = HashCacheCommandService(
             generatorFactory: generatorFactory,
@@ -262,7 +262,7 @@ struct HashCacheCommandServiceTests {
         _ = try await subject.run(path: path, configuration: nil)
     }
 
-    @Test func test_run_outputs_correct_hashes() async throws {
+    @Test func run_outputs_correct_hashes() async throws {
         try await withMockedDependencies {
             // Given
             let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))

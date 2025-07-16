@@ -19,7 +19,7 @@ struct ManifestLoaderFactoryTests {
     }
 
     @Test(.withMockedEnvironment(
-    )) func test_create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable(
+    )) func create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable(
     ) throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
@@ -31,7 +31,7 @@ struct ManifestLoaderFactoryTests {
         #expect(type(of: result) is ManifestLoader.Type == true)
     }
 
-    @Test(.withMockedEnvironment()) func test_create_non_cached_manifest_loader_when_useCache_false() {
+    @Test(.withMockedEnvironment()) func create_non_cached_manifest_loader_when_useCache_false() {
         // Given
         let sut = ManifestLoaderFactory(useCache: false)
         // When
@@ -40,7 +40,7 @@ struct ManifestLoaderFactoryTests {
         #expect(type(of: result) is ManifestLoader.Type == true)
     }
 
-    @Test(.withMockedEnvironment()) func test_create_cached_manifest_loader_when_useCache_true() {
+    @Test(.withMockedEnvironment()) func create_cached_manifest_loader_when_useCache_true() {
         // Given
         let sut = ManifestLoaderFactory(useCache: true)
         // When

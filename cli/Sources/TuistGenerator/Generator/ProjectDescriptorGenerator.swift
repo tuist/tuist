@@ -270,7 +270,6 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         for package in project.packages {
             switch package {
             case let .local(path):
-
                 let reference = PBXFileReference(
                     sourceTree: .group,
                     name: path.components.last,

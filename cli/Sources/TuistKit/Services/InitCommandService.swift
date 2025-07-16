@@ -194,7 +194,7 @@ public struct InitCommandService {
 
     private func integrateWithXcodeProjectOrWorkspace(
         named projectHandle: String,
-        in directory: AbsolutePath,
+        in _: AbsolutePath,
         answers: InitPromptAnswers?,
         nextSteps: inout [TerminalText]
     ) async throws -> String? {

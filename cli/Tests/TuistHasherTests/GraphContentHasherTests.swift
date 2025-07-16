@@ -20,7 +20,7 @@ struct GraphContentHasherTests {
     }
 
     @Test
-    func test_contentHashes_emptyGraph() async throws {
+    func contentHashes_emptyGraph() async throws {
         // Given
         let graph = Graph.test()
 
@@ -37,7 +37,7 @@ struct GraphContentHasherTests {
     }
 
     @Test
-    func test_contentHashes_returnsOnlyFrameworks() async throws {
+    func contentHashes_returnsOnlyFrameworks() async throws {
         // Given
         let path: AbsolutePath = "/project"
         let frameworkATarget: Target = .test(
@@ -111,7 +111,7 @@ struct GraphContentHasherTests {
     }
 
     @Test
-    func test_contentHashes_with_lock_file_in_root() async throws {
+    func contentHashes_with_lock_file_in_root() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
             // Given
             let contentHasher = MockContentHashing()
@@ -169,7 +169,7 @@ struct GraphContentHasherTests {
     }
 
     @Test
-    func test_contentHashes_with_lock_file_in_xcode_project() async throws {
+    func contentHashes_with_lock_file_in_xcode_project() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
             // Given
             let contentHasher = MockContentHashing()
@@ -234,7 +234,7 @@ struct GraphContentHasherTests {
     }
 
     @Test
-    func test_contentHashes_with_lock_file_in_xcode_workspace() async throws {
+    func contentHashes_with_lock_file_in_xcode_workspace() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
             // Given
             let contentHasher = MockContentHashing()

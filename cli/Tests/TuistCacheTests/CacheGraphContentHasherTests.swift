@@ -38,7 +38,7 @@ struct CacheGraphContentHasherTests {
     @Test(
         .withMockedXcodeController,
         .withMockedSwiftVersionProvider
-    ) func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
+    ) func contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
             path: "/Project/Path",
@@ -84,7 +84,7 @@ struct CacheGraphContentHasherTests {
     @Test(
         .withMockedXcodeController,
         .withMockedSwiftVersionProvider
-    ) func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
+    ) func contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() async throws {
         // Given
         let excludedTarget = GraphTarget(
             path: "/Project/Path",
@@ -135,7 +135,7 @@ struct CacheGraphContentHasherTests {
     @Test(
         .withMockedXcodeController,
         .withMockedSwiftVersionProvider
-    ) func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
+    ) func contentHashes_when_excluded_targets_resources_hashes_are_not_computed() async throws {
         // Given
         let project = Project.test()
 

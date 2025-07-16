@@ -3,7 +3,7 @@ import Yams
 
 struct ContentView: View {
     init() {
-        let _ = YAMLDecoder()
+        _ = YAMLDecoder()
     }
 
     var body: some View {

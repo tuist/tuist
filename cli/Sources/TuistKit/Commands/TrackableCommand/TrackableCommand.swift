@@ -108,7 +108,7 @@ public class TrackableCommand {
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
         backend: TuistAnalyticsServerBackend,
-        ranAt: Date
+        ranAt _: Date
     ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)

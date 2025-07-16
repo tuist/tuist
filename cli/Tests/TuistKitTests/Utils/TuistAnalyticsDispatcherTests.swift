@@ -23,7 +23,7 @@ struct TuistAnalyticsDispatcherTests {
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
-    @Test(.withMockedEnvironment(), .inTemporaryDirectory) mutating func testDispatch_sendsToServer() async throws {
+    @Test(.withMockedEnvironment(), .inTemporaryDirectory) mutating func dispatch_sendsToServer() async throws {
         // Given
         let fullHandle = "project"
         let commandEventID = UUID().uuidString

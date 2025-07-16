@@ -84,7 +84,7 @@ final class CleanService {
         self.fileSystem = fileSystem
     }
 
-    public convenience init() {
+    convenience init() {
         self.init(
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),

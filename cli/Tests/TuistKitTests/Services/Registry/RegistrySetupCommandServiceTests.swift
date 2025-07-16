@@ -43,7 +43,7 @@ struct RegistrySetupCommandServiceTests {
             .willReturn()
     }
 
-    @Test func test_setup_when_a_package_manifest_is_found() async throws {
+    @Test func setup_when_a_package_manifest_is_found() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
@@ -110,7 +110,7 @@ struct RegistrySetupCommandServiceTests {
         }
     }
 
-    @Test func test_setup_when_an_xcode_project_is_found() async throws {
+    @Test func setup_when_an_xcode_project_is_found() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given
@@ -159,7 +159,7 @@ struct RegistrySetupCommandServiceTests {
         }
     }
 
-    @Test func test_setup_when_an_xcode_workspace_is_found() async throws {
+    @Test func setup_when_an_xcode_workspace_is_found() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
                 // Given

@@ -20,7 +20,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
     case targetNotFound(String)
     case nonEmptyBuildSettings([String])
 
-    public var description: String {
+    var description: String {
         switch self {
         case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
         case .missingProject: return "The project's pbxproj file contains no projects."
@@ -29,7 +29,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
         }
     }
 
-    public var type: ErrorType {
+    var type: ErrorType {
         switch self {
         case .missingXcodeProj:
             return .abort

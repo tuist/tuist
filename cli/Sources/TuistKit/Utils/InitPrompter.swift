@@ -10,22 +10,6 @@ struct InitPromptAnswers: Codable {
     let accountType: InitPromptingAccountType
     let newOrganizationAccountHandle: String
 
-    public init(
-        workflowType: InitPromptingWorkflowType,
-        integrateWithServer: Bool,
-        generatedProjectPlatform: String,
-        generatedProjectName: String,
-        accountType: InitPromptingAccountType,
-        newOrganizationAccountHandle: String
-    ) {
-        self.workflowType = workflowType
-        self.integrateWithServer = integrateWithServer
-        self.generatedProjectPlatform = generatedProjectPlatform
-        self.generatedProjectName = generatedProjectName
-        self.accountType = accountType
-        self.newOrganizationAccountHandle = newOrganizationAccountHandle
-    }
-
     func base64EncodedJSONString() throws -> String {
         let jsonData = try JSONEncoder().encode(self)
         return jsonData.base64EncodedString()
