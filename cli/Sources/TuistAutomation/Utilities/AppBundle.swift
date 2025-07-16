@@ -36,11 +36,11 @@ public struct AppBundle: Equatable {
                 case iconFiles = "CFBundleIconFiles"
             }
 
-            public let name: String
+            public let name: String?
             public let iconFiles: [String]?
 
             public init(
-                name: String,
+                name: String?,
                 iconFiles: [String]?
             ) {
                 self.name = name
@@ -49,8 +49,8 @@ public struct AppBundle: Equatable {
 
             public init(from decoder: any Decoder) throws {
                 if let container = try? decoder.container(keyedBy: CodingKeys.self) {
-                    let name = try container.decode(String.self, forKey: .name)
                     let iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+                    let name = try container.decodeIfPresent(String.self, forKey: .name) ?? iconFiles.last
                     self.init(name: name, iconFiles: iconFiles)
                 } else {
                     let container = try decoder.singleValueContainer()
@@ -212,7 +212,7 @@ public struct AppBundle: Equatable {
 
     extension AppBundle.InfoPlist.PrimaryBundleIcon {
         public static func test(
-            name: String = "AppIcon",
+            name: String? = "AppIcon",
             iconFiles: [String] = ["AppIcon60x60"]
         ) -> Self {
             .init(
