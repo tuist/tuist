@@ -204,6 +204,17 @@
             }
           }
         },
+        "features": {
+          "text": "Recursos"
+        },
+        "examples": {
+          "text": "Exemplos",
+          "items": {
+            "generated-projects": {
+              "text": "Projetos gerados"
+            }
+          }
+        },
         "develop": {
           "text": "Develop",
           "items": {
@@ -335,22 +346,19 @@
             }
           }
         },
-        "automate": {
-          "text": "Automate",
-          "items": {
-            "continuous-integration": {
-              "text": "Continuous integration"
-            },
-            "workflows": {
-              "text": "Workflows"
-            }
-          }
-        },
-        "ai": {
-          "text": "AI",
+        "agentic-coding": {
+          "text": "Codificação Agêntica",
           "items": {
             "mcp": {
               "text": "Model Context Protocol (MCP)"
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
             }
           }
         },
