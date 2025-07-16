@@ -204,6 +204,17 @@
             }
           }
         },
+        "features": {
+          "text": "Возможности"
+        },
+        "examples": {
+          "text": "Примеры",
+          "items": {
+            "generated-projects": {
+              "text": "Сгенерированные проекты"
+            }
+          }
+        },
         "develop": {
           "text": "Разработка",
           "items": {
@@ -335,22 +346,19 @@
             }
           }
         },
-        "automate": {
-          "text": "Автоматизация",
-          "items": {
-            "continuous-integration": {
-              "text": "Непрерывная интеграция (CI)"
-            },
-            "workflows": {
-              "text": "Процессы"
-            }
-          }
-        },
-        "ai": {
-          "text": "ИИ",
+        "agentic-coding": {
+          "text": "Агентное Кодирование",
           "items": {
             "mcp": {
               "text": "Протокол контекста модели (MCP)"
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
+          "items": {
+            "continuous-integration": {
+              "text": "Непрерывная интеграция (CI)"
             }
           }
         },
