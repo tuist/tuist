@@ -88,14 +88,35 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date ->
-        add_filters(
+        result =
           from(b in Build,
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id
-          ),
-          opts
-        )
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id,
+            select: %{
+              total_duration: sum(b.duration),
+              count: count(b),
+              average_duration: avg(b.duration)
+            }
+          )
+          |> add_filters(opts)
+          |> Repo.one()
+
+        case result do
+          nil ->
+            %{total_duration: 0, count: 0, average_duration: 0}
+
+          %{total_duration: nil, count: count, average_duration: nil} ->
+            %{total_duration: 0, count: count, average_duration: 0}
+
+          %{total_duration: total, count: count, average_duration: avg} ->
+            %{
+              total_duration: normalize_result(total),
+              count: count,
+              average_duration: normalize_result(avg)
+            }
+        end
       end,
       average_durations: fn start_date, end_date, date_period, time_bucket ->
         add_filters(
@@ -103,8 +124,12 @@ defmodule Tuist.Runs.Analytics do
             group_by: selected_as(^date_period),
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period), value: avg(b.duration)}
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id,
+            select: %{
+              date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+              value: avg(b.duration)
+            }
           ),
           opts
         )
@@ -122,7 +147,8 @@ defmodule Tuist.Runs.Analytics do
           group_by: selected_as(^date_period),
           where:
             b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
+              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+              b.project_id == ^project_id,
           select: %{
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
             value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
@@ -167,7 +193,12 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date ->
-        CommandEvents.runs_analytics(project_id, start_date, end_date, Keyword.put(opts, :name, name))
+        CommandEvents.runs_analytics_aggregated(
+          project_id,
+          start_date,
+          end_date,
+          Keyword.put(opts, :name, name)
+        )
       end,
       average_durations: fn start_date, end_date, date_period, time_bucket ->
         CommandEvents.runs_analytics_average_durations(
@@ -288,7 +319,15 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date, date_period, time_bucket ->
-        CommandEvents.runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts)
+        CommandEvents.runs_analytics_count(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
       end
     })
   end
@@ -622,7 +661,13 @@ defmodule Tuist.Runs.Analytics do
 
     selective_testing_hit_rate_metadata_map =
       project_id
-      |> CommandEvents.selective_testing_hit_rates(start_date, end_date, date_period, time_bucket, opts)
+      |> CommandEvents.selective_testing_hit_rates(
+        start_date,
+        end_date,
+        date_period,
+        time_bucket,
+        opts
+      )
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -657,32 +702,8 @@ defmodule Tuist.Runs.Analytics do
   end
 
   def total_execution_period_average_duration(%{query: query, start_date: start_date, end_date: end_date}) do
-    result = calculate_average_duration(query, start_date, end_date)
-    normalize_result(result)
-  end
-
-  defp calculate_average_duration(query_fn, start_date, end_date) when is_function(query_fn) do
-    query_result = query_fn.(start_date, end_date)
-    process_query_result(query_result)
-  end
-
-  defp calculate_average_duration(query_list, _start_date, _end_date) when is_list(query_list) do
-    calculate_list_average(query_list)
-  end
-
-  defp process_query_result(query_list) when is_list(query_list) do
-    calculate_list_average(query_list)
-  end
-
-  defp process_query_result(query) do
-    Repo.aggregate(query, :avg, :duration)
-  end
-
-  defp calculate_list_average([]), do: nil
-
-  defp calculate_list_average(events) do
-    total_duration = Enum.reduce(events, 0, fn event, acc -> acc + (event.duration || 0) end)
-    total_duration / length(events)
+    %{average_duration: avg} = query.(start_date, end_date)
+    avg || 0
   end
 
   defp normalize_result(nil), do: 0
@@ -820,7 +841,8 @@ defmodule Tuist.Runs.Analytics do
         where(
           query,
           [e],
-          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+          (e.name == "xcodebuild" and
+             (e.subcommand == "test" or e.subcommand == "test-without-building")) or
             e.name == "test"
         )
 
@@ -865,7 +887,8 @@ defmodule Tuist.Runs.Analytics do
     runs =
       case query do
         query_fn when is_function(query_fn) ->
-          result = query_fn.(start_date, end_date, date_period, time_bucket_for_date_period(date_period))
+          result =
+            query_fn.(start_date, end_date, date_period, time_bucket_for_date_period(date_period))
 
           case result do
             query when is_list(query) ->
