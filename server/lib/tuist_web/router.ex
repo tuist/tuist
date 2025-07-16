@@ -199,6 +199,10 @@ defmodule TuistWeb.Router do
         metadata: %{type: :marketing},
         private: private
 
+      get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
+        metadata: %{type: :marketing},
+        private: private
+
       get Path.join(locale_path_prefix, "/newsletter"),
           MarketingController,
           :newsletter,
