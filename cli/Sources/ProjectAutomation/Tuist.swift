@@ -6,7 +6,7 @@ public enum Tuist {
         case signalled(command: String, code: Int32, standardError: Data)
         case terminated(command: String, code: Int32, standardError: Data)
 
-        public var description: String {
+        var description: String {
             switch self {
             case let .signalled(command, code, data):
                 if data.count > 0, let string = String(data: data, encoding: .utf8) {

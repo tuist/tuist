@@ -30,7 +30,7 @@ final class GraphCache<Key: Hashable, Value> {
 
     private let cache = NSCache<CacheKey, CacheValue>()
 
-    public subscript(_ key: Key) -> Value? {
+    subscript(_ key: Key) -> Value? {
         get {
             cache.object(forKey: CacheKey(key))?.value
         }

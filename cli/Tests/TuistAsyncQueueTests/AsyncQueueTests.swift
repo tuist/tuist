@@ -40,7 +40,7 @@ struct AsyncQueueTests {
         return asyncQueue
     }
 
-    @Test mutating func test_dispatch_eventIsPersisted() throws {
+    @Test mutating func dispatch_eventIsPersisted() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
@@ -53,7 +53,7 @@ struct AsyncQueueTests {
         #expect(event.id == persistedEvent.id)
     }
 
-    @Test mutating func test_dispatch_eventIsQueued() throws {
+    @Test mutating func dispatch_eventIsQueued() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
@@ -65,7 +65,7 @@ struct AsyncQueueTests {
         #expect(queuedOperation.name == event.id.uuidString)
     }
 
-    @Test mutating func test_dispatch_eventIsPersistedOnDispatcherSuccess() async throws {
+    @Test mutating func dispatch_eventIsPersistedOnDispatcherSuccess() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
@@ -87,7 +87,7 @@ struct AsyncQueueTests {
         #expect(event.id == deletedEvent.id)
     }
 
-    @Test mutating func test_dispatch_eventIsPersistedOnCompletion() throws {
+    @Test mutating func dispatch_eventIsPersistedOnCompletion() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
@@ -99,7 +99,7 @@ struct AsyncQueueTests {
         #expect(mockPersistor.invokedWriteEvent?.id == event.id)
     }
 
-    @Test mutating func test_dispatch_eventIsDispatchedByTheRightDispatcher() async throws {
+    @Test mutating func dispatch_eventIsDispatchedByTheRightDispatcher() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
@@ -124,7 +124,7 @@ struct AsyncQueueTests {
         #expect(mockAsyncQueueDispatcher2.invokedDispatchParameterEvent == nil)
     }
 
-    @Test mutating func test_dispatch_queuerTriesThreeTimesToDispatch() async throws {
+    @Test mutating func dispatch_queuerTriesThreeTimesToDispatch() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
@@ -151,7 +151,7 @@ struct AsyncQueueTests {
         #expect(count == 3)
     }
 
-    @Test mutating func test_dispatch_doesNotDeleteEventOnError() async throws {
+    @Test mutating func dispatch_doesNotDeleteEventOnError() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
@@ -178,7 +178,7 @@ struct AsyncQueueTests {
         #expect(mockPersistor.invokedDeleteEventCount == 0)
     }
 
-    @Test(.withMockedEnvironment()) mutating func test_waits_for_queue_to_finish_when_CI() async throws {
+    @Test(.withMockedEnvironment()) mutating func waits_for_queue_to_finish_when_CI() async throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
@@ -193,7 +193,7 @@ struct AsyncQueueTests {
         #expect(Queuer.shared.operationCount == 0)
     }
 
-    @Test(.withMockedEnvironment()) mutating func test_start_readsPersistedEventsInitialization() async throws {
+    @Test(.withMockedEnvironment()) mutating func start_readsPersistedEventsInitialization() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [:]
@@ -219,7 +219,7 @@ struct AsyncQueueTests {
         #expect(queuedOperation3.name == eventTuple3.id.uuidString)
     }
 
-    @Test(.withMockedEnvironment()) mutating func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
+    @Test(.withMockedEnvironment()) mutating func start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [:]
@@ -244,7 +244,7 @@ struct AsyncQueueTests {
         #expect(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount == 0)
     }
 
-    @Test(.withMockedEnvironment()) mutating func test_start_sentPersistedEventIsThenDeleted() async throws {
+    @Test(.withMockedEnvironment()) mutating func start_sentPersistedEventIsThenDeleted() async throws {
         // Given
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = ["CI": "0"]

@@ -4,9 +4,9 @@ import TuistSupport
 
 /// A command to hash an Xcode or generated project.
 struct HashCacheCommand: AsyncParsableCommand {
-    public init() {}
+    init() {}
 
-    public static var configuration: CommandConfiguration {
+    static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cache",
             _superCommandName: "hash",
@@ -29,7 +29,7 @@ struct HashCacheCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
-    public func run() async throws {
+    func run() async throws {
         try await HashCacheCommandService().run(path: path, configuration: configuration)
     }
 }

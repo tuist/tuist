@@ -13,7 +13,7 @@ struct InspectImplicitImportsServiceErrorIssue: Equatable {
 enum InspectImplicitImportsServiceError: FatalError, Equatable {
     case implicitImportsFound([InspectImplicitImportsServiceErrorIssue])
 
-    public var description: String {
+    var description: String {
         switch self {
         case let .implicitImportsFound(issues):
             """

@@ -108,14 +108,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 
     // swiftlint:disable function_body_length
-    /// Generate schemes for a project or workspace.
-    ///
-    /// - Parameters:
-    ///     - scheme: Project scheme.
-    ///     - xcPath: Path to workspace's .xcworkspace or project's .xcodeproj.
-    ///     - path: Path to workspace or project folder.
-    ///     - graphTraverser: Graph traverser.
-    ///     - generatedProjects: Project paths mapped to generated projects.
+    // Generate schemes for a project or workspace.
+    //
+    // - Parameters:
+    //     - scheme: Project scheme.
+    //     - xcPath: Path to workspace's .xcworkspace or project's .xcodeproj.
+    //     - path: Path to workspace or project folder.
+    //     - graphTraverser: Graph traverser.
+    //     - generatedProjects: Project paths mapped to generated projects.
     private func generateScheme(
         scheme: Scheme,
         path: AbsolutePath,
@@ -250,14 +250,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 
     // swiftlint:disable function_body_length
-    /// Generates the scheme test action.
-    ///
-    /// - Parameters:
-    ///   - scheme: Scheme manifest.
-    ///   - graphTraverser: Graph traverser.
-    ///   - rootPath: Root path to either project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
-    /// - Returns: Scheme test action.
+    // Generates the scheme test action.
+    //
+    // - Parameters:
+    //   - scheme: Scheme manifest.
+    //   - graphTraverser: Graph traverser.
+    //   - rootPath: Root path to either project or workspace.
+    //   - generatedProjects: Project paths mapped to generated projects.
+    // - Returns: Scheme test action.
     func schemeTestAction(
         scheme: Scheme,
         graphTraverser: GraphTraversing,
@@ -428,14 +428,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     } // swiftlint:enable function_body_length
 
     // swiftlint:disable function_body_length
-    /// Generates the scheme launch action.
-    ///
-    /// - Parameters:
-    ///   - scheme: Scheme manifest.
-    ///   - graphTraverser: Graph traverser.
-    ///   - rootPath: Root path to either project or workspace.
-    ///   - generatedProjects: Project paths mapped to generated projects.
-    /// - Returns: Scheme launch action.
+    // Generates the scheme launch action.
+    //
+    // - Parameters:
+    //   - scheme: Scheme manifest.
+    //   - graphTraverser: Graph traverser.
+    //   - rootPath: Root path to either project or workspace.
+    //   - generatedProjects: Project paths mapped to generated projects.
+    // - Returns: Scheme launch action.
     func schemeLaunchAction(
         scheme: Scheme,
         graphTraverser: GraphTraversing,

@@ -9,7 +9,7 @@ import XcodeGraph
 struct TestPlanManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test func test_plan_when_manifest_directory_is_in_a_subdirectory() async throws {
+    @Test func plan_when_manifest_directory_is_in_a_subdirectory() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
             // Given
             let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")

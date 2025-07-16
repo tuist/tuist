@@ -24,7 +24,7 @@ struct RegistryLogoutServiceTests {
         )
     }
 
-    @Test func test_logout() async throws {
+    @Test func logout() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)

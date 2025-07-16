@@ -22,7 +22,7 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         subject = WorkspaceSettingsDescriptorGenerator()
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func test_generate_withoutGenerationOptions() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withoutGenerationOptions() {
         // Given
         let workspace = Workspace.test()
 
@@ -33,7 +33,7 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func test_generate_withGenerationOptions() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withGenerationOptions() {
         // Given
         let workspace = Workspace.test(
             generationOptions: .test(

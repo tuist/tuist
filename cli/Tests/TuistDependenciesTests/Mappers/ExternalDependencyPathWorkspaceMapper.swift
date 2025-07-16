@@ -86,7 +86,8 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                     settings: Settings.test(
                         base: [
                             "SRCROOT": .string(externalProject.sourceRootPath.relative(to: expectedXcodeprojPath.parentDirectory)
-                                .pathString),
+                                .pathString
+                            ),
                         ]
                     ),
                     type: .external(hash: nil)

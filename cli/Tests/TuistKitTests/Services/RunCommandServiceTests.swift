@@ -99,7 +99,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_generates_when_generateIsTrue() async throws {
+    func run_generates_when_generateIsTrue() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -126,7 +126,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_generates_when_workspaceNotFound() async throws {
+    func run_generates_when_workspaceNotFound() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -156,7 +156,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_buildsTarget() async throws {
+    func run_buildsTarget() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -200,7 +200,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_runsTarget() async throws {
+    func run_runsTarget() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let schemeName = "AScheme"
@@ -254,7 +254,7 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
-    func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
+    func run_throws_beforeBuilding_if_cantRunTarget() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
@@ -283,7 +283,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_share_link_when_app_build_artifact_not_found() async throws {
+    func run_share_link_when_app_build_artifact_not_found() async throws {
         // Given
         given(getPreviewService)
             .getPreview(
@@ -313,7 +313,7 @@ struct RunCommandServiceTests {
     @Test(
         .withMockedDependencies()
     )
-    func test_run_share_link_when_version_is_invalid() async throws {
+    func run_share_link_when_version_is_invalid() async throws {
         // When / Then
         await #expect(
             throws: RunCommandServiceError.invalidVersion("invalid-version")
@@ -329,7 +329,7 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
-    func test_run_share_link_runs_app() async throws {
+    func run_share_link_runs_app() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(getPreviewService)
@@ -384,7 +384,7 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
-    func test_run_preview_with_specifier_runs_app() async throws {
+    func run_preview_with_specifier_runs_app() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(getPreviewService)
@@ -458,7 +458,7 @@ struct RunCommandServiceTests {
     }
 
     @Test
-    func test_run_preview_with_specifier_when_full_handle_is_missing() async throws {
+    func run_preview_with_specifier_when_full_handle_is_missing() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -505,7 +505,7 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
-    func test_run_share_link_runs_ipa() async throws {
+    func run_share_link_runs_ipa() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(getPreviewService)
@@ -563,7 +563,7 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
-    func test_run_share_link_runs_with_destination_and_version() async throws {
+    func run_share_link_runs_with_destination_and_version() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(getPreviewService)

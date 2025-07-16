@@ -74,7 +74,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_frameworksWithSameSources() async throws {
+    ) func contentHashes_frameworksWithSameSources() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(sources: [source1, source2])
@@ -116,7 +116,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_frameworksWithDifferentSources() async throws {
+    ) func contentHashes_frameworksWithDifferentSources() async throws {
         // Given
         let framework1Target = makeFramework(sources: [source1, source2])
         let framework2Target = makeFramework(sources: [source3, source4])
@@ -158,7 +158,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_hashIsConsistent() async throws {
+    ) func contentHashes_hashIsConsistent() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(sources: [source1, source2])
@@ -203,7 +203,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_differentResourceFiles() async throws {
+    ) func contentHashes_differentResourceFiles() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(resources: .init([resourceFile1]))
@@ -245,7 +245,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_differentResourcesFolderReferences() async throws {
+    ) func contentHashes_differentResourcesFolderReferences() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(resources: .init([resourceFolderReference1]))
@@ -287,7 +287,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_sameResources() async throws {
+    ) func contentHashes_sameResources() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources: ResourceFileElements = .init([resourceFile1, resourceFolderReference1])
@@ -332,7 +332,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_differentCoreDataModels() async throws {
+    ) func contentHashes_differentCoreDataModels() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(coreDataModels: [coreDataModel1])
@@ -374,7 +374,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_sameCoreDataModels() async throws {
+    ) func contentHashes_sameCoreDataModels() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(coreDataModels: [coreDataModel1])
@@ -420,7 +420,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_differentPlatform() async throws {
+    ) func contentHashes_differentPlatform() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(platform: .iOS)
@@ -463,7 +463,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func test_contentHashes_differentProductName() async throws {
+    ) func contentHashes_differentProductName() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let framework1Target = makeFramework(productName: "1")

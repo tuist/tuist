@@ -9,7 +9,7 @@ enum FileClientError: LocalizedError, FatalError {
 
     // MARK: - FatalError
 
-    public var description: String {
+    var description: String {
         switch self {
         case let .urlSessionError(request, error, path):
             return "Received a session error\(pathSubstring(path)) when performing \(request.descriptionForError): \(error.localizedDescription)"
@@ -38,7 +38,7 @@ enum FileClientError: LocalizedError, FatalError {
 
     // MARK: - LocalizedError
 
-    public var errorDescription: String? { description }
+    var errorDescription: String? { description }
 }
 
 public protocol FileClienting {

@@ -10,12 +10,12 @@ import TuistServer
 import TuistSupport
 import XcodeProj
 
-/// It uses service-context, which uses task locals (from structured concurrency), to inject
-/// instances of core utilities like logger to mock their behaviour for unit tests.
-///
-/// - Parameters:
-///   - forwardLogs: When true, it forwards the logs through the standard output and error.
-///   - closure: The closure that will be executed with the task-local context set.
+// It uses service-context, which uses task locals (from structured concurrency), to inject
+// instances of core utilities like logger to mock their behaviour for unit tests.
+//
+// - Parameters:
+//   - forwardLogs: When true, it forwards the logs through the standard output and error.
+//   - closure: The closure that will be executed with the task-local context set.
 // swiftlint:disable:next identifier_name
 func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async throws -> Void)
     async throws

@@ -10,7 +10,7 @@ import XcodeGraph
 struct TestActionManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_literal_test_plans() async throws {
+    @Test(.inTemporaryDirectory) func action_with_literal_test_plans() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")
@@ -33,7 +33,7 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.isDefault == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_glob_pattern_single_match() async throws {
+    @Test(.inTemporaryDirectory) func action_with_glob_pattern_single_match() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")
@@ -56,7 +56,7 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.isDefault == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_glob_pattern_multiple_matches() async throws {
+    @Test(.inTemporaryDirectory) func action_with_glob_pattern_multiple_matches() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPlan1Path = temporaryDirectory.appending(component: "TestPlan1.xctestplan")
@@ -85,7 +85,7 @@ struct TestActionManifestMapperTests {
         #expect(planPaths == [testPlan1Path, testPlan2Path])
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_recursive_glob_pattern() async throws {
+    @Test(.inTemporaryDirectory) func action_with_recursive_glob_pattern() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let subDirectory = temporaryDirectory.appending(component: "TestPlans")
@@ -111,7 +111,7 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.isDefault == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_mixed_literal_and_glob_patterns() async throws {
+    @Test(.inTemporaryDirectory) func action_with_mixed_literal_and_glob_patterns() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let literalPlanPath = temporaryDirectory.appending(component: "LiteralPlan.xctestplan")
@@ -142,7 +142,7 @@ struct TestActionManifestMapperTests {
         #expect(planPaths?.contains(globPlanPath) == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_glob_pattern_no_matches() async throws {
+    @Test(.inTemporaryDirectory) func action_with_glob_pattern_no_matches() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -161,7 +161,7 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.isEmpty == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_testAction_with_non_xctestplan_files_filtered_out() async throws {
+    @Test(.inTemporaryDirectory) func action_with_non_xctestplan_files_filtered_out() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")

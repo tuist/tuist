@@ -120,59 +120,53 @@ defmodule Tuist.CommandEvents.Clickhouse do
     start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
-    accounts_with_customer_ids =
-      Repo.all(
-        from(a in Account,
-          where: not is_nil(a.customer_id),
-          select: %{id: a.id, customer_id: a.customer_id}
-        )
-      )
-
-    account_ids = Enum.map(accounts_with_customer_ids, & &1.id)
-    account_lookup = Map.new(accounts_with_customer_ids, &{&1.id, &1.customer_id})
-
-    project_to_account =
-      from(p in Project,
-        where: p.account_id in ^account_ids,
-        select: %{id: p.id, account_id: p.account_id}
-      )
+    project_to_customer =
+      from(a in Account, where: not is_nil(a.customer_id), select: {a.id, a.customer_id})
       |> Repo.all()
-      |> Map.new(&{&1.id, &1.account_id})
-
-    events_by_project =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where:
-            e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
-              e.project_id in ^Map.keys(project_to_account),
-          group_by: e.project_id,
-          select:
-            {e.project_id,
-             count(
-               fragment(
-                 "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE NULL END",
-                 e.remote_cache_target_hits,
-                 e.remote_test_target_hits
-               )
-             )}
+      |> Map.new()
+      |> then(fn account_lookup ->
+        from(p in Project,
+          where: p.account_id in ^Map.keys(account_lookup),
+          select: {p.id, p.account_id}
         )
+        |> Repo.all()
+        |> Enum.map(fn {project_id, account_id} ->
+          {project_id, Map.get(account_lookup, account_id)}
+        end)
+        |> Enum.filter(fn {_, customer_id} -> customer_id end)
+        |> Map.new()
+      end)
+
+    query =
+      from(e in Event,
+        where:
+          e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+            e.project_id in ^Map.keys(project_to_customer),
+        group_by: e.project_id,
+        select: %{
+          project_id: e.project_id,
+          count:
+            count(
+              fragment(
+                "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE NULL END",
+                e.remote_cache_target_hits,
+                e.remote_test_target_hits
+              )
+            )
+        }
       )
 
-    result =
-      events_by_project
-      |> Enum.reduce(%{}, fn {project_id, count}, acc ->
-        account_id = Map.get(project_to_account, project_id)
-        customer_id = Map.get(account_lookup, account_id)
+    {events_by_project, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
 
-        if customer_id do
-          Map.update(acc, customer_id, count, &(&1 + count))
-        else
-          acc
-        end
+    customer_counts =
+      events_by_project
+      |> Enum.reduce(%{}, fn %{project_id: project_id, count: count}, acc ->
+        customer_id = Map.get(project_to_customer, project_id)
+        Map.update(acc, customer_id, count, &(&1 + count))
       end)
       |> Enum.map(fn {customer_id, count} -> {customer_id, count} end)
 
-    ClickHouseFlop.validate_and_run!(result, attrs, for: Account)
+    {customer_counts, meta}
   end
 
   def delete_project_events(project_id) do

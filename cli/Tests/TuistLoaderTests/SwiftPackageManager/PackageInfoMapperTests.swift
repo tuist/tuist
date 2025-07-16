@@ -26,7 +26,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework(
+    ) func resolveDependencies_whenProductContainsBinaryTargetWithUrl_mapsToXcframework(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
@@ -67,7 +67,7 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
+    ) func resolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -108,7 +108,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework(
+    ) func resolveDependencies_whenProductContainsBinaryTargetWithPathToZip_mapsToXcframework(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
@@ -152,7 +152,7 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
+    ) func resolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_2")))
@@ -193,7 +193,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenPackageIDDifferentThanName() async throws {
+    ) func resolveDependencies_whenPackageIDDifferentThanName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
@@ -270,7 +270,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenHasModuleAliases() async throws {
+    ) func resolveDependencies_whenHasModuleAliases() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
@@ -351,7 +351,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName(
+    ) func resolveDependencies_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
@@ -430,7 +430,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenTargetDependenciesOnTargetHaveConditions() async throws {
+    ) func resolveDependencies_whenTargetDependenciesOnTargetHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
@@ -484,7 +484,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testResolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
+    ) func resolveDependencies_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
@@ -612,7 +612,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() async throws {
+    ) func map_whenDynamicAndAutomaticLibraryType_mapsToStaticFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -652,7 +652,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenLegacySwift_usesLegacyIOSVersion() async throws {
+    ) func map_whenLegacySwift_usesLegacyIOSVersion() async throws {
         // Reset is needed because `Mockable` was queueing the responses, the value in `setUp` would be emitted first and then
         // this one.
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
@@ -706,7 +706,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenMacCatalyst() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenMacCatalyst() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -753,7 +753,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenAlternativeDefaultSources() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenAlternativeDefaultSources() async throws {
         for alternativeDefaultSource in ["Source", "src", "srcs"] {
             let basePath = try #require(FileSystem.temporaryTestDirectory)
             let sourcesPath = basePath.appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1"))
@@ -808,7 +808,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenOnlyBinaries_doesNotCreateProject() async throws {
+    ) func map_whenOnlyBinaries_doesNotCreateProject() async throws {
         let project = try await subject.map(
             package: "Package",
             packageInfos: [
@@ -834,7 +834,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenNameContainsUnderscores_mapsToDashInBundleID() async throws {
+    ) func map_whenNameContainsUnderscores_mapsToDashInBundleID() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target_1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -869,7 +869,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenSettingsDefinesContainsQuotes() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSettingsDefinesContainsQuotes() async throws {
         // When having a manifest that includes a GCC definition like `FOO="BAR"`, SPM successfully maintains the quotes
         // and it will convert it to a compiler parameter like `-DFOO=\"BAR\"`.
         // Xcode configuration, instead, treats the quotes as value assignment, resulting in `-DFOO=BAR`,
@@ -963,7 +963,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() async throws {
+    ) func map_whenNameContainsDot_mapsToUnderscoreInTargetName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/com.example.target-1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -1009,7 +1009,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenTargetNotInProduct_ignoresIt() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenTargetNotInProduct_ignoresIt() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
@@ -1050,7 +1050,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetIsNotRegular_ignoresTarget() async throws {
+    ) func map_whenTargetIsNotRegular_ignoresTarget() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
@@ -1094,7 +1094,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenProductIsNotLibrary_ignoresProduct() async throws {
+    ) func map_whenProductIsNotLibrary_ignoresProduct() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
@@ -1135,7 +1135,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenCustomSources() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenCustomSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -1188,7 +1188,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasResources() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasResources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -1320,7 +1320,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
+    ) func map_whenHasAlreadyIncludedDefaultResources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
         let resourcesPath = sourcesPath.appending(component: "Resources")
@@ -1399,7 +1399,7 @@ struct PackageInfoMapperTests {
     }
 
     /// For more context of this scenario, see: https://github.com/tuist/tuist/issues/7445
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenResourcesInsideXCFramework() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenResourcesInsideXCFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
         let xcframeworkPath = sourcesPath.appending(component: "BinaryFramework.xcframework")
@@ -1454,7 +1454,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasDefaultResources() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasDefaultResources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
@@ -1510,7 +1510,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasHeadersWithCustomModuleMap() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasHeadersWithCustomModuleMap() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
@@ -1569,7 +1569,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+    ) func map_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
@@ -1623,7 +1623,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasSystemLibrary() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasSystemLibrary() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
@@ -1679,7 +1679,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_errorWhenSystemLibraryHasMissingModuleMap() async throws {
+    ) func map_errorWhenSystemLibraryHasMissingModuleMap() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
@@ -1717,7 +1717,7 @@ struct PackageInfoMapperTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasHeadersWithUmbrellaHeader() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasHeadersWithUmbrellaHeader() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let topHeaderPath = headersPath.appending(component: "Target1.h")
@@ -1771,7 +1771,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenDependenciesHaveHeaders() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenDependenciesHaveHeaders() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
@@ -1877,7 +1877,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenExternalDependenciesHaveHeaders() async throws {
+    ) func map_whenExternalDependenciesHaveHeaders() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let target1HeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
@@ -1973,7 +1973,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenCustomPath() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenCustomPath() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
         // Create resources files and directories
@@ -2054,7 +2054,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
+    ) func map_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -2122,7 +2122,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenMultipleAvailable_takesMultiple() async throws {
+    ) func map_whenMultipleAvailable_takesMultiple() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -2178,7 +2178,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() async throws {
+    ) func map_whenPackageDefinesPlatform_configuresDeploymentTarget() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2231,7 +2231,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
+    ) func map_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2292,7 +2292,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting(
+    ) func map_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -2345,7 +2345,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() async throws {
+    ) func map_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2398,7 +2398,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() async throws {
+    ) func map_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2450,7 +2450,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions(
+    ) func map_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -2502,7 +2502,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() async throws {
+    ) func map_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2554,7 +2554,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() async throws {
+    ) func map_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2606,7 +2606,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() async throws {
+    ) func map_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2653,7 +2653,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() async throws {
+    ) func map_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2699,7 +2699,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() async throws {
+    ) func map_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2745,7 +2745,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
+    ) func map_whenSettingsContainsSwiftLanguageMode_mapsToOtherSwiftFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2794,7 +2794,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() async throws {
+    ) func map_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2847,7 +2847,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() async throws {
+    ) func map_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -2947,7 +2947,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings(
+    ) func map_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3031,7 +3031,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenConditionalSetting() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenConditionalSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3107,7 +3107,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() async throws {
+    ) func map_whenSettingsContainsLinkedFramework_mapsToSDKDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3154,7 +3154,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() async throws {
+    ) func map_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3201,7 +3201,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetDependency_mapsToTargetDependency() async throws {
+    ) func map_whenTargetDependency_mapsToTargetDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
@@ -3246,7 +3246,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenBinaryTargetDependency_mapsToXcframework() async throws {
+    ) func map_whenBinaryTargetDependency_mapsToXcframework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
@@ -3299,7 +3299,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetByNameDependency_mapsToTargetDependency() async throws {
+    ) func map_whenTargetByNameDependency_mapsToTargetDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
@@ -3344,7 +3344,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() async throws {
+    ) func map_whenBinaryTargetURLByNameDependency_mapsToXcFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3397,7 +3397,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() async throws {
+    ) func map_whenBinaryTargetXcframeworkPathByNameDependency_mapsToXcFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3449,7 +3449,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
+    ) func map_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3501,7 +3501,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenExternalProductDependency_mapsToProjectDependencies() async throws {
+    ) func map_whenExternalProductDependency_mapsToProjectDependencies() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -3567,7 +3567,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
+    ) func map_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -3633,7 +3633,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() async throws {
+    ) func map_whenCustomCVersion_mapsToGccCLanguageStandardSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3672,7 +3672,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() async throws {
+    ) func map_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3711,7 +3711,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() async throws {
+    ) func map_whenCustomSwiftVersion_mapsToSwiftVersionSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3750,7 +3750,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() async throws {
+    ) func map_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try await fileSystem.makeDirectory(at: sourcesPath)
@@ -3788,7 +3788,7 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured(
+    ) func map_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3832,7 +3832,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig(
+    ) func map_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3870,7 +3870,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetsWithDefaultHardcodedMapping() async throws {
+    ) func map_whenTargetsWithDefaultHardcodedMapping() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let testTargets = [
             "Nimble",
@@ -3956,7 +3956,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetDependenciesOnTargetHaveConditions() async throws {
+    ) func map_whenTargetDependenciesOnTargetHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
@@ -4037,7 +4037,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenTargetDependenciesOnProductHaveConditions() async throws {
+    ) func map_whenTargetDependenciesOnProductHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
@@ -4116,7 +4116,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenTargetNameContainsSpaces() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenTargetNameContainsSpaces() async throws {
         let packageName = "Package With Space"
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "\(packageName)/Sources/Target1"))
@@ -4156,7 +4156,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenSwiftPackageHasTestTarget() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSwiftPackageHasTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4220,7 +4220,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
+    ) func map_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4294,7 +4294,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations(
+    ) func map_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations(
     ) async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
@@ -4411,7 +4411,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_whenSwiftPackageHasTestTargetWithExternalDependency() async throws {
+    ) func map_whenSwiftPackageHasTestTargetWithExternalDependency() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4474,7 +4474,7 @@ struct PackageInfoMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func testMap_whenHasModuleAliases() async throws {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasModuleAliases() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
@@ -4574,7 +4574,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
+    ) func map_other_swift_flags_whenSwiftToolsVersionIs_5_8_0() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
@@ -4614,7 +4614,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func testMap_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
+    ) func map_other_swift_flags_whenSwiftToolsVersionIs_5_9_0() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Product")))

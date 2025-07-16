@@ -247,6 +247,43 @@ defmodule Tuist.AccountsTest do
       assert {[{^first_account_customer_id, 1}], _} =
                Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
     end
+
+    test "returns only the customers with a customer_id present (ClickHouse)" do
+      # Given
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+
+      first_user =
+        %{account: %{customer_id: first_account_customer_id} = first_account} =
+        AccountsFixtures.user_fixture(customer_id: UUIDv7.generate())
+
+      second_user = %{account: second_account} = AccountsFixtures.user_fixture(customer_id: nil)
+      first_user_project = ProjectsFixtures.project_fixture(account_id: first_account.id)
+      second_user_project = ProjectsFixtures.project_fixture(account_id: second_account.id)
+      today = ~U[2025-01-02 23:00:00Z]
+      stub(DateTime, :utc_now, fn -> today end)
+
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: first_user_project.id,
+        user_id: first_user.id,
+        remote_cache_target_hits: ["Module"],
+        remote_test_target_hits: ["ModuleTeests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: second_user_project.id,
+        user_id: second_user.id,
+        remote_cache_target_hits: ["Module"],
+        remote_test_target_hits: ["ModuleTeests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
+
+      # When
+      assert {[{^first_account_customer_id, 1}], _} =
+               Accounts.list_customer_id_and_remote_cache_hits_count_pairs()
+    end
   end
 
   describe "get_organizations_count/0" do

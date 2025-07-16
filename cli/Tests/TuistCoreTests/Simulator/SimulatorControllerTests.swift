@@ -19,7 +19,7 @@ struct SimulatorControllerTests {
         )
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_devices_should_returnListOfDevicesFromJson() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func devices_should_returnListOfDevicesFromJson() async throws {
         // Given
         let expectedDevice = try #require(createSystemStubs(devices: true, runtimes: false).first?.device)
 
@@ -33,7 +33,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_runtimes_should_returnListOfRuntimesFromJson() async throws {
+    ) func runtimes_should_returnListOfRuntimesFromJson() async throws {
         // Given
         let expectedRuntime = try #require(createSystemStubs(devices: false, runtimes: true).first?.runtime)
 
@@ -47,7 +47,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
+    ) func devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -61,7 +61,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() async throws {
+    ) func findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -74,7 +74,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
+    ) func findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
         // Given
         _ = createSystemStubs(devices: true, runtimes: true)
 
@@ -87,7 +87,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
+    ) func findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -108,7 +108,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
+    ) func findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -121,7 +121,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() async throws {
+    ) func findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -137,7 +137,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithUdid() async throws {
+    ) func findAvailableDevice_should_findDeviceWithUdid() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -151,7 +151,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithDeviceNameAndOSVersion() async throws {
+    ) func findAvailableDevice_should_findDeviceWithDeviceNameAndOSVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -168,7 +168,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithDefaults() async throws {
+    ) func findAvailableDevice_should_findDeviceWithDefaults() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -182,7 +182,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithVersion() async throws {
+    ) func findAvailableDevice_should_findDeviceWithVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -201,7 +201,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithinMinVersion() async throws {
+    ) func findAvailableDevice_should_findDeviceWithinMinVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -220,7 +220,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithDeviceName() async throws {
+    ) func findAvailableDevice_should_findDeviceWithDeviceName() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
 
@@ -239,7 +239,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findDeviceWithMaxVersion_when_noMinVersionAndDeviceNameIsSet() async throws {
+    ) func findAvailableDevice_should_findDeviceWithMaxVersion_when_noMinVersionAndDeviceNameIsSet() async throws {
         // Given
         let devicesAndRuntimes =
             createSystemStubs(
@@ -269,7 +269,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
+    ) func findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
         // Given
         let devicesAndRuntimes =
             createSystemStubs(
@@ -294,7 +294,7 @@ struct SimulatorControllerTests {
         #expect(device == expectedDeviceAndRuntime)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_installApp_should_bootSimulatorIfNotBooted() throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func installApp_should_bootSimulatorIfNotBooted() throws {
         // Given
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let appPath = try AbsolutePath(validating: "/path/to/app.App")
@@ -309,7 +309,7 @@ struct SimulatorControllerTests {
         #expect(system.called(bootCommand) == true)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_installApp_should_installAppOnSimulatorWithUdid() throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func installApp_should_installAppOnSimulatorWithUdid() throws {
         // Given
         let deviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
         let appPath = try AbsolutePath(validating: "/path/to/app.App")
@@ -326,7 +326,7 @@ struct SimulatorControllerTests {
         #expect(system.called(installCommand) == true)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_bootSimulatorIfNotBooted() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_bootSimulatorIfNotBooted() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
@@ -345,7 +345,7 @@ struct SimulatorControllerTests {
         #expect(system.called(bootCommand) == true)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_openSimulatorApp() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_openSimulatorApp() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
@@ -365,7 +365,7 @@ struct SimulatorControllerTests {
         #expect(system.called(openSimAppCommand) == true)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController) func test_launchApp_should_launchAppOnSimulator() async throws {
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func launchApp_should_launchAppOnSimulator() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
@@ -389,7 +389,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func test_launchApp_should_launchAppOnSimulatorWithArguments() async throws {
+    ) func launchApp_should_launchAppOnSimulatorWithArguments() async throws {
         // Given
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)

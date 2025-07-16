@@ -17,7 +17,7 @@ import XCTest
 @testable import TuistTesting
 
 struct BuildServiceErrorTests {
-    @Test func test_description() {
+    @Test func description() {
         #expect(
             BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).localizedDescription
                 == "Couldn't find scheme A. The available schemes are: B, C."
@@ -74,7 +74,7 @@ struct BuildServiceTests {
         )
     }
 
-    @Test func test_throws_an_error_if_the_project_is_not_generated() async throws {
+    @Test func throws_an_error_if_the_project_is_not_generated() async throws {
         // Given
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
@@ -102,7 +102,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test func test_run_when_the_project_should_be_generated() async throws {
+    @Test func run_when_the_project_should_be_generated() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -155,7 +155,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test func test_run_when_the_project_is_already_generated() async throws {
+    @Test func run_when_the_project_is_already_generated() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -209,7 +209,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test func test_run_only_cleans_the_first_time() async throws {
+    @Test func run_only_cleans_the_first_time() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -284,7 +284,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test func test_run_only_builds_the_given_scheme_when_passed() async throws {
+    @Test func run_only_builds_the_given_scheme_when_passed() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
             temporaryDirectory in
             // Given
@@ -357,7 +357,7 @@ struct BuildServiceTests {
         }
     }
 
-    @Test(.withMockedNoora, .withMockedLogger(), .inTemporaryDirectory) func test_run_lists_schemes() async throws {
+    @Test(.withMockedNoora, .withMockedLogger(), .inTemporaryDirectory) func run_lists_schemes() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")

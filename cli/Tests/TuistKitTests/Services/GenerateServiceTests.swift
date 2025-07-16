@@ -49,7 +49,7 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func test_throws_when_the_configuration_is_not_for_a_generated_project() async throws {
+    @Test func throws_when_the_configuration_is_not_for_a_generated_project() async throws {
         given(configLoader).loadConfig(path: .any).willReturn(.test(project: .testXcodeProject()))
 
         await #expect(
@@ -72,7 +72,7 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
+    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
@@ -132,7 +132,7 @@ struct GenerateServiceTests {
             .called(1)
     }
 
-    @Test func test_run_timeIsPrinted() async throws {
+    @Test func run_timeIsPrinted() async throws {
         try await withMockedDependencies {
             // Given
             let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
