@@ -1,66 +1,153 @@
 ---
-title: 原則
-titleTemplate: :title · コントリビューター · Tuist
-description: このドキュメントでは、Tuist の開発を導く原則について説明します。
+title: Principles titleTemplate: :title · Contributors · Tuist description: This
+document describes the principles that guide the development of Tuist.
 ---
 
-# 原則 {#principles}
+# Principles {#principles}
 
-このページでは、Tuistの設計と開発の柱となる原則について説明します。 これらの原則はプロジェクトとともに進化し、プロジェクトの基盤に適切に合致する形で持続可能な成長を保証するために存在します。
+This page describes principles that are pillars to the design and development of
+Tuist. They evolve with the project and are meant to ensure a sustainable growth
+that is well-aligned with the project foundation.
 
-## 慣習を基準にする {#default-to-conventions}
+## Default to conventions {#default-to-conventions}
 
-Tuist が存在する理由のひとつは、Xcode が慣習に乏しく、それによって複雑で拡張性や保守性に難があるプロジェクトにつながっているためです。 そこで Tuist は、単純かつ綿密に設計された慣習に、まずは従うというアプローチを取ります。 **開発者は慣習から外れることもできますが、それはわざわざ行うことであり、自然に感じられない意識的な決定です。**
+One of the reasons why Tuist exists is because Xcode is weak in conventions and
+that leads to complex projects that are hard to scale up and maintain. For that
+reason, Tuist takes a different approach by defaulting to simple and thoroughly
+designed conventions. **Developers can opt-out from the conventions, but that’s
+a conscious decision that doesn’t feel natural.**
 
-たとえば、ターゲット間の依存関係を定義するとき、提供されたパブリック・インターフェイスを使用するという慣習があります。 これにより、Tuist はリンクが正しく動作するようプロジェクトを生成できます。 開発者はビルド設定を通じて依存関係を定義することも可能ですが、それを行うと暗黙的な定義になり、`tuist graph` や `tuist cache` のように特定の慣習に依存する Tuist の機能が正しく動作しなくなる恐れがあります。
+For example, there’s a convention for defining dependencies between targets by
+using the provided public interface. By doing that, Tuist ensures that the
+projects are generated with the right configurations for the linking to work.
+Developers have the option to define the dependencies through build settings,
+but they’d be doing it implicitly and therefore breaking Tuist features such as
+`tuist graph` or `tuist cache` that rely on some conventions being followed.
 
-慣習を既定とする理由は、開発者が行う決定をできる限り Tuist 側で肩代わりすることで、アプリの機能開発に専念できるようにするためです。 慣習がない状態では、大小さまざまな決定を下す必要があり、それらが一貫性を欠いた場合に複雑さが増していき、管理困難になってしまいます。
+The reason why we default to conventions is that the more decision we can make
+on behalf of the developers, the more focus they’ll have crafting features for
+their apps. When we are left with no conventions like it’s the case in many
+projects, we have to make decisions that will end up not being consistent with
+other decisions and as a consequence, there’ll be an accidental complexity that
+will be hard to manage.
 
-## マニフェストを信頼できる唯一の情報源とする {#manifests-are-the-source-of-truth}
+## Manifests are the source of truth {#manifests-are-the-source-of-truth}
 
-多層な設定やそれらの間をつなぐコンテキストを持つと、プロジェクトの設定を理解し保守することが困難になります。 一般的なプロジェクトで少し考えてみてください。 `.xcodeproj` ディレクトリにプロジェクト定義があり、CLI の設定はスクリプト（例: `Fastfiles`）の中にあり、CI のロジックはパイプラインにあります。 これらは三つの層が存在し、相互の間でコンテキストを維持する必要があります。 _プロジェクトを変更してから一週間後にリリーススクリプトが壊れていたと気づいた、というような経験はありませんか？_
+Having many layers of configurations and contracts between them results in a
+project setup that is hard to reason about and maintain. Think for a second on
+an average project. The definition of the project lives in the `.xcodeproj`
+directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in
+pipelines. Those are three layers with contracts between them that we need to
+maintain. *How often have you been in a situation where you changed something in
+your projects, and then a week later you realized that the release scripts
+broke?*
 
-これを簡単にする方法は、マニフェストファイルだけを信頼できる唯一の情報源とすることです。 これらのファイルは、Xcode プロジェクトを生成するために必要な情報を Tuist に提供します。 また、ローカルおよび CI 環境でプロジェクトをビルドするための統一されたコマンドを可能にします。
+We can simplify this by having a single source of truth, the manifest files.
+Those files provide Tuist with the information that it needs to generate Xcode
+projects that developers can use to edit their files. Moreover, it allows having
+standard commands for building projects from a local or CI environment.
 
-**Tuist は複雑な部分を引き受け、開発者ができるだけ明示的にプロジェクトを記述できるように、シンプルかつ安全で使いやすいインターフェイスを提供する必要があります。**
+**Tuist should own the complexity and expose a simple, safe, and enjoyable
+interface to describe their projects as explicitly as possible.**
 
-## 暗黙を明示化する {#make-the-implicit-explicit}
+## Make the implicit explicit {#make-the-implicit-explicit}
 
-Xcode は暗黙的な設定を数多くサポートしています。 依存関係を暗黙的に推測する仕様が好例でしょう。 小規模プロジェクトなど単純な設定であれば暗黙的な振る舞いでも問題にならない場合がありますが、プロジェクトが拡大するとビルドの遅延や予期せぬ挙動を引き起こしかねません。
+Xcode supports implicit configurations. A good example of that is inferring the
+implicitly defined dependencies. While implicitness is fine for small projects,
+where configurations are simple, as projects get larger it might cause slowness
+or odd behaviors.
 
-Tuist は Xcode の暗黙的な挙動に対応する明示的な API を提供するべきです。 Xcode の暗黙的な設定をサポートする必要はありますが、最終的には開発者が明示的なアプローチを選択しやすい仕組みであることが望ましいです。 Xcode の暗黙や複雑さをサポートすることで、Tuist の導入障壁が下がり、チームは徐々に暗黙を排除していくことができます。
+Tuist should provide explicit APIs for implicit Xcode behaviors. It should also
+support defining Xcode implicitness but implemented in such a way that
+encourages developers to opt for the explicit approach. Supporting Xcode
+implicitness and intricacies facilitates the adoption of Tuist, after which
+teams can take some time to get rid of the implicitness.
 
-依存関係の定義は良い例です。 ビルド設定やビルドフェーズを通じて定義することもできますが、Tuist が提供する美しい API を使うことで、より自然に依存関係を明示できます。
+The definition of dependencies is a good example of that. While developers can
+define dependencies through build settings and phases, Tuist provides a
+beautiful API that encourages its adoption.
 
-**API を明示的に設計することで、Tuist がプロジェクトに対して行うチェックや最適化が可能になります。** さらに、依存関係グラフをエクスポートする `tuist graph` や、ターゲットをすべてバイナリとしてキャッシュする `tuist cache` のような機能も利用できるようになります。
+**Designing the API to be explicit allows Tuist to run some checks and
+optimizations on the projects that otherwise wouldn’t be possible.** Moreover,
+it enables features like `tuist graph`, which exports a representation of the
+dependency graph, or `tuist cache`, which caches all the targets as binaries.
 
-> [!TIP]
-> Xcode から機能を移植しようという要望がある度に、その概念をシンプルかつ明示的な API に落とし込むチャンスと捉えるべきです。
+> [!TIP] We should treat each request to port features from Xcode as an
+> opportunity to simplify concepts with simple and explicit APIs.
 
-## シンプルに保つ {#keep-it-simple}
+## Keep it simple {#keep-it-simple}
 
-Xcode プロジェクトが大規模化するときの主な課題のひとつは、**Xcode がユーザーに多くの複雑さを直接さらしている**ことです。その結果として、一部のメンバーしかプロジェクト全体やビルドシステムのエラーを理解できず、暗黙知がチーム内に偏在しがちです。 これはチームが少数の人に依存するリスクを抱えることになり、好ましい状況ではありません。
+One of the main challenges when scaling Xcode projects comes from the fact that
+**Xcode exposes a lot of complexity to the users.** Due to that, teams have a
+high bus factor and only a few people in the team understand the project and the
+errors that the build system throws. That’s a bad situation to be in because the
+team relies on a few people.
 
-Xcodeは優れたツールですが、長年の改良や新プラットフォーム、プログラミング言語の追加により、シンプルなインターフェースの維持が難しくなっています。
+Xcode is a great tool, but so many years of improvements, new platforms, and
+programming languages, are reflected on their surface, which struggled to remain
+simple.
 
-Tuist は、この機会を活かして物事をシンプルに保つべきです。シンプルなものを扱うのは楽しいし、モチベーションも上がります。 経過時間が長いコンパイルプロセスの最後で発生する不可解なエラーの解析や、「なぜデバイスでアプリが動かないか」を延々と調べるような作業に時間を費やしたくはありません。 Xcode は内部のビルドシステムにタスクを委譲しますが、そのエラーがユーザーにとって分かりやすい形で返ってくるとは限りません。 _"framework X not found"_ というエラーを見ても、どう対応したらいいか分からないということはよくある話ですよね？ もし根本原因の候補を一覧で提示してくれたらどれほど助かるでしょう。
+Tuist should take the opportunity to keep things simple because working on
+simple things is fun and motivates us. No one wants to spend time trying to
+debug an error that happens at the very end of the compilation process, or
+understanding why they are not able to run the app on their devices. Xcode
+delegates the tasks to its underlying build system and in some cases it does a
+very poor job translating errors into actionable items. Have you ever got a
+*“framework X not found”* error and you didn’t know what to do? Imagine if we
+got a list of potential root causes for the bug.
 
-## 開発者体験を起点にする {#start-from-the-developers-experience}
+## Start from the developer’s experience {#start-from-the-developers-experience}
 
-Xcode に関するイノベーションが乏しい（あるいは他の環境ほど盛んではない）理由のひとつは、**既存の解決策を起点に問題を分析することが多い**からです。その結果として、現在ある解決策の多くは同じようなアイデアやワークフローの範囲にとどまっています。 既存の解決策も検討に入れるのは良いことですが、それだけに縛られてしまうと創造性が制約されてしまいます。
+Part of the reason why there is a lack of innovation around Xcode, or put
+differently, not as much as in other programming environments, is because **we
+often start analyzing problems from existing solutions.** As a consequence, most
+of the solutions that we find nowadays revolve around the same ideas and
+workflows. While it’s good to include existing solutions in the equations, we
+should not let them constrain our creativity.
 
-私たちは [Tom Preston](https://tom.preston-werner.com/) が [このポッドキャスト](https://tom.preston-werner.com/) で語っている考え方を参考にしています。「プログラミングによるソリューションは、それが物理的に不可能でない限り、頭の中で想像するほとんどのことを実現できる」という趣旨です。つまり、**開発者体験がどうあってほしいかをまず想像**しさえすれば、実現までは時間の問題にすぎません。開発者体験を起点に問題を分析すれば、ユーザーに好まれるような独自の解決策にたどり着けるでしょう。
+We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in
+[this podcast](https://tom.preston-werner.com/): *“Most things can be achieved,
+whatever you have in your head you can probably pull off with code as long as is
+possible within the constrains of the universe”.* If **we imagine how we’d like
+the developer experience to be**, it’s just a matter of time to pull it off — by
+starting to analyze the problems from the developer experience gives us a unique
+point of view that will lead us to solutions that users will love to use.
 
-私たちは、皆と同じ行動を取りたくなる誘惑に駆られることがあります。たとえそれが、皆が絶えず不便だと感じている事柄に固執することを意味していたとしても。 そうしないでください。 アプリをアーカイブする理想の形はどうか？ コード署名をもっと快適にするには？ どんなプロセスなら Tuist で効率化できるか？ たとえば [Fastlane](https://fastlane.tools/) 対応を検討する場合でも、まずは問題がどこにあるのか、なぜ必要とされているのかを掘り下げることが大切です。 「なぜ」という質問をすることで、問題の根本にたどり着くことができます。 モチベーションがどこから来るのかを絞り込めば、Tuistがどのように彼らを最善の方法で助けることができるかを考えることができる。 最終的な解決策として Fastlane との連携が正しい場合もあるかもしれませんが、それ以外の選択肢があるかもしれません。十分に検討し、トレードオフを理解したうえで最良の手段を選ぶことが重要です。
+We might feel tempted to follow what everyone is doing, even if that means
+sticking with the inconveniences that everyone continues to complain about.
+Let’s not do that. How do I imagine archiving my app? How would I love code
+signing to be? What processes can I help streamline with Tuist? For example,
+adding support for [Fastlane](https://fastlane.tools/) is a solution to a
+problem that we need to understand first. We can get to the root of the problem
+by asking “why” questions. Once we narrow down where the motivation comes from,
+we can think of how Tuist can help them best. Maybe the solution is integrating
+with Fastlane, but it’s important we don’t disregard other equally valid
+solutions that we can put on the table before making trade-offs.
 
-## エラーは起こるもの {#errors-can-and-will-happen}
+## Errors can and will happen {#errors-can-and-will-happen}
 
-私たち開発者には、エラーは起こり得るという事実を軽視しがちな部分があります。 そのため、理想的なシナリオのみを想定してソフトウェアを設計・テストしてしまうことがよくあります。
+We, developers, have an inherent temptation to disregard that errors can happen.
+As a result, we design and test software only considering the ideal scenario.
 
-Swift の型システムや適切なアーキテクチャ設計は多くのエラーを防ぐのに役立ちますが、それでもコントロール外の要因から発生するエラーは防げません。 ユーザーが常にインターネット接続できるとは限りませんし、システムコマンドが常に成功するとも限りません。 Tuist が動作する環境は私たちの制御下にあるサンドボックスではないので、どのように変動して Tuist に影響を与えるかを理解する努力が必要です。
+Swift, its type system, and a well-architected code might help prevent some
+errors, but not all of them because some are out of our control. We can’t assume
+the user will always have an internet connection, or that the system commands
+will return successfully. The environments in which Tuist runs are not sandboxes
+that we control, and hence we need to make an effort to understand how they
+might change and impact Tuist.
 
-エラーを適切に処理できないと、ユーザー体験は損なわれ、プロジェクトへの信頼も失われる可能性があります。 Tuist のあらゆる側面をユーザーが楽しめるようにしたいと考えています。
+Poorly handled errors result in bad user experience, and users might lose trust
+in the project. We want users to enjoy every single piece of Tuist, even the way
+we present errors to them.
 
-私たちはユーザーの立場に立って、エラーが伝えるべき内容を明確に想像するべきです。 プログラミング言語がエラー伝播のコミュニケーション手段であり、ユーザーがそのエラーの受け手であるなら、エラーはユーザーが理解する言語で記述されるべきです。 何が起こったのかを知るのに十分な情報を含める必要がありますし、関連性のない情報を隠す必要があります。 また、問題を解決するためにどのようなステップを実行できるかをユーザーに伝えることで、実用的であるべきです。
+We should put ourselves in the shoes of users and imagine what we’d expect the
+error to tell us. If the programming language is the communication channel
+through which errors propagate, and the users are the destination of the errors,
+they should be written in the same language that the target (users) speak. They
+should include enough information to know what happened and hide the information
+that is not relevant. Also, they should be actionable by telling users what
+steps they can take to recover from them.
 
-そして最後に、私達のテストケースは失敗するシナリオを熟考するべきです。 これによって、意図通りにエラーを処理できているかを保証し、将来的に他の開発者がそのロジックを壊すのを防ぐことができます。
+And last but not least, our test cases should contemplate failing scenarios. Not
+only they ensure that we are handling errors as we are supposed to, but prevent
+future developers from breaking that logic.
