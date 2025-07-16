@@ -410,53 +410,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
   end
 
   def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
-    # Build the complete where clause including all filters
-    is_ci = Keyword.get(opts, :is_ci)
-    scheme = Keyword.get(opts, :scheme)
-    category = Keyword.get(opts, :category)
-    status = Keyword.get(opts, :status)
-    name = Keyword.get(opts, :name)
+    query = build_analytics_query(project_id, start_date, end_date, opts)
 
-    query = from(e in Event, as: :event)
-    query = where(query, [event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
-    query = where(query, [event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
-    query = where(query, [event: e], e.project_id == ^project_id)
-
-    # Apply optional filters
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [event: e], e.is_ci == true)
-        false -> where(query, [event: e], e.is_ci == false)
-      end
-
-    query = if scheme, do: where(query, [event: e], e.scheme == ^scheme), else: query
-    query = if category, do: where(query, [event: e], e.category == ^category), else: query
-
-    query =
-      case status do
-        nil -> query
-        :success -> where(query, [event: e], e.status == 0)
-        :failure -> where(query, [event: e], e.status == 1)
-        _ -> query
-      end
-
-    query =
-      case name do
-        "test" ->
-          where(
-            query,
-            [event: e],
-            (e.name == "xcodebuild" and
-               (e.subcommand == "test" or e.subcommand == "test-without-building")) or
-              e.name == "test"
-          )
-
-        _ ->
-          query
-      end
-
-    # Now add the select with aggregate using fragment
     result =
       query
       |> select([event: e], fragment("avg(?)", e.duration))
@@ -469,53 +424,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
   end
 
   def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
-    # Build the complete where clause including all filters
-    is_ci = Keyword.get(opts, :is_ci)
-    scheme = Keyword.get(opts, :scheme)
-    category = Keyword.get(opts, :category)
-    status = Keyword.get(opts, :status)
-    name = Keyword.get(opts, :name)
+    query = build_analytics_query(project_id, start_date, end_date, opts)
 
-    query = from(e in Event, as: :event)
-    query = where(query, [event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
-    query = where(query, [event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
-    query = where(query, [event: e], e.project_id == ^project_id)
-
-    # Apply optional filters
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [event: e], e.is_ci == true)
-        false -> where(query, [event: e], e.is_ci == false)
-      end
-
-    query = if scheme, do: where(query, [event: e], e.scheme == ^scheme), else: query
-    query = if category, do: where(query, [event: e], e.category == ^category), else: query
-
-    query =
-      case status do
-        nil -> query
-        :success -> where(query, [event: e], e.status == 0)
-        :failure -> where(query, [event: e], e.status == 1)
-        _ -> query
-      end
-
-    query =
-      case name do
-        "test" ->
-          where(
-            query,
-            [event: e],
-            (e.name == "xcodebuild" and
-               (e.subcommand == "test" or e.subcommand == "test-without-building")) or
-              e.name == "test"
-          )
-
-        _ ->
-          query
-      end
-
-    # Now add the select with aggregates using fragments
     result =
       query
       |> select([event: e], %{
@@ -537,65 +447,79 @@ defmodule Tuist.CommandEvents.Clickhouse do
     end
   end
 
+  defp build_analytics_query(project_id, start_date, end_date, opts) do
+    from(e in Event, as: :event)
+    |> where([event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
+    |> where([event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
+    |> where([event: e], e.project_id == ^project_id)
+    |> apply_analytics_filters(opts)
+  end
+
+  defp apply_analytics_filters(query, opts) do
+    query
+    |> apply_is_ci_filter(Keyword.get(opts, :is_ci))
+    |> apply_scheme_filter(Keyword.get(opts, :scheme))
+    |> apply_category_filter(Keyword.get(opts, :category))
+    |> apply_status_filter(Keyword.get(opts, :status))
+    |> apply_name_filter_with_alias(Keyword.get(opts, :name))
+  end
+
+  defp apply_is_ci_filter(query, nil), do: query
+  defp apply_is_ci_filter(query, true), do: where(query, [event: e], e.is_ci == true)
+  defp apply_is_ci_filter(query, false), do: where(query, [event: e], e.is_ci == false)
+
+  defp apply_scheme_filter(query, nil), do: query
+  defp apply_scheme_filter(query, scheme), do: where(query, [event: e], e.scheme == ^scheme)
+
+  defp apply_category_filter(query, nil), do: query
+
+  defp apply_category_filter(query, category), do: where(query, [event: e], e.category == ^category)
+
+  defp apply_status_filter(query, nil), do: query
+  defp apply_status_filter(query, :success), do: where(query, [event: e], e.status == 0)
+  defp apply_status_filter(query, :failure), do: where(query, [event: e], e.status == 1)
+  defp apply_status_filter(query, _), do: query
+
+  defp apply_name_filter_with_alias(query, "test") do
+    where(
+      query,
+      [event: e],
+      (e.name == "xcodebuild" and
+         (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+        e.name == "test"
+    )
+  end
+
+  defp apply_name_filter_with_alias(query, _), do: query
+
   defp add_filters(query, opts) do
-    query = query_with_is_ci_filter(query, opts)
-
-    scheme = Keyword.get(opts, :scheme)
-
-    query =
-      case scheme do
-        nil -> query
-        _ -> where(query, [e], e.scheme == ^scheme)
-      end
-
-    category = Keyword.get(opts, :category)
-
-    query =
-      case category do
-        nil -> query
-        _ -> where(query, [e], e.category == ^category)
-      end
-
-    status = Keyword.get(opts, :status)
-
-    query =
-      case status do
-        nil -> query
-        :success -> where(query, [e], e.status == 0)
-        :failure -> where(query, [e], e.status == 1)
-        _ -> query
-      end
-
-    add_name_filter(query, opts)
+    query
+    |> query_with_is_ci_filter(opts)
+    |> apply_scheme_filter(Keyword.get(opts, :scheme))
+    |> apply_category_filter(Keyword.get(opts, :category))
+    |> apply_status_filter(Keyword.get(opts, :status))
+    |> add_name_filter(opts)
   end
 
   defp query_with_is_ci_filter(query, opts) do
-    is_ci = Keyword.get(opts, :is_ci)
-
-    case is_ci do
-      nil -> query
-      true -> where(query, [e], e.is_ci == true)
-      false -> where(query, [e], e.is_ci == false)
-    end
+    apply_is_ci_filter(query, Keyword.get(opts, :is_ci))
   end
 
   defp add_name_filter(query, opts) do
-    name = Keyword.get(opts, :name)
-
-    case name do
-      "test" ->
-        where(
-          query,
-          [e],
-          (e.name == "xcodebuild" and
-             (e.subcommand == "test" or e.subcommand == "test-without-building")) or
-            e.name == "test"
-        )
-
-      _ ->
-        query
-    end
+    apply_name_filter_without_alias(query, Keyword.get(opts, :name))
   end
+
+  defp apply_name_filter_without_alias(query, "test") do
+    where(
+      query,
+      [e],
+      (e.name == "xcodebuild" and
+         (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+        e.name == "test"
+    )
+  end
+
+  defp apply_name_filter_without_alias(query, _), do: query
 
   defp get_date_format("1 hour"), do: "%Y-%m-%d %H:00:00"
   defp get_date_format("1 day"), do: "%Y-%m-%d"
