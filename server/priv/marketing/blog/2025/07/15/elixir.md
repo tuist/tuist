@@ -6,6 +6,8 @@ excerpt: "Exploring the patterns and developer experiences in Elixir that captur
 author: pepicrft
 ---
 
+**This blog post is written for developers who want to understand why we chose Elixir for our server, how Swift and Elixir compare, and which Elixir patterns we'd love to see adopted in Swift.**
+
 [Steve Jobs](https://en.wikipedia.org/wiki/Steve_Jobs) said that [computers are bicycles for the mind](https://www.themarginalian.org/2011/12/21/steve-jobs-bicycle-for-the-mind-1990/). I think programming languages are too. They are tools for expression, to be creative.
 
 At Tuist, we've been huge fans of [Swift](https://www.swift.org/), the most common programming language of the ecosystem we build for. Yet, we always remained open to finding the right programming language or technology that would allow us to express what we wanted to express.
@@ -153,3 +155,5 @@ But we're equally excited about Swift's future. As Swift continues to evolve bey
 We're keeping a close eye on Swift's evolution, and who knows? As the ecosystem matures and new capabilities emerge, we might revisit this decision in the future. For now, we're grateful for what both languages bring to the table and excited to see how they'll continue to inspire each other.
 
 Thank you to both José Valim and the Elixir community, and to Chris Lattner and the Swift community, for gifting us with such wonderful tools for expression.
+
+**Grammar corrections provided by Claude Opus 4.**
