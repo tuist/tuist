@@ -69,6 +69,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
@@ -512,7 +513,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
-                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
+                ]
             case .simulator:
                 [
                     .external(name: "XcodeGraph")
