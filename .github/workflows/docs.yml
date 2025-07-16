@@ -52,6 +52,11 @@ jobs:
       - name: Generate manifest docs
         run: mise run docs:generate-manifests-docs
       - name: Build the documentation
+        # VitePress is not memory-efficient, loading all the pages into memory when building
+        # the site. This can potentially lead to out-of-memory errors in localized documentation
+        # sites where the number of pages is multiplied by the number of languages.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
         run: mise run docs:build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
