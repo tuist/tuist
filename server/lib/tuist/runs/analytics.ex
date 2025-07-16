@@ -92,7 +92,8 @@ defmodule Tuist.Runs.Analytics do
           from(b in Build,
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id
           ),
           opts
         )
@@ -103,8 +104,12 @@ defmodule Tuist.Runs.Analytics do
             group_by: selected_as(^date_period),
             where:
               b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
-            select: %{date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period), value: avg(b.duration)}
+                b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+                b.project_id == ^project_id,
+            select: %{
+              date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
+              value: avg(b.duration)
+            }
           ),
           opts
         )
@@ -122,7 +127,8 @@ defmodule Tuist.Runs.Analytics do
           group_by: selected_as(^date_period),
           where:
             b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and b.project_id == ^project_id,
+              b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+              b.project_id == ^project_id,
           select: %{
             date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
             value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
@@ -167,7 +173,12 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date ->
-        CommandEvents.runs_analytics(project_id, start_date, end_date, Keyword.put(opts, :name, name))
+        CommandEvents.runs_analytics(
+          project_id,
+          start_date,
+          end_date,
+          Keyword.put(opts, :name, name)
+        )
       end,
       average_durations: fn start_date, end_date, date_period, time_bucket ->
         CommandEvents.runs_analytics_average_durations(
@@ -288,7 +299,15 @@ defmodule Tuist.Runs.Analytics do
       start_date: start_date,
       end_date: end_date,
       runs: fn start_date, end_date, date_period, time_bucket ->
-        CommandEvents.runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts)
+        CommandEvents.runs_analytics_count(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
       end
     })
   end
@@ -622,7 +641,13 @@ defmodule Tuist.Runs.Analytics do
 
     selective_testing_hit_rate_metadata_map =
       project_id
-      |> CommandEvents.selective_testing_hit_rates(start_date, end_date, date_period, time_bucket, opts)
+      |> CommandEvents.selective_testing_hit_rates(
+        start_date,
+        end_date,
+        date_period,
+        time_bucket,
+        opts
+      )
       |> Map.new(
         &{normalise_date(&1.date, date_period),
          %{
@@ -820,7 +845,8 @@ defmodule Tuist.Runs.Analytics do
         where(
           query,
           [e],
-          (e.name == "xcodebuild" and (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+          (e.name == "xcodebuild" and
+             (e.subcommand == "test" or e.subcommand == "test-without-building")) or
             e.name == "test"
         )
 
@@ -865,7 +891,8 @@ defmodule Tuist.Runs.Analytics do
     runs =
       case query do
         query_fn when is_function(query_fn) ->
-          result = query_fn.(start_date, end_date, date_period, time_bucket_for_date_period(date_period))
+          result =
+            query_fn.(start_date, end_date, date_period, time_bucket_for_date_period(date_period))
 
           case result do
             query when is_list(query) ->
