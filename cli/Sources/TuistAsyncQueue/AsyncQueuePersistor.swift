@@ -13,11 +13,11 @@ public protocol AsyncQueuePersisting {
 
     /// Persiss a given event.
     /// - Parameter event: Event to be persisted.
-    func write<T: AsyncQueueEvent>(event: T) throws
+    func write(event: some AsyncQueueEvent) throws
 
     /// Deletes the given event from disk.
     /// - Parameter event: Event to be deleted.
-    func delete<T: AsyncQueueEvent>(event: T) async throws
+    func delete(event: some AsyncQueueEvent) async throws
 
     /// Deletes the given file name from disk.
     /// - Parameter filename: Name of the file to be deleted.

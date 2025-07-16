@@ -34,7 +34,8 @@ public final class ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
         // Keep the value if already defined
         if base["SRCROOT"] == nil {
             base["SRCROOT"] = SettingValue(stringLiteral: project.sourceRootPath
-                .relative(to: project.xcodeProjPath.parentDirectory).pathString)
+                .relative(to: project.xcodeProjPath.parentDirectory).pathString
+            )
         }
         project.settings = project.settings.with(
             base: base

@@ -19,14 +19,14 @@ public protocol SwiftVersionProviding {
 public final class SwiftVersionProvider: SwiftVersionProviding {
     @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider(System())
 
-    /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
+    // Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
     // swiftlint:disable force_try
     private static let swiftVersionRegex = try! NSRegularExpression(
         pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: []
     )
 
-    /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
-    /// command.
+    // Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
+    // command.
     // swiftlint:disable force_try
     private static let swiftlangVersionRegex = try! NSRegularExpression(
         pattern: "swiftlang-(.+)\\sclang", options: []

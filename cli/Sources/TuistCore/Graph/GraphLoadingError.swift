@@ -34,7 +34,7 @@ enum GraphLoadingError: FatalError, Equatable {
 
     // Custom equatable to ignore ordering of circular dependency
 
-    public static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
+    static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
         switch (lhs, rhs) {
         case let (.missingFile(lhsPath), .missingFile(rhsPath)):
             return lhsPath == rhsPath

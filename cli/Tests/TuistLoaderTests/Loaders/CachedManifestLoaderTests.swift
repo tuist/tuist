@@ -85,7 +85,7 @@ class CachedManifestLoaderTests {
 
     // MARK: - Tests
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_manifestNotCached() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestNotCached() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -99,7 +99,7 @@ class CachedManifestLoaderTests {
         #expect(result.name == "App")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_manifestCached() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestCached() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -116,7 +116,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 1)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_manifestHashChanged() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestHashChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let originalProject = Project.test(name: "Original")
@@ -133,7 +133,7 @@ class CachedManifestLoaderTests {
         #expect(result.name == "Modified")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_helpersHashChanged() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_helpersHashChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -151,7 +151,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 2)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_pluginsHashChanged() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_pluginsHashChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -172,7 +172,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 2)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_environmentVariablesRemainTheSame() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_environmentVariablesRemainTheSame() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -191,7 +191,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 1)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_environmentVariablesChange() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_environmentVariablesChange() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -208,7 +208,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 2)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_tuistVersionRemainsTheSame() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_tuistVersionRemainsTheSame() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -224,7 +224,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 1)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_tuistVersionChanged() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_tuistVersionChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -240,7 +240,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 2)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_corruptedCache() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_corruptedCache() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
@@ -256,7 +256,7 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 2)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_load_missingManifest() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_missingManifest() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
 
@@ -266,7 +266,7 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_validate_projectExists() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func validate_projectExists() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         given(manifestLoader)
@@ -280,7 +280,7 @@ class CachedManifestLoaderTests {
         try await subject.validateHasRootManifest(at: path)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_validate_workspaceExists() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func validate_workspaceExists() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         given(manifestLoader)
@@ -294,7 +294,7 @@ class CachedManifestLoaderTests {
         try await subject.validateHasRootManifest(at: path)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_validate_manifestDoesNotExist() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func validate_manifestDoesNotExist() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         given(manifestLoader)
@@ -307,7 +307,7 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_notThrowing_fileAlreadyExistsNIOError() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func notThrowing_fileAlreadyExistsNIOError() async throws {
         // Given
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
@@ -333,7 +333,7 @@ class CachedManifestLoaderTests {
         #expect(result.name == "App")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_throwing_otherNIOErrors() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_otherNIOErrors() async throws {
         // Given
         let expectedError = NIOFileSystem.FileSystemError(
             code: .invalidArgument,

@@ -128,7 +128,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
             projects: [path: project, "/a": externalProject],
             dependencies: [
                 GraphDependency.target(name: "App", path: path): Set([
-                    GraphDependency.target(name: "PackageTarget", path: "/a")]),
+                    GraphDependency.target(name: "PackageTarget", path: "/a"),
+                ]),
                 GraphDependency
                     .target(
                         name: "PackageTarget",

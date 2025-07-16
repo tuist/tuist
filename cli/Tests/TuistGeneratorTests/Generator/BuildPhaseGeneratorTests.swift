@@ -17,7 +17,7 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_description_when_missingFileReference() {
+    ) func description_when_missingFileReference() {
         let path = try! AbsolutePath(validating: "/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         #expect(BuildPhaseGenerationError.missingFileReference(path).description == expected)
@@ -27,7 +27,7 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_type_when_missingFileReference() {
+    ) func type_when_missingFileReference() {
         let path = try! AbsolutePath(validating: "/test")
         #expect(BuildPhaseGenerationError.missingFileReference(path).type == .bug)
     }
@@ -110,7 +110,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
+    ) func generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -171,7 +171,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
+    ) func generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -211,7 +211,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
+    ) func doesntGenerateSourcesBuildPhase_whenWatchKitTarget() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -239,7 +239,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
+    ) func generatesSourcesBuildPhase_whenFramework_withNoSources() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -263,7 +263,7 @@ struct BuildPhaseGeneratorTests {
         #expect(files.isEmpty == true)
     }
 
-    @Test(.withMockedSwiftVersionProvider, .withMockedXcodeController, .inTemporaryDirectory) func test_generateScripts() throws {
+    @Test(.withMockedSwiftVersionProvider, .withMockedXcodeController, .inTemporaryDirectory) func generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -291,7 +291,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateScriptsWithCustomShell() throws {
+    ) func generateScriptsWithCustomShell() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -321,7 +321,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
+    ) func generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/file.swift")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -346,7 +346,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_withDocCArchive() throws {
+    ) func generateSourcesBuildPhase_withDocCArchive() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -384,7 +384,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
+    ) func generateSourcesBuildPhase_whenLocalizedFile() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -423,7 +423,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
+    ) func generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -497,7 +497,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
+    ) func generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -540,7 +540,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
+    ) func generateHeadersBuildPhase_before_generateSourceBuildPhase() throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -588,7 +588,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenLocalizedFile() throws {
+    ) func generateResourcesBuildPhase_whenLocalizedFile() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let files: [AbsolutePath] = [
@@ -631,7 +631,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
+    ) func generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let pbxproj = PBXProj()
@@ -684,7 +684,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
+    ) func generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let pbxproj = PBXProj()
@@ -733,7 +733,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
+    ) func generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
         let coreDataModel = CoreDataModel(
             path: try AbsolutePath(validating: "/Model.xcdatamodeld"),
@@ -776,7 +776,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenNormalResource() throws {
+    ) func generateResourcesBuildPhase_whenNormalResource() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = try AbsolutePath(validating: "/image.png")
@@ -814,7 +814,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
+    ) func generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources: [ResourceFileElement] = [
@@ -864,7 +864,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
+    ) func generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources: [ResourceFileElement] = [
@@ -926,7 +926,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourceBundle() throws {
+    ) func generateResourceBundle() throws {
         // Given
         let path = try AbsolutePath(validating: "/path")
         let bundle1 = Target.test(name: "Bundle1", product: .bundle)
@@ -980,7 +980,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateResourceBundle_fromProjectDependency() throws {
+    ) func generateResourceBundle_fromProjectDependency() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let bundle = Target.test(name: "Bundle1", product: .bundle)
@@ -1169,7 +1169,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
+    ) func generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let pbxproj = PBXProj()
@@ -1204,7 +1204,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateWatchBuildPhase() throws {
+    ) func generateWatchBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
@@ -1254,7 +1254,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateWatchBuildPhase_watchApplication() throws {
+    ) func generateWatchBuildPhase_watchApplication() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .app)
@@ -1396,7 +1396,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
+    ) func generateEmbedPluginsBuildPhase_shouldNotContainGeneratedResourceBundles() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let generatedResourceBundle = Target.test(
@@ -1438,7 +1438,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
+    ) func generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .macCatalyst])
         let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
@@ -1486,7 +1486,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateEmbedSystemExtensionsBuildPhase() throws {
+    ) func generateEmbedSystemExtensionsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
         let systemExtension = Target.test(name: "SystemExtension", platform: .macOS, product: .systemExtension)
@@ -1530,7 +1530,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateTarget_actions() async throws {
+    ) func generateTarget_actions() async throws {
         // Given
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
@@ -1613,7 +1613,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateTarget_action_custom_shell() async throws {
+    ) func generateTarget_action_custom_shell() async throws {
         // Given
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
@@ -1687,7 +1687,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateTarget_action_dependency_file() async throws {
+    ) func generateTarget_action_dependency_file() async throws {
         // Given
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
@@ -1811,7 +1811,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
+    ) func generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1857,7 +1857,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
+    ) func generateBuildPhases_whenBundleWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
@@ -1904,7 +1904,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
+    ) func generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
         // Given
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)

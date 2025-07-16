@@ -4,7 +4,7 @@
     import WidgetKit
 
     struct Provider: TimelineProvider {
-        public typealias Entry = SimpleEntry
+        typealias Entry = SimpleEntry
 
         func placeholder(in _: Context) -> SimpleEntry {
             SimpleEntry(date: Date())
@@ -14,12 +14,12 @@
 
         func getTimeline(in _: Context, completion _: @escaping (Timeline<SimpleEntry>) -> Void) {}
 
-        public func snapshot(with _: Context, completion: @escaping (SimpleEntry) -> Void) {
+        func snapshot(with _: Context, completion: @escaping (SimpleEntry) -> Void) {
             let entry = SimpleEntry(date: Date())
             completion(entry)
         }
 
-        public func timeline(with _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        func timeline(with _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
             var entries: [SimpleEntry] = []
 
             // Generate a timeline consisting of five entries an hour apart, starting from the current date.
@@ -36,7 +36,7 @@
     }
 
     struct SimpleEntry: TimelineEntry {
-        public let date: Date
+        let date: Date
     }
 
     struct PlaceholderView: View {
@@ -57,7 +57,7 @@
     struct MyWidget: Widget {
         private let kind: String = "MyWidget"
 
-        public var body: some WidgetConfiguration {
+        var body: some WidgetConfiguration {
             StaticConfiguration(kind: kind, provider: Provider()) { entry in
                 MyWidgetEntryView(entry: entry)
             }

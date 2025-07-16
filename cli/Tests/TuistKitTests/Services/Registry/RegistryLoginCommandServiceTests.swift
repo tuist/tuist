@@ -41,7 +41,7 @@ struct RegistryLoginCommandServiceTests {
             .willReturn()
     }
 
-    @Test(.withMockedEnvironment()) func test_login() async throws {
+    @Test(.withMockedEnvironment()) func login() async throws {
         try await withMockedDependencies {
             // Given
             given(configLoader)
@@ -78,7 +78,7 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment()) func test_login_when_ci() async throws {
+    @Test(.withMockedEnvironment()) func login_when_ci() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
                 // Given
@@ -114,7 +114,7 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment()) func test_login_when_ci_and_xcode_project() async throws {
+    @Test(.withMockedEnvironment()) func login_when_ci_and_xcode_project() async throws {
         try await withMockedDependencies {
             // Given
             given(configLoader)
@@ -162,7 +162,7 @@ struct RegistryLoginCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment()) func test_login_when_full_handle_is_missing() async throws {
+    @Test(.withMockedEnvironment()) func login_when_full_handle_is_missing() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)

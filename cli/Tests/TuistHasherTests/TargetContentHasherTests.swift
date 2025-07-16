@@ -81,7 +81,7 @@ struct TargetContentHasherTests {
             .willReturn("deployment_targets_hash")
     }
 
-    @Test func test_hash_when_targetBelongsToExternalProjectWithHash() async throws {
+    @Test func hash_when_targetBelongsToExternalProjectWithHash() async throws {
         // Given
         let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
 
@@ -97,7 +97,7 @@ struct TargetContentHasherTests {
         #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone")
     }
 
-    @Test func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
+    @Test func hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
         // Given
         let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
 
@@ -114,7 +114,7 @@ struct TargetContentHasherTests {
         #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two")
     }
 
-    @Test func test_hash_with_additional_strings() async throws {
+    @Test func hash_with_additional_strings() async throws {
         // Given
         let target = GraphTarget.test(project: .test())
 
@@ -137,7 +137,7 @@ struct TargetContentHasherTests {
         )
     }
 
-    @Test func test_hash_with_destination() async throws {
+    @Test func hash_with_destination() async throws {
         // Given
         let target = GraphTarget.test(
             target: .test(

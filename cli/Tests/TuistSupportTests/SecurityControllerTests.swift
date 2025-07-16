@@ -15,7 +15,7 @@ struct SecurityControllerTests {
         )
     }
 
-    @Test func test_add_internet_password() async throws {
+    @Test func add_internet_password() async throws {
         // Given
         given(commandRunner)
             .run(

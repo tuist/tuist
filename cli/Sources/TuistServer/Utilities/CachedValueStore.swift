@@ -15,8 +15,8 @@ public enum CachedValueStoreBackend: Sendable {
     case inSystemProcess
 }
 
-@Mockable
 /// Actor that caches a piece of work asynchronously in a thread-safe manner.
+@Mockable
 public protocol CachedValueStoring: Sendable {
     func getValue<Value>(
         key: String,

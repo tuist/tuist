@@ -8,10 +8,10 @@ import XcodeGraph
 
 extension XcodeGraph.TestAction {
     // swiftlint:disable function_body_length
-    /// Maps a ProjectDescription.TestAction instance into a XcodeGraph.TestAction instance.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of test action model.
-    ///   - generatorPaths: Generator paths.
+    // Maps a ProjectDescription.TestAction instance into a XcodeGraph.TestAction instance.
+    // - Parameters:
+    //   - manifest: Manifest representation of test action model.
+    //   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
         .TestAction
     {

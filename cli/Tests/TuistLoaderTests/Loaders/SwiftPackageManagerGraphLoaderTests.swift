@@ -124,7 +124,7 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test
-    func test_load_when_dependency_via_scm_and_registry() async throws {
+    func load_when_dependency_via_scm_and_registry() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in
@@ -218,7 +218,7 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test
-    func test_load_warnOutdatedDependencies() async throws {
+    func load_warnOutdatedDependencies() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                 temporaryDirectory in

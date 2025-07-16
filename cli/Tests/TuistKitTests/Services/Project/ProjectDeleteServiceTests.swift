@@ -24,7 +24,7 @@ struct ProjectDeleteServiceTests {
         )
     }
 
-    @Test func test_project_delete() async throws {
+    @Test func project_delete() async throws {
         // Given
         given(getProjectService)
             .getProject(

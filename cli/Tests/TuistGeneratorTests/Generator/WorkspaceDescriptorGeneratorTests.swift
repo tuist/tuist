@@ -34,7 +34,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generate_workspaceStructure() async throws {
+    ) func generate_workspaceStructure() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         try await TuistTest.createFiles([
@@ -78,7 +78,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generate_workspaceStructure_noWorkspaceData() async throws {
+    ) func generate_workspaceStructure_noWorkspaceData() async throws {
         // Given
         let name = "test"
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -102,7 +102,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generate_workspaceStructureWithProjects() async throws {
+    ) func generate_workspaceStructureWithProjects() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget()
@@ -140,7 +140,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
+    ) func generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -164,7 +164,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
+    ) func generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -188,7 +188,7 @@ struct WorkspaceDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
+    ) func generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 

@@ -9,12 +9,12 @@ import XCTest
 final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
     private var subject: ExplicitDependencyGraphMapper!
 
-    override public func setUp() {
+    override func setUp() {
         super.setUp()
         subject = ExplicitDependencyGraphMapper()
     }
 
-    override public func tearDown() {
+    override func tearDown() {
         subject = nil
         super.tearDown()
     }

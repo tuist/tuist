@@ -20,7 +20,7 @@ struct GeneratorAcceptanceTests {
         try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
     }
 
-    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger()) func test_app_with_exponea_sdk() async throws {
+    @Test(.withFixture("app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
@@ -1337,7 +1337,7 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
         .withFixture("ios_app_with_sandbox_disabled")
     )
-    func test_sandbox_disabled() async throws {
+    func sandbox_disabled() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
@@ -1348,7 +1348,7 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
         .withFixture("ios_app_with_sandbox_disabled"),
         .withMockedEnvironment()
     )
-    func test_sandbox_enabled_fails() async throws {
+    func sandbox_enabled_fails() async throws {
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.manifestLoadingVariables["TUIST_DISABLE_SANDBOX"] = "NO"
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

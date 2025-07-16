@@ -131,7 +131,7 @@
         private func uploadAnalyticsArtifact(
             _ artifact: ServerCommandEvent.Artifact,
             artifactPath: AbsolutePath,
-            name: String? = nil,
+            name _: String? = nil,
             commandEventId: String,
             serverURL: URL
         ) async throws {

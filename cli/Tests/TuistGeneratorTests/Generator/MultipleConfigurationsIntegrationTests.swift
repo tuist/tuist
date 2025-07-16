@@ -31,7 +31,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
+    ) func generateThrowsLintingErrorWhenConfigurationsAreEmpty() async throws {
         // Given
         let projectSettings = Settings(configurations: [:])
         let targetSettings: Settings? = nil
@@ -46,7 +46,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenSingleDebugConfigurationInProject() async throws {
+    ) func generateWhenSingleDebugConfigurationInProject() async throws {
         // Given
         let projectSettings = Settings(
             base: ["A": "A"],
@@ -68,7 +68,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenConfigurationSettingsOverrideXCConfig() async throws {
+    ) func generateWhenConfigurationSettingsOverrideXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -97,7 +97,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenConfigurationSettingsOverrideBase() async throws {
+    ) func generateWhenConfigurationSettingsOverrideBase() async throws {
         // Given
         let debugConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -122,7 +122,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenBuildConfigurationWithCustomName() async throws {
+    ) func generateWhenBuildConfigurationWithCustomName() async throws {
         // Given
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
@@ -155,7 +155,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenTargetSettingsOverrideTargetXCConfig() async throws {
+    ) func generateWhenTargetSettingsOverrideTargetXCConfig() async throws {
         // Given
         let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
@@ -185,7 +185,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenMultipleConfigurations() async throws {
+    ) func generateWhenMultipleConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",
@@ -241,7 +241,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
+    ) func generateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
         // Given
         let projectDebugFilePath = try createFile(path: "Configs/project_debug.xcconfig", content: """
         A=A_PROJECT_XCCONFIG
@@ -324,7 +324,7 @@ final class MultipleConfigurationsIntegrationTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func testGenerateWhenCustomConfigurations() async throws {
+    ) func generateWhenCustomConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [
             "A": "A_PROJECT_DEBUG",

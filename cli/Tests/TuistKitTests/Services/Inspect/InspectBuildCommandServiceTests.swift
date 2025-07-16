@@ -107,7 +107,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_createsBuild() async throws {
+    func createsBuild() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -192,7 +192,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_createsBuild_generated_after_initial_run() async throws {
+    func createsBuild_generated_after_initial_run() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -259,7 +259,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment())
-    func test_when_should_not_wait() async throws {
+    func when_should_not_wait() async throws {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.variables = [:]
@@ -284,7 +284,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_createsBuild_with_path_from_cli() async throws {
+    func createsBuild_with_path_from_cli() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -329,7 +329,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment())
-    func test_createsBuild_with_path_from_cli_for_xcworkspace() async throws {
+    func createsBuild_with_path_from_cli_for_xcworkspace() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") {
             temporaryDirectory in
             // Given
@@ -383,7 +383,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_when_no_project_exists_at_a_given_path() async throws {
+    func when_no_project_exists_at_a_given_path() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let mockedEnvironment = try #require(Environment.mocked)
@@ -400,7 +400,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_when_no_logs_exist() async throws {
+    func when_no_logs_exist() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -428,7 +428,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func test_when_full_handle_not_specified() async throws {
+    func when_full_handle_not_specified() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")

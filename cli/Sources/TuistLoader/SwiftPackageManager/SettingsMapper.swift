@@ -122,7 +122,8 @@ struct SettingsMapper {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines
                 .map { key, value in
                     "\(key)=\(value.spm_shellEscaped())"
-                })
+                }
+            )
         }
 
         if !swiftDefines.isEmpty {

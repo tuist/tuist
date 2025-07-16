@@ -83,7 +83,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let xcResultService: XCResultServicing
     private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
 
-    public convenience init(
+    convenience init(
         generatorFactory: GeneratorFactorying,
         cacheStorageFactory: CacheStorageFactorying
     ) {
@@ -687,7 +687,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func storeSuccessfulTestHashes(
         for targets: [GraphTarget],
-        graph: Graph,
+        graph _: Graph,
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {

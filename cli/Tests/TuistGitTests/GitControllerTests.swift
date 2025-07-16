@@ -14,7 +14,7 @@ struct GitControllerTests {
         subject = GitController(system: system)
     }
 
-    @Test(.inTemporaryDirectory) func test_topLevelDirectory() throws {
+    @Test(.inTemporaryDirectory) func topLevelDirectory() throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand(["git", "-C \(path.pathString)", "rev-parse", "--show-toplevel"], output: "/path/to/root")
@@ -24,7 +24,7 @@ struct GitControllerTests {
         #expect(system.called(["git", "-C \(path.pathString)", "rev-parse", "--show-toplevel"]) == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_cloneInto() throws {
+    @Test(.inTemporaryDirectory) func cloneInto() throws {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)
 
@@ -34,7 +34,7 @@ struct GitControllerTests {
         #expect(system.called(["git", "-C", path.pathString, "clone", url]) == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_cloneTo() throws {
+    @Test(.inTemporaryDirectory) func cloneTo() throws {
         let url = "https://some/url/to/repo.git"
 
         system.succeedCommand(["git", "clone \(url)"])
@@ -43,7 +43,7 @@ struct GitControllerTests {
         #expect(system.called(["git", "clone", url]) == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_cloneTo_WITH_path() throws {
+    @Test(.inTemporaryDirectory) func cloneTo_WITH_path() throws {
         let url = "https://some/url/to/repo.git"
         let path = try #require(FileSystem.temporaryTestDirectory)
 
@@ -61,7 +61,7 @@ struct GitControllerTests {
         try subject.checkout(id: id, in: nil)
     }
 
-    @Test(.inTemporaryDirectory) func test_checkout_WITH_path() throws {
+    @Test(.inTemporaryDirectory) func checkout_WITH_path() throws {
         let id = "main"
         let path = try #require(FileSystem.temporaryTestDirectory)
 
@@ -89,7 +89,7 @@ struct GitControllerTests {
         ]) == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_parsed_versions() throws {
+    @Test(.inTemporaryDirectory) func parsed_versions() throws {
         let url = "https://some/url/to/repo.git"
 
         let expectedCommand = [
@@ -149,7 +149,7 @@ struct GitControllerTests {
 
     // MARK: - gitInfo() tests
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_github_actions() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_github_actions() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -179,7 +179,7 @@ struct GitControllerTests {
         #expect(gitInfo.remoteURLOrigin == "https://github.com/tuist/tuist")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_gitlab_ci() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_gitlab_ci() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -204,7 +204,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "def456")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_circleci() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_circleci() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -229,7 +229,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "ghi789")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_buildkite() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_buildkite() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -254,7 +254,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "jkl012")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_local_git_repo() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_local_git_repo() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -280,7 +280,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "mno345")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_not_git_repo() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_not_git_repo() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -296,7 +296,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == nil)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_no_commits() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_no_commits() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -318,7 +318,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == nil)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_detached_head() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_detached_head() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -344,7 +344,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "pqr678")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_when_azure_devops() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_azure_devops() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -368,7 +368,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "stu901")
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func test_gitInfo_ci_branch_priority_over_git() throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_ci_branch_priority_over_git() throws {
         // Given - CI environment variable should take priority over git command
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
@@ -396,7 +396,7 @@ struct GitControllerTests {
         #expect(gitInfo.sha == "vwx234")
     }
 
-    @Test(.inTemporaryDirectory) func test_inGitRepository_when_rev_parse_succeeds() throws {
+    @Test(.inTemporaryDirectory) func inGitRepository_when_rev_parse_succeeds() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         system.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
@@ -408,7 +408,7 @@ struct GitControllerTests {
         #expect(isInGitRepository == true)
     }
 
-    @Test(.inTemporaryDirectory) func test_inGitRepository_when_rev_parse_fails() throws {
+    @Test(.inTemporaryDirectory) func inGitRepository_when_rev_parse_fails() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         system.errorCommand(["git", "-C", path.pathString, "rev-parse"])
