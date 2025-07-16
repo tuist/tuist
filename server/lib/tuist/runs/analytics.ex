@@ -159,28 +159,34 @@ defmodule Tuist.Runs.Analytics do
   end
 
   def runs_duration_analytics(name, opts) do
-    project_id = Keyword.get(opts, :project_id)
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    Appsignal.instrument("tuist.runs.analytics.runs_duration_analytics", fn ->
+      project_id = Keyword.get(opts, :project_id)
+      start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+      end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    runs_duration_analytics(%{
-      start_date: start_date,
-      end_date: end_date,
-      runs: fn start_date, end_date ->
-        CommandEvents.runs_analytics(project_id, start_date, end_date, Keyword.put(opts, :name, name))
-      end,
-      average_durations: fn start_date, end_date, date_period, time_bucket ->
-        CommandEvents.runs_analytics_average_durations(
-          project_id,
-          start_date,
-          end_date,
-          date_period,
-          time_bucket,
-          name,
-          opts
-        )
-      end
-    })
+      runs_duration_analytics(%{
+        start_date: start_date,
+        end_date: end_date,
+        runs: fn start_date, end_date ->
+          Appsignal.instrument("tuist.runs.analytics.command_events.runs_analytics", fn ->
+            CommandEvents.runs_analytics(project_id, start_date, end_date, Keyword.put(opts, :name, name))
+          end)
+        end,
+        average_durations: fn start_date, end_date, date_period, time_bucket ->
+          Appsignal.instrument("tuist.runs.analytics.command_events.runs_analytics_average_durations", fn ->
+            CommandEvents.runs_analytics_average_durations(
+              project_id,
+              start_date,
+              end_date,
+              date_period,
+              time_bucket,
+              name,
+              opts
+            )
+          end)
+        end
+      })
+    end)
   end
 
   # Returns analytics for duration of runs, such as runs or builds.
