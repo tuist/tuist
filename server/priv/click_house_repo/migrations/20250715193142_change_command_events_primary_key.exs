@@ -2,11 +2,17 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
   use Ecto.Migration
 
   def up do
+    legacy_id_default =
+      if Tuist.Environment.dev?() || Tuist.Environment.test?(),
+        do: "abs(rand64())",
+        # Serial IDs require Zookeeper, which we are not using in dev/test environments. Therefore, only run it in deployment environments.
+        else: "generateSerialID('command_events_legacy_id')"
+
     execute("""
     CREATE TABLE command_events_new
     (
         `id` UUID,
-        `legacy_id` UInt64 DEFAULT abs(rand64()),
+        `legacy_id` UInt64 DEFAULT #{legacy_id_default},
         `legacy_artifact_path` Bool DEFAULT false,
         `name` String,
         `subcommand` Nullable(String),
