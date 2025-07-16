@@ -1,23 +1,29 @@
 ---
-title: Логирование
-titleTemplate: :title · CLI · Contributors · Tuist
-description: Узнайте, как внести вклад в Tuist, проводя ревью на пулл-реквесты
+title: Logging titleTemplate: :title · CLI · Contributors · Tuist description:
+Learn how to contribute to Tuist by reviewing code
 ---
 
-# Логирование {#logging}
+# Logging {#logging}
 
-CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) интерфейс для логирования. Пакет абстрагирует детали реализации логирования, позволяя CLI быть независимым от её исполнения. The logger is dependency-injected using task locals and can be accessed anywhere using:
+The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface
+for logging. The package abstracts away the implementation details of logging,
+allowing the CLI to be agnostic to the logging backend. The logger is
+dependency-injected using task locals and can be accessed anywhere using:
 
 ```bash
 Logger.current
 ```
 
-> [!NOTE]
-> Task locals don't propagate the value when using `Dispatch` or detached tasks, so if you use them, you'll need to get it and pass it to the asynchronous operation.
+> [!NOTE] Task locals don't propagate the value when using `Dispatch` or
+> detached tasks, so if you use them, you'll need to get it and pass it to the
+> asynchronous operation.
 
-## Что логировать {#what-to-log}
+## What to log {#what-to-log}
 
-Логи не являются интерфейсом CLI. Они являются инструментом для диагностики проблем по мере их возникновения.
-Поэтому чем больше информации вы предоставите, тем лучше.
-При создании новых функций поставьте себя на место разработчика, столкнувшегося с неожиданным поведением, и подумайте, какая информация будет ему полезна.
-Убедитесь, что вы используете правильный [уровень лога](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). В противном случае разработчики не смогут отфильтровать шум.
+Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
+Therefore, the more information you provide, the better. When building new
+features, put yourself in the shoes of a developer coming across unexpected
+behavior, and think about what information would be helpful to them. Ensure you
+you use the right [log
+level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
+Otherwise developers won't be able to filter out the noise.
