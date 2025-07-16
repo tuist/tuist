@@ -191,7 +191,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_load_info_plist_with_primary_icon_and_and_no_bundle_icon_name() async throws {
         // Given
         let appBundlePath = try temporaryPath()
