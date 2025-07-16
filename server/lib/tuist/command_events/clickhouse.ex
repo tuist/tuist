@@ -214,6 +214,31 @@ defmodule Tuist.CommandEvents.Clickhouse do
     |> Enum.map(&Event.normalize_enums/1)
   end
 
+  def runs_analytics_average_durations(project_id, start_date, end_date, date_period, _time_bucket, "test", opts) do
+    view_name =
+      case date_period do
+        :month -> "test_runs_analytics_monthly"
+        _ -> "test_runs_analytics_daily"
+      end
+
+    query =
+      from(v in fragment("?", identifier(^view_name)),
+        where:
+          v.project_id == ^project_id and
+            v.date >= ^start_date and
+            v.date <= ^end_date,
+        select: %{
+          date: v.date,
+          value: fragment("sum(?) / sum(?)", v.total_duration, v.run_count)
+        },
+        group_by: v.date
+      )
+
+    query
+    |> add_materialized_view_filters(opts)
+    |> ClickHouseRepo.all()
+  end
+
   def runs_analytics_average_durations(project_id, start_date, end_date, _date_period, time_bucket, name, opts) do
     date_format = get_date_format(time_bucket)
 
@@ -232,6 +257,31 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query
     |> add_filters(Keyword.put(opts, :name, name))
+    |> ClickHouseRepo.all()
+  end
+
+  def runs_analytics_count(project_id, start_date, end_date, date_period, _time_bucket, "test", opts) do
+    view_name =
+      case date_period do
+        :month -> "test_runs_analytics_monthly"
+        _ -> "test_runs_analytics_daily"
+      end
+
+    query =
+      from(v in fragment("?", identifier(^view_name)),
+        where:
+          v.project_id == ^project_id and
+            v.date >= ^start_date and
+            v.date <= ^end_date,
+        select: %{
+          date: v.date,
+          count: sum(v.run_count)
+        },
+        group_by: v.date
+      )
+
+    query
+    |> add_materialized_view_filters(opts)
     |> ClickHouseRepo.all()
   end
 
@@ -573,5 +623,20 @@ defmodule Tuist.CommandEvents.Clickhouse do
       user_account_name = Map.get(user_account_map, event.user_id)
       Map.put(event, :user_account_name, user_account_name)
     end)
+  end
+
+  defp add_materialized_view_filters(query, opts) do
+    query =
+      case Keyword.get(opts, :is_ci) do
+        nil -> query
+        is_ci -> where(query, [v], v.is_ci == ^is_ci)
+      end
+
+    case Keyword.get(opts, :status) do
+      nil -> query
+      :success -> where(query, [v], v.status == 0)
+      :failure -> where(query, [v], v.status == 1)
+      _ -> query
+    end
   end
 end
