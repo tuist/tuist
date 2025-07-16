@@ -360,18 +360,56 @@ defmodule Tuist.CommandEvents.Clickhouse do
   end
 
   def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
-    query =
-      from(e in Event,
-        where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: avg(e.duration)
-      )
+    # Build the complete where clause including all filters
+    is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
+    category = Keyword.get(opts, :category)
+    status = Keyword.get(opts, :status)
+    name = Keyword.get(opts, :name)
 
+    query = from(e in Event, as: :event)
+    query = where(query, [event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
+    query = where(query, [event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
+    query = where(query, [event: e], e.project_id == ^project_id)
+
+    # Apply optional filters
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [event: e], e.is_ci == true)
+        false -> where(query, [event: e], e.is_ci == false)
+      end
+
+    query = if scheme, do: where(query, [event: e], e.scheme == ^scheme), else: query
+    query = if category, do: where(query, [event: e], e.category == ^category), else: query
+
+    query =
+      case status do
+        nil -> query
+        :success -> where(query, [event: e], e.status == 0)
+        :failure -> where(query, [event: e], e.status == 1)
+        _ -> query
+      end
+
+    query =
+      case name do
+        "test" ->
+          where(
+            query,
+            [event: e],
+            (e.name == "xcodebuild" and
+               (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+              e.name == "test"
+          )
+
+        _ ->
+          query
+      end
+
+    # Now add the select with aggregate using fragment
     result =
       query
-      |> add_filters(opts)
+      |> select([event: e], fragment("avg(?)", e.duration))
       |> ClickHouseRepo.one()
 
     case result do
@@ -381,22 +419,60 @@ defmodule Tuist.CommandEvents.Clickhouse do
   end
 
   def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
-    query =
-      from(e in Event,
-        where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: %{
-          total_duration: sum(e.duration),
-          count: count(e),
-          average_duration: avg(e.duration)
-        }
-      )
+    # Build the complete where clause including all filters
+    is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
+    category = Keyword.get(opts, :category)
+    status = Keyword.get(opts, :status)
+    name = Keyword.get(opts, :name)
 
+    query = from(e in Event, as: :event)
+    query = where(query, [event: e], e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]))
+    query = where(query, [event: e], e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]))
+    query = where(query, [event: e], e.project_id == ^project_id)
+
+    # Apply optional filters
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [event: e], e.is_ci == true)
+        false -> where(query, [event: e], e.is_ci == false)
+      end
+
+    query = if scheme, do: where(query, [event: e], e.scheme == ^scheme), else: query
+    query = if category, do: where(query, [event: e], e.category == ^category), else: query
+
+    query =
+      case status do
+        nil -> query
+        :success -> where(query, [event: e], e.status == 0)
+        :failure -> where(query, [event: e], e.status == 1)
+        _ -> query
+      end
+
+    query =
+      case name do
+        "test" ->
+          where(
+            query,
+            [event: e],
+            (e.name == "xcodebuild" and
+               (e.subcommand == "test" or e.subcommand == "test-without-building")) or
+              e.name == "test"
+          )
+
+        _ ->
+          query
+      end
+
+    # Now add the select with aggregates using fragments
     result =
       query
-      |> add_filters(opts)
+      |> select([event: e], %{
+        total_duration: fragment("sum(?)", e.duration),
+        count: fragment("count(*)"),
+        average_duration: fragment("avg(?)", e.duration)
+      })
       |> ClickHouseRepo.one()
 
     case result do
