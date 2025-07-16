@@ -20,7 +20,7 @@ tuist init
 
 :::
 
-이 명령어는 <LocalizedLink href="/guides/develop/projects">생성된 프로젝트를 만들거나</LocalizedLink> 기존의 Xcode 프로젝트 또는 워크스페이스를 통합하는 과정을 안내합니다. 이 설정을 서버에 연결하여 <LocalizedLink href="/guides/develop/selective-testing">선택적 테스트</LocalizedLink>, <LocalizedLink href="/guides/share/previews">프리뷰</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">레지스트리</LocalizedLink>와 같은 기능을 사용할 수 있도록 도와줍니다.
+이 명령어는 <LocalizedLink href="/guides/features/projects">생성된 프로젝트를 만들거나</LocalizedLink> 기존의 Xcode 프로젝트 또는 워크스페이스를 통합하는 과정을 안내합니다. 이 설정을 서버에 연결하여 <LocalizedLink href="/guides/features/selective-testing">선택적 테스트</LocalizedLink>, <LocalizedLink href="/guides/features/previews">프리뷰</LocalizedLink>, <LocalizedLink href="/guides/features/registry">레지스트리</LocalizedLink>와 같은 기능을 사용할 수 있도록 도와줍니다.
 
 > [!NOTE] 기존 프로젝트 마이그레이션\
-> 더 나은 개발자 경험과 <LocalizedLink href="/guides/develop/cache">캐시</LocalizedLink>를 활용하기 위해 기존 프로젝트를 생성된 프로젝트로 마이그레이션 하기 원한다면 <LocalizedLink href="/guides/develop/projects/adoption/migrate/xcode-project">마이그레이션 가이드</LocalizedLink>를 참고 바랍니다.
+> 더 나은 개발자 경험과 <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>를 활용하기 위해 기존 프로젝트를 생성된 프로젝트로 마이그레이션 하기 원한다면 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">마이그레이션 가이드</LocalizedLink>를 참고 바랍니다.
