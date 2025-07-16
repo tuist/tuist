@@ -14,23 +14,22 @@ description: このドキュメントでは、Tuist の開発を導く原則に�
 - 韓国語
 - 日本語
 - ロシア語
+- Chinese
+- Spanish
+- Portuguese
 
 > [!TIP] 新しい言語のリクエスト
 > Tuist に新しい言語サポートを追加することが有益であると考える場合は、コミュニティフォーラムの[トピック](https://community.tuist.io/c/general/4)を作成して、コミュニティと議論してみてください。
 
 ## 翻訳方法 {#how-to-translate}
 
-私たちは翻訳の管理に [Crowdin](https://crowdin.com/) を使用しています。 まず、貢献したいプロジェクトに移動します：
+We have an instance of [Weblate](https://weblate.org/en-gb/) running at [translate.tuist.dev](https://translate.tuist.dev).
+You can head to [the documentation](https://translate.tuist.dev/engage/documentation/) project website, create an account, and start translating.
 
-- [Documentation](https://crowdin.com/project/tuist-documentation)
-- [Website](https://crowdin.com/project/tuist-documentation)
+Translations are synchronized back to the source repository using GitHub pull requests which maintainers will review and merge.
 
-翻訳を始めるにはアカウントが必要です。 GitHub アカウントでサインインできます。 サインイン後にアクセス権を得ると、翻訳を始められます。 翻訳対象のリソース一覧が表示されます。 リソースをクリックするとエディタが開き、左側にソース言語のリソース、右側に翻訳する箇所が表示されます。 右側のテキストを翻訳し、変更を保存してください。
-
-翻訳が更新されると Crowdin が自動的に該当リポジトリにプルリクエストを送信し、メンテナーがレビューとマージを行います。
-
-> [!IMPORTANT] 対象言語のリソースに直接変更を加えないでください
-> Crowdin はファイルをセグメント化してソース言語とターゲット言語を関連付けています。 ソース言語を変更すると、この紐付けが壊れ、想定外の結果が生じる可能性があります。
+> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+> Weblate segments the files to bind source and target languages. ソース言語を変更すると、この紐付けが壊れ、想定外の結果が生じる可能性があります。
 
 ## ガイドライン {#guidelines}
 
