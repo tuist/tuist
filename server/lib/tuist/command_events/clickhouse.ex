@@ -512,7 +512,9 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     case Keyword.get(opts, :status) do
       nil -> query
-      status -> where(query, [v], v.status == ^status)
+      :success -> where(query, [v], v.status == 0)
+      :failure -> where(query, [v], v.status == 1)
+      _ -> query
     end
   end
 end
