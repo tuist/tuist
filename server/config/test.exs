@@ -15,16 +15,7 @@ config :tuist, Oban, testing: :inline
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
-  settings: [
-    # These settings will be applied to all queries
-    mutations_sync: 2,
-    wait_for_async_insert: 1,
-    insert_quorum: 1,
-    # Disable parallel processing for deterministic tests
-    max_threads: 1,
-    max_insert_threads: 1
-  ]
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
