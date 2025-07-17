@@ -23,3 +23,7 @@ description: Узнайте о лучших практиках работы с T
 
 - **В Debug сборках:** Вы можете включить все конфигурации, доступные при разработке в приложение (например, конечные точки), и переключить их во время выполнения. Переключение может происходить при помощи переменных окружения в схемах или в пользовательского интерфейсе приложения.
 - **В Release сборках:** Вы можете включить только конфигурацию, к которой привязана release-сборка, и не включать логику переключения конфигураций с помощью директив компилятора.
+
+:::info Non-standard configurations
+While Tuist supports non-standard configurations and makes them easier to manage compared to vanilla Xcode projects, you'll receive warnings if configurations are not consistent throughout the dependency graph. This helps ensure build reliability and prevents configuration-related issues.
+:::
