@@ -67,6 +67,7 @@ defmodule Tuist.Authentication do
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     else
       {:error, :invalid_token} -> {:error, "The token is invalid"}
+      {:error, :token_not_found} -> {:error, "The token is invalid"}
       {:ok, {:user, nil}} -> {:error, "The token user doesn't exist"}
     end
   end
