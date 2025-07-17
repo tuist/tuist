@@ -2,11 +2,15 @@ defmodule TuistWeb.API.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import TelemetryTest
+
   alias Tuist.Accounts
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit.Auth
+
+  setup [:telemetry_listen]
 
   setup context do
     if Map.get(context, :rate_limited, false) do
@@ -199,9 +203,11 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert response["message"] == "The refresh token is expired or invalid"
     end
 
+    @tag telemetry_listen: [:analytics, :authentication, :token_refresh, :error]
     test "returns bad request if the token is not a refresh token", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
+      cli_version = "1.2.3"
 
       {:ok, access_token, _opts} =
         Tuist.Authentication.encode_and_sign(user, %{},
@@ -212,13 +218,23 @@ defmodule TuistWeb.API.AuthControllerTest do
       # When
       conn =
         conn
+        |> TuistWeb.Headers.put_cli_version(cli_version)
         |> put_req_header("content-type", "application/json")
         |> post("/api/auth/refresh_token", %{refresh_token: access_token})
 
       # Then
       assert json_response(conn, :unauthorized) == %{
-               "message" => "The token can't be refreshed because it has invalid type: access"
+               "message" => "The refresh token is invalid."
              }
+
+      expected_metadata = %{cli_version: cli_version, reason: "invalid_token_type"}
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:analytics, :authentication, :token_refresh, :error],
+                        measurements: %{},
+                        metadata: ^expected_metadata
+                      }}
     end
 
     test "returns bad request if the token belongs to a user that no longer exists", %{conn: conn} do
@@ -423,8 +439,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       email = "my-apple@example.com"
       user = AccountsFixtures.user_fixture(email: email)
 
-      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token,
-                                                                                 ^authorization_code ->
+      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
         {:ok, user}
       end)
 

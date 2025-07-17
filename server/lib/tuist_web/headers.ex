@@ -15,4 +15,8 @@ defmodule TuistWeb.Headers do
       _ -> nil
     end
   end
+
+  def put_cli_version(conn, version) do
+    Plug.Conn.put_req_header(conn, "x-tuist-cloud-cli-version", version)
+  end
 end

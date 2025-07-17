@@ -74,6 +74,7 @@ defmodule Tuist.PromEx do
         Tuist.Registry.Swift.PromExPlugin,
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
+        Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin
       ]
 

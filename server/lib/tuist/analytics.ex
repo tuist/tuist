@@ -14,7 +14,8 @@ defmodule Tuist.Analytics do
     [:analytics, :preview, :upload],
     [:analytics, :preview, :download],
     [:analytics, :cache_artifact, :upload],
-    [:analytics, :cache_artifact, :download]
+    [:analytics, :cache_artifact, :download],
+    [:analytics, :authentication, :token_refresh, :error]
   ]
 
   def all_events do
@@ -82,6 +83,14 @@ defmodule Tuist.Analytics do
       [:analytics, :cache_artifact, :download],
       %{size: size},
       Map.merge(%{category: category}, subject_parameters(subject))
+    )
+  end
+
+  def authentication_token_refresh_error(attrs) do
+    :telemetry.execute(
+      [:analytics, :authentication, :token_refresh, :error],
+      %{},
+      attrs
     )
   end
 
