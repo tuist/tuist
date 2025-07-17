@@ -23,3 +23,7 @@ description: Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 �
 
 - **Debug 빌드:** 앱의 개발 환경에서 접근할 수 있어야 하는 모든 설정 (예: 엔드포인트) 을 포함할 수 있고, 이를 런타임에 전환할 수 있습니다. 전환 방식은 스킴 환경 변수를 사용하거나 앱 내의 UI를 통해 전환할 수 있습니다.
 - **Release 빌드:** 릴리즈 빌드에 필요한 설정만 포함되어야 하고 컴파일러 지시문을 사용하여 설정 전환을 위한 런타임 로직을 포함하지 않도록 해야 합니다.
+
+:::info Non-standard configurations
+While Tuist supports non-standard configurations and makes them easier to manage compared to vanilla Xcode projects, you'll receive warnings if configurations are not consistent throughout the dependency graph. This helps ensure build reliability and prevents configuration-related issues.
+:::
