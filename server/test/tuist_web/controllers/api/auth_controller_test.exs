@@ -216,8 +216,32 @@ defmodule TuistWeb.API.AuthControllerTest do
         |> post("/api/auth/refresh_token", %{refresh_token: access_token})
 
       # Then
-      assert json_response(conn, :bad_request) == %{
+      assert json_response(conn, :unauthorized) == %{
                "message" => "The token can't be refreshed because it has invalid type: access"
+             }
+    end
+
+    test "returns bad request if the token belongs to a user that no longer exists", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, access_token, _opts} =
+        Tuist.Authentication.encode_and_sign(user, %{},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      Tuist.Accounts.delete_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: access_token})
+
+      # Then
+      assert json_response(conn, :unauthorized) == %{
+               "message" => "The refresh token is expired or invalid"
              }
     end
   end

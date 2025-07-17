@@ -173,7 +173,7 @@ defmodule TuistWeb.API.AuthController do
 
           {:error, :invalid_token_type} ->
             conn
-            |> put_status(:bad_request)
+            |> put_status(:unauthorized)
             |> json(%{
               message: "The token can't be refreshed because it has invalid type: #{Map.get(old_claims, "typ")}"
             })
