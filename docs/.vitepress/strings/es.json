@@ -88,7 +88,7 @@
                             "text": "Logging"
                         },
                         "shell-completions": {
-                            "text": "Shell completions"
+                            "text": "Auto-completado en shells"
                         }
                     }
                 },
@@ -189,7 +189,7 @@
                     "text": "Tuist",
                     "items": {
                         "about": {
-                            "text": "About Tuist"
+                            "text": "Sobre Tuist"
                         }
                     }
                 },
