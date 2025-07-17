@@ -46,60 +46,6 @@
     }
   }
 
-  & [data-part="cache-cards-section"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-4);
-
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
-      }
-    }
-
-    & > * {
-      min-width: 0;
-    }
-
-    & [data-part="cache-effectiveness-card-chart-section"] {
-      flex: 2;
-    }
-
-    & [data-part="time-saved-card-chart-section"] {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-
-      & [data-part="footer"] {
-        display: flex;
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-        gap: 6px;
-        margin-top: auto;
-
-        & [data-part="indicator"] {
-          align-self: stretch;
-          border-radius: var(--noora-radius-xsmall);
-          background-color: var(--noora-chart-legend-primary);
-          width: 6px;
-        }
-
-        & [data-part="title"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-        }
-
-        & [data-part="value"] {
-          flex: 1;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-          text-align: end;
-        }
-      }
-    }
-  }
-
   & [data-part="effectiveness-chart"],
   & [data-part="build-runs-chart"],
   & [data-part="test-runs-chart"],
@@ -209,7 +155,6 @@
 
     & > .noora-card__section {
       flex: 1;
-      min-width: 0px;
     }
 
     & [data-part="build-runs-chart"] {

@@ -24,49 +24,43 @@ defmodule TuistWeb.AppComponents do
   alias Phoenix.LiveView.JS
   alias TuistWeb.Utilities.Query
 
-  attr(:id, :string, required: true, doc: "The id of the widget.")
-  attr(:title, :string, required: true, doc: "The title of the widget.")
+  attr :id, :string, required: true, doc: "The id of the widget."
+  attr :title, :string, required: true, doc: "The title of the widget."
 
-  attr(:legend_color, :string,
+  attr :legend_color, :string,
     values: ~w(primary secondary destructive),
     required: false,
     doc: "The color of the legend. The legend is hidden if the value is `nil`."
-  )
 
-  attr(:description, :string,
+  attr :description, :string,
     required: false,
     doc: "The description of the widget value.",
     default: nil
-  )
 
-  attr(:value, :string, required: true, doc: "The value of the widget.")
+  attr :value, :string, required: true, doc: "The value of the widget."
 
-  attr(:trend_value, :integer,
+  attr :trend_value, :integer,
     required: false,
     default: nil,
     doc: "The trend value of the widget."
-  )
 
-  attr(:trend_label, :string, required: false, doc: "The trend label of the widget.")
+  attr :trend_label, :string, required: false, doc: "The trend label of the widget."
 
-  attr(:trend_inverse, :boolean,
+  attr :trend_inverse, :boolean,
     default: false,
     doc: "Set this to true when smaller number means the trend is positive."
-  )
 
-  attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
+  attr :patch, :string, default: nil, doc: "Patches the current LiveView"
 
-  attr(:replace, :boolean,
+  attr :replace, :boolean,
     default: false,
     doc: "Whether to replace the current history entry when patching."
-  )
 
-  attr(:selected, :boolean,
+  attr :selected, :boolean,
     default: false,
     doc: "Whether the widget is selected. Only applicable when patch is not nil."
-  )
 
-  attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
+  attr :empty, :boolean, default: false, doc: "Whether the widget is empty"
 
   def widget(assigns) do
     ~H"""
@@ -131,15 +125,14 @@ defmodule TuistWeb.AppComponents do
     """
   end
 
-  attr(:title, :string, required: true, doc: "The title of the legend.")
-  attr(:value, :string, doc: "The value associated with the legend type.", default: nil)
+  attr :title, :string, required: true, doc: "The title of the legend."
+  attr :value, :string, doc: "The value associated with the legend type.", default: nil
 
-  attr(:style, :string,
+  attr :style, :string,
     required: false,
     default: "primary",
-    values: ~w(primary primary-translucent secondary destructive),
+    values: ~w(primary secondary destructive),
     doc: "The style of the legend."
-  )
 
   def legend(assigns) do
     ~H"""

@@ -273,7 +273,6 @@ test_command_events
       command_event: command_event,
       xcode_graph: %{
         name: "Graph",
-        binary_build_duration: Enum.random(1_000..1_800_000),
         projects: [
           %{
             "name" => name,
