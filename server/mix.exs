@@ -45,10 +45,17 @@ defmodule Tuist.MixProject do
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
-       github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
+       github: "tailwindlabs/heroicons",
+       tag: "v2.1.1",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1},
       {:bamboo, "~> 2.4.0"},
       {:finch,
-       git: "https://github.com/sneako/finch.git", ref: "f857ad514411f8ae7383bb431827769612493434", override: true},
+       git: "https://github.com/sneako/finch.git",
+       ref: "f857ad514411f8ae7383bb431827769612493434",
+       override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -129,7 +136,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.7.0"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.10.0"},
+        {:noora, "== 0.11.0"},
       {:zstream, "~> 0.6"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
     ]
