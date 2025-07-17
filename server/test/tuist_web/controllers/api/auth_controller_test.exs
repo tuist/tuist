@@ -245,7 +245,7 @@ defmodule TuistWeb.API.AuthControllerTest do
              }
     end
 
-    test "handles token_not_found error without crashing", %{conn: conn} do
+    test "handles token_not_found error", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
