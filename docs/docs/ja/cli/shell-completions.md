@@ -1,26 +1,32 @@
 ---
-title: Shell completions
-titleTemplate: :title · CLI · Tuist
-description: Learn how to configure your shell to auto-complete Tuist commands.
+title: Shell completions titleTemplate: :title · CLI · Tuist description: Learn
+how to configure your shell to auto-complete Tuist commands.
 ---
 
 # Shell completions
 
-Tuistを**グローバルにインストールしている**場合 (例えば、Homebrew経由で)、BashやZsh用のシェル補完をインストールして、コマンドやオプションを自動補完できます。
+If you have Tuist **globally installed** (e.g., via Homebrew), you can install
+shell completions for Bash and Zsh to autocomplete commands and options.
 
-:::warning WHAT IS A GLOBAL INSTALLATION
-グローバルインストールは、シェルの `$PATH` 環境変数で利用可能なインストールです。 つまり、ターミナルの任意のディレクトリから `tuist` を実行できます。 This is the default installation method for Homebrew.
-:::
+::: warning WHAT IS A GLOBAL INSTALLATION A global installation is an
+installation that's available in your shell's `$PATH` environment variable. This
+means you can run `tuist` from any directory in your terminal. This is the
+default installation method for Homebrew. :::
 
 #### Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
+If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a
+directory of automatically loading completion scripts —
+`.oh-my-zsh/completions`. Copy your new completion script to a new file in that
+directory called `_tuist`:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh` がない場合、補完スクリプトのパスを関数パスに追加し、補完スクリプトの自動読み込みを有効にする必要があります。 最初に、`~/.zshrc` に以下の行を追加します。
+Without `oh-my-zsh`, you'll need to add a path for completion scripts to your
+function path, and turn on completion script autoloading. First, add these lines
+to `~/.zshrc`:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -28,7 +34,8 @@ autoload -U compinit
 compinit
 ```
 
-次に、`~/.zsh/completion` にディレクトリを作成し、補完スクリプトを新しいディレクトリに再度 `_tuist` というファイルにコピーします。
+Next, create a directory at `~/.zsh/completion` and copy the completion script
+to the new directory, again into a file called `_tuist`.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -36,13 +43,17 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 #### Bash {#bash}
 
-[bash-completion](https://github.com/scop/bash-completion) がインストールされている場合、新しい補完スクリプトをファイル `/usr/local/etc/bash_completion.d/_tuist` にコピーするだけで済みます。
+If you have [bash-completion](https://github.com/scop/bash-completion)
+installed, you can just copy your new completion script to file
+`/usr/local/etc/bash_completion.d/_tuist`:
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。
+Without bash-completion, you'll need to source the completion script directly.
+Copy it to a directory such as `~/.bash_completions/`, and then add the
+following line to `~/.bash_profile` or `~/.bashrc`:
 
 ```bash
 source ~/.bash_completions/example.bash
@@ -50,7 +61,8 @@ source ~/.bash_completions/example.bash
 
 #### Fish {#fish}
 
-If you use [fish shell](https://fishshell.com), you can copy your new completion script to `~/.config/fish/completions/tuist.fish`:
+If you use [fish shell](https://fishshell.com), you can copy your new completion
+script to `~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions
