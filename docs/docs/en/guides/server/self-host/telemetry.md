@@ -288,6 +288,23 @@ The total number of times an upload was completed to the remote storage.
 
 ---
 
+## Authentication metrics {#authentication-metrics}
+
+A set of metrics related to authentication.
+
+### `tuist_authentication_token_refresh_error_total` (counter) {#tuist_authentication_token_refresh_error_total-counter}
+
+The total number of token refresh errors.
+
+#### Tags {#tuist-authentication-token-refresh-error-total-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `cli_version` | The version of the Tuist CLI that encountered the error. |
+| `reason` | The reason for the token refresh error, such as `invalid_token_type` or `invalid_token`. |
+
+---
+
 ## Projects metrics {#projects-metrics}
 
 A set of metrics related to the projects.

@@ -35,8 +35,7 @@ defmodule TuistWeb.API.AuthController do
 
   operation(:device_code,
     summary: "Get a specific device code.",
-    description:
-      "This endpoint returns a token for a given device code if the device code is authenticated.",
+    description: "This endpoint returns a token for a given device code if the device code is authenticated.",
     operation_id: "getDeviceCode",
     parameters: [
       device_code: [
@@ -69,11 +68,8 @@ defmodule TuistWeb.API.AuthController do
              }
            }
          }},
-      accepted:
-        {"The device code is not authenticated", "application/json", %Schema{type: :object}},
-      bad_request:
-        {"The request was not accepted, e.g., when the device code is expired",
-         "application/json", Error}
+      accepted: {"The device code is not authenticated", "application/json", %Schema{type: :object}},
+      bad_request: {"The request was not accepted, e.g., when the device code is expired", "application/json", Error}
     }
   )
 
@@ -133,8 +129,7 @@ defmodule TuistWeb.API.AuthController do
 
   operation(:refresh_token,
     summary: "Request new tokens.",
-    description:
-      "This endpoint returns new tokens for a given refresh token if the refresh token is valid.",
+    description: "This endpoint returns new tokens for a given refresh token if the refresh token is valid.",
     operation_id: "refreshToken",
     request_body:
       {"Token params", "application/json",
@@ -154,10 +149,8 @@ defmodule TuistWeb.API.AuthController do
         "application/json",
         AuthenticationTokens
       },
-      unauthorized:
-        {"You need to be authenticated to issue new tokens", "application/json", Error},
-      bad_request:
-        {"The token can't be refreshed because it has invalid type", "application/json", Error}
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
+      bad_request: {"The token can't be refreshed because it has invalid type", "application/json", Error}
     }
   )
 
@@ -168,10 +161,8 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:unauthorized)
         |> json(%{message: "The refresh token is expired or invalid"})
 
-      {:ok, {_old_token, old_claims}, {new_refresh_token, _new_claims}} ->
-        case Authentication.exchange(new_refresh_token, "refresh", "access",
-               ttl: @access_token_ttl
-             ) do
+      {:ok, {_old_token, _old_claims}, {new_refresh_token, _new_claims}} ->
+        case Authentication.exchange(new_refresh_token, "refresh", "access", ttl: @access_token_ttl) do
           {:ok, _old_token_with_claims, {new_access_token, _new_access_token_claims}} ->
             conn
             |> put_status(:ok)
@@ -180,20 +171,16 @@ defmodule TuistWeb.API.AuthController do
               refresh_token: new_refresh_token
             })
 
-          {:error, :invalid_token_type} ->
-            Appsignal.send_error(
-              :error,
-              %RuntimeError{
-                message: "A refresh token couldn't be refresh because it has an invalid type"
-              },
-              old_claims
-            )
+          {:error, reason} ->
+            Tuist.Analytics.authentication_token_refresh_error(%{
+              reason: if(is_binary(reason), do: reason, else: Atom.to_string(reason)),
+              cli_version: conn |> TuistWeb.Headers.get_cli_version() |> Version.to_string()
+            })
 
             conn
             |> put_status(:unauthorized)
             |> json(%{
-              message:
-                "The token can't be refreshed because it has invalid type: #{Map.get(old_claims, "typ")}"
+              message: "The refresh token is invalid."
             })
         end
     end
@@ -257,8 +244,7 @@ defmodule TuistWeb.API.AuthController do
         "application/json",
         AuthenticationTokens
       },
-      unauthorized:
-        {"Invalid Apple identity token or authorization code.", "application/json", Error},
+      unauthorized: {"Invalid Apple identity token or authorization code.", "application/json", Error},
       bad_request: {"Invalid request parameters.", "application/json", Error}
     }
   )
@@ -314,8 +300,7 @@ defmodule TuistWeb.API.AuthController do
   end
 
   def authenticate_apple(
-        %{body_params: %{identity_token: identity_token, authorization_code: authorization_code}} =
-          conn,
+        %{body_params: %{identity_token: identity_token, authorization_code: authorization_code}} = conn,
         _params
       ) do
     with {:ok, user} <-

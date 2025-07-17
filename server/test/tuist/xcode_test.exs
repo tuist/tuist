@@ -1055,8 +1055,16 @@ defmodule Tuist.XcodeTest do
           }
         })
 
-      # When
-      counts = Clickhouse.selective_testing_counts(command_event)
+      # When (with retry for materialized view population)
+      counts =
+        wait_for_clickhouse_data(
+          fn ->
+            Clickhouse.selective_testing_counts(command_event)
+          end,
+          fn result ->
+            result.total_count == 3
+          end
+        )
 
       # Then
       assert counts.selective_testing_local_hits_count == 1
@@ -1101,8 +1109,16 @@ defmodule Tuist.XcodeTest do
           }
         })
 
-      # When
-      counts = Clickhouse.binary_cache_counts(command_event)
+      # When (with retry for materialized view population)
+      counts =
+        wait_for_clickhouse_data(
+          fn ->
+            Clickhouse.binary_cache_counts(command_event)
+          end,
+          fn result ->
+            result.total_count == 4
+          end
+        )
 
       # Then
       assert counts.binary_cache_local_hits_count == 1
