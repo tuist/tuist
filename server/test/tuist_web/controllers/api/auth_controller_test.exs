@@ -244,6 +244,31 @@ defmodule TuistWeb.API.AuthControllerTest do
                "message" => "The refresh token is expired or invalid"
              }
     end
+
+    test "handles token_not_found error without crashing", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # Create a token but then remove it from Guardian.
+      {:ok, refresh_token, claims} =
+        Tuist.Authentication.encode_and_sign(user, %{},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      Guardian.DB.on_revoke(claims, refresh_token)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      assert json_response(conn, :unauthorized) == %{
+               "message" => "The refresh token is expired or invalid"
+             }
+    end
   end
 
   describe "POST /api/auth" do
@@ -376,7 +401,8 @@ defmodule TuistWeb.API.AuthControllerTest do
       email = "my-apple@example.com"
       user = AccountsFixtures.user_fixture(email: email)
 
-      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token, ^authorization_code ->
+      expect(Tuist.OAuth.Apple, :verify_apple_identity_token_and_create_user, fn ^identity_token,
+                                                                                 ^authorization_code ->
         {:ok, user}
       end)
 
