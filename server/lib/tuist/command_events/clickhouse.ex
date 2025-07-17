@@ -92,7 +92,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     event = struct(Event, event_attrs)
     {:ok, command_event} = ClickHouseRepo.insert(event)
-    Event.normalize_enums(command_event)
+    command_event |> ClickHouseRepo.reload() |> Event.normalize_enums()
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
