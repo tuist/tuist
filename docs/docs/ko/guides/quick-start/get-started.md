@@ -1,12 +1,12 @@
 ---
-title: Get started
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Tuist를 설치하는 방법을 알아보세요.
+title: Get started titleTemplate: :title · Quick-start · Guides · Tuist
+description: Learn how to install Tuist in your environment.
 ---
 
 # Get started {#get-started}
 
-어떤 디렉토리나 Xcode 프로젝트 또는 워크스페이스 디렉토리에서 Tuist를 시작하는 가장 쉬운 방법은 다음과 같습니다:
+The easiest way to get started with Tuist in any directory or in the directory
+of your Xcode project or workspace:
 
 ::: code-group
 
@@ -17,10 +17,20 @@ mise x tuist@latest -- tuist init
 ```bash [Global Tuist (Homebrew)]
 tuist init
 ```
-
 :::
 
-이 명령어는 <LocalizedLink href="/guides/features/projects">생성된 프로젝트를 만들거나</LocalizedLink> 기존의 Xcode 프로젝트 또는 워크스페이스를 통합하는 과정을 안내합니다. 이 설정을 서버에 연결하여 <LocalizedLink href="/guides/features/selective-testing">선택적 테스트</LocalizedLink>, <LocalizedLink href="/guides/features/previews">프리뷰</LocalizedLink>, <LocalizedLink href="/guides/features/registry">레지스트리</LocalizedLink>와 같은 기능을 사용할 수 있도록 도와줍니다.
+The command will walk you through the steps to
+<LocalizedLink href="/guides/features/projects">create a generated
+project</LocalizedLink> or integrate an existing Xcode project or workspace. It
+helps you connect your setup to the remote server, giving you access to features
+like <LocalizedLink href="/guides/features/selective-testing">selective
+testing</LocalizedLink>,
+<LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
+the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
 
-> [!NOTE] 기존 프로젝트 마이그레이션\
-> 더 나은 개발자 경험과 <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>를 활용하기 위해 기존 프로젝트를 생성된 프로젝트로 마이그레이션 하기 원한다면 <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">마이그레이션 가이드</LocalizedLink>를 참고 바랍니다.
+> [!NOTE] MIGRATE AN EXISTING PROJECT If you want to migrate an existing project
+> to generated projects to improve the developer experience and take advantage
+> of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>,
+> check out our
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration
+> guide</LocalizedLink>.
