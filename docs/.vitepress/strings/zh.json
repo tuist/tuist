@@ -31,49 +31,49 @@
                     "no-recent-searches-text": "没有搜索历史",
                     "save-recent-search-button-title": "保存到搜索历史",
                     "remove-recent-search-button-title": "从搜索历史中移除",
-                    "favorite-searches-title": "Favorites",
-                    "remove-favorite-search-button-title": "Remove from favorites"
+                    "favorite-searches-title": "收藏",
+                    "remove-favorite-search-button-title": "从收藏中移除"
                 },
                 "error-screen": {
-                    "title-text": "Unable to retrieve results",
-                    "help-text": "You may need to check your network connection"
+                    "title-text": "无法检索结果",
+                    "help-text": "您可能需要检查网络连接"
                 },
                 "footer": {
-                    "select-text": "Select",
-                    "navigate-text": "Navigate",
-                    "close-text": "Close",
-                    "search-by-text": "Search provider"
+                    "select-text": "选择",
+                    "navigate-text": "导航",
+                    "close-text": "关闭",
+                    "search-by-text": "搜索提供者"
                 },
                 "no-results-screen": {
-                    "no-results-text": "No relevant results found",
-                    "suggested-query-text": "You might try querying",
-                    "report-missing-results-text": "Do you think this query should have results?",
-                    "report-missing-results-link-text": "Click to give feedback"
+                    "no-results-text": "未找到相关结果",
+                    "suggested-query-text": "您可以尝试查询",
+                    "report-missing-results-text": "您认为此查询应该有结果吗？",
+                    "report-missing-results-link-text": "点击提供反馈"
                 }
             }
         }
     },
     "navbar": {
         "guides": {
-            "text": "Guides"
+            "text": "指南"
         },
         "cli": {
             "text": "CLI"
         },
         "server": {
-            "text": "Server"
+            "text": "服务器"
         },
         "resources": {
-            "text": "Resources",
+            "text": "资源",
             "items": {
                 "references": {
-                    "text": "References"
+                    "text": "参考"
                 },
                 "contributors": {
-                    "text": "Contributors"
+                    "text": "贡献者"
                 },
                 "changelog": {
-                    "text": "Changelog"
+                    "text": "更新日志"
                 }
             }
         }
@@ -85,57 +85,57 @@
                 "cli": {
                     "items": {
                         "logging": {
-                            "text": "Logging"
+                            "text": "日志记录"
                         },
                         "shell-completions": {
-                            "text": "Shell completions"
+                            "text": "Shell 补全"
                         }
                     }
                 },
                 "commands": {
-                    "text": "Commands"
+                    "text": "命令"
                 }
             }
         },
         "references": {
-            "text": "References",
+            "text": "参考",
             "items": {
                 "examples": {
-                    "text": "Examples"
+                    "text": "示例"
                 },
                 "migrations": {
-                    "text": "Migrations",
+                    "text": "迁移",
                     "items": {
                         "from-v3-to-v4": {
-                            "text": "From v3 to v4"
+                            "text": "从 v3 到 v4"
                         }
                     }
                 }
             }
         },
         "contributors": {
-            "text": "Contributors",
+            "text": "贡献者",
             "items": {
                 "get-started": {
-                    "text": "Get started"
+                    "text": "入门"
                 },
                 "issue-reporting": {
-                    "text": "Issue reporting"
+                    "text": "问题报告"
                 },
                 "code-reviews": {
-                    "text": "Code reviews"
+                    "text": "代码审查"
                 },
                 "principles": {
-                    "text": "Principles"
+                    "text": "原则"
                 },
                 "translate": {
-                    "text": "Translate"
+                    "text": "翻译"
                 },
                 "cli": {
                     "text": "CLI",
                     "items": {
                         "logging": {
-                            "text": "Logging"
+                            "text": "日志记录"
                         }
                     }
                 }
@@ -144,210 +144,210 @@
         "server": {
             "items": {
                 "introduction": {
-                    "text": "Introduction",
+                    "text": "介绍",
                     "items": {
                         "why-server": {
-                            "text": "Why a server?"
+                            "text": "为什么需要服务器？"
                         },
                         "accounts-and-projects": {
-                            "text": "Accounts and projects"
+                            "text": "账户和项目"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "认证"
                         },
                         "integrations": {
-                            "text": "Integrations"
+                            "text": "集成"
                         }
                     }
                 },
                 "on-premise": {
-                    "text": "On-premise",
+                    "text": "本地部署",
                     "items": {
                         "install": {
-                            "text": "Install"
+                            "text": "安装"
                         },
                         "metrics": {
-                            "text": "Metrics"
+                            "text": "指标"
                         }
                     }
                 },
                 "api-documentation": {
-                    "text": "API documentation"
+                    "text": "API 文档"
                 },
                 "status": {
-                    "text": "Status"
+                    "text": "状态"
                 },
                 "metrics-dashboard": {
-                    "text": "Metrics dashboard"
+                    "text": "指标仪表盘"
                 }
             }
         },
         "guides": {
-            "text": "Guides",
+            "text": "指南",
             "items": {
                 "tuist": {
                     "text": "Tuist",
                     "items": {
                         "about": {
-                            "text": "About Tuist"
+                            "text": "关于 Tuist"
                         }
                     }
                 },
                 "quick-start": {
-                    "text": "Quick start",
+                    "text": "快速开始",
                     "items": {
                         "install-tuist": {
-                            "text": "Install Tuist"
+                            "text": "安装 Tuist"
                         },
                         "get-started": {
-                            "text": "Get started"
+                            "text": "入门"
                         }
                     }
                 },
                 "features": {
-                    "text": "Features"
+                    "text": "功能"
                 },
                 "examples": {
-                    "text": "Examples",
+                    "text": "示例",
                     "items": {
                         "generated-projects": {
-                            "text": "Generated projects"
+                            "text": "生成的项目"
                         }
                     }
                 },
                 "develop": {
-                    "text": "Develop",
+                    "text": "开发",
                     "items": {
                         "generated-projects": {
-                            "text": "Generated projects",
+                            "text": "生成的项目",
                             "items": {
                                 "adoption": {
-                                    "text": "Adoption",
+                                    "text": "采用",
                                     "items": {
                                         "new-project": {
-                                            "text": "Create a new project"
+                                            "text": "创建新项目"
                                         },
                                         "swift-package": {
-                                            "text": "Try with a Swift Package"
+                                            "text": "尝试 Swift Package"
                                         },
                                         "migrate": {
-                                            "text": "Migrate",
+                                            "text": "迁移",
                                             "items": {
                                                 "xcode-project": {
-                                                    "text": "An Xcode project"
+                                                    "text": "Xcode 项目"
                                                 },
                                                 "swift-package": {
-                                                    "text": "A Swift package"
+                                                    "text": "Swift 包"
                                                 },
                                                 "xcodegen-project": {
-                                                    "text": "An XcodeGen project"
+                                                    "text": "XcodeGen 项目"
                                                 },
                                                 "bazel-project": {
-                                                    "text": "A Bazel project"
+                                                    "text": "Bazel 项目"
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 "manifests": {
-                                    "text": "Manifests"
+                                    "text": "清单"
                                 },
                                 "directory-structure": {
-                                    "text": "Directory structure"
+                                    "text": "目录结构"
                                 },
                                 "editing": {
-                                    "text": "Editing"
+                                    "text": "编辑"
                                 },
                                 "dependencies": {
-                                    "text": "Dependencies"
+                                    "text": "依赖"
                                 },
                                 "code-sharing": {
-                                    "text": "Code sharing"
+                                    "text": "代码共享"
                                 },
                                 "synthesized-files": {
-                                    "text": "Synthesized files"
+                                    "text": "合成文件"
                                 },
                                 "dynamic-configuration": {
-                                    "text": "Dynamic configuration"
+                                    "text": "动态配置"
                                 },
                                 "templates": {
-                                    "text": "Templates"
+                                    "text": "模板"
                                 },
                                 "plugins": {
-                                    "text": "Plugins"
+                                    "text": "插件"
                                 },
                                 "hashing": {
-                                    "text": "Hashing"
+                                    "text": "哈希"
                                 },
                                 "inspect": {
-                                    "text": "Inspect",
+                                    "text": "检查",
                                     "items": {
                                         "implicit-imports": {
-                                            "text": "Implicit imports"
+                                            "text": "隐式导入"
                                         }
                                     }
                                 },
                                 "the-cost-of-convenience": {
-                                    "text": "The cost of convenience"
+                                    "text": "便利的代价"
                                 },
                                 "tma-architecture": {
-                                    "text": "Modular architecture"
+                                    "text": "模块化架构"
                                 },
                                 "best-practices": {
-                                    "text": "Best practices"
+                                    "text": "最佳实践"
                                 }
                             }
                         },
                         "cache": {
-                            "text": "Cache"
+                            "text": "缓存"
                         },
                         "registry": {
-                            "text": "Registry",
+                            "text": "注册表",
                             "items": {
                                 "registry": {
-                                    "text": "Registry"
+                                    "text": "注册表"
                                 },
                                 "xcode-project": {
-                                    "text": "Xcode project"
+                                    "text": "Xcode 项目"
                                 },
                                 "generated-project": {
-                                    "text": "Generated project"
+                                    "text": "生成的项目"
                                 },
                                 "xcodeproj-integration": {
-                                    "text": "XcodeProj-based integration"
+                                    "text": "基于 XcodeProj 的集成"
                                 },
                                 "swift-package": {
-                                    "text": "Swift package"
+                                    "text": "Swift 包"
                                 },
                                 "continuous-integration": {
-                                    "text": "Continuous integration"
+                                    "text": "持续集成"
                                 }
                             }
                         },
                         "selective-testing": {
-                            "text": "Selective testing",
+                            "text": "选择性测试",
                             "items": {
                                 "selective-testing": {
-                                    "text": "Selective testing"
+                                    "text": "选择性测试"
                                 },
                                 "xcode-project": {
-                                    "text": "Xcode project"
+                                    "text": "Xcode 项目"
                                 },
                                 "generated-project": {
-                                    "text": "Generated project"
+                                    "text": "生成的项目"
                                 }
                             }
                         },
                         "insights": {
-                            "text": "Insights"
+                            "text": "洞察"
                         },
                         "bundle-size": {
-                            "text": "Bundle size"
+                            "text": "包体积"
                         }
                     }
                 },
                 "agentic-coding": {
-                    "text": "Agentic Coding",
+                    "text": "Agentic 编码",
                     "items": {
                         "mcp": {
                             "text": "MCP"
@@ -355,18 +355,18 @@
                     }
                 },
                 "integrations": {
-                    "text": "Integrations",
+                    "text": "集成",
                     "items": {
                         "continuous-integration": {
-                            "text": "Continuous integration"
+                            "text": "持续集成"
                         }
                     }
                 },
                 "share": {
-                    "text": "Share",
+                    "text": "共享",
                     "items": {
                         "previews": {
-                            "text": "Previews"
+                            "text": "预览"
                         }
                     }
                 }
