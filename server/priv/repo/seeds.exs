@@ -238,9 +238,7 @@ command_events
 end)
 
 test_command_events =
-  Tuist.ClickHouseRepo.all(
-    from(c in Tuist.CommandEvents.Clickhouse.Event, where: c.name == "test")
-  )
+  ClickHouseRepo.all(from(c in Event, where: c.name == "test"))
 
 test_command_events
 |> Enum.shuffle()
