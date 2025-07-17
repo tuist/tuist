@@ -7,7 +7,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  describe "builds_duration_analytics_grouped_by_category/3" do
+  describe "build_duration_analytics_by_category/3" do
     test "returns duration analytics grouped by xcode_version" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -47,7 +47,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_duration_analytics_grouped_by_category(
+        Analytics.build_duration_analytics_by_category(
           project.id,
           :xcode_version,
           start_date: Date.add(DateTime.utc_now(), -30)
@@ -92,7 +92,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_duration_analytics_grouped_by_category(
+        Analytics.build_duration_analytics_by_category(
           project.id,
           :model_identifier,
           start_date: Date.add(DateTime.utc_now(), -30)
@@ -136,7 +136,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_duration_analytics_grouped_by_category(
+        Analytics.build_duration_analytics_by_category(
           project.id,
           :macos_version,
           start_date: Date.add(DateTime.utc_now(), -30)
@@ -186,7 +186,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_duration_analytics(
+        Analytics.build_duration_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2)
         )
@@ -198,7 +198,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
-  describe "builds_percentile_durations/2" do
+  describe "build_percentile_durations/2" do
     test "returns p90 duration analytics for the last three days" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -248,7 +248,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_percentile_durations(
+        Analytics.build_percentile_durations(
           project.id,
           0.5,
           start_date: ~D[2024-04-28]
@@ -259,7 +259,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
-  describe "builds_analytics/2" do
+  describe "build_analytics/2" do
     test "returns builds analytics for the last three days" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -295,7 +295,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_analytics(
+        Analytics.build_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2)
         )
@@ -741,7 +741,7 @@ defmodule Tuist.Runs.AnalyticsTest do
     end
   end
 
-  describe "builds_success_rate_analytics/2" do
+  describe "build_success_rate_analytics/2" do
     test "returns success rate analytics for builds" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
@@ -779,7 +779,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2),
           end_date: DateTime.to_date(DateTime.utc_now())
@@ -815,7 +815,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2),
           end_date: DateTime.to_date(DateTime.utc_now())
@@ -847,7 +847,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2),
           end_date: DateTime.to_date(DateTime.utc_now())
@@ -865,7 +865,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2),
           end_date: DateTime.to_date(DateTime.utc_now())
@@ -929,7 +929,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -2),
           end_date: DateTime.to_date(DateTime.utc_now())
@@ -991,7 +991,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.builds_success_rate_analytics(
+        Analytics.build_success_rate_analytics(
           project.id,
           start_date: Date.add(DateTime.utc_now(), -3),
           end_date: DateTime.to_date(DateTime.utc_now()),

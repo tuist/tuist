@@ -120,53 +120,54 @@ defmodule Tuist.CommandEvents.Clickhouse do
     start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
-    project_to_customer =
-      from(a in Account, where: not is_nil(a.customer_id), select: {a.id, a.customer_id})
+    project_customer_pairs =
+      from(a in Account,
+        join: p in Project,
+        on: p.account_id == a.id,
+        where: not is_nil(a.customer_id),
+        select: {p.id, a.customer_id}
+      )
       |> Repo.all()
       |> Map.new()
-      |> then(fn account_lookup ->
-        from(p in Project,
-          where: p.account_id in ^Map.keys(account_lookup),
-          select: {p.id, p.account_id}
-        )
-        |> Repo.all()
-        |> Enum.map(fn {project_id, account_id} ->
-          {project_id, Map.get(account_lookup, account_id)}
-        end)
-        |> Enum.filter(fn {_, customer_id} -> customer_id end)
-        |> Map.new()
-      end)
 
-    query =
-      from(e in Event,
-        where:
-          e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
-            e.project_id in ^Map.keys(project_to_customer),
-        group_by: e.project_id,
-        select: %{
-          project_id: e.project_id,
-          count:
-            count(
-              fragment(
-                "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE NULL END",
-                e.remote_cache_target_hits,
-                e.remote_test_target_hits
+    if Enum.empty?(project_customer_pairs) do
+      {[], %{}}
+    else
+      project_ids = Map.keys(project_customer_pairs)
+
+      query =
+        from(e in Event,
+          where:
+            e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+              e.project_id in ^project_ids,
+          group_by: e.project_id,
+          select: %{
+            project_id: e.project_id,
+            count:
+              sum(
+                fragment(
+                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
+                  e.remote_cache_target_hits,
+                  e.remote_test_target_hits
+                )
               )
-            )
-        }
-      )
+          }
+        )
 
-    {events_by_project, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
+      {events_by_project, meta} = ClickHouseFlop.validate_and_run!(query, attrs, for: Event)
 
-    customer_counts =
-      events_by_project
-      |> Enum.reduce(%{}, fn %{project_id: project_id, count: count}, acc ->
-        customer_id = Map.get(project_to_customer, project_id)
-        Map.update(acc, customer_id, count, &(&1 + count))
-      end)
-      |> Enum.map(fn {customer_id, count} -> {customer_id, count} end)
+      customer_counts =
+        events_by_project
+        |> Enum.reduce(%{}, fn %{project_id: project_id, count: count}, acc ->
+          case Map.get(project_customer_pairs, project_id) do
+            nil -> acc
+            customer_id -> Map.update(acc, customer_id, count, &(&1 + count))
+          end
+        end)
+        |> Enum.map(fn {customer_id, count} -> {customer_id, count} end)
 
-    {customer_counts, meta}
+      {customer_counts, meta}
+    end
   end
 
   def delete_project_events(project_id) do
@@ -199,7 +200,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     end
   end
 
-  def runs_analytics(project_id, start_date, end_date, opts) do
+  def run_events(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
         as: :event,
@@ -215,32 +216,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     |> Enum.map(&Event.normalize_enums/1)
   end
 
-  def runs_analytics_average_durations(project_id, start_date, end_date, date_period, _time_bucket, "test", opts) do
-    view_name =
-      case date_period do
-        :month -> "test_runs_analytics_monthly"
-        _ -> "test_runs_analytics_daily"
-      end
-
-    query =
-      from(v in fragment("?", identifier(^view_name)),
-        where:
-          v.project_id == ^project_id and
-            v.date >= ^start_date and
-            v.date <= ^end_date,
-        select: %{
-          date: v.date,
-          value: fragment("sum(?) / sum(?)", v.total_duration, v.run_count)
-        },
-        group_by: v.date
-      )
-
-    query
-    |> add_materialized_view_filters(opts)
-    |> ClickHouseRepo.all()
-  end
-
-  def runs_analytics_average_durations(project_id, start_date, end_date, _date_period, time_bucket, name, opts) do
+  def run_average_durations(project_id, start_date, end_date, _date_period, time_bucket, name, opts) do
     date_format = get_date_format(time_bucket)
 
     query =
@@ -261,7 +237,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     |> ClickHouseRepo.all()
   end
 
-  def runs_analytics_count(project_id, start_date, end_date, date_period, _time_bucket, "test", opts) do
+  def run_count(project_id, start_date, end_date, date_period, _time_bucket, "test", opts) do
     view_name =
       case date_period do
         :month -> "test_runs_analytics_monthly"
@@ -283,28 +259,6 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
     query
     |> add_materialized_view_filters(opts)
-    |> ClickHouseRepo.all()
-  end
-
-  def runs_analytics_count(project_id, start_date, end_date, _date_period, time_bucket, name, opts) do
-    date_format = get_date_format(time_bucket)
-
-    query =
-      from(e in Event,
-        as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
-        where:
-          e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
-          count: count(e.id)
-        }
-      )
-
-    query
-    |> add_filters(Keyword.put(opts, :name, name))
     |> ClickHouseRepo.all()
   end
 
@@ -415,7 +369,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     ClickHouseRepo.aggregate(from(e in Event, []), :count)
   end
 
-  def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
+  def run_average_duration(project_id, start_date, end_date, opts) do
     query = build_analytics_query(project_id, start_date, end_date, opts)
 
     result =
@@ -429,7 +383,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     end
   end
 
-  def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
+  def run_analytics(project_id, start_date, end_date, opts) do
     query = build_analytics_query(project_id, start_date, end_date, opts)
 
     result =
@@ -567,6 +521,111 @@ defmodule Tuist.CommandEvents.Clickhouse do
       :success -> where(query, [v], v.status == 0)
       :failure -> where(query, [v], v.status == 1)
       _ -> query
+    end
+  end
+
+  def run_count_with_date_range(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    date_format = get_date_format(time_bucket)
+
+    date_range_query =
+      build_clickhouse_date_range_query(start_date, end_date, date_period, date_format)
+
+    data_query =
+      add_filters(
+        from(e in Event,
+          as: :event,
+          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          where:
+            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+              e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+              e.project_id == ^project_id,
+          select: %{
+            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            count: count(e.id)
+          }
+        ),
+        Keyword.put(opts, :name, name)
+      )
+
+    ClickHouseRepo.all(
+      from(dr in subquery(date_range_query),
+        left_join: d in subquery(data_query),
+        on: dr.date == d.date,
+        select: %{date: dr.date, count: fragment("COALESCE(?, 0)", d.count)},
+        order_by: dr.date
+      )
+    )
+  end
+
+  def run_average_durations_with_date_range(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    date_format = get_date_format(time_bucket)
+
+    date_range_query =
+      build_clickhouse_date_range_query(start_date, end_date, date_period, date_format)
+
+    data_query =
+      add_filters(
+        from(e in Event,
+          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          where:
+            e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+              e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and e.name == ^name and
+              e.project_id == ^project_id,
+          select: %{
+            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            value: avg(e.duration)
+          }
+        ),
+        Keyword.put(opts, :name, name)
+      )
+
+    ClickHouseRepo.all(
+      from(dr in subquery(date_range_query),
+        left_join: d in subquery(data_query),
+        on: dr.date == d.date,
+        select: %{date: dr.date, value: fragment("COALESCE(?, 0)", d.value)},
+        order_by: dr.date
+      )
+    )
+  end
+
+  defp build_clickhouse_date_range_query(start_date, end_date, date_period, date_format) do
+    case date_period do
+      :day ->
+        from(
+          d in fragment(
+            """
+              SELECT formatDateTime(
+                toDateTime(?) + INTERVAL number DAY, 
+                ?
+              ) AS date
+              FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
+            """,
+            ^NaiveDateTime.new!(start_date, ~T[00:00:00]),
+            ^date_format,
+            ^start_date,
+            ^end_date
+          ),
+          select: %{date: d.date}
+        )
+
+      :month ->
+        from(
+          d in fragment(
+            """
+              SELECT formatDateTime(
+                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH), 
+                ?
+              ) AS date
+              FROM numbers(dateDiff('month', toDate(?), toDate(?)) + 1)
+            """,
+            ^NaiveDateTime.new!(Date.beginning_of_month(start_date), ~T[00:00:00]),
+            ^date_format,
+            ^Date.beginning_of_month(start_date),
+            ^Date.beginning_of_month(end_date)
+          ),
+          select: %{date: d.date}
+        )
     end
   end
 end

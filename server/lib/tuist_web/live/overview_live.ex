@@ -160,10 +160,8 @@ defmodule TuistWeb.OverviewLive do
 
     recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
 
-    failed_build_runs_count = Enum.count(recent_build_runs, fn run -> run.status == :failure end)
-
-    passed_build_runs_count =
-      Enum.count(recent_build_runs, fn run -> run.status == :success end)
+    %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
+      Runs.recent_build_status_counts_asc(project.id, 30)
 
     socket
     |> assign(
@@ -192,7 +190,7 @@ defmodule TuistWeb.OverviewLive do
     )
     |> assign(
       :builds_duration_analytics,
-      Analytics.builds_duration_analytics(project.id, opts)
+      Analytics.build_duration_analytics(project.id, opts)
     )
   end
 
@@ -255,7 +253,7 @@ defmodule TuistWeb.OverviewLive do
       analytics_tasks = [
         Task.async(fn -> Analytics.cache_hit_rate_analytics(opts) end),
         Task.async(fn -> Analytics.selective_testing_analytics(opts) end),
-        Task.async(fn -> Analytics.builds_duration_analytics(project.id, opts) end),
+        Task.async(fn -> Analytics.build_duration_analytics(project.id, opts) end),
         Task.async(fn -> Analytics.runs_duration_analytics("test", opts) end)
       ]
 

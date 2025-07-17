@@ -189,7 +189,7 @@ defmodule Tuist.CommandEvents.Postgres do
     end
   end
 
-  def runs_analytics(project_id, start_date, end_date, opts) do
+  def run_events(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
         where:
@@ -203,7 +203,7 @@ defmodule Tuist.CommandEvents.Postgres do
     |> Repo.all()
   end
 
-  def runs_analytics_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+  def run_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
     query =
       from(e in Event,
         group_by: selected_as(^date_period),
@@ -222,7 +222,7 @@ defmodule Tuist.CommandEvents.Postgres do
     |> Repo.all()
   end
 
-  def runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+  def run_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
     query =
       from(e in Event,
         group_by: selected_as(^date_period),
@@ -340,7 +340,7 @@ defmodule Tuist.CommandEvents.Postgres do
     Repo.aggregate(from(e in Event, []), :count)
   end
 
-  def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
+  def run_average_duration(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
         where:
@@ -362,7 +362,7 @@ defmodule Tuist.CommandEvents.Postgres do
     end
   end
 
-  def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
+  def run_analytics(project_id, start_date, end_date, opts) do
     query =
       from(e in Event,
         where:
