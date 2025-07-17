@@ -139,6 +139,25 @@ defmodule Tuist.Runs do
     |> Flop.validate_and_run!(attrs, for: Build)
   end
 
+  def recent_build_status_counts(project_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 40)
+    order = Keyword.get(opts, :order, :desc)
+
+    subquery =
+      from(b in Build)
+      |> where([b], b.project_id == ^project_id)
+      |> order_by([b], [{^order, b.inserted_at}])
+      |> limit(^limit)
+      |> select([b], b.status)
+
+    from(s in subquery(subquery))
+    |> select([s], %{
+      successful_count: count(fragment("CASE WHEN ? = 0 THEN 1 END", s.status)),
+      failed_count: count(fragment("CASE WHEN ? = 1 THEN 1 END", s.status))
+    })
+    |> Repo.one()
+  end
+
   def project_build_schemes(%Project{} = project) do
     from(b in Build)
     |> where([b], b.project_id == ^project.id)

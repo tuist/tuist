@@ -271,7 +271,8 @@ defmodule Tuist.CommandEventsTest do
       # Given
       user = AccountsFixtures.user_fixture()
 
-      command_event = CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
+      command_event =
+        CommandEventsFixtures.command_event_fixture(name: "generate", user_id: user.id)
 
       # When
       got = CommandEvents.get_command_event_by_id(command_event.id)
@@ -312,7 +313,9 @@ defmodule Tuist.CommandEventsTest do
       # When/Then
       for malformed_uuid <- malformed_uuids do
         got = CommandEvents.get_command_event_by_id(malformed_uuid)
-        assert got == {:error, :not_found}, "Expected {:error, :not_found} for #{inspect(malformed_uuid)}"
+
+        assert got == {:error, :not_found},
+               "Expected {:error, :not_found} for #{inspect(malformed_uuid)}"
       end
     end
   end
@@ -1825,7 +1828,11 @@ defmodule Tuist.CommandEventsTest do
       run_with_invalid_user = %{run_with_invalid_user | user_id: non_existent_user_id}
 
       # When
-      result = CommandEvents.get_user_account_names_for_runs([run_with_valid_user, run_with_invalid_user])
+      result =
+        CommandEvents.get_user_account_names_for_runs([
+          run_with_valid_user,
+          run_with_invalid_user
+        ])
 
       # Then
       assert result == %{
@@ -1858,6 +1865,163 @@ defmodule Tuist.CommandEventsTest do
       assert result[Enum.at(runs, 2).id] == user1.account.name
       assert result[Enum.at(runs, 3).id] == user2.account.name
       assert result[Enum.at(runs, 4).id] == nil
+    end
+  end
+
+  describe "run_events/4" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+      :ok
+    end
+
+    test "returns run events for a project within date range" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      event_in_range =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          created_at: ~N[2024-01-15 12:00:00]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        created_at: ~N[2024-01-25 12:00:00]
+      )
+
+      # When
+      result =
+        CommandEvents.run_events(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          []
+        )
+
+      # Then
+      assert length(result) == 1
+      assert hd(result).id == event_in_range.id
+    end
+  end
+
+  describe "run_analytics/4" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+      :ok
+    end
+
+    test "returns aggregated analytics for project within date range" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        created_at: ~N[2024-01-15 12:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        created_at: ~N[2024-01-15 14:00:00]
+      )
+
+      # When
+      result =
+        CommandEvents.run_analytics(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          name: "test"
+        )
+
+      # Then
+      assert is_map(result)
+      assert Map.has_key?(result, :count)
+      assert Map.has_key?(result, :average_duration)
+      assert result[:count] == 2
+      assert result[:average_duration] == 1500.0
+    end
+
+    test "returns empty analytics when no events found" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result =
+        CommandEvents.run_analytics(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          name: "test"
+        )
+
+      # Then
+      assert is_map(result)
+      assert result[:count] == 0
+      assert result[:average_duration] == 0
+    end
+  end
+
+  describe "run_average_duration/4" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
+      :ok
+    end
+
+    test "returns average duration for project within date range" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        created_at: ~N[2024-01-15 12:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        created_at: ~N[2024-01-15 14:00:00]
+      )
+
+      # When
+      result =
+        CommandEvents.run_average_duration(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          name: "test"
+        )
+
+      # Then
+      assert result == 1500.0
+    end
+
+    test "returns nil when no events found" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result =
+        CommandEvents.run_average_duration(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          name: "test"
+        )
+
+      # Then
+      assert result == 0
     end
   end
 end

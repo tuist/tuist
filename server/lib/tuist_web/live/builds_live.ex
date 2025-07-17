@@ -83,15 +83,15 @@ defmodule TuistWeb.BuildsLive do
       end
 
     analytics_tasks = [
-      Task.async(fn -> Analytics.builds_duration_analytics(project.id, opts) end),
-      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.99, opts) end),
-      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.9, opts) end),
-      Task.async(fn -> Analytics.builds_percentile_durations(project.id, 0.5, opts) end),
-      Task.async(fn -> Analytics.builds_analytics(project.id, opts) end),
+      Task.async(fn -> Analytics.build_duration_analytics(project.id, opts) end),
+      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.99, opts) end),
+      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.9, opts) end),
+      Task.async(fn -> Analytics.build_percentile_durations(project.id, 0.5, opts) end),
+      Task.async(fn -> Analytics.build_analytics(project.id, opts) end),
       Task.async(fn ->
-        Analytics.builds_analytics(project.id, Keyword.put(opts, :status, :failure))
+        Analytics.build_analytics(project.id, Keyword.put(opts, :status, :failure))
       end),
-      Task.async(fn -> Analytics.builds_success_rate_analytics(project.id, opts) end)
+      Task.async(fn -> Analytics.build_success_rate_analytics(project.id, opts) end)
     ]
 
     [
@@ -167,7 +167,7 @@ defmodule TuistWeb.BuildsLive do
       |> assign(:configuration_insights_date_range, configuration_insights_date_range)
 
     configuration_insights_analytics =
-      Analytics.builds_duration_analytics_grouped_by_category(
+      Analytics.build_duration_analytics_by_category(
         project.id,
         case configuration_insights_type do
           "macos-version" -> :macos_version
@@ -241,11 +241,14 @@ defmodule TuistWeb.BuildsLive do
         %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
       end)
 
+    %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
+      Runs.recent_build_status_counts(project.id, limit: 40)
+
     socket
     |> assign(:recent_builds, recent_builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-    |> assign(:successful_builds_count, Enum.count(recent_builds, &(&1.status == :success)))
-    |> assign(:failed_builds_count, Enum.count(recent_builds, &(&1.status == :failure)))
+    |> assign(:successful_builds_count, successful_builds_count)
+    |> assign(:failed_builds_count, failed_builds_count)
   end
 
   defp start_date("last-12-months"), do: Date.add(DateTime.utc_now(), -365)

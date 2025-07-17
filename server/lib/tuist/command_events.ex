@@ -776,32 +776,86 @@ defmodule Tuist.CommandEvents do
     storage_module().get_command_event_by_build_run_id(build_run_id)
   end
 
-  def runs_analytics(project_id, start_date, end_date, opts) do
-    storage_module().runs_analytics(project_id, start_date, end_date, opts)
+  def run_events(project_id, start_date, end_date, opts) do
+    storage_module().run_events(project_id, start_date, end_date, opts)
   end
 
-  def runs_analytics_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
-    storage_module().runs_analytics_average_durations(
-      project_id,
-      start_date,
-      end_date,
-      date_period,
-      time_bucket,
-      name,
-      opts
-    )
+  def run_average_durations(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    case storage_module() do
+      Clickhouse ->
+        Clickhouse.run_average_durations_with_date_range(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+
+      _ ->
+        Postgres.run_average_durations(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+    end
   end
 
-  def runs_analytics_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
-    storage_module().runs_analytics_count(
-      project_id,
-      start_date,
-      end_date,
-      date_period,
-      time_bucket,
-      name,
-      opts
-    )
+  def run_count(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    case storage_module() do
+      Clickhouse ->
+        Clickhouse.run_count_with_date_range(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+
+      _ ->
+        Postgres.run_count(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+    end
+  end
+
+  def run_average_durations_with_date_range(project_id, start_date, end_date, date_period, time_bucket, name, opts) do
+    case storage_module() do
+      Clickhouse ->
+        Clickhouse.run_average_durations_with_date_range(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+
+      _ ->
+        run_average_durations(
+          project_id,
+          start_date,
+          end_date,
+          date_period,
+          time_bucket,
+          name,
+          opts
+        )
+    end
   end
 
   def cache_hit_rate(project_id, start_date, end_date, opts) do
@@ -842,12 +896,12 @@ defmodule Tuist.CommandEvents do
     storage_module().count_all_events()
   end
 
-  def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
-    storage_module().runs_analytics_average_duration(project_id, start_date, end_date, opts)
+  def run_average_duration(project_id, start_date, end_date, opts) do
+    storage_module().run_average_duration(project_id, start_date, end_date, opts)
   end
 
-  def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
-    storage_module().runs_analytics_aggregated(project_id, start_date, end_date, opts)
+  def run_analytics(project_id, start_date, end_date, opts) do
+    storage_module().run_analytics(project_id, start_date, end_date, opts)
   end
 
   defp build_run_user_map(runs, user_map) do

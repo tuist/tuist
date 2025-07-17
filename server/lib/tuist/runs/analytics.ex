@@ -11,7 +11,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias Tuist.CommandEvents.Clickhouse.Event
 
-  def builds_duration_analytics_grouped_by_category(project_id, category, opts \\ []) do
+  def build_duration_analytics_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
@@ -56,26 +56,16 @@ defmodule Tuist.Runs.Analytics do
     )
   end
 
-  def builds_analytics(project_id, opts \\ []) do
+  def build_analytics(project_id, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    days_diff = Date.diff(end_date, start_date)
+    days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    previous_builds =
-      builds_count(
-        project_id,
-        Date.add(start_date, -days_diff),
-        start_date,
-        date_period,
-        time_bucket,
-        opts
-      )
-
-    current_builds =
-      builds_count(
+    current_build_data =
+      build_count(
         project_id,
         start_date,
         end_date,
@@ -84,21 +74,24 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    builds_count = Enum.sum(Enum.map(current_builds, & &1.count))
+    previous_builds_count =
+      build_total_count(project_id, Date.add(start_date, -days_delta), start_date, opts)
+
+    current_builds_count = build_total_count(project_id, start_date, end_date, opts)
 
     %{
       trend:
         trend(
-          previous_value: Enum.sum(Enum.map(previous_builds, & &1.count)),
-          current_value: builds_count
+          previous_value: previous_builds_count,
+          current_value: current_builds_count
         ),
-      count: builds_count,
-      values: Enum.map(current_builds, & &1.count),
-      dates: Enum.map(current_builds, & &1.date)
+      count: current_builds_count,
+      values: Enum.map(current_build_data, & &1.count),
+      dates: Enum.map(current_build_data, & &1.date)
     }
   end
 
-  defp builds_count(project_id, start_date, end_date, date_period, time_bucket, opts) do
+  defp build_count(project_id, start_date, end_date, date_period, time_bucket, opts) do
     builds_data =
       from(b in Build,
         group_by: selected_as(^date_period),
@@ -123,20 +116,45 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  def builds_duration_analytics(project_id, opts \\ []) do
+  defp build_total_count(project_id, start_date, end_date, opts) do
+    from(b in Build,
+      where:
+        b.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
+          b.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]) and
+          b.project_id == ^project_id,
+      select: count(b)
+    )
+    |> add_filters(opts)
+    |> Repo.one()
+    |> case do
+      nil -> 0
+      count -> count
+    end
+  end
+
+  defp runs_total_count(project_id, start_date, end_date, name, opts) do
+    CommandEvents.run_analytics(
+      project_id,
+      start_date,
+      end_date,
+      Keyword.put(opts, :name, name)
+    )[:count] || 0
+  end
+
+  def build_duration_analytics(project_id, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    days_diff = Date.diff(end_date, start_date)
+    days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
     previous_period_data =
-      builds_aggregated_analytics(project_id, Date.add(start_date, -days_diff), start_date, opts)
+      build_aggregated_analytics(project_id, Date.add(start_date, -days_delta), start_date, opts)
 
     previous_period_total_average_duration = previous_period_data.average_duration
 
-    current_period_data = builds_aggregated_analytics(project_id, start_date, end_date, opts)
+    current_period_data = build_aggregated_analytics(project_id, start_date, end_date, opts)
     current_period_total_average_duration = current_period_data.average_duration
 
     average_durations_query =
@@ -170,7 +188,7 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
-  defp builds_aggregated_analytics(project_id, start_date, end_date, opts) do
+  defp build_aggregated_analytics(project_id, start_date, end_date, opts) do
     result =
       from(b in Build,
         where:
@@ -202,7 +220,7 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  def builds_percentile_durations(project_id, percentile, opts \\ []) do
+  def build_percentile_durations(project_id, percentile, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
@@ -237,14 +255,14 @@ defmodule Tuist.Runs.Analytics do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    days_diff = Date.diff(end_date, start_date)
+    days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
     previous_period_runs_aggregated_analytics =
-      CommandEvents.runs_analytics_aggregated(
+      CommandEvents.run_analytics(
         project_id,
-        Date.add(start_date, -days_diff),
+        Date.add(start_date, -days_delta),
         start_date,
         Keyword.put(opts, :name, name)
       )
@@ -253,7 +271,7 @@ defmodule Tuist.Runs.Analytics do
       previous_period_runs_aggregated_analytics[:average_duration] || 0
 
     current_period_runs_data =
-      CommandEvents.runs_analytics_aggregated(
+      CommandEvents.run_analytics(
         project_id,
         start_date,
         end_date,
@@ -263,7 +281,7 @@ defmodule Tuist.Runs.Analytics do
     total_average_duration = current_period_runs_data[:average_duration] || 0
 
     average_durations_data =
-      CommandEvents.runs_analytics_average_durations(
+      CommandEvents.run_average_durations(
         project_id,
         start_date,
         end_date,
@@ -320,31 +338,12 @@ defmodule Tuist.Runs.Analytics do
     start_date = Keyword.get(opts, :start_date)
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
-    days_diff = Date.diff(end_date, start_date)
+    days_delta = Date.diff(end_date, start_date)
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    previous_runs_data =
-      CommandEvents.runs_analytics_count(
-        project_id,
-        Date.add(start_date, -days_diff),
-        start_date,
-        date_period,
-        time_bucket,
-        name,
-        opts
-      )
-
-    previous_runs =
-      process_runs_count_data(
-        previous_runs_data,
-        Date.add(start_date, -days_diff),
-        start_date,
-        date_period
-      )
-
     current_runs_data =
-      CommandEvents.runs_analytics_count(
+      CommandEvents.run_count(
         project_id,
         start_date,
         end_date,
@@ -356,15 +355,18 @@ defmodule Tuist.Runs.Analytics do
 
     current_runs = process_runs_count_data(current_runs_data, start_date, end_date, date_period)
 
-    runs_count = Enum.sum(Enum.map(current_runs, & &1.count))
+    previous_runs_count =
+      runs_total_count(project_id, Date.add(start_date, -days_delta), start_date, name, opts)
+
+    current_runs_count = runs_total_count(project_id, start_date, end_date, name, opts)
 
     %{
       trend:
         trend(
-          previous_value: Enum.sum(Enum.map(previous_runs, & &1.count)),
-          current_value: runs_count
+          previous_value: previous_runs_count,
+          current_value: current_runs_count
         ),
-      count: runs_count,
+      count: current_runs_count,
       values: Enum.map(current_runs, & &1.count),
       dates: Enum.map(current_runs, & &1.date)
     }
@@ -388,7 +390,7 @@ defmodule Tuist.Runs.Analytics do
     end)
   end
 
-  def builds_success_rate_analytics(project_id, opts \\ []) do
+  def build_success_rate_analytics(project_id, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
@@ -397,7 +399,7 @@ defmodule Tuist.Runs.Analytics do
     date_period = date_period(start_date: start_date, end_date: end_date)
 
     current_success_rate =
-      builds_success_rate(
+      build_success_rate(
         project_id,
         start_date: start_date,
         end_date: end_date,
@@ -405,7 +407,7 @@ defmodule Tuist.Runs.Analytics do
       )
 
     previous_success_rate =
-      builds_success_rate(
+      build_success_rate(
         project_id,
         start_date: Date.add(start_date, -days_delta),
         end_date: start_date,
@@ -413,7 +415,7 @@ defmodule Tuist.Runs.Analytics do
       )
 
     success_rates =
-      builds_success_rates_per_period(project_id,
+      build_success_rates_per_period(project_id,
         start_date: start_date,
         end_date: end_date,
         date_period: date_period,
@@ -440,7 +442,7 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
-  defp builds_success_rate(project_id, opts) do
+  defp build_success_rate(project_id, opts) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
     filter_opts = Keyword.get(opts, :opts, [])
@@ -469,7 +471,7 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
-  defp builds_success_rates_per_period(project_id, opts) do
+  defp build_success_rates_per_period(project_id, opts) do
     start_date = Keyword.get(opts, :start_date)
     end_date = Keyword.get(opts, :end_date)
     date_period = Keyword.get(opts, :date_period)
