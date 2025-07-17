@@ -125,106 +125,242 @@
         empty={@test_analytics.total_average_duration == 0}
       />
     </div>
-    <.card_section :if={@binary_cache_hit_rate_analytics.cache_hit_rate != 0.0}>
-      <div data-part="effectiveness-chart">
+    <div data-part="cache-cards-section">
+      <.card_section
+        :if={@binary_cache_hit_rate_analytics.cache_hit_rate != 0.0}
+        data-part="cache-effectiveness-card-chart-section"
+      >
+        <div data-part="effectiveness-chart">
+          <div data-part="legends">
+            <.legend
+              title={gettext("Binary cache effectiveness")}
+              value={
+                gettext("%{binary_cache_effectiveness}%",
+                  binary_cache_effectiveness: binary_cache_hit_rate
+                )
+              }
+              style="primary"
+            />
+            <.legend
+              title={gettext("Selective test effectiveness")}
+              value={
+                gettext("%{selective_test_effectiveness}%",
+                  selective_test_effectiveness: selective_testing_hit_rate
+                )
+              }
+              style="secondary"
+            />
+          </div>
+          <.chart
+            id="chart-single-multi-series-line"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @binary_cache_hit_rate_analytics.dates |> hd(),
+                      @binary_cache_hit_rate_analytics.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                },
+                tooltip: %{
+                  valueFormat: "{value}%"
+                },
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data:
+                  Enum.zip(
+                    @binary_cache_hit_rate_analytics.dates,
+                    @binary_cache_hit_rate_analytics.values
+                    |> Enum.map(&(&1 * 100))
+                    |> Enum.map(&Decimal.from_float/1)
+                    |> Enum.map(&Decimal.round(&1, 1))
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: gettext("Binary cache effectiveness"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                data:
+                  Enum.zip(
+                    @selective_testing_analytics.dates,
+                    @selective_testing_analytics.values
+                    |> Enum.map(&(&1 * 100))
+                    |> Enum.map(&Decimal.from_float/1)
+                    |> Enum.map(&Decimal.round(&1, 1))
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: gettext("Selective test effectiveness"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={
+          @build_time_analytics.total_time_saved != 0 &&
+            @build_time_analytics.total_build_time != 0
+        }
+        data-part="time-saved-card-chart-section"
+      >
         <div data-part="legends">
           <.legend
-            title={gettext("Binary cache effectiveness")}
+            title={gettext("Build time saved")}
             value={
-              gettext("%{binary_cache_effectiveness}%",
-                binary_cache_effectiveness: binary_cache_hit_rate
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @build_time_analytics.total_time_saved,
+                include_seconds: false
               )
             }
-            style="primary"
-          />
-          <.legend
-            title={gettext("Selective test effectiveness")}
-            value={
-              gettext("%{selective_test_effectiveness}%",
-                selective_test_effectiveness: selective_testing_hit_rate
-              )
-            }
-            style="secondary"
+            style="primary-translucent"
           />
         </div>
         <.chart
-          id="chart-single-multi-series-line"
-          type="line"
+          id="time-saved-segmented-chart"
+          type="bar"
+          style="height: 100px"
           extra_options={
             %{
               grid: %{
-                width: "93%",
-                left: "0%",
-                right: "7%",
-                height: "88%",
-                top: "5%"
+                left: "5%",
+                right: "50px",
+                top: "15px",
+                bottom: "15px"
               },
               xAxis: %{
-                boundaryGap: false,
-                type: "category",
+                type: "value",
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: "fn:toLocaleDate",
-                  customValues: [
-                    @binary_cache_hit_rate_analytics.dates |> hd(),
-                    @binary_cache_hit_rate_analytics.dates |> Enum.reverse() |> hd()
-                  ],
-                  padding: [10, 0, 0, 0]
-                }
+                  formatter:
+                    if(@build_time_analytics.total_build_time < 3_600_000,
+                      do: "fn:formatSeconds",
+                      else: "fn:formatHours"
+                    ),
+                  hideOverlap: true
+                },
+                axisTick: %{show: false},
               },
               yAxis: %{
+
+                type: "category",
+                data: [gettext("Build time")],
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary"
+                },
+                axisLine: %{show: false},
+                axisTick: %{show: false},
                 splitLine: %{
                   lineStyle: %{
                     color: "var:noora-chart-lines"
                   }
-                },
-                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                }
               },
+              legend: %{show: false},
               tooltip: %{
-                valueFormat: "{value}%"
-              },
-              legend: %{
-                show: false
+                trigger: "axis",
+                axisPointer: %{type: "none"},
+                valueFormat:
+                  if(@build_time_analytics.total_build_time < 3_600_000,
+                    do: "fn:formatSeconds",
+                    else: "fn:formatHours"
+                  )
               }
             }
           }
           series={[
             %{
-              data:
-                Enum.zip(
-                  @binary_cache_hit_rate_analytics.dates,
-                  @binary_cache_hit_rate_analytics.values
-                  |> Enum.map(&(&1 * 100))
-                  |> Enum.map(&Decimal.from_float/1)
-                  |> Enum.map(&Decimal.round(&1, 1))
+              name: gettext("Actual build time"),
+              type: "bar",
+              stack: "total",
+              itemStyle: %{
+                color: "var:noora-chart-legend-primary",
+                borderRadius: [4, 0, 0, 4]
+              },
+              data: [
+                if(@build_time_analytics.total_build_time < 3_600_000,
+                  do:
+                    ((@build_time_analytics.total_build_time -
+                        @build_time_analytics.total_time_saved) / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1),
+                  else:
+                    ((@build_time_analytics.total_build_time -
+                        @build_time_analytics.total_time_saved) / 3_600_000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(2)
                 )
-                |> Enum.map(&Tuple.to_list/1),
-              name: gettext("Binary cache effectiveness"),
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
+              ]
             },
             %{
-              data:
-                Enum.zip(
-                  @selective_testing_analytics.dates,
-                  @selective_testing_analytics.values
-                  |> Enum.map(&(&1 * 100))
-                  |> Enum.map(&Decimal.from_float/1)
-                  |> Enum.map(&Decimal.round(&1, 1))
+              name: gettext("Build time saved"),
+              type: "bar",
+              stack: "total",
+              itemStyle: %{
+                color: "var:noora-chart-legend-primary-translucent",
+                borderRadius: [0, 4, 4, 0]
+              },
+              data: [
+                if(@build_time_analytics.total_build_time < 3_600_000,
+                  do:
+                    (@build_time_analytics.total_time_saved / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1),
+                  else:
+                    (@build_time_analytics.total_time_saved / 3_600_000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(2)
                 )
-                |> Enum.map(&Tuple.to_list/1),
-              name: gettext("Selective test effectiveness"),
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
+              ]
             }
           ]}
-          y_axis_min={0}
-          y_axis_max={100}
+          x_axis_min={0}
         />
-      </div>
-    </.card_section>
+        <div data-part="footer">
+          <div data-part="indicator" />
+          <span data-part="title">{gettext("Actual build time")}</span>
+          <span data-part="value">
+            {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              @build_time_analytics.total_build_time -
+                @build_time_analytics.total_time_saved,
+              include_seconds: false
+            )}
+          </span>
+        </div>
+      </.card_section>
+    </div>
     <.empty_card_section
       :if={@binary_cache_hit_rate_analytics.cache_hit_rate == 0.0}
       title={gettext("Binary cache and selective testing: no data yet")}

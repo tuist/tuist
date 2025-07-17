@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   ```swift
   import FileSystemTesting
   import Testing
-  
+
   @Test(.inTemporaryDirectory) func test_example() async throws {
       let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
       // Test implementation
@@ -139,6 +139,8 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 ## Code Style Guidelines (Elixir)
 - **Formatting:** Follow standard Elixir and Phoenix conventions. Consider using an Elixir formatter.
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
+- **Modules Aliases:** Always declare module aliases at the module level in files, not within individual functions. This improves readability and avoids repetition.
+- **Mocking:** Copy the modules for mocking in @server/test/test_helper.exs not in the individual functions.
 - **Types:** Utilize typespecs (`@spec`) for public functions.
 - **Naming Conventions:**
     - Modules: PascalCase (e.g., `MyModule`)
