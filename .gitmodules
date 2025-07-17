@@ -1,3 +1,0 @@
-[submodule "fixtures/tuist_plugin"]
-	path = fixtures/tuist_plugin
-	url = https://github.com/fortmarek/ExampleTuistPlugin/
