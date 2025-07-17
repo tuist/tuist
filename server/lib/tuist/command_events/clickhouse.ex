@@ -566,6 +566,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     data_query =
       add_filters(
         from(e in Event,
+          as: :event,
           group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           where:
             e.ran_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
