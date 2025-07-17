@@ -271,18 +271,22 @@
                     ),
                   hideOverlap: true
                 },
-                axisLine: %{show: false},
                 axisTick: %{show: false},
-                splitLine: %{show: false}
               },
               yAxis: %{
+
                 type: "category",
                 data: [gettext("Build time")],
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary"
                 },
                 axisLine: %{show: false},
-                axisTick: %{show: false}
+                axisTick: %{show: false},
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                }
               },
               legend: %{show: false},
               tooltip: %{
@@ -351,7 +355,7 @@
             {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               @build_time_analytics.total_build_time -
                 @build_time_analytics.total_time_saved,
-              include_seconds: true
+              include_seconds: false
             )}
           </span>
         </div>
