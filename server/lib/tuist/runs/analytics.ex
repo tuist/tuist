@@ -8,6 +8,8 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
+  alias Tuist.CommandEvents.Clickhouse.Event
 
   def builds_duration_analytics_grouped_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
