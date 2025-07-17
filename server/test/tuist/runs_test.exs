@@ -234,7 +234,7 @@ defmodule Tuist.RunsTest do
       )
 
       # When
-      result = Runs.recent_build_status_counts(project.id, 3)
+      result = Runs.recent_build_status_counts(project.id, limit: 3)
 
       # Then
       assert result.successful_count == 2
@@ -290,7 +290,7 @@ defmodule Tuist.RunsTest do
       end
 
       # When
-      result = Runs.recent_build_status_counts(project.id, 5)
+      result = Runs.recent_build_status_counts(project.id, limit: 5)
 
       # Then
       assert result.successful_count == 0
@@ -320,7 +320,7 @@ defmodule Tuist.RunsTest do
       )
 
       # When
-      result = Runs.recent_build_status_counts(project.id, 2)
+      result = Runs.recent_build_status_counts(project.id, limit: 2)
 
       # Then
       assert result.successful_count == 1
@@ -328,134 +328,98 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "recent_build_status_counts_asc/2" do
-    test "returns counts of successful and failed builds ordered by insertion time ascending" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      other_project = ProjectsFixtures.project_fixture()
+  test "returns counts of successful and failed builds ordered by insertion time ascending" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    other_project = ProjectsFixtures.project_fixture()
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success,
+      inserted_at: ~U[2024-01-01 01:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :failure,
+      inserted_at: ~U[2024-01-01 02:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success,
+      inserted_at: ~U[2024-01-01 03:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success,
+      inserted_at: ~U[2024-01-01 04:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: other_project.id,
+      status: :failure,
+      inserted_at: ~U[2024-01-01 05:00:00Z]
+    )
+
+    # When
+    result = Runs.recent_build_status_counts(project.id, limit: 3, order: :asc)
+
+    # Then
+    assert result.successful_count == 2
+    assert result.failed_count == 1
+  end
+
+  test "supports ascending order with custom limit" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    for i <- 1..10 do
+      status = if i <= 5, do: :success, else: :failure
 
       RunsFixtures.build_fixture(
         project_id: project.id,
-        status: :success,
-        inserted_at: ~U[2024-01-01 01:00:00Z]
+        status: status,
+        inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
       )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :failure,
-        inserted_at: ~U[2024-01-01 02:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :success,
-        inserted_at: ~U[2024-01-01 03:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :success,
-        inserted_at: ~U[2024-01-01 04:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: other_project.id,
-        status: :failure,
-        inserted_at: ~U[2024-01-01 05:00:00Z]
-      )
-
-      # When
-      result = Runs.recent_build_status_counts_asc(project.id, 3)
-
-      # Then
-      assert result.successful_count == 2
-      assert result.failed_count == 1
     end
 
-    test "returns zero counts when no builds exist for the project" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
+    # When
+    result = Runs.recent_build_status_counts(project.id, limit: 5, order: :asc)
 
-      # When
-      result = Runs.recent_build_status_counts_asc(project.id)
+    # Then
+    assert result.successful_count == 5
+    assert result.failed_count == 0
+  end
 
-      # Then
-      assert result.successful_count == 0
-      assert result.failed_count == 0
-    end
+  test "orders by inserted_at ascending to get earliest builds" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
 
-    test "uses default limit of 30 when not specified" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success,
+      inserted_at: ~U[2024-01-01 03:00:00Z]
+    )
 
-      for i <- 1..35 do
-        status = if rem(i, 2) == 0, do: :success, else: :failure
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :failure,
+      inserted_at: ~U[2024-01-01 01:00:00Z]
+    )
 
-        RunsFixtures.build_fixture(
-          project_id: project.id,
-          status: status,
-          inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
-        )
-      end
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: :success,
+      inserted_at: ~U[2024-01-01 02:00:00Z]
+    )
 
-      # When
-      result = Runs.recent_build_status_counts_asc(project.id)
+    # When
+    result = Runs.recent_build_status_counts(project.id, limit: 2, order: :asc)
 
-      # Then
-      assert result.successful_count == 15
-      assert result.failed_count == 15
-    end
-
-    test "respects custom limit parameter" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      for i <- 1..10 do
-        status = if i <= 5, do: :success, else: :failure
-
-        RunsFixtures.build_fixture(
-          project_id: project.id,
-          status: status,
-          inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
-        )
-      end
-
-      # When
-      result = Runs.recent_build_status_counts_asc(project.id, 5)
-
-      # Then
-      assert result.successful_count == 5
-      assert result.failed_count == 0
-    end
-
-    test "orders by inserted_at ascending to get earliest builds" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :success,
-        inserted_at: ~U[2024-01-01 03:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :failure,
-        inserted_at: ~U[2024-01-01 01:00:00Z]
-      )
-
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        status: :success,
-        inserted_at: ~U[2024-01-01 02:00:00Z]
-      )
-
-      # When
-      result = Runs.recent_build_status_counts_asc(project.id, 2)
-
-      # Then
-      assert result.successful_count == 1
-      assert result.failed_count == 1
-    end
+    # Then
+    assert result.successful_count == 1
+    assert result.failed_count == 1
   end
 end

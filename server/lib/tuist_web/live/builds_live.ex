@@ -242,7 +242,7 @@ defmodule TuistWeb.BuildsLive do
       end)
 
     %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
-      Runs.recent_build_status_counts(project.id, 40)
+      Runs.recent_build_status_counts(project.id, limit: 40)
 
     socket
     |> assign(:recent_builds, recent_builds)
