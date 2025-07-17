@@ -55,7 +55,9 @@ defmodule Tuist.Authentication do
   """
   def refresh(old_token, opts) do
     with {:ok, user, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
-         preferred_username = Tuist.Repo.preload(user, :account).account.name,
+         {:ok, {:user, user}} when user != nil <-
+           {:ok, {:user, Tuist.Repo.preload(user, :account)}},
+         preferred_username = user.account.name,
          new_claims =
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
@@ -63,6 +65,9 @@ defmodule Tuist.Authentication do
          {:ok, new_token, new_claims} <- Tuist.Guardian.encode_and_sign(user, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
+    else
+      {:error, :invalid_token} -> {:error, "The token is invalid"}
+      {:ok, {:user, nil}} -> {:error, "The token user doesn't exist"}
     end
   end
 
