@@ -269,6 +269,28 @@ defmodule TuistWeb.API.AuthControllerTest do
                "message" => "The refresh token is expired or invalid"
              }
     end
+
+    test "handles token_expired error", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, refresh_token, _claims} =
+        Tuist.Authentication.encode_and_sign(user, %{},
+          token_type: :refresh,
+          ttl: {-1, :seconds}
+        )
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      assert json_response(conn, :unauthorized) == %{
+               "message" => "The refresh token is expired or invalid"
+             }
+    end
   end
 
   describe "POST /api/auth" do
