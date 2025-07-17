@@ -59,9 +59,7 @@ defmodule Tuist.XcodeTest do
 
       # Verify data was written to ClickHouse
       [graph_ch] =
-        ClickHouseRepo.all(
-          from(g in CHXcodeGraph, where: g.command_event_id == ^command_event.id)
-        )
+        ClickHouseRepo.all(from(g in CHXcodeGraph, where: g.command_event_id == ^command_event.id))
 
       assert graph_ch.name == "TestGraph"
       assert graph_ch.command_event_id == command_event.id
