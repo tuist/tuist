@@ -340,6 +340,67 @@ defmodule Tuist.CommandEvents.Postgres do
     Repo.aggregate(from(e in Event, []), :count)
   end
 
+  def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
+    query =
+      from(e in Event,
+        where:
+          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.project_id == ^project_id,
+        select: avg(e.duration)
+      )
+
+    result =
+      query
+      |> add_filters(opts)
+      |> Repo.one()
+
+    case result do
+      nil -> 0
+      %Decimal{} = decimal -> Decimal.to_float(decimal)
+      duration -> duration
+    end
+  end
+
+  def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
+    query =
+      from(e in Event,
+        where:
+          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.project_id == ^project_id,
+        select: %{
+          total_duration: sum(e.duration),
+          count: count(e),
+          average_duration: avg(e.duration)
+        }
+      )
+
+    result =
+      query
+      |> add_filters(opts)
+      |> Repo.one()
+
+    case result do
+      nil ->
+        %{total_duration: 0, count: 0, average_duration: 0}
+
+      %{total_duration: nil, count: count, average_duration: nil} ->
+        %{total_duration: 0, count: count, average_duration: 0}
+
+      %{total_duration: total, count: count, average_duration: avg} ->
+        %{
+          total_duration: normalize_decimal_value(total),
+          count: count,
+          average_duration: normalize_decimal_value(avg)
+        }
+    end
+  end
+
+  defp normalize_decimal_value(nil), do: 0
+  defp normalize_decimal_value(%Decimal{} = decimal), do: Decimal.to_float(decimal)
+  defp normalize_decimal_value(value), do: value
+
   # Private functions
 
   defp extract_hit_rate_filter(%{filters: filters} = attrs) when is_list(filters) do

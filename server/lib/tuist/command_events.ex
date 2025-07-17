@@ -71,10 +71,11 @@ defmodule Tuist.CommandEvents do
     # However, this was a design mistake, so we are taking the last event as the valid one.
     # In a future iteration, we should delete duplicated rows, and add the unique index.
     Repo.one(
-      from c in CacheEvent,
+      from(c in CacheEvent,
         where: c.hash == ^hash and c.event_type == ^event_type,
         order_by: [desc: :created_at],
         limit: 1
+      )
     )
   end
 
@@ -839,6 +840,14 @@ defmodule Tuist.CommandEvents do
 
   def count_all_events do
     storage_module().count_all_events()
+  end
+
+  def runs_analytics_average_duration(project_id, start_date, end_date, opts) do
+    storage_module().runs_analytics_average_duration(project_id, start_date, end_date, opts)
+  end
+
+  def runs_analytics_aggregated(project_id, start_date, end_date, opts) do
+    storage_module().runs_analytics_aggregated(project_id, start_date, end_date, opts)
   end
 
   defp build_run_user_map(runs, user_map) do
