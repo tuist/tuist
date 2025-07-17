@@ -17,7 +17,7 @@ defmodule TuistWeb.API.AuthController do
   @refresh_token_ttl {4, :weeks}
   @access_token_ttl {10, :minutes}
 
-  tags ["Authentication"]
+  tags(["Authentication"])
 
   defmodule Error do
     @moduledoc false
@@ -149,7 +149,8 @@ defmodule TuistWeb.API.AuthController do
         "application/json",
         AuthenticationTokens
       },
-      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error}
+      unauthorized: {"You need to be authenticated to issue new tokens", "application/json", Error},
+      bad_request: {"The token can't be refreshed because it has invalid type", "application/json", Error}
     }
   )
 
@@ -160,16 +161,23 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:unauthorized)
         |> json(%{message: "The refresh token is expired or invalid"})
 
-      {:ok, _old_token, {new_refresh_token, _new_claims}} ->
-        {:ok, _old_token_with_claims, {new_access_token, _new_access_token_claims}} =
-          Authentication.exchange(new_refresh_token, "refresh", "access", ttl: @access_token_ttl)
+      {:ok, {_old_token, old_claims}, {new_refresh_token, _new_claims}} ->
+        case Authentication.exchange(new_refresh_token, "refresh", "access", ttl: @access_token_ttl) do
+          {:ok, _old_token_with_claims, {new_access_token, _new_access_token_claims}} ->
+            conn
+            |> put_status(:ok)
+            |> json(%{
+              access_token: new_access_token,
+              refresh_token: new_refresh_token
+            })
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          access_token: new_access_token,
-          refresh_token: new_refresh_token
-        })
+          {:error, :invalid_token_type} ->
+            conn
+            |> put_status(:bad_request)
+            |> json(%{
+              message: "The token can't be refreshed because it has invalid type: #{Map.get(old_claims, "typ")}"
+            })
+        end
     end
   end
 
