@@ -2024,4 +2024,213 @@ defmodule Tuist.CommandEventsTest do
       assert result == 0
     end
   end
+
+  describe "run_count_with_date_range/7 - clickhouse" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+      :ok
+    end
+
+    test "returns count data with date range and filters" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        duration: 1500,
+        ran_at: ~U[2024-01-15 16:00:00Z],
+        is_ci: false
+      )
+
+      # When - test with is_ci filter (this should catch the regression)
+      result =
+        CommandEvents.Clickhouse.run_count_with_date_range(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          :day,
+          :day,
+          "test",
+          is_ci: false
+        )
+
+      # Then
+      # 11 days in range
+      assert length(result) == 11
+      assert Enum.any?(result, fn %{count: count} -> count > 0 end)
+    end
+
+    test "works with status filter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: true,
+        status: :success
+      )
+
+      # When - test with multiple filters (this should catch the regression)
+      result =
+        CommandEvents.Clickhouse.run_count_with_date_range(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          :day,
+          :day,
+          "test",
+          is_ci: true,
+          status: :success
+        )
+
+      # Then
+      # 11 days in range
+      assert length(result) == 11
+    end
+  end
+
+  describe "run_average_durations_with_date_range/7 - clickhouse" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
+      :ok
+    end
+
+    test "returns average duration data with date range and filters" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        duration: 1500,
+        ran_at: ~U[2024-01-15 16:00:00Z],
+        is_ci: false
+      )
+
+      # When - test with is_ci filter (this should catch the regression)
+      result =
+        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          :day,
+          :day,
+          "test",
+          is_ci: false
+        )
+
+      # Then
+      # 11 days in range
+      assert length(result) == 11
+      assert Enum.any?(result, fn %{value: value} -> value > 0 end)
+    end
+
+    test "works with status filter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: true,
+        status: :success
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 2000,
+        ran_at: ~U[2024-01-15 14:00:00Z],
+        is_ci: true,
+        status: :success
+      )
+
+      # When - test with multiple filters (this should catch the regression)
+      result =
+        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          :day,
+          :day,
+          "test",
+          is_ci: true,
+          status: :success
+        )
+
+      # Then
+      # 11 days in range
+      assert length(result) == 11
+      assert Enum.any?(result, fn %{value: value} -> value > 0 end)
+    end
+
+    test "regression test - should not fail with unknown bind name error" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        duration: 1000,
+        ran_at: ~U[2024-01-15 12:00:00Z],
+        is_ci: false
+      )
+
+      # When - this specific combination was causing the regression
+      # The function should not raise an "unknown bind name :event" error
+      result =
+        CommandEvents.Clickhouse.run_average_durations_with_date_range(
+          project.id,
+          ~D[2024-01-10],
+          ~D[2024-01-20],
+          :day,
+          :day,
+          "test",
+          is_ci: false
+        )
+
+      # Then - should not raise an exception and return expected data
+      assert length(result) == 11
+    end
+  end
 end
