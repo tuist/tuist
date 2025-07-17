@@ -68,6 +68,7 @@ defmodule Tuist.Authentication do
     else
       {:error, :invalid_token} -> {:error, "The token is invalid"}
       {:error, :token_not_found} -> {:error, "The token is invalid"}
+      {:error, :token_expired} -> {:error, "The token is expired"}
       {:ok, {:user, nil}} -> {:error, "The token user doesn't exist"}
     end
   end
