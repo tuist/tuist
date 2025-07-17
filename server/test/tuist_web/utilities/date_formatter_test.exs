@@ -53,7 +53,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
     end
   end
 
-  describe "format_duration_from_milliseconds/2" do
+  describe "format_duration_from_milliseconds/1" do
     test "formats milliseconds only" do
       assert DateFormatter.format_duration_from_milliseconds(500) == "500ms"
     end
@@ -66,11 +66,11 @@ defmodule Tuist.Utilities.DateFormatterTest do
       assert DateFormatter.format_duration_from_milliseconds(125_000) == "2m 5s"
     end
 
-    test "formats hours with minutes and seconds by default" do
+    test "formats hours with minutes and seconds" do
       assert DateFormatter.format_duration_from_milliseconds(7_825_000) == "2h 10m 25s"
     end
 
-    test "formats large durations by default" do
+    test "formats large durations" do
       assert DateFormatter.format_duration_from_milliseconds(12_675_400) == "3h 31m 15s"
     end
 
@@ -84,30 +84,6 @@ defmodule Tuist.Utilities.DateFormatterTest do
 
     test "handles zero duration" do
       assert DateFormatter.format_duration_from_milliseconds(0) == "0.0s"
-    end
-
-    test "formats hours with minutes and seconds when include_seconds: true" do
-      assert DateFormatter.format_duration_from_milliseconds(7_825_000, include_seconds: true) == "2h 10m 25s"
-    end
-
-    test "formats large durations with seconds when include_seconds: true" do
-      assert DateFormatter.format_duration_from_milliseconds(12_675_400, include_seconds: true) == "3h 31m 15s"
-    end
-
-    test "omits seconds for hours when include_seconds: false" do
-      assert DateFormatter.format_duration_from_milliseconds(7_825_000, include_seconds: false) == "2h 10m"
-    end
-
-    test "omits seconds for large durations when include_seconds: false" do
-      assert DateFormatter.format_duration_from_milliseconds(12_675_400, include_seconds: false) == "3h 31m"
-    end
-
-    test "still includes seconds for minutes when include_seconds: false" do
-      assert DateFormatter.format_duration_from_milliseconds(125_000, include_seconds: false) == "2m 5s"
-    end
-
-    test "still includes seconds for sub-hour durations when include_seconds: false" do
-      assert DateFormatter.format_duration_from_milliseconds(3_500_000, include_seconds: false) == "58m 20s"
     end
   end
 end
