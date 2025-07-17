@@ -62,8 +62,8 @@ defmodule Tuist.Runs.Analytics do
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    previous_runs =
-      get_builds_count_data(
+    previous_builds =
+      builds_count(
         project_id,
         Date.add(start_date, -days_diff),
         start_date,
@@ -72,8 +72,8 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    current_runs =
-      get_builds_count_data(
+    current_builds =
+      builds_count(
         project_id,
         start_date,
         end_date,
@@ -82,21 +82,21 @@ defmodule Tuist.Runs.Analytics do
         opts
       )
 
-    runs_count = Enum.sum(Enum.map(current_runs, & &1.count))
+    builds_count = Enum.sum(Enum.map(current_builds, & &1.count))
 
     %{
       trend:
         trend(
-          previous_value: Enum.sum(Enum.map(previous_runs, & &1.count)),
-          current_value: runs_count
+          previous_value: Enum.sum(Enum.map(previous_builds, & &1.count)),
+          current_value: builds_count
         ),
-      count: runs_count,
-      values: Enum.map(current_runs, & &1.count),
-      dates: Enum.map(current_runs, & &1.date)
+      count: builds_count,
+      values: Enum.map(current_builds, & &1.count),
+      dates: Enum.map(current_builds, & &1.date)
     }
   end
 
-  defp get_builds_count_data(project_id, start_date, end_date, date_period, time_bucket, opts) do
+  defp builds_count(project_id, start_date, end_date, date_period, time_bucket, opts) do
     builds_data =
       from(b in Build,
         group_by: selected_as(^date_period),
@@ -129,17 +129,14 @@ defmodule Tuist.Runs.Analytics do
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    # Get previous period data
-    previous_result =
-      get_builds_aggregated_data(project_id, Date.add(start_date, -days_diff), start_date, opts)
+    previous_period_data =
+      builds_aggregated_analytics(project_id, Date.add(start_date, -days_diff), start_date, opts)
 
-    previous_total_average_duration = previous_result.average_duration
+    previous_period_total_average_duration = previous_period_data.average_duration
 
-    # Get current period data
-    current_result = get_builds_aggregated_data(project_id, start_date, end_date, opts)
-    total_average_duration = current_result.average_duration
+    current_period_data = builds_aggregated_analytics(project_id, start_date, end_date, opts)
+    current_period_total_average_duration = current_period_data.average_duration
 
-    # Get average durations over time
     average_durations_query =
       from(b in Build,
         group_by: selected_as(^date_period),
@@ -161,17 +158,17 @@ defmodule Tuist.Runs.Analytics do
     %{
       trend:
         trend(
-          previous_value: previous_total_average_duration,
-          current_value: total_average_duration
+          previous_value: previous_period_total_average_duration,
+          current_value: current_period_total_average_duration
         ),
-      total_average_duration: total_average_duration,
+      total_average_duration: current_period_total_average_duration,
       average_durations: average_durations,
       dates: Enum.map(average_durations, & &1.date),
       values: Enum.map(average_durations, & &1.value)
     }
   end
 
-  defp get_builds_aggregated_data(project_id, start_date, end_date, opts) do
+  defp builds_aggregated_analytics(project_id, start_date, end_date, opts) do
     result =
       from(b in Build,
         where:
@@ -242,8 +239,7 @@ defmodule Tuist.Runs.Analytics do
     date_period = date_period(start_date: start_date, end_date: end_date)
     time_bucket = time_bucket_for_date_period(date_period)
 
-    # Get previous period data
-    previous_runs_data =
+    previous_period_runs_aggregated_analytics =
       CommandEvents.runs_analytics_aggregated(
         project_id,
         Date.add(start_date, -days_diff),
@@ -251,9 +247,10 @@ defmodule Tuist.Runs.Analytics do
         Keyword.put(opts, :name, name)
       )
 
-    previous_total_average_duration = previous_runs_data[:average_duration] || 0
+    previous_period_total_average_duration =
+      previous_period_runs_aggregated_analytics[:average_duration] || 0
 
-    current_runs_data =
+    current_period_runs_data =
       CommandEvents.runs_analytics_aggregated(
         project_id,
         start_date,
@@ -261,7 +258,7 @@ defmodule Tuist.Runs.Analytics do
         Keyword.put(opts, :name, name)
       )
 
-    total_average_duration = current_runs_data[:average_duration] || 0
+    total_average_duration = current_period_runs_data[:average_duration] || 0
 
     average_durations_data =
       CommandEvents.runs_analytics_average_durations(
@@ -280,7 +277,7 @@ defmodule Tuist.Runs.Analytics do
     %{
       trend:
         trend(
-          previous_value: previous_total_average_duration,
+          previous_value: previous_period_total_average_duration,
           current_value: total_average_duration
         ),
       total_average_duration: total_average_duration,
