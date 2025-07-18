@@ -1093,6 +1093,66 @@ defmodule Tuist.AccountsTest do
       assert Accounts.belongs_to_organization?(user, organization)
       assert Accounts.get_user_role_in_organization(user, organization).name == "user"
     end
+
+    test "sanitizes handle when creating user from OAuth2 with special characters in email" do
+      # Given
+      oauth_identity = %{
+        provider: :github,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "user+test@example.com"}
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity, preload: [:account])
+
+      # Then
+      assert user.account.name == "usertest"
+    end
+
+    test "sanitizes handle when creating user from OAuth2 with dots and underscores" do
+      # Given
+      oauth_identity = %{
+        provider: :github,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "user.name_test@example.com"}
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity, preload: [:account])
+
+      # Then
+      assert user.account.name == "user-name-test"
+    end
+
+    test "sanitizes handle when creating user from OAuth2 with multiple special characters" do
+      # Given
+      oauth_identity = %{
+        provider: :github,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "user+name@test&example.com"}
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity, preload: [:account])
+
+      # Then
+      assert user.account.name == "username"
+    end
+
+    test "sanitizes handle when creating user from OAuth2 with spaces and special characters" do
+      # Given
+      oauth_identity = %{
+        provider: :github,
+        uid: System.unique_integer([:positive]),
+        info: %{email: "user name@test.com"}
+      }
+
+      # When
+      user = Accounts.find_or_create_user_from_oauth2(oauth_identity, preload: [:account])
+
+      # Then
+      assert user.account.name == "username"
+    end
   end
 
   describe "find_oauth2_identity/2" do
@@ -1397,6 +1457,50 @@ defmodule Tuist.AccountsTest do
 
       # When
       assert {:error, :email_taken} = Accounts.create_user("foo@tuist.io")
+    end
+
+    test "sanitizes handle by removing non-alphanumeric characters from email" do
+      # Given
+      email = "user+test@example.com"
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
+      assert user.account.name == "usertest"
+    end
+
+    test "sanitizes handle by removing special characters and preserving dots as hyphens" do
+      # Given
+      email = "user.name_test@example.com"
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
+      assert user.account.name == "user-name-test"
+    end
+
+    test "sanitizes handle by removing multiple special characters" do
+      # Given
+      email = "user+name@test&example.com"
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
+      assert user.account.name == "username"
+    end
+
+    test "sanitizes handle by removing spaces and special characters" do
+      # Given
+      email = "user name@test.com"
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
+      assert user.account.name == "username"
     end
   end
 
