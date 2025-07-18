@@ -59,11 +59,16 @@ defmodule Tuist.XcodeTest do
 
       # Verify data was written to ClickHouse
       [graph_ch] =
-        ClickHouseRepo.all(from g in CHXcodeGraph, where: g.command_event_id == ^command_event.id)
+        ClickHouseRepo.all(
+          from(g in CHXcodeGraph, where: g.command_event_id == ^command_event.id)
+        )
 
       assert graph_ch.name == "TestGraph"
       assert graph_ch.command_event_id == command_event.id
-      [project_ch] = ClickHouseRepo.all(from p in CHXcodeProject, where: p.xcode_graph_id == ^graph_ch.id)
+
+      [project_ch] =
+        ClickHouseRepo.all(from(p in CHXcodeProject, where: p.xcode_graph_id == ^graph_ch.id))
+
       assert project_ch.name == "ProjectA"
       assert project_ch.path == "App"
       assert project_ch.xcode_graph_id == graph_ch.id
@@ -126,11 +131,11 @@ defmodule Tuist.XcodeTest do
 
       # Verify data was written to Postgres
       [graph_pg] =
-        Repo.all(from g in PGXcodeGraph, where: g.command_event_id == ^command_event.id)
+        Repo.all(from(g in PGXcodeGraph, where: g.command_event_id == ^command_event.id))
 
       assert graph_pg.name == "TestGraph"
       assert graph_pg.command_event_id == command_event.id
-      [project_pg] = Repo.all(from p in PGXcodeProject, where: p.xcode_graph_id == ^graph_pg.id)
+      [project_pg] = Repo.all(from(p in PGXcodeProject, where: p.xcode_graph_id == ^graph_pg.id))
       assert project_pg.name == "ProjectA"
       assert project_pg.path == "App"
       assert project_pg.xcode_graph_id == graph_pg.id
@@ -306,15 +311,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When (with retry for materialized view population)
-      {analytics, _meta} =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.selective_testing_analytics(command_event)
-          end,
-          fn {analytics, _meta} ->
-            length(analytics.test_modules) == 3
-          end
-        )
+      {analytics, _meta} = Clickhouse.selective_testing_analytics(command_event)
 
       # Then
       assert length(analytics.test_modules) == 3
@@ -854,15 +851,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When - First page (with retry for materialized view population)
-      {result, meta} =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.selective_testing_analytics(command_event, %{page_size: 10})
-          end,
-          fn {result, _meta} ->
-            length(result.test_modules) == 10
-          end
-        )
+      {result, meta} = Clickhouse.selective_testing_analytics(command_event, %{page_size: 10})
 
       # Then
       assert length(result.test_modules) == 10
@@ -903,15 +892,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When - First page (with retry for materialized view population)
-      {result, meta} =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.binary_cache_analytics(command_event, %{page_size: 10})
-          end,
-          fn {result, _meta} ->
-            length(result.cacheable_targets) == 10
-          end
-        )
+      {result, meta} = Clickhouse.binary_cache_analytics(command_event, %{page_size: 10})
 
       # Then
       assert length(result.cacheable_targets) == 10
@@ -1056,15 +1037,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When (with retry for materialized view population)
-      counts =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.selective_testing_counts(command_event)
-          end,
-          fn result ->
-            result.total_count == 3
-          end
-        )
+      counts = Clickhouse.selective_testing_counts(command_event)
 
       # Then
       assert counts.selective_testing_local_hits_count == 1
@@ -1110,15 +1083,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When (with retry for materialized view population)
-      counts =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.binary_cache_counts(command_event)
-          end,
-          fn result ->
-            result.total_count == 4
-          end
-        )
+      counts = Clickhouse.binary_cache_counts(command_event)
 
       # Then
       assert counts.binary_cache_local_hits_count == 1
@@ -1252,15 +1217,7 @@ defmodule Tuist.XcodeTest do
         })
 
       # When - Call without flop params (with retry for materialized view population)
-      {result, meta} =
-        wait_for_clickhouse_data(
-          fn ->
-            Clickhouse.selective_testing_analytics(command_event)
-          end,
-          fn {result, _meta} ->
-            length(result.test_modules) == 2
-          end
-        )
+      {result, meta} = Clickhouse.selective_testing_analytics(command_event)
 
       # Then
       assert length(result.test_modules) == 2
@@ -1346,25 +1303,5 @@ defmodule Tuist.XcodeTest do
       assert counts.binary_cache_misses_count == 2
       assert counts.total_count == 2
     end
-  end
-
-  # For querying Xcode data, we are using a materialized view in ClickHouse that can take a few milliseconds to populate.
-  # In testing, where we run the assertions immediately, this can lead to flakiness if the update hasn't completed.
-  # In order to be able to properly test the materialized view, we use this query helper that retries.
-  defp wait_for_clickhouse_data(query_fn, condition_fn, max_attempts \\ 10, delay_ms \\ 250) do
-    Enum.reduce_while(1..max_attempts, nil, fn attempt, _acc ->
-      result = query_fn.()
-
-      if condition_fn.(result) do
-        {:halt, result}
-      else
-        if attempt < max_attempts do
-          Process.sleep(delay_ms)
-          {:cont, nil}
-        else
-          {:halt, result}
-        end
-      end
-    end)
   end
 end
