@@ -117,7 +117,7 @@ defmodule Tuist.Billing do
 
     current_subscription = get_current_active_subscription(account)
 
-    subscription_items = get_subscription_items(plan)
+    subscription_items = get_subscription_items(to_string(plan))
 
     if is_nil(current_subscription) do
       {:ok, session} =
@@ -147,10 +147,10 @@ defmodule Tuist.Billing do
   defp get_subscription_items(plan) do
     available_prices = Tuist.Environment.stripe_prices()
 
-    usage_prices = Enum.map(available_prices[plan][:usage], &%{price: &1})
+    usage_prices = Enum.map(available_prices[plan]["usage"], &%{price: &1})
 
     flat_prices =
-      available_prices[plan][:flat_monthly]
+      available_prices[plan]["flat_monthly"]
       |> Enum.map(&%{price: &1, quantity: 1})
       |> Enum.take(1)
 
@@ -232,12 +232,12 @@ defmodule Tuist.Billing do
   end
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
-    if plan == :enterprise do
-      flat = plan_prices[:flat_monthly] ++ plan_prices[:flat_yearly]
+    if plan == "enterprise" do
+      flat = plan_prices["flat_monthly"] ++ plan_prices["flat_yearly"]
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else
-      usage = plan_prices[:usage]
-      flat = plan_prices[:flat_monthly]
+      usage = plan_prices["usage"]
+      flat = plan_prices["flat_monthly"]
 
       # The subscription must:
       #   - Include all the usage-based prices
@@ -256,7 +256,9 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
+  def get_estimated_next_payment(%{
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+      }) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
     if current_month_remote_cache_hits_count < remote_cache_hits_threshold do

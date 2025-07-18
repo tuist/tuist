@@ -15,18 +15,18 @@ defmodule Tuist.BillingTest do
   setup do
     stub(Environment, :stripe_prices, fn ->
       %{
-        air: %{
-          usage: ["air.usage"],
-          flat_monthly: ["air.flat.monthly"]
+        "air" => %{
+          "usage" => ["air.usage"],
+          "flat_monthly" => ["air.flat.monthly"]
         },
-        pro: %{
-          usage: ["pro.usage"],
-          flat_monthly: ["pro.flat.monthly"],
-          flat_yearly: ["pro.flat.yearly"]
+        "pro" => %{
+          "usage" => ["pro.usage"],
+          "flat_monthly" => ["pro.flat.monthly"],
+          "flat_yearly" => ["pro.flat.yearly"]
         },
-        enterprise: %{
-          flat_monthly: ["enterprise.flat.monthly"],
-          flat_yearly: ["enterprise.flat.yearly"]
+        "enterprise" => %{
+          "flat_monthly" => ["enterprise.flat.monthly"],
+          "flat_yearly" => ["enterprise.flat.yearly"]
         }
       }
     end)
@@ -141,7 +141,9 @@ defmodule Tuist.BillingTest do
       assert got ==
                50
                |> Money.new(:USD)
-               |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
+               |> Money.multiply(
+                 current_month_remote_cache_hits_count - remote_cache_hit_threshold
+               )
                |> Money.to_string()
     end
   end
@@ -323,7 +325,9 @@ defmodule Tuist.BillingTest do
         items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
       })
 
-      stub(Stripe.Subscription, :cancel, fn "sub_some-id" -> {:ok, %Stripe.Subscription{status: "canceled"}} end)
+      stub(Stripe.Subscription, :cancel, fn "sub_some-id" ->
+        {:ok, %Stripe.Subscription{status: "canceled"}}
+      end)
 
       # When
       Billing.on_subscription_change(%{
@@ -384,7 +388,8 @@ defmodule Tuist.BillingTest do
       end)
 
       stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
-        {:ok, %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
+        {:ok,
+         %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{
@@ -421,7 +426,8 @@ defmodule Tuist.BillingTest do
       end)
 
       stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
-        {:ok, %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
+        {:ok,
+         %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{
@@ -454,7 +460,10 @@ defmodule Tuist.BillingTest do
                                                method: :post,
                                                endpoint: "/v1/billing/meter_events",
                                                params: %{
-                                                 payload: %{value: 10, stripe_customer_id: ^customer_id},
+                                                 payload: %{
+                                                   value: 10,
+                                                   stripe_customer_id: ^customer_id
+                                                 },
                                                  event_name: "remote_cache_hit"
                                                }
                                              } ->
