@@ -1,0 +1,67 @@
+name: CLI Cache EE
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "*.swift"
+      - "Package.resolved"
+      - ".github/workflows/cli.yml"
+      - "mise/tasks/cli/lint.sh"
+      - "mise.toml"
+      - "cli/Fixtures/**"
+      - "Tuist/**"
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to trigger the workflow for.
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
+concurrency:
+  group: cli-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.7.0
+          experimental: true
+      - run: mise run cli:ee
+      - name: Run tests
+        run: mise x -- TUIST_EE=1 tuist test TuistUnitTests
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

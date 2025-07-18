@@ -1,0 +1,6 @@
+[submodule "fixtures/tuist_plugin"]
+	path = fixtures/tuist_plugin
+	url = https://github.com/fortmarek/ExampleTuistPlugin/
+[submodule "cli/TuistCacheEE"]
+	path = cli/TuistCacheEE
+	url = git@github.com:tuist/TuistCacheEE.git

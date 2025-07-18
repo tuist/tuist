@@ -29,6 +29,92 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
 
+    private static func cacheEEDirectory() -> URL {
+        let currentFileURL = URL(fileURLWithPath: #file)
+        return
+            currentFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("cli")
+            .appendingPathComponent("TuistCacheEE")
+    }
+
+    public static func includeEE() -> Bool {
+        if case let .string(value) = Environment.ee {
+            return value == "1"
+        } else {
+            return false
+        }
+    }
+
+    public static func allTargets() -> [Target] {
+        var targets = Module.allCases.flatMap(\.targets)
+        targets.append(contentsOf: cacheEETargets())
+        return targets
+    }
+
+    public static func cacheEETargets() -> [Target] {
+        guard includeEE() else { return [] }
+
+        return [
+            .target(
+                name: "TuistCacheEE",
+                destinations: [.mac],
+                product: .staticFramework,
+                bundleId: "dev.tuist.TuistCacheEE",
+                deploymentTargets: .macOS("14.0"),
+                infoPlist: .default,
+                sources: ["\(cacheEEDirectory().path())/Sources/**/*.swift"],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "SwiftECC"),
+                ],
+                settings: .settings(
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: [
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+                            ],
+                            xcconfig: nil
+                        ),
+                        .release(
+                            name: "Release",
+                            settings: [:],
+                            xcconfig: nil
+                        ),
+                    ]
+                )
+            ),
+            .target(
+                name: "TuistCacheEETests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCacheEETests",
+                deploymentTargets: .macOS("14.0"),
+                infoPlist: .default,
+                sources: ["\(cacheEEDirectory().path())/Tests/**/*.swift"],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Mockable")
+                ]
+            ),
+        ]
+    }
+
     public var isRunnable: Bool {
         switch self {
         case .tuistFixtureGenerator, .tuist, .tuistBenchmark:
@@ -77,7 +163,7 @@ public enum Module: String, CaseIterable {
     }
 
     public var targets: [Target] {
-        var targets: [Target] = sourceTargets
+        let targets: [Target] = sourceTargets
         return targets + testTargets
     }
 
@@ -90,7 +176,7 @@ public enum Module: String, CaseIterable {
                 product: product,
                 dependencies: dependencies + (isStaticProduct ? [.external(name: "Mockable")] : []),
                 isTestingTarget: isTestingTarget
-            ),
+            )
         ]
     }
 
@@ -113,8 +199,8 @@ public enum Module: String, CaseIterable {
     public var unitTestsTargetName: String? {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-             .projectDescription,
-             .acceptanceTesting, .simulator, .testing:
+            .projectDescription,
+            .acceptanceTesting, .simulator, .testing:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -296,7 +382,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
-                ]
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -437,7 +523,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .simulator:
                 [
-                    .external(name: "XcodeGraph"),
+                    .external(name: "XcodeGraph")
                 ]
             case .xcActivityLog:
                 [
@@ -475,7 +561,7 @@ public enum Module: String, CaseIterable {
                 []
             case .tuistFixtureGenerator:
                 [
-                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.projectDescription.targetName)
                 ]
             case .support:
                 [
@@ -578,11 +664,11 @@ public enum Module: String, CaseIterable {
                 ]
             case .analytics:
                 [
-                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testing.targetName)
                 ]
             case .migration:
                 [
-                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testing.targetName)
                 ]
             case .dependencies:
                 [
@@ -639,11 +725,11 @@ public enum Module: String, CaseIterable {
                 ]
             case .rootDirectoryLocator:
                 [
-                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testing.targetName)
                 ]
             case .git:
                 [
-                    .target(name: Module.testing.targetName),
+                    .target(name: Module.testing.targetName)
                 ]
             }
         dependencies =
@@ -678,7 +764,7 @@ public enum Module: String, CaseIterable {
         isTestingTarget: Bool
     ) -> Target {
         var debugSettings: ProjectDescription.SettingsDictionary = [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
         ]
         var releaseSettings: ProjectDescription.SettingsDictionary = [:]
         if isTestingTarget {
@@ -749,7 +835,7 @@ public enum Module: String, CaseIterable {
         case .tuist:
             return .settings(
                 base: [
-                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)"
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
