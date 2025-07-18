@@ -503,11 +503,14 @@ defmodule Tuist.Environment do
 
     default_value = Keyword.get(opts, :default_value)
 
+    # Convert atom keys to string keys for secrets lookup
+    string_keys = Enum.map(keys, &to_string/1)
+
     value =
       if System.get_env(env_variable) do
         System.get_env(env_variable)
       else
-        get_in(secrets, keys)
+        get_in(secrets, string_keys)
       end
 
     if is_nil(value) do
@@ -536,7 +539,7 @@ defmodule Tuist.Environment do
         |> File.read!()
         |> YamlElixir.read_from_string()
 
-      to_atom_map(secrets_map)
+      to_string_map(secrets_map)
     else
       master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
       master_key_env_variable = "MASTER_KEY"
@@ -553,18 +556,18 @@ defmodule Tuist.Environment do
       if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
         key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
 
-        EncryptedSecrets.read!(key, secrets_path)
+        key |> EncryptedSecrets.read!(secrets_path) |> to_string_map()
       else
         %{}
       end
     end
   end
 
-  defp to_atom_map(map) when is_map(map) do
-    Map.new(map, fn {k, v} -> {String.to_atom(k), to_atom_map(v)} end)
+  defp to_string_map(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {to_string(k), to_string_map(v)} end)
   end
 
-  defp to_atom_map(value) do
+  defp to_string_map(value) do
     value
   end
 end

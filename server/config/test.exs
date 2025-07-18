@@ -23,7 +23,13 @@ config :tuist, Tuist.ClickHouseRepo,
     insert_quorum: 1,
     # Disable parallel processing for deterministic tests
     max_threads: 1,
-    max_insert_threads: 1
+    max_insert_threads: 1,
+    # Force synchronous inserts and materialized view updates
+    async_insert: 0,
+    # Wait for materialized views to be updated before returning
+    insert_distributed_sync: 1,
+    # Ensure data is visible immediately after insert
+    insert_keeper_max_retries: 0
   ]
 
 # Configures Bamboo API Client
