@@ -141,9 +141,7 @@ defmodule Tuist.BillingTest do
       assert got ==
                50
                |> Money.new(:USD)
-               |> Money.multiply(
-                 current_month_remote_cache_hits_count - remote_cache_hit_threshold
-               )
+               |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
                |> Money.to_string()
     end
   end
@@ -388,8 +386,7 @@ defmodule Tuist.BillingTest do
       end)
 
       stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
-        {:ok,
-         %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "air.usage"}, %{id: "air.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{
@@ -426,8 +423,7 @@ defmodule Tuist.BillingTest do
       end)
 
       stub(Stripe.Subscription, :retrieve, fn "sub_some-id" ->
-        {:ok,
-         %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
+        {:ok, %Stripe.Subscription{items: %{data: [%{id: "pro.usage"}, %{id: "pro.flat.monthly"}]}}}
       end)
 
       Billing.on_subscription_change(%{

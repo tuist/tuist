@@ -256,9 +256,7 @@ defmodule Tuist.Billing do
     }
   end
 
-  def get_estimated_next_payment(%{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      }) do
+  def get_estimated_next_payment(%{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count}) do
     remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
 
     if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
