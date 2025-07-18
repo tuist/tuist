@@ -6,8 +6,10 @@ defmodule Tuist.Runs.Analytics do
   import Timescale.Hyperfunctions
 
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Xcode.Clickhouse.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
@@ -898,6 +900,78 @@ defmodule Tuist.Runs.Analytics do
     case date_period do
       :day -> date
       :month -> Date.beginning_of_month(date)
+    end
+  end
+
+  def build_time_analytics(opts \\ []) do
+    if Tuist.Environment.clickhouse_configured?() do
+      build_time_analytics_with_clickhouse(opts)
+    else
+      build_time_analytics_fallback()
+    end
+  end
+
+  defp build_time_analytics_with_clickhouse(opts) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+    query =
+      from(xg in XcodeGraph,
+        join: e in Event,
+        on: xg.command_event_id == e.id,
+        where: xg.inserted_at > ^start_dt,
+        where: xg.inserted_at < ^end_dt,
+        select: %{
+          actual_build_time: sum(e.duration),
+          total_time_saved: sum(xg.binary_build_duration)
+        }
+      )
+
+    query =
+      case project_id do
+        nil -> query
+        _ -> where(query, [xg, e], e.project_id == ^project_id)
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [xg, e], e.is_ci == true)
+        false -> where(query, [xg, e], e.is_ci == false)
+      end
+
+    result = Tuist.ClickHouseRepo.one(query) || %{actual_build_time: 0, total_time_saved: 0}
+
+    actual = normalize_duration_result(result.actual_build_time)
+    saved = result.total_time_saved || 0
+    total = actual + saved
+
+    %{
+      actual_build_time: actual,
+      total_time_saved: saved,
+      total_build_time: total
+    }
+  end
+
+  defp build_time_analytics_fallback do
+    %{
+      actual_build_time: 0,
+      total_time_saved: 0,
+      total_build_time: 0
+    }
+  end
+
+  defp normalize_duration_result(result) do
+    case result do
+      nil -> 0
+      %Decimal{} -> Decimal.to_integer(result)
+      value when is_integer(value) -> value
+      value when is_float(value) -> round(value)
     end
   end
 end

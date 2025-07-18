@@ -179,6 +179,10 @@ a {
     --indicator-color: var(--noora-chart-legend-primary);
   }
 
+  &[data-style="primary-translucent"] {
+    --indicator-color: var(--noora-chart-legend-primary-translucent);
+  }
+
   &[data-style="secondary"] {
     --indicator-color: var(--noora-chart-legend-secondary);
   }
