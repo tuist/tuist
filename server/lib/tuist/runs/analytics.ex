@@ -913,24 +913,48 @@ defmodule Tuist.Runs.Analytics do
 
   defp build_time_analytics_with_clickhouse(opts) do
     project_id = Keyword.get(opts, :project_id)
-
-    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
-
-    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
-
+    start_date = Keyword.get(opts, :start_date, Date.add(Date.utc_today(), -30))
+    end_date = Keyword.get(opts, :end_date, Date.utc_today())
     is_ci = Keyword.get(opts, :is_ci)
 
-    command_event_ids = fetch_command_event_ids(start_date, end_date)
+    start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
-    {command_events_duration, time_saved} =
-      calculate_build_metrics(command_event_ids, project_id, is_ci)
+    query =
+      from(xg in XcodeGraph,
+        join: e in Event,
+        on: xg.command_event_id == e.id,
+        where: xg.inserted_at > ^start_dt,
+        where: xg.inserted_at < ^end_dt,
+        select: %{
+          actual_build_time: sum(e.duration),
+          total_time_saved: sum(xg.binary_build_duration)
+        }
+      )
 
-    total_time = time_saved + command_events_duration
+    query =
+      case project_id do
+        nil -> query
+        _ -> where(query, [xg, e], e.project_id == ^project_id)
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [xg, e], e.is_ci == true)
+        false -> where(query, [xg, e], e.is_ci == false)
+      end
+
+    result = Tuist.ClickHouseRepo.one(query) || %{actual_build_time: 0, total_time_saved: 0}
+
+    actual = normalize_duration_result(result.actual_build_time)
+    saved = result.total_time_saved || 0
+    total = actual + saved
 
     %{
-      actual_build_time: command_events_duration,
-      total_time_saved: time_saved,
-      total_build_time: total_time
+      actual_build_time: actual,
+      total_time_saved: saved,
+      total_build_time: total
     }
   end
 
