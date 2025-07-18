@@ -70,9 +70,9 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Other",
                     subcommands: [
-                        VersionCommand.self
+                        VersionCommand.self,
                     ]
-                )
+                ),
             ]
         )
     }

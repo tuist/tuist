@@ -1,18 +1,17 @@
 import Foundation
+import Path
 import TSCUtility
 import TuistLoader
-import XCTest
-import Path
 import XcodeGraph
+import XCTest
+@testable import TuistAutomation
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
 @testable import TuistTesting
-@testable import TuistAutomation
-@testable import TuistCore
 
 #if canImport(TuistCacheEE)
-import TuistCacheEE
+    import TuistCacheEE
 #endif
 
 final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
@@ -117,40 +116,40 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
 }
 
 #if canImport(TuistCacheEE)
-final class CacheWorkspaceMapperFactoryTests: TuistUnitTestCase {
-    var projectMapperFactory: ProjectMapperFactory!
-    var subject: CacheWorkspaceMapperFactory!
+    final class CacheWorkspaceMapperFactoryTests: TuistUnitTestCase {
+        var projectMapperFactory: ProjectMapperFactory!
+        var subject: CacheWorkspaceMapperFactory!
 
-    override func setUp() {
-        super.setUp()
-        projectMapperFactory = ProjectMapperFactory()
-    }
+        override func setUp() {
+            super.setUp()
+            projectMapperFactory = ProjectMapperFactory()
+        }
 
-    override func tearDown() {
-        projectMapperFactory = nil
-        subject = nil
-        super.tearDown()
-    }
+        override func tearDown() {
+            projectMapperFactory = nil
+            subject = nil
+            super.tearDown()
+        }
 
-    func test_cache_contains_the_generate_cacheable_schemes_workspace_mapper() throws {
-        // Given
-        let targets: Set<TargetQuery> = Set([.named("MyTarget")])
-        subject =
-        CacheWorkspaceMapperFactory(
-                projectMapper: SequentialProjectMapper(
-                    mappers: projectMapperFactory.default(tuist: .test())
+        func test_cache_contains_the_generate_cacheable_schemes_workspace_mapper() throws {
+            // Given
+            let targets: Set<TargetQuery> = Set([.named("MyTarget")])
+            subject =
+                CacheWorkspaceMapperFactory(
+                    projectMapper: SequentialProjectMapper(
+                        mappers: projectMapperFactory.default(tuist: .test())
+                    )
                 )
+
+            // When
+            let got = subject.binaryCacheWarming(tuist: .test(), targets: [.iOS: targets])
+
+            // Then
+            let mapper = XCTAssertContainsElementOfType(
+                got, GenerateCacheableSchemesWorkspaceMapper.self
             )
-
-        // When
-        let got = subject.binaryCacheWarming(tuist: .test(), targets: [.iOS: targets])
-
-        // Then
-        let mapper = XCTAssertContainsElementOfType(
-            got, GenerateCacheableSchemesWorkspaceMapper.self
-        )
-        XCTAssertEqual(mapper?.targets, [.iOS: targets])
+            XCTAssertEqual(mapper?.targets, [.iOS: targets])
+        }
     }
-}
 
 #endif
