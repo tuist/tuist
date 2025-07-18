@@ -136,6 +136,11 @@ mix test test/tuist/accounts_test.exs
 mix test test/tuist_web/live/dashboard_live_test.exs
 ```
 
+**Testing Guidelines:**
+- **Never modify System environment variables** in tests as they are shared state and can cause flaky tests
+- Use mocks, stubs, or dependency injection to test environment-dependent behavior
+- If environment testing is absolutely necessary, use process-scoped alternatives or test tags to isolate tests
+
 ## Code Style Guidelines (Elixir)
 - **Formatting:** Follow standard Elixir and Phoenix conventions. Consider using an Elixir formatter.
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
