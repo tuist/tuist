@@ -124,6 +124,32 @@ func schemes() -> [Scheme] {
             testAction: .targets([])
         ),
     ]
+    if Module.includeEE() {
+        schemes.append(.scheme(
+            name: "TuistCacheEEUnitTests",
+            buildAction: .buildAction(
+                targets: [.target("TuistCacheEETests")],
+                postActions: [
+                    inspectBuildPostAction,
+                ],
+                runPostActionsOnFailure: true
+            ),
+            testAction: .targets(
+                [.testableTarget(target: .target("TuistCacheEETests"))],
+                options: .options(
+                    language: "en"
+                )
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: [
+                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                    ]
+                )
+            )
+        ))
+    }
     schemes.append(
         contentsOf: Module.allCases.filter(\.isRunnable).map {
             .scheme(
