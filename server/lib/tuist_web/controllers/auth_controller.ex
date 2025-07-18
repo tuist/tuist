@@ -5,15 +5,15 @@ defmodule TuistWeb.AuthController do
 
   use TuistWeb, :controller
 
-  require Logger
-
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
 
+  require Logger
+
   defp okta_log(level, message) do
-    if Mix.env() != :test do
+    if not Tuist.Environment.test?() do
       Logger.log(level, "[OKTA] #{message}")
     end
   end
@@ -25,52 +25,66 @@ defmodule TuistWeb.AuthController do
 
   def okta_request(conn, params) do
     okta_log(:info, "Starting Okta request with params: #{inspect(params)}")
-    
-    with %{"organization_id" => organization_id} <- params do
-      okta_log(:info, "Successfully extracted organization_id: #{organization_id}")
-      
-      with {:ok, %Organization{} = organization} <-
-             Accounts.get_organization_by_id(organization_id) do
-        okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
-        
-        with {:ok, config} <- Okta.config_for_organization(organization) do
-          okta_log(:info, "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}")
-          
-          conn
-          |> put_session(:okta_organization_id, organization_id)
-          |> Ueberauth.run_request(
-            "okta",
-            {
-              Ueberauth.Strategy.Okta,
-              [
-                client_id: config.client_id,
-                client_secret: config.client_secret,
-                site: "https://#{config.domain}"
-              ]
-            }
-          )
-        else
+
+    case params do
+      %{"organization_id" => organization_id} ->
+        okta_log(:info, "Successfully extracted organization_id: #{organization_id}")
+
+        case Accounts.get_organization_by_id(organization_id) do
+          {:ok, %Organization{} = organization} ->
+            okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
+
+            case Okta.config_for_organization(organization) do
+              {:ok, config} ->
+                okta_log(
+                  :info,
+                  "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
+                )
+
+                conn
+                |> put_session(:okta_organization_id, organization_id)
+                |> Ueberauth.run_request(
+                  "okta",
+                  {
+                    Ueberauth.Strategy.Okta,
+                    [
+                      client_id: config.client_id,
+                      client_secret: config.client_secret,
+                      site: "https://#{config.domain}"
+                    ]
+                  }
+                )
+
+              error ->
+                okta_log(
+                  :error,
+                  "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
+                )
+
+                conn
+                |> put_flash(:error, "Failed to authenticate with Okta.")
+                |> redirect(to: ~p"/")
+                |> halt()
+            end
+
           error ->
-            okta_log(:error, "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}")
-            
+            okta_log(
+              :error,
+              "Failed to find organization with id #{organization_id}: #{inspect(error)}"
+            )
+
             conn
             |> put_flash(:error, "Failed to authenticate with Okta.")
             |> redirect(to: ~p"/")
             |> halt()
         end
-      else
-        error ->
-          okta_log(:error, "Failed to find organization with id #{organization_id}: #{inspect(error)}")
-          
-          conn
-          |> put_flash(:error, "Failed to authenticate with Okta.")
-          |> redirect(to: ~p"/")
-          |> halt()
-      end
-    else
+
       error ->
-        okta_log(:error, "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}")
-        
+        okta_log(
+          :error,
+          "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
+        )
+
         conn
         |> put_flash(:error, "Failed to authenticate with Okta.")
         |> redirect(to: ~p"/")
@@ -115,52 +129,66 @@ defmodule TuistWeb.AuthController do
     okta_log(:info, "Starting Okta callback with params: #{inspect(params)}")
     session_data = get_session(conn)
     okta_log(:info, "Session data: #{inspect(session_data)}")
-    
-    with %{"okta_organization_id" => organization_id} <- session_data do
-      okta_log(:info, "Successfully extracted organization_id from session: #{organization_id}")
-      
-      with {:ok, %Organization{} = organization} <-
-             Accounts.get_organization_by_id(organization_id) do
-        okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
-        
-        with {:ok, config} <- Okta.config_for_organization(organization) do
-          okta_log(:info, "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}")
-          
-          conn
-          |> Ueberauth.run_callback(
-            :okta,
-            {
-              Ueberauth.Strategy.Okta,
-              [
-                client_id: config.client_id,
-                client_secret: config.client_secret,
-                site: "https://#{config.domain}"
-              ]
-            }
-          )
-          |> callback(params)
-        else
+
+    case session_data do
+      %{"okta_organization_id" => organization_id} ->
+        okta_log(:info, "Successfully extracted organization_id from session: #{organization_id}")
+
+        case Accounts.get_organization_by_id(organization_id) do
+          {:ok, %Organization{} = organization} ->
+            okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
+
+            case Okta.config_for_organization(organization) do
+              {:ok, config} ->
+                okta_log(
+                  :info,
+                  "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
+                )
+
+                conn
+                |> Ueberauth.run_callback(
+                  :okta,
+                  {
+                    Ueberauth.Strategy.Okta,
+                    [
+                      client_id: config.client_id,
+                      client_secret: config.client_secret,
+                      site: "https://#{config.domain}"
+                    ]
+                  }
+                )
+                |> callback(params)
+
+              error ->
+                okta_log(
+                  :error,
+                  "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
+                )
+
+                conn
+                |> put_flash(:error, "Failed to authenticate with Okta.")
+                |> redirect(to: ~p"/")
+                |> halt()
+            end
+
           error ->
-            okta_log(:error, "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}")
-            
+            okta_log(
+              :error,
+              "Failed to find organization with id #{organization_id}: #{inspect(error)}"
+            )
+
             conn
             |> put_flash(:error, "Failed to authenticate with Okta.")
             |> redirect(to: ~p"/")
             |> halt()
         end
-      else
-        error ->
-          okta_log(:error, "Failed to find organization with id #{organization_id}: #{inspect(error)}")
-          
-          conn
-          |> put_flash(:error, "Failed to authenticate with Okta.")
-          |> redirect(to: ~p"/")
-          |> halt()
-      end
-    else
+
       error ->
-        okta_log(:error, "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}")
-        
+        okta_log(
+          :error,
+          "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
+        )
+
         conn
         |> put_flash(:error, "Failed to authenticate with Okta.")
         |> redirect(to: ~p"/")
