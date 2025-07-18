@@ -51,7 +51,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map {
                     .target($0)
-                },
+                } + (Module.includeEE() ? [.target("TuistCacheEE"), .target("TuistCacheEETests")] : []),
                 postActions: [
                     inspectBuildPostAction,
                 ],
@@ -60,7 +60,7 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.testTargets).map {
                     .testableTarget(target: .target($0.name))
-                }
+                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : [])
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -93,7 +93,7 @@ func schemes() -> [Scheme] {
             name: "TuistUnitTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
-                    .map { .target($0) },
+                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEETests")] : []),
                 postActions: [
                     inspectBuildPostAction,
                 ],
@@ -102,7 +102,7 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.unitTestTargets).map {
                     .testableTarget(target: .target($0.name))
-                },
+                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : []),
                 options: .options(
                     language: "en"
                 )

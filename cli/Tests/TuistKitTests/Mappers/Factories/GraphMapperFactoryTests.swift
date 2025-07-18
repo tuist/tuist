@@ -1,6 +1,15 @@
 import Foundation
 import TuistLoader
 import XCTest
+import Path
+import TuistAutomation
+import TuistServer
+import XcodeGraph
+
+#if canImport(TuistCacheEE)
+import TuistCacheEE
+#endif
+
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
@@ -53,3 +62,197 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, ModuleMapMapper.self)
     }
 }
+
+
+#if canImport(TuistCacheEE)
+final class CacheGraphMapperFactoryTests: TuistUnitTestCase {
+    private var subject: CacheGraphMapperFactory!
+    private var cacheStorage: MockCacheStoring!
+
+    override func setUp() {
+        super.setUp()
+        cacheStorage = MockCacheStoring()
+        subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
+    }
+
+    override func tearDown() {
+        subject = nil
+        cacheStorage = nil
+        super.tearDown()
+    }
+
+    func test_default_contains_the_update_workspace_projects_graph_mapper() {
+        // When
+        let got = subject.default(config: .test())
+
+        // Then
+        XCTAssertContainsElementOfType(got, UpdateWorkspaceProjectsGraphMapper.self)
+    }
+
+    func test_cache_contains_the_filter_target_dependenies_tree_graph_mapper() {
+        // Given
+        let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+        // When
+        let got = subject.binaryCacheWarming(
+            config: .test(),
+            cacheSources: includedTargets,
+            configuration: "Debug",
+            cacheStorage: cacheStorage
+        )
+
+        // Then
+        let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+        XCTAssertEqual(mapper?.includedTargets, includedTargets)
+    }
+
+    func test_cache_contains_the_tree_shaking_mapper() {
+        // Given
+        let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+        // When
+        let got = subject.binaryCacheWarming(
+            config: .test(),
+            cacheSources: includedTargets,
+            configuration: "Debug",
+            cacheStorage: cacheStorage
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(
+            got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
+        )
+    }
+
+    func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
+        // Given
+        let config = Tuist.test()
+        let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+        // When
+        let got = subject.generation(
+            config: config,
+            ignoreBinaryCache: true,
+            cacheSources: cacheSources,
+            configuration: "Debug",
+            cacheStorage: cacheStorage
+        )
+
+        // Then
+        let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+        XCTAssertEqual(mapper?.includedTargets, cacheSources)
+    }
+
+    func test_focus_contains_the_cache_tree_shaking_graph_mapper() {
+        // Given
+        let config = Tuist.test()
+        let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+        // When
+        let got = subject.generation(
+            config: config,
+            ignoreBinaryCache: false,
+            cacheSources: cacheSources,
+            configuration: "Debug",
+            cacheStorage: cacheStorage
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(
+            got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
+        )
+        XCTAssertContainsElementOfType(
+            got,
+            TreeShakePrunedTargetsGraphMapper.self,
+            after: TargetsToCacheBinariesGraphMapper.self
+        )
+    }
+
+    func test_focus_contains_the_cache_mapper() {
+        // Given
+        let config = Tuist.test()
+        let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+        // When
+        let got = subject.generation(
+            config: config,
+            ignoreBinaryCache: false,
+            cacheSources: cacheSources,
+            configuration: "Debug",
+            cacheStorage: cacheStorage
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(
+            got, TargetsToCacheBinariesGraphMapper.self, after: FocusTargetsGraphMappers.self
+        )
+    }
+
+    func test_automation_contains_the_tests_cache_graph_mapper() throws {
+        // Given
+        let config = Tuist.test()
+
+        // When
+        let got = subject.automation(
+            config: config,
+            ignoreBinaryCache: true,
+            ignoreSelectiveTesting: false,
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            configuration: "Debug",
+            cacheStorage: cacheStorage,
+            destination: nil
+        )
+
+        // Then
+        _ = XCTAssertContainsElementOfType(got, TestsCacheGraphMapper.self)
+    }
+
+    func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
+        // Given
+        let config = Tuist.test()
+
+        // When
+        let got = subject.automation(
+            config: config,
+            ignoreBinaryCache: true,
+            ignoreSelectiveTesting: true,
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            configuration: "Debug",
+            cacheStorage: cacheStorage,
+            destination: nil
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(
+            got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self
+        )
+    }
+
+    func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
+        // Given
+        let config = Tuist.test()
+
+        // When
+        let got = subject.automation(
+            config: config,
+            ignoreBinaryCache: true,
+            ignoreSelectiveTesting: false,
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            configuration: "Debug",
+            cacheStorage: cacheStorage,
+            destination: nil
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(
+            got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
+        )
+    }
+}
+#endif

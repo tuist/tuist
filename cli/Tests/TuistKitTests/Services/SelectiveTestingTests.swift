@@ -4,10 +4,14 @@ import Mockable
 import Testing
 import TuistHasher
 import XcodeGraph
+import Path
+import TuistCore
 
 @testable import TuistKit
 
 #if canImport(TuistCacheEE)
+import TuistCacheEE
+
 @Suite
 struct SelectiveTestingGraphHasherTests {
     private let fileSystem = FileSystem()
