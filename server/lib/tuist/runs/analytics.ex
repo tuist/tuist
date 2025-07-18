@@ -6,10 +6,10 @@ defmodule Tuist.Runs.Analytics do
   import Timescale.Hyperfunctions
 
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Clickhouse.Event
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Xcode.Clickhouse.XcodeGraph
-  alias Tuist.CommandEvents.Clickhouse.Event
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
@@ -966,72 +966,6 @@ defmodule Tuist.Runs.Analytics do
     }
   end
 
-  defp fetch_command_event_ids(start_date, end_date) do
-    query =
-      from(xg in XcodeGraph,
-        where:
-          xg.inserted_at > ^DateTime.new!(start_date, ~T[00:00:00]) and
-            xg.inserted_at < ^DateTime.new!(end_date, ~T[23:59:59]),
-        select: xg.command_event_id
-      )
-
-    Tuist.ClickHouseRepo.all(query)
-  end
-
-  defp calculate_build_metrics(command_event_ids, project_id, is_ci) do
-    if Enum.empty?(command_event_ids) do
-      {0, 0}
-    else
-      filtered_event_ids = filter_command_events(command_event_ids, project_id, is_ci)
-
-      calculate_durations_and_savings(filtered_event_ids)
-    end
-  end
-
-  defp filter_command_events(command_event_ids, project_id, is_ci) do
-    from(e in Event, where: e.id in ^command_event_ids)
-    |> apply_project_filter(project_id)
-    |> apply_ci_filter(is_ci)
-    |> select([e], e.id)
-    |> Tuist.ClickHouseRepo.all()
-  end
-
-  defp apply_project_filter(query, nil), do: query
-
-  defp apply_project_filter(query, project_id) do
-    from(e in query, where: e.project_id == ^project_id)
-  end
-
-  defp apply_ci_filter(query, nil), do: query
-
-  defp apply_ci_filter(query, is_ci) do
-    from(e in query, where: e.is_ci == ^is_ci)
-  end
-
-  defp calculate_durations_and_savings(filtered_event_ids) do
-    if Enum.empty?(filtered_event_ids) do
-      {0, 0}
-    else
-      events_duration = calculate_events_duration(filtered_event_ids)
-
-      time_saved = calculate_time_saved(filtered_event_ids)
-
-      {events_duration, time_saved}
-    end
-  end
-
-  defp calculate_events_duration(filtered_event_ids) do
-    result =
-      Tuist.ClickHouseRepo.one(
-        from(e in Event,
-          where: e.id in ^filtered_event_ids and not is_nil(e.duration),
-          select: sum(coalesce(e.duration, 0))
-        )
-      )
-
-    normalize_duration_result(result)
-  end
-
   defp normalize_duration_result(result) do
     case result do
       nil -> 0
@@ -1039,16 +973,5 @@ defmodule Tuist.Runs.Analytics do
       value when is_integer(value) -> value
       value when is_float(value) -> round(value)
     end
-  end
-
-  defp calculate_time_saved(filtered_event_ids) do
-    Tuist.ClickHouseRepo.one(
-      from(xg in XcodeGraph,
-        where:
-          xg.command_event_id in ^filtered_event_ids and
-            not is_nil(xg.binary_build_duration),
-        select: sum(xg.binary_build_duration)
-      )
-    ) || 0
   end
 end

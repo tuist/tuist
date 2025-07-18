@@ -1057,7 +1057,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "returns build time analytics with real data" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
 
       project = ProjectsFixtures.project_fixture()
@@ -1123,7 +1123,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles empty results correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1138,7 +1138,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by project_id correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
@@ -1146,13 +1146,15 @@ defmodule Tuist.Runs.AnalyticsTest do
       command_event_1 =
         CommandEventsFixtures.command_event_fixture(
           project_id: project1.id,
-          duration: 1500
+          duration: 1500,
+          created_at: ~N[2024-04-29 10:00:00]
         )
 
       command_event_2 =
         CommandEventsFixtures.command_event_fixture(
           project_id: project2.id,
-          duration: 2000
+          duration: 2000,
+          created_at: ~N[2024-04-28 10:00:00]
         )
 
       # Insert into ClickHouse Event table
@@ -1202,7 +1204,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "filters by is_ci correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1210,14 +1212,16 @@ defmodule Tuist.Runs.AnalyticsTest do
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           duration: 1500,
-          is_ci: true
+          is_ci: true,
+          created_at: ~N[2024-04-29 10:00:00]
         )
 
       command_event_local =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           duration: 2000,
-          is_ci: false
+          is_ci: false,
+          created_at: ~N[2024-04-28 10:00:00]
         )
 
       # Insert into ClickHouse Event table
@@ -1338,14 +1342,15 @@ defmodule Tuist.Runs.AnalyticsTest do
 
     test "handles nil duration events correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
       stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
       project = ProjectsFixtures.project_fixture()
 
       command_event =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          duration: nil
+          duration: nil,
+          created_at: ~N[2024-04-29 10:00:00]
         )
 
       # Insert into ClickHouse Event table
