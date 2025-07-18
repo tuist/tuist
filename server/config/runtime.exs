@@ -307,8 +307,8 @@ config :tuist, Tuist.PromEx,
   grafana: :disabled,
   # Larger numbers might lead to internal tasks timing out.
   # By keeping it small we might loose some granularity of the data, but I think it's a good tradeoff.
-  # Every second
-  ets_flush_interval: 1_000,
+  # Use default value to avoid over-compacting
+  ets_flush_interval: 7_500,
   metrics_server: [
     port: 9091,
     auth_strategy: :none
