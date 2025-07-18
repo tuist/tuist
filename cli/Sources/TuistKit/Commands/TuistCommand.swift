@@ -63,6 +63,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     subcommands: [
                         AccountCommand.self,
                         ProjectCommand.self,
+                        BundleCommand.self,
                         OrganizationCommand.self,
                         AuthCommand.self,
                     ]
