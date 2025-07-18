@@ -7,11 +7,8 @@ defmodule TuistWeb.Headers do
   def cli_version_header, do: @cli_version_header
 
   def get_cli_version_string(conn) do
-    with {:version_string, version_string} when not is_nil(version_string) <-
-           {:version_string,
-            conn |> Plug.Conn.get_req_header(cli_version_header()) |> List.first()} do
-      version_string
-    else
+    case {:version_string, conn |> Plug.Conn.get_req_header(cli_version_header()) |> List.first()} do
+      {:version_string, version_string} when not is_nil(version_string) -> version_string
       _ -> nil
     end
   end

@@ -237,6 +237,39 @@ defmodule TuistWeb.API.AuthControllerTest do
                       }}
     end
 
+    @tag telemetry_listen: [:analytics, :authentication, :token_refresh, :error]
+    test "doesn't include the cli version with the telemetry event if it's not present in the header",
+         %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, access_token, _opts} =
+        Tuist.Authentication.encode_and_sign(user, %{},
+          token_type: :access,
+          ttl: {4, :weeks}
+        )
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: access_token})
+
+      # Then
+      assert json_response(conn, :unauthorized) == %{
+               "message" => "The refresh token is invalid."
+             }
+
+      expected_metadata = %{cli_version: nil, reason: "invalid_token_type"}
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:analytics, :authentication, :token_refresh, :error],
+                        measurements: %{},
+                        metadata: ^expected_metadata
+                      }}
+    end
+
     test "returns bad request if the token belongs to a user that no longer exists", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
