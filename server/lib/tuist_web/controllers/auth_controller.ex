@@ -12,9 +12,9 @@ defmodule TuistWeb.AuthController do
 
   require Logger
 
-  defp okta_log(level, message) do
+  defp log(level, message) do
     if not Tuist.Environment.test?() do
-      Logger.log(level, "[OKTA] #{message}")
+      Logger.log(level, "[OAuth2] #{message}")
     end
   end
 
@@ -24,19 +24,19 @@ defmodule TuistWeb.AuthController do
   end
 
   def okta_request(conn, params) do
-    okta_log(:info, "Starting Okta request with params: #{inspect(params)}")
+    log(:info, "Starting Okta request with params: #{inspect(params)}")
 
     case params do
       %{"organization_id" => organization_id} ->
-        okta_log(:info, "Successfully extracted organization_id: #{organization_id}")
+        log(:info, "Successfully extracted organization_id: #{organization_id}")
 
         case Accounts.get_organization_by_id(organization_id) do
           {:ok, %Organization{} = organization} ->
-            okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
+            log(:info, "Successfully found organization: #{inspect(organization.id)}")
 
             case Okta.config_for_organization(organization) do
               {:ok, config} ->
-                okta_log(
+                log(
                   :info,
                   "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
                 )
@@ -56,7 +56,7 @@ defmodule TuistWeb.AuthController do
                 )
 
               error ->
-                okta_log(
+                log(
                   :error,
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
@@ -68,7 +68,7 @@ defmodule TuistWeb.AuthController do
             end
 
           error ->
-            okta_log(
+            log(
               :error,
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
@@ -80,7 +80,7 @@ defmodule TuistWeb.AuthController do
         end
 
       error ->
-        okta_log(
+        log(
           :error,
           "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
         )
@@ -100,7 +100,12 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  def callback(%{assigns: %{ueberauth_failure: _failure}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
+    log(
+      :error,
+      "Ueberauth failed authenticating: #{inspect(failure)}"
+    )
+
     conn
     |> put_flash(:error, "Failed to authenticate.")
     |> redirect(to: ~p"/")
@@ -126,21 +131,21 @@ defmodule TuistWeb.AuthController do
   end
 
   def okta_callback(conn, params) do
-    okta_log(:info, "Starting Okta callback with params: #{inspect(params)}")
+    log(:info, "Starting Okta callback with params: #{inspect(params)}")
     session_data = get_session(conn)
-    okta_log(:info, "Session data: #{inspect(session_data)}")
+    log(:info, "Session data: #{inspect(session_data)}")
 
     case session_data do
       %{"okta_organization_id" => organization_id} ->
-        okta_log(:info, "Successfully extracted organization_id from session: #{organization_id}")
+        log(:info, "Successfully extracted organization_id from session: #{organization_id}")
 
         case Accounts.get_organization_by_id(organization_id) do
           {:ok, %Organization{} = organization} ->
-            okta_log(:info, "Successfully found organization: #{inspect(organization.id)}")
+            log(:info, "Successfully found organization: #{inspect(organization.id)}")
 
             case Okta.config_for_organization(organization) do
               {:ok, config} ->
-                okta_log(
+                log(
                   :info,
                   "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
                 )
@@ -160,7 +165,7 @@ defmodule TuistWeb.AuthController do
                 |> callback(params)
 
               error ->
-                okta_log(
+                log(
                   :error,
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
@@ -172,7 +177,7 @@ defmodule TuistWeb.AuthController do
             end
 
           error ->
-            okta_log(
+            log(
               :error,
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
@@ -184,7 +189,7 @@ defmodule TuistWeb.AuthController do
         end
 
       error ->
-        okta_log(
+        log(
           :error,
           "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
