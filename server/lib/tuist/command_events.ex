@@ -158,14 +158,7 @@ defmodule Tuist.CommandEvents do
     project = Repo.get!(Project, command_event.project_id)
     account = Repo.get!(Account, project.account_id)
 
-    identifier =
-      if command_event.legacy_artifact_path do
-        command_event.legacy_id
-      else
-        command_event.id
-      end
-
-    "#{account.name}/#{project.name}/runs/#{identifier}"
+    "#{account.name}/#{project.name}/runs/#{command_event.id}"
   end
 
   def list_flaky_test_cases(%Project{} = project, attrs) do
