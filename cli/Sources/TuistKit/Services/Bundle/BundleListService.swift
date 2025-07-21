@@ -57,14 +57,14 @@ final class BundleListService: BundleListServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        
+
         let config = try await configLoader.loadConfig(path: directoryPath)
         let resolvedFullHandle = fullHandle.isEmpty ? config.fullHandle : fullHandle
-        
+
         guard let resolvedFullHandle else {
             throw BundleListServiceError.missingFullHandle
         }
-        
+
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let bundles = try await listBundlesService.listBundles(
@@ -98,17 +98,17 @@ final class BundleListService: BundleListServicing {
             let downloadSizeFormatted = formatBytes(bundle.downloadSize)
             let platforms = bundle.supportedPlatforms.joined(separator: ", ")
             let branch = bundle.gitBranch ?? "unknown"
-            
+
             return "  • \(bundle.name) v\(bundle.version) (\(bundle.appBundleId))\n" +
-                   "    Platforms: \(platforms)\n" +
-                   "    Install Size: \(installSizeFormatted), Download Size: \(downloadSizeFormatted)\n" +
-                   "    Branch: \(branch)\n" +
-                   "    ID: \(bundle.id)"
+                "    Platforms: \(platforms)\n" +
+                "    Install Size: \(installSizeFormatted), Download Size: \(downloadSizeFormatted)\n" +
+                "    Branch: \(branch)\n" +
+                "    ID: \(bundle.id)"
         }
-        
+
         return header + bundleLines.joined(separator: "\n\n")
     }
-    
+
     private func formatBytes(_ bytes: Int) -> String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]

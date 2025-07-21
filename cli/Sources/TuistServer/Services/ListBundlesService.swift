@@ -32,13 +32,13 @@ enum ListBundlesServiceError: LocalizedError {
 
 public final class ListBundlesService: ListBundlesServicing {
     private let fullHandleService: FullHandleServicing
-    
+
     public convenience init() {
         self.init(
             fullHandleService: FullHandleService()
         )
     }
-    
+
     init(
         fullHandleService: FullHandleServicing
     ) {
@@ -54,7 +54,7 @@ public final class ListBundlesService: ListBundlesServicing {
     ) async throws -> [ServerBundle] {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        
+
         let response = try await client.listBundles(
             .init(
                 path: .init(
@@ -62,13 +62,13 @@ public final class ListBundlesService: ListBundlesServicing {
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
-                    git_branch: gitBranch,
                     page: page,
+                    git_branch: gitBranch,
                     page_size: pageSize
                 )
             )
         )
-        
+
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {

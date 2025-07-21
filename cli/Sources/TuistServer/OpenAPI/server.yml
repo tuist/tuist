@@ -2870,14 +2870,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -2890,6 +2882,14 @@ paths:
           in: path
           name: project_handle
           required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -2932,9 +2932,17 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                    required:
+                      - current_page
+                      - page_size
+                      - total_count
+                      - total_pages
                     type: object
                     x-struct:
                     x-validate:
+                required:
+                  - data
+                  - meta
                 type: object
                 x-struct:
                 x-validate:
