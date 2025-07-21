@@ -20,6 +20,94 @@ defmodule TuistWeb.API.BundlesController do
 
   tags ["Bundles"]
 
+  operation :index,
+    summary: "List bundles for a project",
+    operation_id: "listBundles",
+    parameters: %{
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      git_branch: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Filter bundles by git branch."
+      ],
+      page: [
+        in: :query,
+        type: :integer,
+        required: false,
+        description: "Page number for pagination."
+      ],
+      page_size: [
+        in: :query,
+        type: :integer,
+        required: false,
+        description: "Number of items per page."
+      ]
+    },
+    responses: %{
+      ok: {"List of bundles", "application/json", %Schema{
+        type: :object,
+        properties: %{
+          data: %Schema{
+            type: :array,
+            items: TuistWeb.API.Schemas.Bundle
+          },
+          meta: %Schema{
+            type: :object,
+            properties: %{
+              current_page: %Schema{type: :integer},
+              page_size: %Schema{type: :integer},
+              total_count: %Schema{type: :integer},
+              total_pages: %Schema{type: :integer}
+            }
+          }
+        }
+      }},
+      unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
+      forbidden: {"You are not authorized to list bundles", "application/json", Error}
+    }
+
+  operation :show,
+    summary: "Get a single bundle by ID",
+    operation_id: "getBundle",
+    parameters: %{
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      bundle_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The ID of the bundle."
+      ]
+    },
+    responses: %{
+      ok: {"Bundle details", "application/json", TuistWeb.API.Schemas.Bundle},
+      not_found: {"Bundle not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
+      forbidden: {"You are not authorized to view this bundle", "application/json", Error}
+    }
+
   operation :create,
     summary: "Create a new bundle with artifacts",
     operation_id: "createBundle",
@@ -78,7 +166,7 @@ defmodule TuistWeb.API.BundlesController do
                }
              },
              required: [
-               :bundle_id,
+               :app_bundle_id,
                :name,
                :supported_platforms,
                :version,
@@ -109,6 +197,74 @@ defmodule TuistWeb.API.BundlesController do
       unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
       forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
+
+  def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
+    # Create filters in the format Flop expects (list of filter objects)
+    filters = [
+      %{field: :project_id, op: :==, value: selected_project.id}
+    ]
+
+    filters =
+      case Map.get(params, "git_branch") do
+        nil -> filters
+        branch -> [%{field: :git_branch, op: :==, value: branch} | filters]
+      end
+
+    flop_params = %{
+      filters: filters,
+      order_by: [:inserted_at],
+      order_directions: [:desc],
+      page_size: Map.get(params, "page_size", 50)
+    }
+
+    flop_params =
+      case Map.get(params, "page") do
+        nil -> flop_params
+        page -> Map.put(flop_params, :page, page)
+      end
+
+    case Bundles.list_bundles(flop_params, preload: [:uploaded_by_account, :project]) do
+      {bundles, meta} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          data: Enum.map(bundles, &bundle_to_json/1),
+          meta: %{
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+      error ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Failed to list bundles: #{inspect(error)}"})
+    end
+  end
+
+  def show(%{assigns: %{selected_project: selected_project}} = conn, %{"bundle_id" => bundle_id}) do
+    case Bundles.get_bundle(bundle_id, preload: [:uploaded_by_account, :project]) do
+      {:ok, bundle} ->
+        if bundle.project_id == selected_project.id do
+          conn
+          |> put_status(:ok)
+          |> json(bundle_to_json(bundle))
+        else
+          conn
+          |> put_status(:forbidden)
+          |> json(%{message: "Bundle does not belong to this project"})
+        end
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Bundle not found"})
+      error ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Failed to get bundle: #{inspect(error)}"})
+    end
+  end
 
   def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
     bundle = params["bundle"]
@@ -144,5 +300,41 @@ defmodule TuistWeb.API.BundlesController do
         url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
       })
     end
+  end
+
+  defp bundle_to_json(bundle) do
+    artifacts = case bundle.artifacts do
+      %Ecto.Association.NotLoaded{} -> []
+      artifacts -> Enum.map(artifacts, &artifact_to_json/1)
+    end
+
+    %{
+      id: bundle.id,
+      name: bundle.name,
+      app_bundle_id: bundle.app_bundle_id,
+      version: bundle.version,
+      supported_platforms: bundle.supported_platforms,
+      install_size: bundle.install_size,
+      download_size: bundle.download_size,
+      git_branch: bundle.git_branch,
+      git_commit_sha: bundle.git_commit_sha,
+      git_ref: bundle.git_ref,
+      inserted_at: bundle.inserted_at,
+      updated_at: bundle.updated_at,
+      uploaded_by_account: bundle.uploaded_by_account.name,
+      artifacts: artifacts
+    }
+  end
+
+  defp artifact_to_json(artifact) do
+    %{
+      artifact_type: artifact.artifact_type,
+      path: artifact.path,
+      size: artifact.size,
+      shasum: artifact.shasum,
+      children: if(artifact.children && length(artifact.children) > 0, 
+                  do: Enum.map(artifact.children, &artifact_to_json/1),
+                  else: nil)
+    }
   end
 end

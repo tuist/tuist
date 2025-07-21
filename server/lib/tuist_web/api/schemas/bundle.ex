@@ -16,11 +16,64 @@ defmodule TuistWeb.API.Schemas.Bundle do
         description:
           "The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle."
       },
-      url: %Schema{
+      name: %Schema{
         type: :string,
-        description: "The URL of the bundle"
+        description: "The name of the bundle"
+      },
+      app_bundle_id: %Schema{
+        type: :string,
+        description: "The bundle ID of the app"
+      },
+      version: %Schema{
+        type: :string,
+        description: "The version of the bundle"
+      },
+      supported_platforms: %Schema{
+        type: :array,
+        description: "List of supported platforms",
+        items: %Schema{type: :string}
+      },
+      install_size: %Schema{
+        type: :integer,
+        description: "The bundle install size in bytes"
+      },
+      download_size: %Schema{
+        type: :integer,
+        description: "The bundle download size in bytes"
+      },
+      git_branch: %Schema{
+        type: :string,
+        description: "The git branch associated with the bundle."
+      },
+      git_commit_sha: %Schema{
+        type: :string,
+        description: "The git commit SHA associated with the bundle."
+      },
+      git_ref: %Schema{
+        type: :string,
+        description:
+          "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
+      },
+      inserted_at: %Schema{
+        type: :string,
+        format: :"date-time",
+        description: "When the bundle was created"
+      },
+      updated_at: %Schema{
+        type: :string,
+        format: :"date-time",
+        description: "When the bundle was last updated"
+      },
+      uploaded_by_account: %Schema{
+        type: :string,
+        description: "The account that uploaded this bundle"
+      },
+      artifacts: %Schema{
+        type: :array,
+        description: "The artifacts in this bundle",
+        items: TuistWeb.API.Schemas.BundleArtifact
       }
     },
-    required: [:id, :url]
+    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :download_size, :inserted_at, :updated_at, :uploaded_by_account, :artifacts]
   })
 end

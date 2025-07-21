@@ -10,7 +10,8 @@ defmodule Tuist.Bundles.Bundle do
   @derive {
     Flop.Schema,
     filterable: [
-      :project_id
+      :project_id,
+      :git_branch
     ],
     sortable: [:inserted_at, :install_size]
   }
