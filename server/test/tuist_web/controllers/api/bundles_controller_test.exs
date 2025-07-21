@@ -275,6 +275,15 @@ defmodule TuistWeb.API.BundlesControllerTest do
       response = json_response(conn, :forbidden)
       assert response["message"] == "#{user.account.name} is not authorized to read bundle"
     end
+
+    test "returns unauthorized when user is not authenticated", %{conn: conn, project: project} do
+      # When - make request without authentication
+      conn = get(conn, ~p"/api/projects/#{project.account.name}/#{project.name}/bundles")
+
+      # Then
+      response = json_response(conn, :unauthorized)
+      assert response["message"] == "You need to be authenticated to access this resource."
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/bundles/:bundle_id" do
