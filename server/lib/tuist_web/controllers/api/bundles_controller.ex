@@ -78,6 +78,51 @@ defmodule TuistWeb.API.BundlesController do
       forbidden: {"You are not authorized to list bundles", "application/json", Error}
     }
 
+  def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
+    # Create filters in the format Flop expects (list of filter objects)
+    filters = [
+      %{field: :project_id, op: :==, value: selected_project.id}
+    ]
+
+    filters =
+      case Map.get(params, "git_branch") do
+        nil -> filters
+        branch -> [%{field: :git_branch, op: :==, value: branch} | filters]
+      end
+
+    flop_params = %{
+      filters: filters,
+      order_by: [:inserted_at],
+      order_directions: [:desc],
+      page_size: Map.get(params, "page_size", 50)
+    }
+
+    flop_params =
+      case Map.get(params, "page") do
+        nil -> flop_params
+        page -> Map.put(flop_params, :page, page)
+      end
+
+    case Bundles.list_bundles(flop_params, preload: [:uploaded_by_account, project: :account]) do
+      {bundles, meta} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          data: Enum.map(bundles, &bundle_to_json/1),
+          meta: %{
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+      error ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Failed to list bundles: #{inspect(error)}"})
+    end
+  end
+
   operation :show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
@@ -107,6 +152,29 @@ defmodule TuistWeb.API.BundlesController do
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}
     }
+
+  def show(%{assigns: %{selected_project: selected_project}} = conn, %{"bundle_id" => bundle_id}) do
+    case Bundles.get_bundle(bundle_id, preload: [:uploaded_by_account, project: :account]) do
+      {:ok, bundle} ->
+        if bundle.project_id == selected_project.id do
+          conn
+          |> put_status(:ok)
+          |> json(bundle_to_json(bundle))
+        else
+          conn
+          |> put_status(:forbidden)
+          |> json(%{message: "Bundle does not belong to this project"})
+        end
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Bundle not found"})
+      error ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Failed to get bundle: #{inspect(error)}"})
+    end
+  end
 
   operation :create,
     summary: "Create a new bundle with artifacts",
@@ -198,74 +266,6 @@ defmodule TuistWeb.API.BundlesController do
       forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
 
-  def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
-    # Create filters in the format Flop expects (list of filter objects)
-    filters = [
-      %{field: :project_id, op: :==, value: selected_project.id}
-    ]
-
-    filters =
-      case Map.get(params, "git_branch") do
-        nil -> filters
-        branch -> [%{field: :git_branch, op: :==, value: branch} | filters]
-      end
-
-    flop_params = %{
-      filters: filters,
-      order_by: [:inserted_at],
-      order_directions: [:desc],
-      page_size: Map.get(params, "page_size", 50)
-    }
-
-    flop_params =
-      case Map.get(params, "page") do
-        nil -> flop_params
-        page -> Map.put(flop_params, :page, page)
-      end
-
-    case Bundles.list_bundles(flop_params, preload: [:uploaded_by_account, :project]) do
-      {bundles, meta} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          data: Enum.map(bundles, &bundle_to_json/1),
-          meta: %{
-            current_page: meta.current_page,
-            page_size: meta.page_size,
-            total_count: meta.total_count,
-            total_pages: meta.total_pages
-          }
-        })
-      error ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: "Failed to list bundles: #{inspect(error)}"})
-    end
-  end
-
-  def show(%{assigns: %{selected_project: selected_project}} = conn, %{"bundle_id" => bundle_id}) do
-    case Bundles.get_bundle(bundle_id, preload: [:uploaded_by_account, :project]) do
-      {:ok, bundle} ->
-        if bundle.project_id == selected_project.id do
-          conn
-          |> put_status(:ok)
-          |> json(bundle_to_json(bundle))
-        else
-          conn
-          |> put_status(:forbidden)
-          |> json(%{message: "Bundle does not belong to this project"})
-        end
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "Bundle not found"})
-      error ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: "Failed to get bundle: #{inspect(error)}"})
-    end
-  end
-
   def create(%{assigns: %{selected_project: selected_project}} = conn, params) do
     bundle = params["bundle"]
     id = UUIDv7.generate()
@@ -322,7 +322,8 @@ defmodule TuistWeb.API.BundlesController do
       inserted_at: bundle.inserted_at,
       updated_at: bundle.updated_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
-      artifacts: artifacts
+      artifacts: artifacts,
+      url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
     }
   end
 
