@@ -59,7 +59,7 @@ public final class GetBundleService: GetBundleServicing {
                 )
             )
         )
-        
+
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
