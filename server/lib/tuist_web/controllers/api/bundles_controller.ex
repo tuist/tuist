@@ -11,6 +11,8 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
   alias TuistWeb.API.Schemas.BundleArtifact
+  alias TuistWeb.API.Schemas.BundleList
+  alias TuistWeb.API.Schemas.BundleSupportedPlatform
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication
@@ -56,24 +58,26 @@ defmodule TuistWeb.API.BundlesController do
       ]
     },
     responses: %{
-      ok: {"List of bundles", "application/json", %Schema{
-        type: :object,
-        properties: %{
-          data: %Schema{
-            type: :array,
-            items: TuistWeb.API.Schemas.Bundle
-          },
-          meta: %Schema{
-            type: :object,
-            properties: %{
-              current_page: %Schema{type: :integer},
-              page_size: %Schema{type: :integer},
-              total_count: %Schema{type: :integer},
-              total_pages: %Schema{type: :integer}
-            }
-          }
-        }
-      }},
+      ok:
+        {"List of bundles", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :array,
+               items: BundleList
+             },
+             meta: %Schema{
+               type: :object,
+               properties: %{
+                 current_page: %Schema{type: :integer},
+                 page_size: %Schema{type: :integer},
+                 total_count: %Schema{type: :integer},
+                 total_pages: %Schema{type: :integer}
+               }
+             }
+           }
+         }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error}
     }
@@ -108,7 +112,7 @@ defmodule TuistWeb.API.BundlesController do
         conn
         |> put_status(:ok)
         |> json(%{
-          data: Enum.map(bundles, &bundle_to_json/1),
+          data: Enum.map(bundles, &bundle_list_to_map/1),
           meta: %{
             current_page: meta.current_page,
             page_size: meta.page_size,
@@ -116,6 +120,7 @@ defmodule TuistWeb.API.BundlesController do
             total_pages: meta.total_pages
           }
         })
+
       error ->
         conn
         |> put_status(:internal_server_error)
@@ -149,7 +154,8 @@ defmodule TuistWeb.API.BundlesController do
     responses: %{
       ok: {"Bundle details", "application/json", TuistWeb.API.Schemas.Bundle},
       not_found: {"Bundle not found", "application/json", Error},
-      unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to view this bundle", "application/json", Error},
       forbidden: {"You are not authorized to view this bundle", "application/json", Error}
     }
 
@@ -159,16 +165,18 @@ defmodule TuistWeb.API.BundlesController do
         if bundle.project_id == selected_project.id do
           conn
           |> put_status(:ok)
-          |> json(bundle_to_json(bundle))
+          |> json(bundle_to_map(bundle))
         else
           conn
           |> put_status(:forbidden)
           |> json(%{message: "Bundle does not belong to this project"})
         end
+
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Bundle not found"})
+
       error ->
         conn
         |> put_status(:internal_server_error)
@@ -260,9 +268,11 @@ defmodule TuistWeb.API.BundlesController do
       ]
     },
     responses: %{
-      ok: {"The bundle was created successfully", "application/json", TuistWeb.API.Schemas.Bundle},
+      ok:
+        {"The bundle was created successfully", "application/json", TuistWeb.API.Schemas.Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
-      unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to create a bundle", "application/json", Error},
       forbidden: {"You are not authorized to create a bundle", "application/json", Error}
     }
 
@@ -297,16 +307,37 @@ defmodule TuistWeb.API.BundlesController do
       |> put_status(:ok)
       |> json(%{
         id: bundle.id,
-        url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
+        url:
+          url(~p"/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}")
       })
     end
   end
 
-  defp bundle_to_json(bundle) do
-    artifacts = case bundle.artifacts do
-      %Ecto.Association.NotLoaded{} -> []
-      artifacts -> Enum.map(artifacts, &artifact_to_json/1)
-    end
+  defp bundle_list_to_map(bundle) do
+    %{
+      id: bundle.id,
+      name: bundle.name,
+      app_bundle_id: bundle.app_bundle_id,
+      version: bundle.version,
+      supported_platforms: bundle.supported_platforms,
+      install_size: bundle.install_size,
+      download_size: bundle.download_size,
+      git_branch: bundle.git_branch,
+      git_commit_sha: bundle.git_commit_sha,
+      git_ref: bundle.git_ref,
+      inserted_at: bundle.inserted_at,
+      updated_at: bundle.updated_at,
+      uploaded_by_account: bundle.uploaded_by_account.name,
+      url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
+    }
+  end
+
+  defp bundle_to_map(bundle) do
+    artifacts =
+      case bundle.artifacts do
+        %Ecto.Association.NotLoaded{} -> []
+        artifacts -> Enum.map(artifacts, &artifact_to_map/1)
+      end
 
     %{
       id: bundle.id,
@@ -327,15 +358,17 @@ defmodule TuistWeb.API.BundlesController do
     }
   end
 
-  defp artifact_to_json(artifact) do
+  defp artifact_to_map(artifact) do
     %{
       artifact_type: artifact.artifact_type,
       path: artifact.path,
       size: artifact.size,
       shasum: artifact.shasum,
-      children: if(artifact.children && length(artifact.children) > 0, 
-                  do: Enum.map(artifact.children, &artifact_to_json/1),
-                  else: nil)
+      children:
+        if(artifact.children && length(artifact.children) > 0,
+          do: Enum.map(artifact.children, &artifact_to_map/1),
+          else: nil
+        )
     }
   end
 end
