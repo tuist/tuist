@@ -7,7 +7,7 @@ public struct ServerBundle: Codable {
     public let version: String
     public let supportedPlatforms: [String]
     public let installSize: Int
-    public let downloadSize: Int
+    public let downloadSize: Int?
     public let gitBranch: String?
     public let gitCommitSha: String?
     public let gitRef: String?
@@ -24,7 +24,7 @@ public struct ServerBundle: Codable {
         version: String,
         supportedPlatforms: [String],
         installSize: Int,
-        downloadSize: Int,
+        downloadSize: Int?,
         gitBranch: String?,
         gitCommitSha: String?,
         gitRef: String?,

@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
@@ -13,12 +14,17 @@ protocol BundleShowServicing {
     ) async throws
 }
 
-enum BundleShowServiceError: Equatable, FatalError {
+enum BundleShowServiceError: Equatable, FatalError, LocalizedError {
     case missingFullHandle
+    case unknownError(Int)
+    case notFound(String)
+    case forbidden(String)
+    case unauthorized(String)
 
     var type: TuistSupport.ErrorType {
         switch self {
         case .missingFullHandle: .abort
+        case .unknownError, .notFound, .forbidden, .unauthorized: .abort
         }
     }
 
@@ -26,8 +32,14 @@ enum BundleShowServiceError: Equatable, FatalError {
         switch self {
         case .missingFullHandle:
             return "We couldn't show the bundle because the full handle is missing. You can pass either its value or a path to a Tuist project."
+        case let .unknownError(statusCode):
+            return "We could not get the bundle due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+            return message
         }
     }
+
+    var errorDescription: String? { description }
 }
 
 final class BundleShowService: BundleShowServicing {
@@ -74,8 +86,42 @@ final class BundleShowService: BundleShowServicing {
         )
 
         if json {
-            let jsonData = try bundle.toJSON()
-            Logger.current.info(.init(stringLiteral: jsonData.toString(prettyPrint: true)), metadata: .json)
+            // Create a raw response that matches the API format
+            let rawBundle: [String: Any] = [
+                "id": bundle.id,
+                "name": bundle.name,
+                "app_bundle_id": bundle.appBundleId,
+                "version": bundle.version,
+                "supported_platforms": bundle.supportedPlatforms,
+                "install_size": bundle.installSize,
+                "download_size": bundle.downloadSize as Any,
+                "git_branch": bundle.gitBranch as Any,
+                "git_commit_sha": bundle.gitCommitSha as Any,
+                "git_ref": bundle.gitRef as Any,
+                "inserted_at": Int(bundle.insertedAt.timeIntervalSince1970),
+                "updated_at": Int(bundle.updatedAt.timeIntervalSince1970),
+                "uploaded_by_account": bundle.uploadedByAccount,
+                "artifacts": bundle.artifacts.map { artifact in
+                    [
+                        "artifact_type": artifact.artifactType,
+                        "path": artifact.path,
+                        "size": artifact.size,
+                        "shasum": artifact.shasum,
+                        "children": artifact.children.map { child in
+                            [
+                                "artifact_type": child.artifactType,
+                                "path": child.path,
+                                "size": child.size,
+                                "shasum": child.shasum,
+                                "children": [] as [[String: Any]],
+                            ]
+                        },
+                    ]
+                },
+                "url": bundle.url,
+            ]
+            let jsonData = try JSONSerialization.data(withJSONObject: rawBundle, options: .prettyPrinted)
+            Logger.current.info(.init(stringLiteral: String(data: jsonData, encoding: .utf8)!), metadata: .json)
             return
         }
 
@@ -92,7 +138,7 @@ final class BundleShowService: BundleShowServicing {
             "App Bundle ID: \(bundle.appBundleId)",
             "Supported Platforms: \(bundle.supportedPlatforms.joined(separator: ", "))",
             "Install Size: \(formatBytes(bundle.installSize))",
-            "Download Size: \(formatBytes(bundle.downloadSize))",
+            "Download Size: \(bundle.downloadSize.map(formatBytes) ?? "Unknown")",
             "Uploaded by: \(bundle.uploadedByAccount)",
             "Created: \(formatDate(bundle.insertedAt))",
         ]
