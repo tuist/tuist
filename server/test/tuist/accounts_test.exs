@@ -2068,8 +2068,6 @@ defmodule Tuist.AccountsTest do
     end
 
     test "handles reserved handle names by adding a suffix" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
       # When
       user =
         Accounts.find_or_create_user_from_oauth2(%{
