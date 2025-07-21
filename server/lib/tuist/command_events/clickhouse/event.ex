@@ -24,7 +24,6 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "command_events" do
     field :legacy_id, Ch, type: "UInt64"
-    field :legacy_artifact_path, :boolean, default: false
     field :name, Ch, type: "String"
     field :subcommand, Ch, type: "Nullable(String)"
     field :command_arguments, Ch, type: "Nullable(String)"

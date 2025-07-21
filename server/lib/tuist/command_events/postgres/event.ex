@@ -32,7 +32,6 @@ defmodule Tuist.CommandEvents.Postgres.Event do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "command_events" do
     field :legacy_id, :integer
-    field :legacy_artifact_path, :boolean, default: false
     field :name, :string
     field :duration, :integer
     field :subcommand, :string
@@ -89,7 +88,6 @@ defmodule Tuist.CommandEvents.Postgres.Event do
   def create_changeset(event, attrs) do
     changeset =
       cast(event, attrs, [
-        :legacy_artifact_path,
         :project_id,
         :name,
         :subcommand,
