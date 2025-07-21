@@ -44,6 +44,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/auth/refresh_token`.
     /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
     func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output
+    /// List bundles for a project
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)`.
+    func listBundles(_ input: Operations.listBundles.Input) async throws -> Operations.listBundles.Output
     /// Create a new bundle with artifacts
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
@@ -165,6 +170,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Get a single bundle by ID
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
+    func getBundle(_ input: Operations.getBundle.Input) async throws -> Operations.getBundle.Output
     /// Create a new account token.
     ///
     /// This endpoint returns a new account token.
@@ -417,6 +427,21 @@ extension APIProtocol {
         try await refreshToken(Operations.refreshToken.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// List bundles for a project
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)`.
+    internal func listBundles(
+        path: Operations.listBundles.Input.Path,
+        query: Operations.listBundles.Input.Query = .init(),
+        headers: Operations.listBundles.Input.Headers = .init()
+    ) async throws -> Operations.listBundles.Output {
+        try await listBundles(Operations.listBundles.Input(
+            path: path,
+            query: query,
+            headers: headers
         ))
     }
     /// Create a new bundle with artifacts
@@ -688,6 +713,19 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Get a single bundle by ID
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
+    internal func getBundle(
+        path: Operations.getBundle.Input.Path,
+        headers: Operations.getBundle.Input.Headers = .init()
+    ) async throws -> Operations.getBundle.Output {
+        try await getBundle(Operations.getBundle.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Create a new account token.
@@ -1150,7 +1188,7 @@ internal enum Components {
                 /// The bundle ID of the app
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/app_bundle_id`.
-                internal var app_bundle_id: Swift.String?
+                internal var app_bundle_id: Swift.String
                 /// The artifacts in this bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
@@ -1201,7 +1239,7 @@ internal enum Components {
                 ///   - supported_platforms: List of supported platforms
                 ///   - version: The version of the bundle
                 internal init(
-                    app_bundle_id: Swift.String? = nil,
+                    app_bundle_id: Swift.String,
                     artifacts: [Components.Schemas.BundleArtifact],
                     download_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
@@ -2602,29 +2640,125 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/Bundle`.
         internal struct Bundle: Codable, Hashable, Sendable {
+            /// The bundle ID of the app
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/app_bundle_id`.
+            internal var app_bundle_id: Swift.String
+            /// The artifacts in this bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/artifacts`.
+            internal var artifacts: [Components.Schemas.BundleArtifact]
+            /// The bundle download size in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/download_size`.
+            internal var download_size: Swift.Int
+            /// The git branch associated with the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/git_branch`.
+            internal var git_branch: Swift.String?
+            /// The git commit SHA associated with the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/git_commit_sha`.
+            internal var git_commit_sha: Swift.String?
+            /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/git_ref`.
+            internal var git_ref: Swift.String?
             /// The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/id`.
             internal var id: Swift.String
-            /// The URL of the bundle
+            /// When the bundle was created
             ///
-            /// - Remark: Generated from `#/components/schemas/Bundle/url`.
-            internal var url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Bundle/inserted_at`.
+            internal var inserted_at: Foundation.Date
+            /// The bundle install size in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/install_size`.
+            internal var install_size: Swift.Int
+            /// The name of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/name`.
+            internal var name: Swift.String
+            /// List of supported platforms
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/supported_platforms`.
+            internal var supported_platforms: [Swift.String]
+            /// When the bundle was last updated
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/updated_at`.
+            internal var updated_at: Foundation.Date
+            /// The account that uploaded this bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/uploaded_by_account`.
+            internal var uploaded_by_account: Swift.String
+            /// The version of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/version`.
+            internal var version: Swift.String
             /// Creates a new `Bundle`.
             ///
             /// - Parameters:
+            ///   - app_bundle_id: The bundle ID of the app
+            ///   - artifacts: The artifacts in this bundle
+            ///   - download_size: The bundle download size in bytes
+            ///   - git_branch: The git branch associated with the bundle.
+            ///   - git_commit_sha: The git commit SHA associated with the bundle.
+            ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
             ///   - id: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
-            ///   - url: The URL of the bundle
+            ///   - inserted_at: When the bundle was created
+            ///   - install_size: The bundle install size in bytes
+            ///   - name: The name of the bundle
+            ///   - supported_platforms: List of supported platforms
+            ///   - updated_at: When the bundle was last updated
+            ///   - uploaded_by_account: The account that uploaded this bundle
+            ///   - version: The version of the bundle
             internal init(
+                app_bundle_id: Swift.String,
+                artifacts: [Components.Schemas.BundleArtifact],
+                download_size: Swift.Int,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
+                git_ref: Swift.String? = nil,
                 id: Swift.String,
-                url: Swift.String
+                inserted_at: Foundation.Date,
+                install_size: Swift.Int,
+                name: Swift.String,
+                supported_platforms: [Swift.String],
+                updated_at: Foundation.Date,
+                uploaded_by_account: Swift.String,
+                version: Swift.String
             ) {
+                self.app_bundle_id = app_bundle_id
+                self.artifacts = artifacts
+                self.download_size = download_size
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
                 self.id = id
-                self.url = url
+                self.inserted_at = inserted_at
+                self.install_size = install_size
+                self.name = name
+                self.supported_platforms = supported_platforms
+                self.updated_at = updated_at
+                self.uploaded_by_account = uploaded_by_account
+                self.version = version
             }
             internal enum CodingKeys: String, CodingKey {
+                case app_bundle_id
+                case artifacts
+                case download_size
+                case git_branch
+                case git_commit_sha
+                case git_ref
                 case id
-                case url
+                case inserted_at
+                case install_size
+                case name
+                case supported_platforms
+                case updated_at
+                case uploaded_by_account
+                case version
             }
         }
         /// A bundle artifact schema
@@ -5956,6 +6090,57 @@ internal enum Operations {
                     }
                 }
             }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.refreshToken.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.refreshToken.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The token can't be refreshed because it has invalid type
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.refreshToken.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.refreshToken.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
             internal struct Unauthorized: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
@@ -6002,6 +6187,339 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List bundles for a project
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)`.
+    internal enum listBundles {
+        internal static let id: Swift.String = "listBundles"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.listBundles.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
+                internal var page: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                internal var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                internal var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page: Page number for pagination.
+                ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
+                internal init(
+                    page: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.git_branch = git_branch
+                    self.page_size = page_size
+                }
+            }
+            internal var query: Operations.listBundles.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBundles.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBundles.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listBundles.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                path: Operations.listBundles.Input.Path,
+                query: Operations.listBundles.Input.Query = .init(),
+                headers: Operations.listBundles.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/data`.
+                        internal var data: [Components.Schemas.Bundle]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
+                        internal struct metaPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/current_page`.
+                            internal var current_page: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/page_size`.
+                            internal var page_size: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/total_count`.
+                            internal var total_count: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/total_pages`.
+                            internal var total_pages: Swift.Int?
+                            /// Creates a new `metaPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            internal init(
+                                current_page: Swift.Int? = nil,
+                                page_size: Swift.Int? = nil,
+                                total_count: Swift.Int? = nil,
+                                total_pages: Swift.Int? = nil
+                            ) {
+                                self.current_page = current_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
+                        internal var meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        ///   - meta:
+                        internal init(
+                            data: [Components.Schemas.Bundle]? = nil,
+                            meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload? = nil
+                        ) {
+                            self.data = data
+                            self.meta = meta
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case data
+                            case meta
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/application\/json`.
+                    case json(Operations.listBundles.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listBundles.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listBundles.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listBundles.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of bundles
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listBundles.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listBundles.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listBundles.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listBundles.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to list bundles
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listBundles.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listBundles.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listBundles.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listBundles.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You are not authorized to list bundles
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/get(listBundles)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listBundles.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listBundles.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -6092,7 +6610,7 @@ internal enum Operations {
                         /// The bundle ID of the app
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/app_bundle_id`.
-                        internal var app_bundle_id: Swift.String?
+                        internal var app_bundle_id: Swift.String
                         /// The artifacts in this bundle
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/artifacts`.
@@ -6143,7 +6661,7 @@ internal enum Operations {
                         ///   - supported_platforms: List of supported platforms
                         ///   - version: The version of the bundle
                         internal init(
-                            app_bundle_id: Swift.String? = nil,
+                            app_bundle_id: Swift.String,
                             artifacts: [Components.Schemas.BundleArtifact],
                             download_size: Swift.Int? = nil,
                             git_branch: Swift.String? = nil,
@@ -11825,6 +12343,305 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.generatePreviewsMultipartUploadURL.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a single bundle by ID
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
+    internal enum getBundle {
+        internal static let id: Swift.String = "getBundle"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The ID of the bundle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
+                internal var bundle_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - bundle_id: The ID of the bundle.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    bundle_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.bundle_id = bundle_id
+                }
+            }
+            internal var path: Operations.getBundle.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBundle.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBundle.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.getBundle.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.getBundle.Input.Path,
+                headers: Operations.getBundle.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Bundle)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Bundle {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getBundle.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getBundle.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Bundle details
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getBundle.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.getBundle.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getBundle.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getBundle.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to view this bundle
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getBundle.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.getBundle.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getBundle.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getBundle.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You are not authorized to view this bundle
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getBundle.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.getBundle.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getBundle.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getBundle.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Bundle not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getBundle.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.getBundle.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
