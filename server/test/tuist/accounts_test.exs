@@ -2066,6 +2066,27 @@ defmodule Tuist.AccountsTest do
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :okta}) != nil
     end
+
+    test "handles reserved handle names by adding a suffix" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      # When
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: 123,
+          info: %{
+            email: "admin@example.com"
+          }
+        })
+
+      # Then
+      assert user.email == "admin@example.com"
+      account = Accounts.get_account_from_user(user)
+      # The handle should be "admin-" followed by a random number
+      assert String.starts_with?(account.name, "admin-")
+      assert account.name != "admin"
+    end
   end
 
   describe "authenticate_device_code/2" do
