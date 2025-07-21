@@ -1344,6 +1344,131 @@ internal enum Components {
             case tests = "tests"
             case builds = "builds"
         }
+        /// Response schema for bundle in list operations
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleList`.
+        internal struct BundleList: Codable, Hashable, Sendable {
+            /// The bundle ID of the app
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/app_bundle_id`.
+            internal var app_bundle_id: Swift.String
+            /// The bundle download size in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/download_size`.
+            internal var download_size: Swift.Int
+            /// The git branch associated with the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/git_branch`.
+            internal var git_branch: Swift.String?
+            /// The git commit SHA associated with the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/git_commit_sha`.
+            internal var git_commit_sha: Swift.String?
+            /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/git_ref`.
+            internal var git_ref: Swift.String?
+            /// The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/id`.
+            internal var id: Swift.String
+            /// When the bundle was created
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/inserted_at`.
+            internal var inserted_at: Foundation.Date
+            /// The bundle install size in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/install_size`.
+            internal var install_size: Swift.Int
+            /// The name of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/name`.
+            internal var name: Swift.String
+            /// List of supported platforms
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/supported_platforms`.
+            internal var supported_platforms: [Swift.String]
+            /// When the bundle was last updated
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/updated_at`.
+            internal var updated_at: Foundation.Date
+            /// The account that uploaded this bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/uploaded_by_account`.
+            internal var uploaded_by_account: Swift.String
+            /// The URL to view this bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/url`.
+            internal var url: Swift.String
+            /// The version of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleList/version`.
+            internal var version: Swift.String
+            /// Creates a new `BundleList`.
+            ///
+            /// - Parameters:
+            ///   - app_bundle_id: The bundle ID of the app
+            ///   - download_size: The bundle download size in bytes
+            ///   - git_branch: The git branch associated with the bundle.
+            ///   - git_commit_sha: The git commit SHA associated with the bundle.
+            ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+            ///   - id: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+            ///   - inserted_at: When the bundle was created
+            ///   - install_size: The bundle install size in bytes
+            ///   - name: The name of the bundle
+            ///   - supported_platforms: List of supported platforms
+            ///   - updated_at: When the bundle was last updated
+            ///   - uploaded_by_account: The account that uploaded this bundle
+            ///   - url: The URL to view this bundle
+            ///   - version: The version of the bundle
+            internal init(
+                app_bundle_id: Swift.String,
+                download_size: Swift.Int,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
+                git_ref: Swift.String? = nil,
+                id: Swift.String,
+                inserted_at: Foundation.Date,
+                install_size: Swift.Int,
+                name: Swift.String,
+                supported_platforms: [Swift.String],
+                updated_at: Foundation.Date,
+                uploaded_by_account: Swift.String,
+                url: Swift.String,
+                version: Swift.String
+            ) {
+                self.app_bundle_id = app_bundle_id
+                self.download_size = download_size
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.id = id
+                self.inserted_at = inserted_at
+                self.install_size = install_size
+                self.name = name
+                self.supported_platforms = supported_platforms
+                self.updated_at = updated_at
+                self.uploaded_by_account = uploaded_by_account
+                self.url = url
+                self.version = version
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case app_bundle_id
+                case download_size
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case id
+                case inserted_at
+                case install_size
+                case name
+                case supported_platforms
+                case updated_at
+                case uploaded_by_account
+                case url
+                case version
+            }
+        }
         /// The URL to download the artifact from the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL`.
@@ -6328,7 +6453,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/data`.
-                        internal var data: [Components.Schemas.Bundle]?
+                        internal var data: [Components.Schemas.BundleList]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
                         internal struct metaPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/current_page`.
@@ -6372,7 +6497,7 @@ internal enum Operations {
                         ///   - data:
                         ///   - meta:
                         internal init(
-                            data: [Components.Schemas.Bundle]? = nil,
+                            data: [Components.Schemas.BundleList]? = nil,
                             meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload? = nil
                         ) {
                             self.data = data

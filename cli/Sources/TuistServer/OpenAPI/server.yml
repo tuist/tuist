@@ -146,6 +146,101 @@ components:
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.CacheCategory
       x-validate:
+    BundleList:
+      description: Response schema for bundle in list operations
+      properties:
+        app_bundle_id:
+          description: The bundle ID of the app
+          type: string
+          x-struct:
+          x-validate:
+        download_size:
+          description: The bundle download size in bytes
+          type: integer
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch associated with the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The git commit SHA associated with the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: The ID of the bundle. This is not a bundle ID that you'd set in Xcode but the database identifier of the bundle.
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          description: When the bundle was created
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        install_size:
+          description: The bundle install size in bytes
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          description: The name of the bundle
+          type: string
+          x-struct:
+          x-validate:
+        supported_platforms:
+          description: List of supported platforms
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        updated_at:
+          description: When the bundle was last updated
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        uploaded_by_account:
+          description: The account that uploaded this bundle
+          type: string
+          x-struct:
+          x-validate:
+        url:
+          description: The URL to view this bundle
+          type: string
+          x-struct:
+          x-validate:
+        version:
+          description: The version of the bundle
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - app_bundle_id
+        - version
+        - supported_platforms
+        - install_size
+        - download_size
+        - inserted_at
+        - updated_at
+        - uploaded_by_account
+        - url
+      title: BundleList
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.BundleList
+      x-validate:
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
       properties:
@@ -2775,6 +2870,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -2787,14 +2890,6 @@ paths:
           in: path
           name: project_handle
           required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
           schema:
             type: string
             x-struct:
@@ -2815,7 +2910,7 @@ paths:
                 properties:
                   data:
                     items:
-                      $ref: '#/components/schemas/Bundle'
+                      $ref: '#/components/schemas/BundleList'
                     type: array
                     x-struct:
                     x-validate:

@@ -56,12 +56,12 @@ defmodule TuistWeb.API.Schemas.Bundle do
       },
       inserted_at: %Schema{
         type: :string,
-        format: :"date-time",
+        format: "date-time",
         description: "When the bundle was created"
       },
       updated_at: %Schema{
         type: :string,
-        format: :"date-time",
+        format: "date-time",
         description: "When the bundle was last updated"
       },
       uploaded_by_account: %Schema{
