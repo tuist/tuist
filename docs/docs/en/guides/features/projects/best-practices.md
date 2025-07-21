@@ -23,3 +23,7 @@ Build configurations were designed to embody different build settings, and proje
 
 - **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
 - **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
+
+::: info Non-standard configurations
+While Tuist supports non-standard configurations and makes them easier to manage compared to vanilla Xcode projects, you'll receive warnings if configurations are not consistent throughout the dependency graph. This helps ensure build reliability and prevents configuration-related issues.
+:::
