@@ -1095,6 +1095,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        url:
+          description: The URL to view this bundle
+          type: string
+          x-struct:
+          x-validate:
         version:
           description: The version of the bundle
           type: string
@@ -1112,6 +1117,7 @@ components:
         - updated_at
         - uploaded_by_account
         - artifacts
+        - url
       title: Bundle
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle

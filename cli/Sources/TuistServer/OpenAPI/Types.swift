@@ -2692,6 +2692,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/uploaded_by_account`.
             internal var uploaded_by_account: Swift.String
+            /// The URL to view this bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/url`.
+            internal var url: Swift.String
             /// The version of the bundle
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/version`.
@@ -2712,6 +2716,7 @@ internal enum Components {
             ///   - supported_platforms: List of supported platforms
             ///   - updated_at: When the bundle was last updated
             ///   - uploaded_by_account: The account that uploaded this bundle
+            ///   - url: The URL to view this bundle
             ///   - version: The version of the bundle
             internal init(
                 app_bundle_id: Swift.String,
@@ -2727,6 +2732,7 @@ internal enum Components {
                 supported_platforms: [Swift.String],
                 updated_at: Foundation.Date,
                 uploaded_by_account: Swift.String,
+                url: Swift.String,
                 version: Swift.String
             ) {
                 self.app_bundle_id = app_bundle_id
@@ -2742,6 +2748,7 @@ internal enum Components {
                 self.supported_platforms = supported_platforms
                 self.updated_at = updated_at
                 self.uploaded_by_account = uploaded_by_account
+                self.url = url
                 self.version = version
             }
             internal enum CodingKeys: String, CodingKey {
@@ -2758,6 +2765,7 @@ internal enum Components {
                 case supported_platforms
                 case updated_at
                 case uploaded_by_account
+                case url
                 case version
             }
         }

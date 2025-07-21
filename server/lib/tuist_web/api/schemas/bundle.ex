@@ -72,8 +72,12 @@ defmodule TuistWeb.API.Schemas.Bundle do
         type: :array,
         description: "The artifacts in this bundle",
         items: TuistWeb.API.Schemas.BundleArtifact
+      },
+      url: %Schema{
+        type: :string,
+        description: "The URL to view this bundle"
       }
     },
-    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :download_size, :inserted_at, :updated_at, :uploaded_by_account, :artifacts]
+    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :download_size, :inserted_at, :updated_at, :uploaded_by_account, :artifacts, :url]
   })
 end
