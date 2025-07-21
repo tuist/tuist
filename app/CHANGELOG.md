@@ -1,3 +1,8 @@
+## What's Changed in app@0.20.0
+* feat: add support for Apple App Site Association by @fortmarek in [#7887](https://github.com/tuist/tuist/pull/7887)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.19.0...app@0.20.0
+
 ## What's Changed in app@0.19.0
 * remove redundant isDisabled property by @fortmarek
 * feat: remove run button when a preview can't be run by @fortmarek in [#7829](https://github.com/tuist/tuist/pull/7829)
@@ -80,9 +85,6 @@
 
 ## What's Changed in app@0.8.1
 * fix: error on menu bar startup when logged out by @fortmarek in [#7110](https://github.com/tuist/tuist/pull/7110)
-
-## New Contributors
-* @tuistit made their first contribution
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/app@0.8.0...app@0.8.1
 

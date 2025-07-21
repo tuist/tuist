@@ -439,6 +439,7 @@ defmodule Tuist.Accounts do
          |> List.first()
          |> String.replace(".", "-")
          |> String.replace("_", "-")
+         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
@@ -589,17 +590,36 @@ defmodule Tuist.Accounts do
 
       oauth2_identity
     else
-      {:ok, user} =
-        create_user(email,
-          password: generate_random_string(16),
-          oauth2_identity: %{
-            provider: provider,
-            id_in_provider: to_string(id_in_provider),
-            provider_organization_id: provider_organization_id
-          }
-        )
-
+      user = create_oauth2_user(email, provider, id_in_provider, provider_organization_id)
       find_oauth2_identity(%{user: user, provider: provider})
+    end
+  end
+
+  defp create_oauth2_user(email, provider, id_in_provider, provider_organization_id) do
+    oauth2_attrs = %{
+      provider: provider,
+      id_in_provider: to_string(id_in_provider),
+      provider_organization_id: provider_organization_id
+    }
+
+    case create_user(email, password: generate_random_string(16), oauth2_identity: oauth2_attrs) do
+      {:ok, user} ->
+        user
+
+      {:error, %{name: _name_error}} ->
+        # If name has an error (reserved, taken, etc), retry with a random suffix
+        {:ok, user} =
+          create_user(email,
+            password: generate_random_string(16),
+            suffix: "-#{:rand.uniform(9999)}",
+            oauth2_identity: oauth2_attrs
+          )
+
+        user
+
+      error ->
+        # Re-raise any other errors
+        {:ok, _} = error
     end
   end
 

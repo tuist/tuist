@@ -222,6 +222,7 @@ defmodule TuistWeb.Router do
 
     get "/ready", TuistWeb.PageController, :ready
     get "/api/docs", TuistWeb.APIController, :docs
+    get "/.well-known/apple-app-site-association", TuistWeb.AppleAppSiteAssociationController, :show
   end
 
   scope path: "/api",

@@ -174,7 +174,7 @@ defmodule TuistWeb.API.AuthController do
           {:error, reason} ->
             Tuist.Analytics.authentication_token_refresh_error(%{
               reason: if(is_binary(reason), do: reason, else: Atom.to_string(reason)),
-              cli_version: conn |> TuistWeb.Headers.get_cli_version() |> Version.to_string()
+              cli_version: TuistWeb.Headers.get_cli_version_string(conn)
             })
 
             conn
