@@ -73,6 +73,6 @@ defmodule TuistWeb.API.Schemas.BundleList do
         description: "The URL to view this bundle"
       }
     },
-    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :download_size, :inserted_at, :updated_at, :uploaded_by_account, :url]
+    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :inserted_at, :updated_at, :uploaded_by_account, :url]
   })
 end
