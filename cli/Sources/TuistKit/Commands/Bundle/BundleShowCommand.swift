@@ -13,16 +13,17 @@ struct BundleShowCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
-        envKey: .bundleShowFullHandle
-    )
-    var fullHandle: String = ""
-
-    @Argument(
         help: "The ID of the bundle to show.",
         envKey: .bundleShowId
     )
     var bundleId: String
+
+    @Option(
+        name: .customLong("full-handle"),
+        help: "The full handle of the project. Must be in the format of account-handle/project-handle. If not provided, it will be read from the project's Tuist.swift.",
+        envKey: .bundleShowFullHandle
+    )
+    var fullHandle: String = ""
 
     @Option(
         name: .shortAndLong,

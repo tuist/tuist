@@ -1133,7 +1133,7 @@ extension APIProtocol {
 internal enum Servers {
     internal static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8080",
+            validatingOpenAPIServerURL: "http://localhost:4002",
             variables: []
         )
     }
@@ -1355,7 +1355,7 @@ internal enum Components {
             /// The bundle download size in bytes
             ///
             /// - Remark: Generated from `#/components/schemas/BundleList/download_size`.
-            internal var download_size: Swift.Int
+            internal var download_size: Swift.Int?
             /// The git branch associated with the bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/BundleList/git_branch`.
@@ -1423,7 +1423,7 @@ internal enum Components {
             ///   - version: The version of the bundle
             internal init(
                 app_bundle_id: Swift.String,
-                download_size: Swift.Int,
+                download_size: Swift.Int? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
                 git_ref: Swift.String? = nil,
@@ -2776,7 +2776,7 @@ internal enum Components {
             /// The bundle download size in bytes
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/download_size`.
-            internal var download_size: Swift.Int
+            internal var download_size: Swift.Int?
             /// The git branch associated with the bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/git_branch`.
@@ -2846,7 +2846,7 @@ internal enum Components {
             internal init(
                 app_bundle_id: Swift.String,
                 artifacts: [Components.Schemas.BundleArtifact],
-                download_size: Swift.Int,
+                download_size: Swift.Int? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
                 git_ref: Swift.String? = nil,
@@ -2908,6 +2908,7 @@ internal enum Components {
                 case binary = "binary"
                 case localization = "localization"
                 case asset = "asset"
+                case unknown = "unknown"
             }
             /// The type of artifact
             ///
@@ -3013,6 +3014,7 @@ internal enum Components {
                     case binary = "binary"
                     case localization = "localization"
                     case asset = "asset"
+                    case unknown = "unknown"
                 }
                 /// The type of artifact
                 ///
