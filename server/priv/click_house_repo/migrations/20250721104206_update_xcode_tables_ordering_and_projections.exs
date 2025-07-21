@@ -2,7 +2,18 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
   use Ecto.Migration
 
   def up do
+    # Clean up any existing backup/temp tables first
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_graphs_bak"
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_projects_bak"
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_targets_bak"
+
     # 1. Backup and recreate xcode_graphs table with new ORDER BY
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_graphs_new"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_graphs_new (
@@ -19,12 +30,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_graphs_new SELECT id, name, command_event_id, binary_build_duration, inserted_at FROM xcode_graphs"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_graphs"
+    execute "RENAME TABLE xcode_graphs TO xcode_graphs_bak"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_graphs_new TO xcode_graphs"
 
     # 2. Backup and recreate xcode_projects table with new ORDER BY
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_projects_new"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_projects_new (
@@ -41,12 +55,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_projects_new SELECT id, name, path, xcode_graph_id, inserted_at FROM xcode_projects"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_projects"
+    execute "RENAME TABLE xcode_projects TO xcode_projects_bak"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_projects_new TO xcode_projects"
 
     # 3. Backup and recreate xcode_targets table with new ORDER BY
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_targets_new"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_targets_new (
@@ -67,7 +84,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_targets_new SELECT id, name, binary_cache_hash, binary_cache_hit, binary_build_duration, selective_testing_hash, selective_testing_hit, xcode_project_id, inserted_at FROM xcode_targets"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_targets"
+    execute "RENAME TABLE xcode_targets TO xcode_targets_bak"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_targets_new TO xcode_targets"
@@ -138,19 +155,9 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
       xg.name as graph_name,
       xg.command_event_id as command_event_id,
       xg.binary_build_duration as graph_binary_build_duration
-    FROM default.xcode_targets AS xt
-    INNER JOIN
-    (
-        SELECT *
-        FROM default.xcode_projects
-        WHERE inserted_at >= (now() - toIntervalMinute(10))
-    ) AS xp ON xt.xcode_project_id = xp.id AND xt.inserted_at = xp.inserted_at
-    INNER JOIN
-    (
-        SELECT *
-        FROM default.xcode_graphs
-        WHERE inserted_at >= (now() - toIntervalMinute(10))
-    ) AS xg ON xp.xcode_graph_id = xg.id AND xp.inserted_at = xg.inserted_at
+    FROM xcode_targets AS xt
+    INNER JOIN xcode_projects AS xp ON xt.xcode_project_id = xp.id AND xt.inserted_at = xp.inserted_at
+    INNER JOIN xcode_graphs AS xg ON xp.xcode_graph_id = xg.id AND xp.inserted_at = xg.inserted_at
     SETTINGS join_algorithm = 'partial_merge'
     """
 
@@ -174,9 +181,9 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
       xg.name as graph_name,
       xg.command_event_id as command_event_id,
       xg.binary_build_duration as graph_binary_build_duration
-    FROM default.xcode_targets AS xt
-    INNER JOIN default.xcode_projects AS xp ON xt.xcode_project_id = xp.id AND xt.inserted_at = xp.inserted_at
-    INNER JOIN default.xcode_graphs AS xg ON xp.xcode_graph_id = xg.id AND xp.inserted_at = xg.inserted_at
+    FROM xcode_targets AS xt
+    INNER JOIN xcode_projects AS xp ON xt.xcode_project_id = xp.id AND xt.inserted_at = xp.inserted_at
+    INNER JOIN xcode_graphs AS xg ON xp.xcode_graph_id = xg.id AND xp.inserted_at = xg.inserted_at
     """
   end
 
@@ -190,11 +197,14 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
 
     # Recreate original xcode_graphs table
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_graphs_original"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_graphs_original (
       id String,
       name String,
-      command_event_id UInt64,
+      command_event_id UUID,
       binary_build_duration Nullable(UInt32),
       inserted_at DateTime DEFAULT now()
     ) ENGINE = MergeTree()
@@ -205,12 +215,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_graphs_original SELECT * FROM xcode_graphs"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_graphs"
+    execute "RENAME TABLE xcode_graphs TO xcode_graphs_new"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_graphs_original TO xcode_graphs"
 
     # Recreate original xcode_projects table
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_projects_original"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_projects_original (
@@ -227,12 +240,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_projects_original SELECT * FROM xcode_projects"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_projects"
+    execute "RENAME TABLE xcode_projects TO xcode_projects_new"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_projects_original TO xcode_projects"
 
     # Recreate original xcode_targets table
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS xcode_targets_original"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TABLE xcode_targets_original (
@@ -253,7 +269,7 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
     execute "INSERT INTO xcode_targets_original SELECT * FROM xcode_targets"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE xcode_targets"
+    execute "RENAME TABLE xcode_targets TO xcode_targets_new"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "RENAME TABLE xcode_targets_original TO xcode_targets"
