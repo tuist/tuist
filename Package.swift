@@ -613,6 +613,7 @@ let package = Package(
             .upToNextMajor(from: "0.5.31")
         ),
         .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
+        .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
     ],
     targets: targets
 )

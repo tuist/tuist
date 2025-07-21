@@ -1,5 +1,5 @@
 {
-  "originHash" : "5bb12664ad97077500b1a99ac37e018e00f5eb4bf9a14d6103dfe1bd83ee213a",
+  "originHash" : "9d66f83fba8716bf88311cb324722c2b662f871d6a0e8c1e99c66b625406eb6a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -17,6 +17,24 @@
       "state" : {
         "revision" : "862808b2070cd908cb04f9aafe7de83d35f81b05",
         "version" : "0.6.7"
+      }
+    },
+    {
+      "identity" : "asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leif-ibsen/ASN1",
+      "state" : {
+        "revision" : "e38d1b8b43d8b53ffadde9836f34289176bb7a0c",
+        "version" : "2.7.0"
+      }
+    },
+    {
+      "identity" : "bigint",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leif-ibsen/BigInt",
+      "state" : {
+        "revision" : "afb70a0038bfbba845271b60fa9a58d5840f8017",
+        "version" : "1.21.0"
       }
     },
     {
@@ -53,6 +71,15 @@
       "state" : {
         "revision" : "f627d00718033c3d7888acd5f4e3524a843db1cf",
         "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "digest",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leif-ibsen/Digest",
+      "state" : {
+        "revision" : "95ba89b494aaff5f3cd2933c03b9a890323dbf2c",
+        "version" : "1.13.0"
       }
     },
     {
@@ -440,6 +467,15 @@
       "state" : {
         "revision" : "3b13e439a341bbbfe0f710c7d1be37221745ef1a",
         "version" : "0.6.1"
+      }
+    },
+    {
+      "identity" : "swiftecc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leif-ibsen/SwiftECC",
+      "state" : {
+        "revision" : "85c529c9c56b649a8d8edcef60aab3925ab0f69f",
+        "version" : "5.5.0"
       }
     },
     {
