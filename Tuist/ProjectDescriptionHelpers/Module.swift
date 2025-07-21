@@ -29,23 +29,8 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
 
-    private static func cacheEEDirectory() -> URL {
-        let currentFileURL = URL(fileURLWithPath: #file)
-        return
-            currentFileURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("cli")
-            .appendingPathComponent("TuistCacheEE")
-    }
-
     public static func includeEE() -> Bool {
-        if case let .string(value) = Environment.ee {
-            return value == "1"
-        } else {
-            return false
-        }
+        return Environment.ee.getBoolean(default: false)
     }
 
     public static func allTargets() -> [Target] {
@@ -65,7 +50,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEE",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["\(cacheEEDirectory().path())/Sources/**/*.swift"],
+                sources: ["cli/TuistCacheEE/Sources/**/*.swift"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -100,7 +85,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.TuistCacheEETests",
                 deploymentTargets: .macOS("14.0"),
                 infoPlist: .default,
-                sources: ["\(cacheEEDirectory().path())/Tests/**/*.swift"],
+                sources: ["cli/TuistCacheEE/Tests/**/*.swift"],
                 dependencies: [
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
