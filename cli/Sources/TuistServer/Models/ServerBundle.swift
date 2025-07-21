@@ -15,6 +15,7 @@ public struct ServerBundle: Codable {
     public let updatedAt: Date
     public let uploadedByAccount: String
     public let artifacts: [ServerBundleArtifact]
+    public let url: String
 
     init(
         id: String,
@@ -30,7 +31,8 @@ public struct ServerBundle: Codable {
         insertedAt: Date,
         updatedAt: Date,
         uploadedByAccount: String,
-        artifacts: [ServerBundleArtifact]
+        artifacts: [ServerBundleArtifact],
+        url: String
     ) {
         self.id = id
         self.name = name
@@ -46,6 +48,7 @@ public struct ServerBundle: Codable {
         self.updatedAt = updatedAt
         self.uploadedByAccount = uploadedByAccount
         self.artifacts = artifacts
+        self.url = url
     }
 
     init?(_ bundle: Components.Schemas.Bundle) {        
@@ -63,6 +66,7 @@ public struct ServerBundle: Codable {
         self.updatedAt = bundle.updated_at
         self.uploadedByAccount = bundle.uploaded_by_account
         self.artifacts = bundle.artifacts.compactMap { ServerBundleArtifact($0) }
+        self.url = bundle.url
     }
 }
 
@@ -112,7 +116,8 @@ public struct ServerBundleArtifact: Codable {
             insertedAt: Date = Date(),
             updatedAt: Date = Date(),
             uploadedByAccount: String = "test-account",
-            artifacts: [ServerBundleArtifact] = []
+            artifacts: [ServerBundleArtifact] = [],
+            url: String = "https://tuist.dev/test-account/test-project/bundles/test-bundle-id"
         ) -> ServerBundle {
             ServerBundle(
                 id: id,
@@ -128,7 +133,8 @@ public struct ServerBundleArtifact: Codable {
                 insertedAt: insertedAt,
                 updatedAt: updatedAt,
                 uploadedByAccount: uploadedByAccount,
-                artifacts: artifacts
+                artifacts: artifacts,
+                url: url
             )
         }
     }
