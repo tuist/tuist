@@ -74,9 +74,11 @@ defmodule TuistWeb.API.BundlesController do
                  page_size: %Schema{type: :integer},
                  total_count: %Schema{type: :integer},
                  total_pages: %Schema{type: :integer}
-               }
+               },
+               required: [:current_page, :page_size, :total_count, :total_pages]
              }
-           }
+           },
+           required: [:data, :meta]
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error}
