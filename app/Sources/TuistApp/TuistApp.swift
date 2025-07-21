@@ -43,9 +43,14 @@ import TuistServer
     import TuistPreviews
     import TuistProfile
 
+    enum TabIdentifier: Hashable {
+        case previews, profile
+    }
+
     @main
     struct TuistApp: App {
         @StateObject private var authenticationService = AuthenticationService()
+        @State var activeTab = TabIdentifier.previews
 
         var body: some Scene {
             WindowGroup {
@@ -55,13 +60,14 @@ import TuistServer
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {
                             if case let .loggedIn(account: account) = authenticationService.authenticationState {
-                                TabView {
+                                TabView(selection: $activeTab) {
                                     PreviewsView()
                                         .environmentObject(authenticationService)
                                         .tabItem {
                                             NooraIcon(.deviceMobile)
                                             Text("Previews")
                                         }
+                                        .tag(TabIdentifier.previews)
 
                                     ProfileView(account: account)
                                         .environmentObject(authenticationService)
@@ -70,6 +76,10 @@ import TuistServer
                                                 .frame(width: 24, height: 24)
                                             Text("Profile")
                                         }
+                                        .tag(TabIdentifier.profile)
+                                }
+                                .onOpenURL { _ in
+                                    activeTab = .previews
                                 }
                                 .accentColor(Noora.Colors.accent)
                             } else {

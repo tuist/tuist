@@ -6,5 +6,11 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:staging.tuist.dev</string>
+		<string>applinks:canary.tuist.dev</string>
+		<string>applinks:tuist.dev</string>
+	</array>
 </dict>
 </plist>

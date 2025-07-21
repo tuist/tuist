@@ -2,7 +2,7 @@ import Foundation
 import Mockable
 
 @Mockable
-public protocol GetPreviewServicing {
+public protocol GetPreviewServicing: Sendable {
     func getPreview(
         _ previewId: String,
         fullHandle: String,

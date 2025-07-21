@@ -136,9 +136,28 @@ public struct PreviewsView: View {
             .navigationBarTitleDisplayMode(.automatic)
             .background(Noora.Colors.surfaceBackgroundPrimary)
             .navigationDestination(for: ServerPreview.self) { preview in
-                PreviewView(preview: preview, project: viewModel.selectedProject!)
+                PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
+            }
+            .navigationDestination(for: DeeplinkPreview.self) { deeplink in
+                PreviewView(previewId: deeplink.previewId, fullHandle: deeplink.fullHandle)
+            }
+            .onOpenURL { url in
+                handleOpenURL(url)
             }
         }
+    }
+
+    private func handleOpenURL(_ url: URL) {
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        guard pathComponents.count >= 4,
+              pathComponents[2] == "previews"
+        else { return }
+
+        let previewId = pathComponents[3]
+        let fullHandle = "\(pathComponents[0])/\(pathComponents[1])"
+
+        let deeplink = DeeplinkPreview(previewId: previewId, fullHandle: fullHandle)
+        navigationPath.append(deeplink)
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {
