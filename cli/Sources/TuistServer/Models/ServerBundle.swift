@@ -51,22 +51,40 @@ public struct ServerBundle: Codable {
         self.url = url
     }
 
-    init?(_ bundle: Components.Schemas.Bundle) {        
-        self.id = bundle.id
-        self.name = bundle.name
-        self.appBundleId = bundle.app_bundle_id
-        self.version = bundle.version
-        self.supportedPlatforms = bundle.supported_platforms
-        self.installSize = bundle.install_size
-        self.downloadSize = bundle.download_size
-        self.gitBranch = bundle.git_branch
-        self.gitCommitSha = bundle.git_commit_sha
-        self.gitRef = bundle.git_ref
-        self.insertedAt = bundle.inserted_at
-        self.updatedAt = bundle.updated_at
-        self.uploadedByAccount = bundle.uploaded_by_account
-        self.artifacts = bundle.artifacts.compactMap { ServerBundleArtifact($0) }
-        self.url = bundle.url
+    init?(_ bundle: Components.Schemas.Bundle) {
+        id = bundle.id
+        name = bundle.name
+        appBundleId = bundle.app_bundle_id
+        version = bundle.version
+        supportedPlatforms = bundle.supported_platforms
+        installSize = bundle.install_size
+        downloadSize = bundle.download_size
+        gitBranch = bundle.git_branch
+        gitCommitSha = bundle.git_commit_sha
+        gitRef = bundle.git_ref
+        insertedAt = bundle.inserted_at
+        updatedAt = bundle.updated_at
+        uploadedByAccount = bundle.uploaded_by_account
+        artifacts = bundle.artifacts.compactMap { ServerBundleArtifact($0) }
+        url = bundle.url
+    }
+
+    init?(_ bundleList: Components.Schemas.BundleList) {
+        id = bundleList.id
+        name = bundleList.name
+        appBundleId = bundleList.app_bundle_id
+        version = bundleList.version
+        supportedPlatforms = bundleList.supported_platforms
+        installSize = bundleList.install_size
+        downloadSize = bundleList.download_size
+        gitBranch = bundleList.git_branch
+        gitCommitSha = bundleList.git_commit_sha
+        gitRef = bundleList.git_ref
+        insertedAt = bundleList.inserted_at
+        updatedAt = bundleList.updated_at
+        uploadedByAccount = bundleList.uploaded_by_account
+        artifacts = [] // BundleList doesn't include artifacts
+        url = bundleList.url
     }
 }
 
@@ -92,11 +110,11 @@ public struct ServerBundleArtifact: Codable {
     }
 
     init?(_ artifact: Components.Schemas.BundleArtifact) {
-        self.artifactType = artifact.artifact_type.rawValue
-        self.path = artifact.path
-        self.size = artifact.size
-        self.shasum = artifact.shasum
-        self.children = artifact.children?.compactMap { ServerBundleArtifact($0) } ?? []
+        artifactType = artifact.artifact_type.rawValue
+        path = artifact.path
+        size = artifact.size
+        shasum = artifact.shasum
+        children = artifact.children?.compactMap { ServerBundleArtifact($0) } ?? []
     }
 }
 
@@ -108,8 +126,8 @@ public struct ServerBundleArtifact: Codable {
             appBundleId: String = "com.example.TestApp",
             version: String = "1.0.0",
             supportedPlatforms: [String] = ["ios"],
-            installSize: Int = 1024000,
-            downloadSize: Int = 512000,
+            installSize: Int = 1_024_000,
+            downloadSize: Int = 512_000,
             gitBranch: String? = "main",
             gitCommitSha: String? = "abc123",
             gitRef: String? = "refs/heads/main",
@@ -138,7 +156,7 @@ public struct ServerBundleArtifact: Codable {
             )
         }
     }
-    
+
     extension ServerBundleArtifact {
         public static func test(
             artifactType: String = "file",

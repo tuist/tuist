@@ -6453,17 +6453,17 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/data`.
-                        internal var data: [Components.Schemas.BundleList]?
+                        internal var data: [Components.Schemas.BundleList]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
                         internal struct metaPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/current_page`.
-                            internal var current_page: Swift.Int?
+                            internal var current_page: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/page_size`.
-                            internal var page_size: Swift.Int?
+                            internal var page_size: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/total_count`.
-                            internal var total_count: Swift.Int?
+                            internal var total_count: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta/total_pages`.
-                            internal var total_pages: Swift.Int?
+                            internal var total_pages: Swift.Int
                             /// Creates a new `metaPayload`.
                             ///
                             /// - Parameters:
@@ -6472,10 +6472,10 @@ internal enum Operations {
                             ///   - total_count:
                             ///   - total_pages:
                             internal init(
-                                current_page: Swift.Int? = nil,
-                                page_size: Swift.Int? = nil,
-                                total_count: Swift.Int? = nil,
-                                total_pages: Swift.Int? = nil
+                                current_page: Swift.Int,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
                             ) {
                                 self.current_page = current_page
                                 self.page_size = page_size
@@ -6490,15 +6490,15 @@ internal enum Operations {
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/responses/200/content/json/meta`.
-                        internal var meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload?
+                        internal var meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - data:
                         ///   - meta:
                         internal init(
-                            data: [Components.Schemas.BundleList]? = nil,
-                            meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload? = nil
+                            data: [Components.Schemas.BundleList],
+                            meta: Operations.listBundles.Output.Ok.Body.jsonPayload.metaPayload
                         ) {
                             self.data = data
                             self.meta = meta

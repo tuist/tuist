@@ -57,14 +57,14 @@ final class BundleShowService: BundleShowServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        
+
         let config = try await configLoader.loadConfig(path: directoryPath)
         let resolvedFullHandle = fullHandle.isEmpty ? config.fullHandle : fullHandle
-        
+
         guard let resolvedFullHandle else {
             throw BundleShowServiceError.missingFullHandle
         }
-        
+
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let bundle = try await getBundleService.getBundle(
@@ -96,19 +96,19 @@ final class BundleShowService: BundleShowServicing {
             "Uploaded by: \(bundle.uploadedByAccount)",
             "Created: \(formatDate(bundle.insertedAt))",
         ]
-        
+
         if let gitBranch = bundle.gitBranch {
             info.append("Git Branch: \(gitBranch)")
         }
-        
+
         if let gitCommitSha = bundle.gitCommitSha {
             info.append("Git Commit: \(gitCommitSha)")
         }
-        
+
         if let gitRef = bundle.gitRef {
             info.append("Git Ref: \(gitRef)")
         }
-        
+
         if !bundle.artifacts.isEmpty {
             info.append("")
             info.append("Artifacts".bold())
@@ -117,30 +117,30 @@ final class BundleShowService: BundleShowServicing {
 
         return info.joined(separator: "\n")
     }
-    
+
     private func formatArtifacts(_ artifacts: [ServerBundleArtifact], depth: Int = 0) -> [String] {
         let indent = String(repeating: "  ", count: depth)
         var lines: [String] = []
-        
+
         for artifact in artifacts {
             let size = formatBytes(artifact.size)
             lines.append("\(indent)• \(artifact.path) (\(artifact.artifactType)) - \(size)")
-            
+
             if !artifact.children.isEmpty {
                 lines.append(contentsOf: formatArtifacts(artifact.children, depth: depth + 1))
             }
         }
-        
+
         return lines
     }
-    
+
     private func formatBytes(_ bytes: Int) -> String {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
     }
-    
+
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
