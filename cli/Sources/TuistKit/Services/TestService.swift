@@ -650,8 +650,10 @@ final class TestService { // swiftlint:disable:this type_body_length
                     guard let project = graph.projects[$0.projectPath],
                           let target = project.targets[$0.name]
                     else {
+                        print("Could not find graph target reference for \($0)")
                         return nil
                     }
+                    print("Found graph target reference for \($0)")
                     return GraphTarget(path: project.path, target: target, project: project)
                 }
     }
