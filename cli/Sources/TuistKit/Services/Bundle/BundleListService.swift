@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
@@ -13,12 +14,16 @@ protocol BundleListServicing {
     ) async throws
 }
 
-enum BundleListServiceError: Equatable, FatalError {
+enum BundleListServiceError: Equatable, FatalError, LocalizedError {
     case missingFullHandle
+    case unknownError(Int)
+    case unauthorized(String)
+    case forbidden(String)
 
     var type: TuistSupport.ErrorType {
         switch self {
         case .missingFullHandle: .abort
+        case .unknownError, .unauthorized, .forbidden: .abort
         }
     }
 
@@ -26,8 +31,16 @@ enum BundleListServiceError: Equatable, FatalError {
         switch self {
         case .missingFullHandle:
             return "We couldn't list bundles because the full handle is missing. You can pass either its value or a path to a Tuist project."
+        case let .unknownError(statusCode):
+            return "The bundles could not be listed due to an unknown Tuist response of \(statusCode)."
+        case let .unauthorized(message):
+            return message
+        case let .forbidden(message):
+            return message
         }
     }
+
+    var errorDescription: String? { description }
 }
 
 final class BundleListService: BundleListServicing {
@@ -76,8 +89,27 @@ final class BundleListService: BundleListServicing {
         )
 
         if json {
-            let jsonData = try bundles.toJSON()
-            Logger.current.info(.init(stringLiteral: jsonData.toString(prettyPrint: true)), metadata: .json)
+            // Create a raw response that matches the API format
+            let rawBundles = bundles.map { bundle in
+                [
+                    "id": bundle.id,
+                    "name": bundle.name,
+                    "app_bundle_id": bundle.appBundleId,
+                    "version": bundle.version,
+                    "supported_platforms": bundle.supportedPlatforms,
+                    "install_size": bundle.installSize,
+                    "download_size": bundle.downloadSize as Any,
+                    "git_branch": bundle.gitBranch as Any,
+                    "git_commit_sha": bundle.gitCommitSha as Any,
+                    "git_ref": bundle.gitRef as Any,
+                    "inserted_at": Int(bundle.insertedAt.timeIntervalSince1970),
+                    "updated_at": Int(bundle.updatedAt.timeIntervalSince1970),
+                    "uploaded_by_account": bundle.uploadedByAccount,
+                    "url": bundle.url,
+                ]
+            }
+            let jsonData = try JSONSerialization.data(withJSONObject: rawBundles, options: .prettyPrinted)
+            Logger.current.info(.init(stringLiteral: String(data: jsonData, encoding: .utf8)!), metadata: .json)
             return
         }
 
@@ -95,7 +127,7 @@ final class BundleListService: BundleListServicing {
         let header = "Bundles for \(fullHandle):\n"
         let bundleLines = bundles.map { bundle in
             let installSizeFormatted = formatBytes(bundle.installSize)
-            let downloadSizeFormatted = formatBytes(bundle.downloadSize)
+            let downloadSizeFormatted = bundle.downloadSize.map(formatBytes) ?? "Unknown"
             let platforms = bundle.supportedPlatforms.joined(separator: ", ")
             let branch = bundle.gitBranch ?? "unknown"
 

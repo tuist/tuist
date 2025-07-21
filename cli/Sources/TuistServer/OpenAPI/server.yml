@@ -232,7 +232,6 @@ components:
         - version
         - supported_platforms
         - install_size
-        - download_size
         - inserted_at
         - updated_at
         - uploaded_by_account
@@ -1207,7 +1206,6 @@ components:
         - version
         - supported_platforms
         - install_size
-        - download_size
         - inserted_at
         - updated_at
         - uploaded_by_account
@@ -1229,6 +1227,7 @@ components:
             - binary
             - localization
             - asset
+            - unknown
           type: string
           x-struct:
           x-validate:
@@ -2870,6 +2869,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -2882,14 +2889,6 @@ paths:
           in: path
           name: project_handle
           required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
           schema:
             type: string
             x-struct:
@@ -6139,6 +6138,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:4002
     variables: {}
 tags: []
