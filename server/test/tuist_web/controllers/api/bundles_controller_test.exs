@@ -196,7 +196,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert first_bundle["install_size"] == 1024
       assert first_bundle["download_size"] == 1024
       assert is_list(first_bundle["supported_platforms"])
-      assert is_list(first_bundle["artifacts"])
+      # List operations don't include artifacts
+      refute Map.has_key?(first_bundle, "artifacts")
     end
 
     test "filters bundles by git_branch when provided", %{conn: conn, user: user, project: project} do
@@ -311,6 +312,62 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert is_binary(response["inserted_at"])
       assert is_binary(response["updated_at"])
       assert is_binary(response["uploaded_by_account"])
+      assert is_binary(response["url"])
+    end
+
+    test "returns bundle with artifacts loaded optimally", %{conn: conn, user: user, project: project} do
+      # Given - create a bundle with simple artifacts to test loading
+      artifacts = [
+        %{
+          "artifact_type" => "file",
+          "path" => "app.ipa",
+          "size" => 4096,
+          "shasum" => "ipa789"
+        },
+        %{
+          "artifact_type" => "asset",
+          "path" => "icon.png",
+          "size" => 1024,
+          "shasum" => "icon123"
+        }
+      ]
+
+      bundle = BundlesFixtures.bundle_fixture(
+        project: project,
+        uploaded_by_user: user,
+        name: "Test Bundle With Artifacts",
+        artifacts: artifacts
+      )
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/bundles/#{bundle.id}")
+
+      # Then
+      response = json_response(conn, :ok)
+      
+      # Verify artifacts are loaded and accessible
+      assert is_list(response["artifacts"])
+      assert length(response["artifacts"]) >= 2  # At least our 2 artifacts
+      
+      # Find our specific artifacts 
+      ipa_artifact = Enum.find(response["artifacts"], &(&1["path"] == "app.ipa"))
+      icon_artifact = Enum.find(response["artifacts"], &(&1["path"] == "icon.png"))
+      
+      # Verify the artifacts were loaded with correct data
+      assert ipa_artifact["artifact_type"] == "file"
+      assert ipa_artifact["size"] == 4096
+      assert ipa_artifact["shasum"] == "ipa789"
+      
+      assert icon_artifact["artifact_type"] == "asset"
+      assert icon_artifact["size"] == 1024  
+      assert icon_artifact["shasum"] == "icon123"
+      
+      # Verify the bundle has the URL field
+      assert is_binary(response["url"])
+      assert String.contains?(response["url"], bundle.id)
     end
 
     test "returns not found when bundle doesn't exist", %{conn: conn, user: user, project: project} do

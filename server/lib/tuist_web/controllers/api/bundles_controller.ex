@@ -11,6 +11,7 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
   alias TuistWeb.API.Schemas.BundleArtifact
+  alias TuistWeb.API.Schemas.BundleList
   alias TuistWeb.API.Schemas.BundleSupportedPlatform
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
@@ -62,7 +63,7 @@ defmodule TuistWeb.API.BundlesController do
         properties: %{
           data: %Schema{
             type: :array,
-            items: TuistWeb.API.Schemas.Bundle
+            items: BundleList
           },
           meta: %Schema{
             type: :object,
@@ -109,7 +110,7 @@ defmodule TuistWeb.API.BundlesController do
         conn
         |> put_status(:ok)
         |> json(%{
-          data: Enum.map(bundles, &bundle_to_json/1),
+          data: Enum.map(bundles, &bundle_list_to_map/1),
           meta: %{
             current_page: meta.current_page,
             page_size: meta.page_size,
@@ -160,7 +161,7 @@ defmodule TuistWeb.API.BundlesController do
         if bundle.project_id == selected_project.id do
           conn
           |> put_status(:ok)
-          |> json(bundle_to_json(bundle))
+          |> json(bundle_to_map(bundle))
         else
           conn
           |> put_status(:forbidden)
@@ -303,10 +304,29 @@ defmodule TuistWeb.API.BundlesController do
     end
   end
 
-  defp bundle_to_json(bundle) do
+  defp bundle_list_to_map(bundle) do
+    %{
+      id: bundle.id,
+      name: bundle.name,
+      app_bundle_id: bundle.app_bundle_id,
+      version: bundle.version,
+      supported_platforms: bundle.supported_platforms,
+      install_size: bundle.install_size,
+      download_size: bundle.download_size,
+      git_branch: bundle.git_branch,
+      git_commit_sha: bundle.git_commit_sha,
+      git_ref: bundle.git_ref,
+      inserted_at: bundle.inserted_at,
+      updated_at: bundle.updated_at,
+      uploaded_by_account: bundle.uploaded_by_account.name,
+      url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
+    }
+  end
+
+  defp bundle_to_map(bundle) do
     artifacts = case bundle.artifacts do
       %Ecto.Association.NotLoaded{} -> []
-      artifacts -> Enum.map(artifacts, &artifact_to_json/1)
+      artifacts -> Enum.map(artifacts, &artifact_to_map/1)
     end
 
     %{
@@ -328,14 +348,14 @@ defmodule TuistWeb.API.BundlesController do
     }
   end
 
-  defp artifact_to_json(artifact) do
+  defp artifact_to_map(artifact) do
     %{
       artifact_type: artifact.artifact_type,
       path: artifact.path,
       size: artifact.size,
       shasum: artifact.shasum,
       children: if(artifact.children && length(artifact.children) > 0, 
-                  do: Enum.map(artifact.children, &artifact_to_json/1),
+                  do: Enum.map(artifact.children, &artifact_to_map/1),
                   else: nil)
     }
   end
