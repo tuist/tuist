@@ -22,7 +22,6 @@ defmodule TuistWeb.AppleAppSiteAssociationController do
     }
 
     conn
-    |> put_resp_content_type("application/json")
     |> json(association)
   end
 
@@ -31,8 +30,8 @@ defmodule TuistWeb.AppleAppSiteAssociationController do
 
     bundle_id =
       cond do
-        Environment.staging?() -> "dev.tuist.app.staging"
-        Environment.canary?() -> "dev.tuist.app.canary"
+        Environment.stag?() -> "dev.tuist.app.staging"
+        Environment.can?() -> "dev.tuist.app.canary"
         true -> "dev.tuist.app"
       end
 

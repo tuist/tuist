@@ -39,11 +39,11 @@ defmodule Tuist.Environment do
     @env == :dev
   end
 
-  def staging? do
+  def stag? do
     @env == :stag
   end
 
-  def canary? do
+  def can? do
     @env == :can
   end
 
