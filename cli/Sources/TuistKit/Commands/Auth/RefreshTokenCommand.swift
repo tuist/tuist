@@ -12,13 +12,14 @@ struct RefreshTokenCommand: AsyncParsableCommand {
     }
 
     @Option(
+        name: .customLong("server-url"),
         help: "The URL of the server the token is being refreshed for.",
         envKey: .authRefreshTokenServerURL
     )
     var serverURL: String
 
     @Option(
-        name: .shortAndLong,
+        name: .customLong("lockfile-path"),
         help: "The path to a lockfile that's used to determine if there's a refresh happening.",
         completion: .directory,
         envKey: .authRefreshTokenLockfilePath
