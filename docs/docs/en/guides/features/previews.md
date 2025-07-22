@@ -58,7 +58,7 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+    <a href="https://tuist.dev/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
@@ -69,6 +69,19 @@ When you now click on "Run" in the Preview page, the macOS app will automaticall
 > [!IMPORTANT] REQUIREMENTS
 >
 > You need to have Xcode locally installed and be on macOS 14 or later.
+
+## Tuist iOS app {#tuist-ios-app}
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
+    <h1 style="padding-top: 2px;">Tuist</h1>
+    <img src="/images/guides/features/tuist-app.png" style="width: 300px; padding-top: 8px;" />
+    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" style="height: 40px;">
+    </a>
+</div>
+
+Similarly to the macOS app, the Tuist iOS apps streamlines accessing and running your previews.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
