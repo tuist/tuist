@@ -420,6 +420,10 @@ defmodule Tuist.Environment do
     get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
   end
 
+  def anthropic_api_key(secrets \\ secrets()) do
+    get([:anthropic, :api_key], secrets)
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 
