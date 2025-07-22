@@ -1,9 +1,9 @@
-defmodule Tuist.QA.SimulatorControllerTest do
+defmodule Tuist.Simulators.SimulatorsTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Tuist.QA.SimulatorController
-  alias Tuist.QA.SimulatorDevice
+  alias Tuist.Simulators
+  alias Tuist.Simulators.SimulatorDevice
 
   describe "devices/1" do
     test "returns all devices when no runtime filter is provided" do
@@ -28,11 +28,11 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
-      {:ok, devices} = SimulatorController.devices()
+      {:ok, devices} = Simulators.devices()
 
       # Then
       assert Enum.sort_by(devices, & &1.name) == [
@@ -80,11 +80,11 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
-      {:ok, devices} = SimulatorController.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
+      {:ok, devices} = Simulators.devices(runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4")
 
       # Then
 
@@ -109,11 +109,11 @@ defmodule Tuist.QA.SimulatorControllerTest do
       simctl_output = %{"devices" => %{}}
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
-      {:ok, devices} = SimulatorController.devices()
+      {:ok, devices} = Simulators.devices()
 
       # Then
       assert devices == []
@@ -126,7 +126,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.devices()
+      result = Simulators.devices()
 
       # Then
       assert {:error, "Listing devices failed with: Command failed"} = result
@@ -159,11 +159,11 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
-      {:ok, devices} = SimulatorController.devices(name: "iPhone 16")
+      {:ok, devices} = Simulators.devices(name: "iPhone 16")
 
       # Then
       assert Enum.sort_by(devices, & &1.udid) == [
@@ -215,12 +215,12 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
       {:ok, devices} =
-        SimulatorController.devices(
+        Simulators.devices(
           runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-4",
           name: "iPhone 16"
         )
@@ -253,11 +253,11 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       stub(System, :cmd, fn "xcrun", ["simctl", "list", "devices", "--json"] ->
-        {Jason.encode!(simctl_output), 0}
+        {JSON.encode!(simctl_output), 0}
       end)
 
       # When
-      result = SimulatorController.devices(name: "iPhone 15")
+      result = Simulators.devices(name: "iPhone 15")
 
       # Then
       assert {:ok, []} = result
@@ -275,7 +275,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       }
 
       # When
-      result = SimulatorController.boot_simulator(device)
+      result = Simulators.boot_simulator(device)
 
       # Then
       assert result == :ok
@@ -295,7 +295,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.boot_simulator(device)
+      result = Simulators.boot_simulator(device)
 
       # Then
       assert result == :ok
@@ -315,7 +315,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.boot_simulator(device)
+      result = Simulators.boot_simulator(device)
 
       # Then
       assert {:error, "Failed to boot simulator: Unable to boot device"} = result
@@ -339,7 +339,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.install_app(app_path, device)
+      result = Simulators.install_app(app_path, device)
 
       # Then
       assert result == :ok
@@ -361,7 +361,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.install_app(app_path, device)
+      result = Simulators.install_app(app_path, device)
 
       # Then
       assert {:error, "Failed to install app: Failed to install app"} = result
@@ -385,7 +385,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.launch_app(bundle_identifier, device)
+      result = Simulators.launch_app(bundle_identifier, device)
 
       # Then
       assert result == :ok
@@ -407,7 +407,7 @@ defmodule Tuist.QA.SimulatorControllerTest do
       end)
 
       # When
-      result = SimulatorController.launch_app(bundle_identifier, device)
+      result = Simulators.launch_app(bundle_identifier, device)
 
       # Then
       assert {:error, "Failed to launch app: Unable to launch com.example.myapp"} = result

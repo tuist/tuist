@@ -3,7 +3,7 @@ defmodule Tuist.QA.Agent do
   Tuist QA agent module.
   """
 
-  alias Tuist.QA.SimulatorController
+  alias Tuist.Simulators
   alias Tuist.Zip
 
   def test(%{preview_url: preview_url, bundle_identifier: bundle_identifier}) do
@@ -14,14 +14,14 @@ defmodule Tuist.QA.Agent do
     with {:ok, preview_path} <- download_preview(preview_url),
          {:ok, device} <- simulator_device(),
          {:ok, app_path} <- extract_app_from_preview(preview_path, bundle_identifier),
-         :ok <- SimulatorController.boot_simulator(device),
-         :ok <- SimulatorController.install_app(app_path, device) do
-      SimulatorController.launch_app(bundle_identifier, device)
+         :ok <- Simulators.boot_simulator(device),
+         :ok <- Simulators.install_app(app_path, device) do
+      Simulators.launch_app(bundle_identifier, device)
     end
   end
 
   defp simulator_device do
-    case SimulatorController.devices(
+    case Simulators.devices(
            runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-18-5",
            name: "iPhone 16"
          ) do

@@ -1,9 +1,9 @@
-defmodule Tuist.QA.SimulatorController do
+defmodule Tuist.Simulators do
   @moduledoc """
-  Controller for interacting with iOS Simulator via xcrun simctl.
+  Module for interacting with simulators via xcrun simctl.
   """
 
-  alias Tuist.QA.SimulatorDevice
+  alias Tuist.Simulators.SimulatorDevice
 
   @doc """
   Lists all available simulator devices.
@@ -19,7 +19,7 @@ defmodule Tuist.QA.SimulatorController do
     name = Keyword.get(opts, :name)
 
     with {output, 0} <- System.cmd("xcrun", ["simctl", "list", "devices", "--json"]),
-         {:ok, %{"devices" => devices_by_runtime}} <- Jason.decode(output) do
+         {:ok, %{"devices" => devices_by_runtime}} <- JSON.decode(output) do
       devices =
         devices_by_runtime
         |> Enum.flat_map(&parse_devices_for_runtime/1)
@@ -28,11 +28,11 @@ defmodule Tuist.QA.SimulatorController do
 
       {:ok, devices}
     else
+      {:error, reason} ->
+        {:error, "Failed to parse JSON: #{reason}"}
+
       {output, _exit_code} ->
         {:error, "Listing devices failed with: #{output}"}
-
-      {:error, %Jason.DecodeError{} = reason} ->
-        {:error, "Failed to parse JSON: #{Exception.message(reason)}"}
     end
   end
 

@@ -1,4 +1,4 @@
-defmodule Tuist.QA.SimulatorDevice do
+defmodule Tuist.Simulators.SimulatorDevice do
   @moduledoc """
   Represents a simulator device.
   """

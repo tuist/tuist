@@ -3,8 +3,8 @@ defmodule Tuist.QA.AgentTest do
   use Mimic
 
   alias Tuist.QA.Agent
-  alias Tuist.QA.SimulatorController
-  alias Tuist.QA.SimulatorDevice
+  alias Tuist.Simulators
+  alias Tuist.Simulators.SimulatorDevice
   alias Tuist.Zip
 
   describe "test/1" do
@@ -52,21 +52,21 @@ defmodule Tuist.QA.AgentTest do
         {:ok, []}
       end)
 
-      stub(SimulatorController, :devices, fn _opts ->
+      stub(Simulators, :devices, fn _opts ->
         {:ok, [device]}
       end)
 
-      stub(SimulatorController, :boot_simulator, fn ^device ->
+      stub(Simulators, :boot_simulator, fn ^device ->
         :ok
       end)
 
       app_path = "/tmp/preview_extract_test/MyApp.app"
 
-      stub(SimulatorController, :install_app, fn ^app_path, ^device ->
+      stub(Simulators, :install_app, fn ^app_path, ^device ->
         :ok
       end)
 
-      stub(SimulatorController, :launch_app, fn ^bundle_identifier, ^device ->
+      stub(Simulators, :launch_app, fn ^bundle_identifier, ^device ->
         :ok
       end)
 
