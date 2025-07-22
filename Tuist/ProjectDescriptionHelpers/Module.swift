@@ -97,6 +97,26 @@ public enum Module: String, CaseIterable {
                     .external(name: "Mockable")
                 ]
             ),
+            .target(
+                name: "TuistCacheEEAcceptanceTests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
+                deploymentTargets: .macOS("14.0"),
+                infoPlist: .default,
+                sources: ["cli/TuistCacheEE/AcceptanceTests/**/*.swift"],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Mockable"),
+                    .external(name: "TSCTestSupport")
+                ]
+            )
         ]
     }
 

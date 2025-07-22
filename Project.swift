@@ -72,7 +72,7 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) },
+                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
                     inspectBuildPostAction,
                 ],
@@ -81,7 +81,7 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name))
-                }
+                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : [])
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -125,6 +125,27 @@ func schemes() -> [Scheme] {
         ),
     ]
     if Module.includeEE() {
+        schemes.append(.scheme(
+            name: "TuistCacheEEAcceptanceTests",
+            buildAction: .buildAction(
+                targets: [.target("TuistCacheEEAcceptanceTests")],
+                postActions: [
+                    inspectBuildPostAction,
+                ],
+                runPostActionsOnFailure: true
+            ),
+            testAction: .targets(
+                [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))],
+                options: .options(
+                    language: "en"
+                )
+            ),
+            runAction: .runAction(
+                arguments: .arguments(
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
+                )
+            )
+        ))
         schemes.append(.scheme(
             name: "TuistCacheEEUnitTests",
             buildAction: .buildAction(
@@ -176,7 +197,7 @@ func schemes() -> [Scheme] {
     )
 
     schemes.append(
-        contentsOf: Module.allCases.compactMap(\.acceptanceTestsTargetName).map {
+        contentsOf: (Module.allCases.compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"]: [])).map {
             .scheme(
                 name: $0,
                 hidden: true,
