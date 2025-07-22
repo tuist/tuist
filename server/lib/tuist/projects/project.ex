@@ -1,6 +1,6 @@
 defmodule Tuist.Projects.Project do
   @moduledoc """
-  A module that represents the projects table.
+  A module that represents projects.
   """
   use Ecto.Schema
 
