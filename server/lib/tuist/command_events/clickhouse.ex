@@ -104,7 +104,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
       from(c in Event,
         where: c.project_id in ^project_ids,
         where: c.ran_at >= ^beginning_of_month,
-        where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
+        where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
       )
     )
@@ -272,8 +272,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           cacheable_targets_count: sum(e.cacheable_targets_count),
-          local_cache_target_hits_count: sum(e.local_cache_hits_count),
-          remote_cache_target_hits_count: sum(e.remote_cache_hits_count)
+          local_cache_hits_count: sum(e.local_cache_hits_count),
+          remote_cache_hits_count: sum(e.remote_cache_hits_count)
         }
       )
 
@@ -319,8 +319,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           test_targets_count: sum(e.test_targets_count),
-          local_test_target_hits_count: sum(e.local_test_hits_count),
-          remote_test_target_hits_count: sum(e.remote_test_hits_count)
+          local_test_hits_count: sum(e.local_test_hits_count),
+          remote_test_hits_count: sum(e.remote_test_hits_count)
         }
       )
 
@@ -597,7 +597,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number DAY, 
+                toDateTime(?) + INTERVAL number DAY,
                 ?
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
@@ -615,7 +615,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
           d in fragment(
             """
               SELECT formatDateTime(
-                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH), 
+                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH),
                 ?
               ) AS date
               FROM numbers(dateDiff('month', toDate(?), toDate(?)) + 1)

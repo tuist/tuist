@@ -585,14 +585,14 @@ defmodule Tuist.Runs.Analytics do
     result =
       CommandEvents.cache_hit_rate(project_id, start_date, end_date, opts)
 
-    local_cache_target_hits_count = result.local_cache_target_hits_count || 0
-    remote_cache_target_hits_count = result.remote_cache_target_hits_count || 0
+    local_cache_hits_count = result.local_cache_hits_count || 0
+    remote_cache_hits_count = result.remote_cache_hits_count || 0
     cacheable_targets_count = result.cacheable_targets_count || 0
 
     if cacheable_targets_count == 0 do
       0.0
     else
-      (local_cache_target_hits_count + remote_cache_target_hits_count) / cacheable_targets_count
+      (local_cache_hits_count + remote_cache_hits_count) / cacheable_targets_count
     end
   end
 
@@ -699,14 +699,14 @@ defmodule Tuist.Runs.Analytics do
     result =
       CommandEvents.selective_testing_hit_rate(project_id, start_date, end_date, opts)
 
-    local_test_target_hits_count = result.local_test_target_hits_count || 0
-    remote_test_target_hits_count = result.remote_test_target_hits_count || 0
+    local_test_hits_count = result.local_test_hits_count || 0
+    remote_test_hits_count = result.remote_test_hits_count || 0
     test_targets_count = result.test_targets_count || 0
 
     if test_targets_count == 0 do
       0.0
     else
-      (local_test_target_hits_count + remote_test_target_hits_count) / test_targets_count
+      (local_test_hits_count + remote_test_hits_count) / test_targets_count
     end
   end
 

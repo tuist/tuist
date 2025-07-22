@@ -61,13 +61,11 @@ defmodule Tuist.CommandEvents.Postgres.Event do
     field :cacheable_targets, {:array, :string}, default: []
     field :local_cache_target_hits, {:array, :string}, default: []
     field :remote_cache_target_hits, {:array, :string}, default: []
-    field :remote_cache_target_hits_count, :integer
 
     # Tests
     field :test_targets, {:array, :string}, default: []
     field :local_test_target_hits, {:array, :string}, default: []
     field :remote_test_target_hits, {:array, :string}, default: []
-    field :remote_test_target_hits_count, :integer
 
     # Associations
     belongs_to :preview, Preview, type: UUIDv7
@@ -99,11 +97,9 @@ defmodule Tuist.CommandEvents.Postgres.Event do
         :cacheable_targets,
         :local_cache_target_hits,
         :remote_cache_target_hits,
-        :remote_cache_target_hits_count,
         :test_targets,
         :local_test_target_hits,
         :remote_test_target_hits,
-        :remote_test_target_hits_count,
         :is_ci,
         :user_id,
         :client_id,
@@ -128,14 +124,6 @@ defmodule Tuist.CommandEvents.Postgres.Event do
         else
           [:user_id]
         end
-    )
-    |> put_change(
-      :remote_test_target_hits_count,
-      changeset |> get_field(:remote_test_target_hits) |> length()
-    )
-    |> put_change(
-      :remote_cache_target_hits_count,
-      changeset |> get_field(:remote_cache_target_hits) |> length()
     )
     |> validate_inclusion(:status, [:success, :failure])
   end
