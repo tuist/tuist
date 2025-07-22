@@ -101,7 +101,7 @@ jobs:
           version: 2025.7.0
           experimental: true
       - name: Run tests
-        run: mise x -- tuist test TuistUnitTests
+        run: mise x -- tuist test TuistCacheEEUnitTests
         env:
           TUIST_EE: 1
       - name: Save cache
