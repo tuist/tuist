@@ -218,7 +218,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-artifacts
-          path: app/build/artifacts
+          path: app
       - name: Commit changes
         run: |
           git config user.name "github-actions"
@@ -246,4 +246,4 @@ jobs:
           SHA256=$(grep "Tuist.dmg" app/build/artifacts/SHASUMS256.txt | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
       - name: Release Homebrew cask
-        run: mise run cli:release:homebrew-cask --version ${{ needs.setup.outputs.next-version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+        run: mise/tasks/cli/release/homebrew-cask.sh --version ${{ needs.setup.outputs.next-version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
