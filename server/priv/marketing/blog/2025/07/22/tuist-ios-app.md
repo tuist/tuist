@@ -37,4 +37,4 @@ To see the app in action, you can also watch the following video:
 
 While the app is currently laser-focused on previews, the app is also a foundation block for us to build more native features for Tuist. Imagine triggering a release build or running a QA agent directly from your phone – and having a live activity that tracks the progress. These kinds of native developer experiences have been missing from the iOS ecosystem and we hope to fill in the gap.
 
-Let us know your feedback over at our [community forum](https://community.tuist.dev/) or [Slack](https://tuist.io/slack). And since the [app](https://github.com/tuist/tuist/tree/main/app) is fully open-source and written in SwiftUI, this might be the perfect opportunity for you to get involved with open source if you'd like to improve the app yourself.
+Let us know your feedback over at our [community forum](https://community.tuist.dev/) or [Slack](https://tuist.dev/slack). And since the [app](https://github.com/tuist/tuist/tree/main/app) is fully open-source and written in SwiftUI, this might be the perfect opportunity for you to get involved with open source if you'd like to improve the app yourself.
