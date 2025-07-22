@@ -144,6 +144,10 @@ public struct PreviewsView: View {
             .onOpenURL { url in
                 handleOpenURL(url)
             }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
+                guard let url = userActivity.webpageURL else { return }
+                handleOpenURL(url)
+            }
         }
     }
 
