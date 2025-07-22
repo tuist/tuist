@@ -63,7 +63,9 @@ jobs:
           version: 2025.7.0
           experimental: true
       - name: Run tests
-        run: mise x -- TUIST_EE=1 tuist test TuistCacheEEAcceptanceTests
+        run: mise x -- tuist test TuistCacheEEAcceptanceTests
+        env:
+          TUIST_EE: 1
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -99,7 +101,9 @@ jobs:
           version: 2025.7.0
           experimental: true
       - name: Run tests
-        run: mise x -- TUIST_EE=1 tuist test TuistUnitTests
+        run: mise x -- tuist test TuistUnitTests
+        env:
+          TUIST_EE: 1
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
