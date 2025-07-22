@@ -22,8 +22,8 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
 
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
-        remote_cache_target_hits_count: 1,
-        remote_test_target_hits_count: 2,
+        remote_cache_target_hits: ["target1"],
+        remote_test_target_hits: ["test1", "test2"],
         created_at: now |> Timex.beginning_of_month() |> Timex.shift(months: -1)
       )
 

@@ -21,8 +21,7 @@ defmodule TuistWeb.AppleAppSiteAssociationController do
       }
     }
 
-    conn
-    |> json(association)
+    json(conn, association)
   end
 
   defp get_app_id do

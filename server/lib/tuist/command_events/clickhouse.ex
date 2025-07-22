@@ -104,7 +104,12 @@ defmodule Tuist.CommandEvents.Clickhouse do
       from(c in Event,
         where: c.project_id in ^project_ids,
         where: c.ran_at >= ^beginning_of_month,
-        where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
+        where:
+          fragment(
+            "COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0",
+            c.remote_cache_target_hits,
+            c.remote_test_target_hits
+          ),
         select: %{remote_cache_hits_count: count(c.id)}
       )
     )
@@ -272,8 +277,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           cacheable_targets_count: sum(e.cacheable_targets_count),
-          local_cache_target_hits_count: sum(e.local_cache_hits_count),
-          remote_cache_target_hits_count: sum(e.remote_cache_hits_count)
+          local_cache_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_cache_target_hits)),
+          remote_cache_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_cache_target_hits))
         }
       )
 
@@ -299,8 +304,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
         select: %{
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           cacheable_targets: sum(e.cacheable_targets_count),
-          local_cache_target_hits: sum(e.local_cache_hits_count),
-          remote_cache_target_hits: sum(e.remote_cache_hits_count)
+          local_cache_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_cache_target_hits)),
+          remote_cache_target_hits: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_cache_target_hits))
         }
       )
 
@@ -319,8 +324,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
             e.ran_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
           test_targets_count: sum(e.test_targets_count),
-          local_test_target_hits_count: sum(e.local_test_hits_count),
-          remote_test_target_hits_count: sum(e.remote_test_hits_count)
+          local_test_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.local_test_target_hits)),
+          remote_test_target_hits_count: sum(fragment("COALESCE(array_length(?, 1), 0)", e.remote_test_target_hits))
         }
       )
 
@@ -347,7 +352,8 @@ defmodule Tuist.CommandEvents.Clickhouse do
           date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
           test_targets: sum(e.test_targets_count),
           local_test_target_hits: sum(e.local_test_hits_count),
-          remote_test_target_hits: sum(e.remote_test_hits_count)
+          remote_test_target_hits:
+            sum(fragment("CASE WHEN COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END", e.remote_test_target_hits))
         }
       )
 
@@ -597,7 +603,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number DAY, 
+                toDateTime(?) + INTERVAL number DAY,
                 ?
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
@@ -615,7 +621,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
           d in fragment(
             """
               SELECT formatDateTime(
-                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH), 
+                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH),
                 ?
               ) AS date
               FROM numbers(dateDiff('month', toDate(?), toDate(?)) + 1)

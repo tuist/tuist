@@ -31,7 +31,7 @@ defmodule TuistWeb.BillingLive do
 
     next_charge_date =
       if is_nil(subscription) do
-        gettext("/per month")
+        gettext("at the end of the month")
       else
         subscription.subscription_id
         |> Billing.get_subscription_current_period_end()
