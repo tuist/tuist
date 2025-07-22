@@ -42,11 +42,13 @@ jobs:
         if: ${{ github.event.inputs.commit_sha == '' }}
         with:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -60,7 +62,6 @@ jobs:
         with:
           version: 2025.7.0
           experimental: true
-      - run: mise run cli:ee
       - name: Run tests
         run: mise x -- TUIST_EE=1 tuist test TuistCacheEEAcceptanceTests
       - name: Save cache
@@ -77,11 +78,13 @@ jobs:
         if: ${{ github.event.inputs.commit_sha == '' }}
         with:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -95,7 +98,6 @@ jobs:
         with:
           version: 2025.7.0
           experimental: true
-      - run: mise run cli:ee
       - name: Run tests
         run: mise x -- TUIST_EE=1 tuist test TuistUnitTests
       - name: Save cache
