@@ -185,6 +185,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -205,8 +208,8 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
-          context: "{{defaultContext}}:server"
-          file: Dockerfile
+          context: ./server
+          file: ./server/Dockerfile
           push: false
           tags: tuist/tuist
           cache-from: type=gha

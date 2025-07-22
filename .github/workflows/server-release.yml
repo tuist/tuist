@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: false
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -93,8 +94,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile
+          context: ./server
+          file: ./server/Dockerfile
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
