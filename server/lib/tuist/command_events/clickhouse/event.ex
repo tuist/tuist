@@ -39,11 +39,9 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :cacheable_targets, {:array, :string}, default: []
     field :local_cache_target_hits, {:array, :string}, default: []
     field :remote_cache_target_hits, {:array, :string}, default: []
-    field :remote_cache_target_hits_count, Ch, type: "Nullable(Int32)", default: 0
     field :test_targets, {:array, :string}, default: []
     field :local_test_target_hits, {:array, :string}, default: []
     field :remote_test_target_hits, {:array, :string}, default: []
-    field :remote_test_target_hits_count, Ch, type: "Nullable(Int32)", default: 0
     field :git_commit_sha, Ch, type: "Nullable(String)"
     field :git_ref, Ch, type: "Nullable(String)"
     field :git_branch, Ch, type: "Nullable(String)"
@@ -58,11 +56,7 @@ defmodule Tuist.CommandEvents.Clickhouse.Event do
     field :updated_at, Ch, type: "DateTime64(6)"
 
     field :cacheable_targets_count, Ch, type: "UInt32"
-    field :local_cache_hits_count, Ch, type: "UInt32"
-    field :remote_cache_hits_count, Ch, type: "UInt32"
     field :test_targets_count, Ch, type: "UInt32"
-    field :local_test_hits_count, Ch, type: "UInt32"
-    field :remote_test_hits_count, Ch, type: "UInt32"
     field :hit_rate, Ch, type: "Nullable(Float32)"
 
     field :user_account_name, :string, virtual: true
