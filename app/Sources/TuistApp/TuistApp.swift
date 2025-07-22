@@ -81,6 +81,9 @@ import TuistServer
                                 .onOpenURL { _ in
                                     activeTab = .previews
                                 }
+                                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
+                                    activeTab = .previews
+                                }
                                 .accentColor(Noora.Colors.accent)
                             } else {
                                 LogInView()
