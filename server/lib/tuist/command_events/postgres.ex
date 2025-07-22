@@ -111,12 +111,7 @@ defmodule Tuist.CommandEvents.Postgres do
         join: p in Project,
         on: p.id == c.project_id and p.account_id == ^account_id,
         where: c.created_at >= ^beginning_of_month,
-        where:
-          fragment(
-            "COALESCE(array_length(?, 1), 0) > 0 OR COALESCE(array_length(?, 1), 0) > 0",
-            c.remote_cache_target_hits,
-            c.remote_test_target_hits
-          ),
+        where: c.remote_cache_target_hits_count > 0 or c.remote_test_target_hits_count > 0,
         select: %{remote_cache_hits_count: count(c.id)}
       )
 
