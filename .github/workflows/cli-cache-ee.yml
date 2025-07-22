@@ -40,10 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -72,10 +75,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
