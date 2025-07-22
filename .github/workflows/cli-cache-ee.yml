@@ -30,7 +30,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
 concurrency:
-  group: cli-${{ github.head_ref }}
+  group: cli-cache-ee-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
