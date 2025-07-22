@@ -8,7 +8,11 @@ og_image_path: /marketing/images/blog/2025/07/22/tuist-ios-app/og.jpg
 highlighted: true
 ---
 
-Tuist is now available on the App Store to make it dead simple for teams to test apps directly from their devices:
+We are strong believers in leveraging the platforms we build for as much as we can and dogfooding our work to have strong empathy for anyone using our platform. While in some cases, it means we need to juggle multiple pieces (be it our CLI, server or the macOS app), we strongly believe this is the best way to build software for developers.
+
+But while the majority of teams using Tuist are building an iOS app, we haven't had an opportunity to build and integrate with this platform, until now.
+
+We're really excited to announce that Tuist is now available on the App Store. We're starting with streamlining accessing and running Tuist Previews, but we have more in store for the future.
 
 [![Download on the App Store](/marketing/images/blog/2025/07/22/tuist-ios-app/download-app-store.png)](https://apps.apple.com/us/app/tuist/id6748460335)
 
