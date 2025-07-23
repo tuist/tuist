@@ -3,6 +3,7 @@ import TuistAuthentication
 import TuistServer
 
 #if os(macOS)
+    import FluidMenuBarExtra
     import Sparkle
     import TuistMenuBar
 
@@ -11,6 +12,7 @@ import TuistServer
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
         private let updaterController: SPUStandardUpdaterController
+        private var menuBarExtra: FluidMenuBarExtra?
 
         init() {
             updaterController = SPUStandardUpdaterController(
@@ -21,7 +23,7 @@ import TuistServer
         }
 
         var body: some Scene {
-            MenuBarExtra("Tuist", image: "MenuBarIcon") {
+            appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
@@ -33,7 +35,17 @@ import TuistServer
                     }
                 }
             }
-            .menuBarExtraStyle(.window)
+
+            // It is not possible to set `FluidMenuBarExtra` as the main scene.
+            // To get around this, we're removing empty Settings view.
+            // In the future, we should implement the Settings view, for example, to allow setting apps shown in the quick
+            // launcher.
+            return Settings {
+                EmptyView()
+            }
+            .commands {
+                CommandGroup(replacing: .appSettings) {}
+            }
         }
     }
 #else

@@ -54,21 +54,24 @@ struct DevicesView: View, ErrorViewHandling {
             .padding(.vertical, 2)
             .contentShape(Rectangle())
             .onTapGesture {
-                isExpanded.toggle()
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
             }
             .menuItemStyle()
             .padding(.horizontal, 8)
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if isExpanded {
+            if isExpanded {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
                         simulators(viewModel.unpinnedSimulators)
                     }
+                    .padding(.horizontal, 8)
                 }
-                .padding(.horizontal, 8)
+                .frame(maxHeight: isExpanded ? NSScreen.main.map { $0.visibleFrame.size.height - 500 } ?? 500 : 0)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(height: isExpanded ? NSScreen.main.map { $0.visibleFrame.size.height - 300 } ?? 500 : nil)
     }
 
     @ViewBuilder
