@@ -8,12 +8,28 @@ import Path
     import TuistSupport
 #endif
 
+public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
+    case failToLaunchRefreshProcess(command: String, arguments: [String], serverURL: URL)
+    case timedOut(seconds: Int, serverURL: URL)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .failToLaunchRefreshProcess(command, arguments, serverURL):
+            let command = ([command] + arguments).joined(separator: " ")
+            return "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed running the following command: \(command)"
+        case let .timedOut(seconds, serverURL):
+            return "The refreshing of the access and refresh token pair for the URL \(serverURL.absoluteString) failed after \(seconds) seconds."
+        }
+    }
+}
+
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
     func authenticationToken(serverURL: URL) async throws
         -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
     func refreshToken(serverURL: URL, inSubprocess: Bool) async throws
+    func lockFilePath(serverURL: URL) -> AbsolutePath
 }
 
 public enum AuthenticationTokenStatus {
@@ -107,13 +123,17 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     @discardableResult private func authenticationTokenRefreshingIfNeeded(
         serverURL: URL,
         forceRefresh: Bool,
-        inSubprocess: Bool
+        inSubprocess: Bool,
+        attemptCount: Int = 0
     ) async throws
         -> AuthenticationToken?
     {
         #if canImport(TuistSupport)
             Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         #endif
+
+        let maxAttempts = 10
+
         switch (try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inSubprocess) {
         case let (.valid(token), _):
             return token
@@ -125,25 +145,48 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             if !(try await fileSystem.exists(lockfilePath)) {
                 try await fileSystem.touch(lockfilePath)
 
-                let process = Process()
-                process.environment = ProcessInfo.processInfo.environment
-                process.launchPath = Environment.current.currentExecutablePath()?.pathString ?? ""
-                process.arguments = [
-                    "auth",
-                    "refresh-token",
-                    "--server-url",
-                    serverURL.absoluteString,
-                    "--lockfile-path",
-                    lockfilePath.pathString,
-                ]
-                process.unbind(.isIndeterminate)
-                try process.run()
+                let process = Foundation.Process()
+                do {
+                    process.environment = ProcessInfo.processInfo.environment
+                    process.launchPath = Environment.current.currentExecutablePath()?.pathString ?? ""
+                    process.arguments = [
+                        "auth",
+                        "refresh-token",
+                        "--server-url",
+                        serverURL.absoluteString,
+                    ]
+                    process.unbind(.isIndeterminate)
+                    try process.run()
+                } catch {
+                    try? await fileSystem.remove(lockfilePath)
+                    throw ServerAuthenticationControllerError.failToLaunchRefreshProcess(
+                        command: process.launchPath ?? "",
+                        arguments: process.arguments ?? [],
+                        serverURL: serverURL
+                    )
+                }
             }
-            try await Task.sleep(nanoseconds: 200_000_000) // 200 miliseconds
+
+            let retryInterval: UInt64 = 500 // Miliseconds
+
+            if attemptCount >= maxAttempts {
+                if try await fileSystem.exists(lockfilePath) {
+                    try? await fileSystem.remove(lockfilePath)
+                }
+
+                throw ServerAuthenticationControllerError.timedOut(
+                    seconds: maxAttempts * Int(retryInterval) / 1000,
+                    serverURL: serverURL
+                )
+            }
+
+            try await Task.sleep(nanoseconds: retryInterval * 1_000_000)
+
             return try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: forceRefresh,
-                inSubprocess: inSubprocess
+                inSubprocess: inSubprocess,
+                attemptCount: attemptCount + 1
             )
         }
     }
@@ -247,7 +290,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         return (value: upToDateToken, expiresAt: expiresAt)
     }
 
-    private func lockFilePath(serverURL: URL) -> AbsolutePath {
+    public func lockFilePath(serverURL: URL) -> AbsolutePath {
         let key = "token_\(serverURL.absoluteString)"
         // Use a sanitized version of the key for the filename
         let sanitizedKey = key.replacingOccurrences(of: "/", with: "_")

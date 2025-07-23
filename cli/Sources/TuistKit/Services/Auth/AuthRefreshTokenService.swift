@@ -2,14 +2,21 @@ import FileSystem
 import Foundation
 import Path
 import TuistServer
+import TuistSupport
 
 enum AuthRefreshTokenServiceError: Equatable, LocalizedError {
     case invalidServerURL(String)
+    case tokenRefreshFailed(String)
+    case lockFileRemovalFailed(AbsolutePath)
 
     var errorDescription: String? {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL \(url) is not a valid URL."
+        case let .tokenRefreshFailed(message):
+            return "Failed to refresh authentication token: \(message)"
+        case let .lockFileRemovalFailed(path):
+            return "Failed to remove lock file at \(path.pathString). You may need to remove it manually."
         }
     }
 }
@@ -26,12 +33,30 @@ struct AuthRefreshTokenService {
         self.fileSystem = fileSystem
     }
 
-    func run(serverURL: String, lockFilePath: String) async throws {
-        guard let url = URL(string: serverURL) else { throw AuthRefreshTokenServiceError.invalidServerURL(serverURL) }
-        try await serverAuthenticationController.refreshToken(serverURL: url, inSubprocess: false)
-        let path = try AbsolutePath(validating: lockFilePath)
-        if try await fileSystem.exists(path) {
-            try await fileSystem.remove(path)
+    func run(serverURL: String) async throws {
+        guard let url = URL(string: serverURL) else {
+            throw AuthRefreshTokenServiceError.invalidServerURL(serverURL)
+        }
+        let lockFilePath = serverAuthenticationController.lockFilePath(serverURL: url)
+
+        Logger.current.info("Starting token refresh for \(serverURL)")
+
+        do {
+            try await serverAuthenticationController.refreshToken(serverURL: url, inSubprocess: false)
+            Logger.current.info("Token refresh completed successfully")
+        } catch {
+            Logger.current.error("Token refresh failed: \(error.localizedDescription)")
+            throw AuthRefreshTokenServiceError.tokenRefreshFailed(error.localizedDescription)
+        }
+
+        if try await fileSystem.exists(lockFilePath) {
+            do {
+                try await fileSystem.remove(lockFilePath)
+                Logger.current.debug("Lock file removed: \(lockFilePath)")
+            } catch {
+                Logger.current.warning("Failed to remove lock file: \(error.localizedDescription)")
+                throw AuthRefreshTokenServiceError.lockFileRemovalFailed(lockFilePath)
+            }
         }
     }
 }

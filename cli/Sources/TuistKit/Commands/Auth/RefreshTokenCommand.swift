@@ -18,15 +18,7 @@ struct RefreshTokenCommand: AsyncParsableCommand {
     )
     var serverURL: String
 
-    @Option(
-        name: .customLong("lockfile-path"),
-        help: "The path to a lockfile that's used to determine if there's a refresh happening.",
-        completion: .directory,
-        envKey: .authRefreshTokenLockfilePath
-    )
-    var lockFilePath: String
-
     func run() async throws {
-        try await AuthRefreshTokenService().run(serverURL: serverURL, lockFilePath: lockFilePath)
+        try await AuthRefreshTokenService().run(serverURL: serverURL)
     }
 }
