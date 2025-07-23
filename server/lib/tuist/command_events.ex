@@ -199,8 +199,6 @@ defmodule Tuist.CommandEvents do
             else: Map.get(event, :command_arguments)
           ),
         error_message: truncate_error_message(Map.get(event, :error_message)),
-        remote_cache_hits_count: Map.get(event, :remote_cache_hits_count, 0),
-        remote_test_hits_count: Map.get(event, :remote_test_hits_count, 0),
         created_at: Map.get(event, :created_at, Time.utc_now())
       })
 
