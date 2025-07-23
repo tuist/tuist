@@ -68,6 +68,7 @@ defmodule TuistWeb.BillingLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
+      assert has_element?(lv, "[data-part='next-charge-date']", "charged /per month")
     end
   end
 
@@ -84,11 +85,16 @@ defmodule TuistWeb.BillingLiveTest do
         }
       end)
 
+      stub(Billing, :get_subscription_current_period_end, fn _ ->
+        ~U[2024-01-15 14:30:00Z]
+      end)
+
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
+      assert has_element?(lv, "[data-part='next-charge-date']", "charged on January 15")
     end
   end
 
