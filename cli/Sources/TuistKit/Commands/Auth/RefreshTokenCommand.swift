@@ -11,8 +11,7 @@ struct RefreshTokenCommand: AsyncParsableCommand {
         )
     }
 
-    @Option(
-        name: .customLong("server-url"),
+    @Argument(
         help: "The URL of the server the token is being refreshed for.",
         envKey: .authRefreshTokenServerURL
     )

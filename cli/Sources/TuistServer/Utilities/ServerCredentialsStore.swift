@@ -8,25 +8,16 @@ import Path
 #endif
 
 public struct ServerCredentials: Sendable, Codable, Equatable {
-    /// Deprecated authentication token.
-    public let token: String?
-
     /// JWT access token
-    public let accessToken: String?
+    public let accessToken: String
 
     /// JWT refresh token
-    public let refreshToken: String?
+    public let refreshToken: String
 
-    /// Initializes the credentials with its attributes.
-    /// - Parameters:
-    ///   - token: Authentication token.
-    ///   - account: Account identifier.
     public init(
-        token: String?,
-        accessToken: String?,
-        refreshToken: String?
+        accessToken: String,
+        refreshToken: String
     ) {
-        self.token = token
         self.accessToken = accessToken
         self.refreshToken = refreshToken
     }
@@ -35,11 +26,10 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
 #if DEBUG
     extension ServerCredentials {
         public static func test(
-            token: String? = nil,
-            accessToken: String? = nil,
-            refreshToken: String? = nil
+            accessToken: String = "access-token",
+            refreshToken: String = "refresh-token"
         ) -> ServerCredentials {
-            return ServerCredentials(token: token, accessToken: accessToken, refreshToken: refreshToken)
+            return ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
         }
     }
 #endif
@@ -121,14 +111,12 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     public func store(credentials: ServerCredentials, serverURL: URL) async throws {
         switch backend {
         case .keychain:
-            if let refreshToken = credentials.refreshToken, let accessToken = credentials.accessToken {
-                try keychain(serverURL: serverURL)
-                    .comment("Refresh token against \(serverURL.absoluteString)")
-                    .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
-                try keychain(serverURL: serverURL)
-                    .comment("Refresh token against \(serverURL.absoluteString)")
-                    .set(accessToken, key: serverURL.absoluteString + "_access_token")
-            }
+            try keychain(serverURL: serverURL)
+                .comment("Refresh token against \(serverURL.absoluteString)")
+                .set(credentials.refreshToken, key: serverURL.absoluteString + "_refresh_token")
+            try keychain(serverURL: serverURL)
+                .comment("Refresh token against \(serverURL.absoluteString)")
+                .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
         #if os(macOS) || os(Linux) || os(Windows)
             case .fileSystem:
                 let path = try credentialsFilePath(serverURL: serverURL)
@@ -146,10 +134,9 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     public func read(serverURL: URL) async throws -> ServerCredentials? {
         switch backend {
         case .keychain:
-            let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
-            let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
+            let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")!
+            let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")!
             return ServerCredentials(
-                token: nil,
                 accessToken: accessToken,
                 refreshToken: refreshToken
             )

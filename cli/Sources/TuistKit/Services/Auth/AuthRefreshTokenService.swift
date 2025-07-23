@@ -22,12 +22,12 @@ enum AuthRefreshTokenServiceError: Equatable, LocalizedError {
 }
 
 struct AuthRefreshTokenService {
-    let serverAuthenticationController: ServerAuthenticationControlling
-    let fileSystem: FileSystem
+    private let serverAuthenticationController: ServerAuthenticationControlling
+    private let fileSystem: FileSysteming
 
     init(
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
@@ -37,26 +37,8 @@ struct AuthRefreshTokenService {
         guard let url = URL(string: serverURL) else {
             throw AuthRefreshTokenServiceError.invalidServerURL(serverURL)
         }
-        let lockFilePath = serverAuthenticationController.lockFilePath(serverURL: url)
-
-        Logger.current.info("Starting token refresh for \(serverURL)")
-
-        do {
-            try await serverAuthenticationController.refreshToken(serverURL: url, inSubprocess: false)
-            Logger.current.info("Token refresh completed successfully")
-        } catch {
-            Logger.current.error("Token refresh failed: \(error.localizedDescription)")
-            throw AuthRefreshTokenServiceError.tokenRefreshFailed(error.localizedDescription)
-        }
-
-        if try await fileSystem.exists(lockFilePath) {
-            do {
-                try await fileSystem.remove(lockFilePath)
-                Logger.current.debug("Lock file removed: \(lockFilePath)")
-            } catch {
-                Logger.current.warning("Failed to remove lock file: \(error.localizedDescription)")
-                throw AuthRefreshTokenServiceError.lockFileRemovalFailed(lockFilePath)
-            }
-        }
+        try await serverAuthenticationController.refreshToken(serverURL: url, inBackground: false, locking: false)
+        
+        try await fileSystem.writeText("token refreshed", at: "/Users/pepicrft/Downloads/progress.txt")
     }
 }

@@ -2,15 +2,17 @@ import Foundation
 import Mockable
 
 @Mockable
-protocol BackgroundProcessRunning {
+public protocol BackgroundProcessRunning {
     func runInBackground(
         _ arguments: [String],
         environment: [String: String]
     ) throws
 }
 
-struct BackgroundProcessRunner: BackgroundProcessRunning {
-    func runInBackground(
+public struct BackgroundProcessRunner: BackgroundProcessRunning {
+    public init() {}
+    
+    public func runInBackground(
         _ arguments: [String],
         environment: [String: String]
     ) throws {
