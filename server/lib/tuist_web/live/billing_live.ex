@@ -31,11 +31,14 @@ defmodule TuistWeb.BillingLive do
 
     next_charge_date =
       if is_nil(subscription) do
-        gettext("at the end of the month")
+        gettext("charged /per month")
       else
-        subscription.subscription_id
-        |> Billing.get_subscription_current_period_end()
-        |> Timex.format!("{D} {Mfull}")
+        gettext("charged on %{next_charge_date}",
+          next_charge_date:
+            subscription.subscription_id
+            |> Billing.get_subscription_current_period_end()
+            |> Timex.format!("{Mfull} {D}")
+        )
       end
 
     payment_method =
