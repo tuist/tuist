@@ -227,4 +227,10 @@ public class MockFileSystem: FileSysteming {
     public func currentWorkingDirectory() async throws -> Path.AbsolutePath {
         try await currentWorkingDirectoryOverride()
     }
+
+    public var fileMetadataOverride: ((AbsolutePath) async throws -> FileMetadata?) = { _ in nil }
+
+    public func fileMetadata(at path: Path.AbsolutePath) async throws -> FileMetadata? {
+        return try await fileMetadataOverride(path)
+    }
 }

@@ -75,28 +75,6 @@ struct ServerAuthenticationControllerTests {
         #expect(got == nil)
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func legacy_token_and_not_ci() async throws {
-        // Given
-        let serverURL: URL = .test()
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .read(serverURL: .any)
-            .willReturn(nil)
-        let authenticationToken: AuthenticationToken? = .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
-        let cachedValueStore = try #require(CachedValueStore.mocked)
-        given(cachedValueStore).getValue(key: .value("token_\(serverURL.absoluteString)"), computeIfNeeded: .matching { closure in
-            Task { try await closure() }
-            return true
-        }).willReturn(authenticationToken)
-        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(.test(token: "legacy-token"))
-
-        // When
-        let got = try await subject.authenticationToken(serverURL: .test())
-
-        // Then
-        #expect(got == authenticationToken)
-    }
-
     @Test(.withMockedEnvironment(), .withMockedDependencies()) func non_expired_access_token_and_not_ci() async throws {
         let date = Date()
         try await Date.$now.withValue({ date }) {
@@ -107,9 +85,8 @@ struct ServerAuthenticationControllerTests {
                 .read(serverURL: .any)
                 .willReturn(nil)
             let authenticationToken: AuthenticationToken? = .user(
-                legacyToken: "legacy-token",
-                accessToken: nil,
-                refreshToken: nil
+                accessToken: JWT.test(token: "access-token"),
+                refreshToken: JWT.test(token: "refresh-token")
             )
 
             let cachedValueStore = try #require(CachedValueStore.mocked)
@@ -146,9 +123,8 @@ struct ServerAuthenticationControllerTests {
                 .read(serverURL: .any)
                 .willReturn(nil)
             let authenticationToken: AuthenticationToken? = .user(
-                legacyToken: "legacy-token",
-                accessToken: nil,
-                refreshToken: nil
+                accessToken: JWT.test(token: "access-token"),
+                refreshToken: JWT.test(token: "refresh-token")
             )
 
             let cachedValueStore = try #require(CachedValueStore.mocked)
@@ -212,9 +188,8 @@ struct ServerAuthenticationControllerTests {
                 .read(serverURL: .any)
                 .willReturn(nil)
             let authenticationToken: AuthenticationToken? = .user(
-                legacyToken: "legacy-token",
-                accessToken: nil,
-                refreshToken: nil
+                accessToken: JWT.test(token: "access-token"),
+                refreshToken: JWT.test(token: "refresh-token")
             )
 
             let cachedValueStore = try #require(CachedValueStore.mocked)
@@ -281,9 +256,8 @@ struct ServerAuthenticationControllerTests {
                 .read(serverURL: .any)
                 .willReturn(nil)
             let authenticationToken: AuthenticationToken? = .user(
-                legacyToken: "legacy-token",
-                accessToken: nil,
-                refreshToken: nil
+                accessToken: JWT.test(token: "access-token"),
+                refreshToken: JWT.test(token: "refresh-token")
             )
 
             let cachedValueStore = try #require(CachedValueStore.mocked)

@@ -7,19 +7,10 @@ import NIOCore
 import NIOFileSystem
 import Path
 
-/// An enum that represents the the product type the runtime logic
-/// is embedded into. This can be useful at runtime to base control
-/// flows on the product (e.g. a CLI can do things that an app can't).
-public enum EnvironmentProduct: Sendable {
-    case app
-    case cli
-}
-
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 @Mockable
 public protocol Environmenting: Sendable {
-    
     /// Returns the home directory.
     var homeDirectory: AbsolutePath { get }
 
@@ -77,15 +68,11 @@ public protocol Environmenting: Sendable {
 
     /// Returns path to the Tuist executable
     func currentExecutablePath() -> AbsolutePath?
-        
-    /// The product  typerunning the logic.
-    var product: EnvironmentProduct? { set get }
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
 
 extension Environmenting {
-    
     public var tuistVariables: [String: String] {
         variables.filter { $0.key.hasPrefix("TUIST_") }
     }
@@ -127,17 +114,12 @@ extension Environmenting {
 /// Local environment controller.
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
-    
+
     public var processId = UUID().uuidString
 
-    public var product: EnvironmentProduct?
     public var variables: [String: String] { ProcessInfo.processInfo.environment }
     public var arguments: [String] { ProcessInfo.processInfo.arguments }
 
-    public init(product: EnvironmentProduct? = nil) {
-        self.product = product
-    }
-    
     public var homeDirectory: AbsolutePath {
         // swiftlint:disable force_try
         try! AbsolutePath(validating: NSHomeDirectory())

@@ -38,7 +38,5 @@ struct AuthRefreshTokenService {
             throw AuthRefreshTokenServiceError.invalidServerURL(serverURL)
         }
         try await serverAuthenticationController.refreshToken(serverURL: url, inBackground: false, locking: false)
-        
-        try await fileSystem.writeText("token refreshed", at: "/Users/pepicrft/Downloads/progress.txt")
     }
 }

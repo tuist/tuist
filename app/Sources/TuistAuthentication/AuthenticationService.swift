@@ -78,11 +78,8 @@ public final class AuthenticationService: ObservableObject {
     }
 
     private func updateAuthenticationState(with credentials: ServerCredentials?) throws {
-        if let credentials,
-           credentials.refreshToken != nil,
-           let accessToken = credentials.accessToken
-        {
-            let account = try extractAccount(from: accessToken)
+        if let credentials {
+            let account = try extractAccount(from: credentials.accessToken)
             authenticationState = .loggedIn(account: account)
         } else {
             authenticationState = .loggedOut
@@ -306,7 +303,6 @@ public final class AuthenticationService: ObservableObject {
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(
-                token: nil,
                 accessToken: accessToken,
                 refreshToken: refreshToken
             ),

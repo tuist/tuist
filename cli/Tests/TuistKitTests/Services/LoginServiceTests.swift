@@ -85,7 +85,6 @@ final class LoginServiceTests: TuistUnitTestCase {
                 .store(
                     credentials: .value(
                         ServerCredentials(
-                            token: nil,
                             accessToken: "access-token",
                             refreshToken: "refresh-token"
                         )
@@ -138,7 +137,6 @@ final class LoginServiceTests: TuistUnitTestCase {
                 .store(
                     credentials: .value(
                         ServerCredentials(
-                            token: nil,
                             accessToken: "access-token",
                             refreshToken: "refresh-token"
                         )
@@ -186,7 +184,6 @@ final class LoginServiceTests: TuistUnitTestCase {
                 .store(
                     credentials: .value(
                         ServerCredentials(
-                            token: nil,
                             accessToken: "access-token",
                             refreshToken: "refresh-token"
                         )

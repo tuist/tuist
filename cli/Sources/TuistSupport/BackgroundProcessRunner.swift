@@ -11,7 +11,7 @@ public protocol BackgroundProcessRunning {
 
 public struct BackgroundProcessRunner: BackgroundProcessRunning {
     public init() {}
-    
+
     public func runInBackground(
         _ arguments: [String],
         environment: [String: String]
