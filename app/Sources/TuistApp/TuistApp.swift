@@ -12,7 +12,6 @@ import TuistServer
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
         private let updaterController: SPUStandardUpdaterController
-        private var menuBarExtra: FluidMenuBarExtra?
 
         init() {
             updaterController = SPUStandardUpdaterController(
