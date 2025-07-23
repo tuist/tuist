@@ -129,6 +129,16 @@ defmodule Tuist.CommandEventsTest do
       assert String.length(command_event.error_message) == 255
     end
 
+    test "computes remote_cache_hits_count and remote_test_hits_count on insertion" do
+      # When
+      command_event =
+        CommandEventsFixtures.command_event_fixture(remote_cache_target_hits: ["A"], remote_test_target_hits: ["ATests"])
+
+      # Then
+      assert command_event.remote_cache_hits_count == 1
+      assert command_event.remote_test_hits_count == 1
+    end
+
     test "does not truncate an error message if it's under 255 chars" do
       # Given
       error_message = String.duplicate("a", 200)
