@@ -21,7 +21,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         guard let commandEvent = event as? CommandEvent else { return }
         Task {
             // The queue dependency that we use uses Dispatch and Operations, which don't propagate the task local states.
-            // Since analytics dispatcher is somethign we run in the CLI, we can assume background refresh.
+            // Since analytics dispatcher is something we run only in the CLI, we can assume background refresh.
             try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
                 _ = try? await backend.send(commandEvent: commandEvent)
                 try await completion()

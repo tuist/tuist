@@ -3,6 +3,9 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+#if canImport(TuistProcess)
+    import TuistProcess
+#endif
 
 #if canImport(TuistSupport)
     import TuistSupport
@@ -260,9 +263,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         #endif
 
         let fetchActionResult = { () async throws -> AuthenticationToken? in
-            switch try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh) {
-            case let .valid(token): return token
-            case .expired, .absent: return nil
+            switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
+            case let .valid(token):
+                return token
+            case .expired, .absent:
+                return nil
             }
         }
 
@@ -464,7 +469,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     }
 
     #if canImport(TuistSupport)
-        public func lockFilePath(serverURL: URL) -> AbsolutePath {
+        private func lockFilePath(serverURL: URL) -> AbsolutePath {
             let key = lockKey(serverURL: serverURL)
             // Use a sanitized version of the key for the filename
             let sanitizedKey = key.replacingOccurrences(of: "/", with: "_")

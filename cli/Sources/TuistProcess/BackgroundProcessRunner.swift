@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Mockable
 
@@ -16,7 +17,7 @@ public struct BackgroundProcessRunner: BackgroundProcessRunning {
         _ arguments: [String],
         environment: [String: String]
     ) throws {
-        let process = Process()
+        let process = Foundation.Process()
         process.environment = environment
         process.launchPath = arguments.first
         process.arguments = Array(arguments.dropFirst())

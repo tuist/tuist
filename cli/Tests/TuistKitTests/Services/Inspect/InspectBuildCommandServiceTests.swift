@@ -5,6 +5,7 @@ import Testing
 import TuistCore
 import TuistGit
 import TuistLoader
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting

@@ -16,19 +16,24 @@ struct AccountAcceptanceTests {
         .withFixtureConnectedToCanary("ios_app_with_frameworks")
     )
     func account_with_logged_in_user() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        // By default, the CLI refreshes in the background spawning itself in a subprocess.
+        // This is something we can't do from accepance tests, so we configure that behaviour
+        // using the task local.
+        try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: false)) {
+            // Given
+            let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
-        // When: Set up registry
-        try await TuistTest.run(
-            AccountUpdateCommand.self,
-            ["--path", fixtureDirectory.pathString, "--handle", "tuistrocks"]
-        )
+            // When: Set up registry
+            try await TuistTest.run(
+                AccountUpdateCommand.self,
+                ["--path", fixtureDirectory.pathString, "--handle", "tuistrocks"]
+            )
 
-        // Then
-        #expect(ui().contains("""
-        ✔ Success
-          The account tuistrocks was successfully updated.
-        """) == true)
+            // Then
+            #expect(ui().contains("""
+            ✔ Success
+              The account tuistrocks was successfully updated.
+            """) == true)
+        }
     }
 }

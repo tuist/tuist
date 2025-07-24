@@ -60,6 +60,7 @@ let targets: [Target] = [
             "XcodeProj",
             pathDependency,
             argumentParserDependency,
+            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             "TuistCore",
             "TuistSupport",
             "TuistGenerator",
@@ -298,10 +299,21 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistProcess",
+        dependencies: [
+            "Mockable"
+        ],
+        path: "cli/Sources/TuistLoader",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistAnalytics",
         dependencies: [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
+            "TuistServer",
             "TuistCore",
             "XcodeGraph",
             "TuistLoader",
@@ -342,6 +354,7 @@ let targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "KeychainAccess",
+            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
