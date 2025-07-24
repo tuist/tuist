@@ -40,7 +40,7 @@ public enum AuthenticationTokenStatus {
     case absent
 }
 
-public enum AuthenticationToken: Equatable {
+public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// The token represents a user session. User sessions are typically used in
     /// local environments where the user can be guided through an interactive
     /// authentication workflow
