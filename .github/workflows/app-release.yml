@@ -109,7 +109,7 @@ jobs:
   release-macos:
     name: Release macOS App
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 50
     needs: setup
     if: needs.setup.outputs.should-release == 'true'
     steps:
