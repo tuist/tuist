@@ -37,6 +37,11 @@ struct AuthRefreshTokenService {
         guard let url = URL(string: serverURL) else {
             throw AuthRefreshTokenServiceError.invalidServerURL(serverURL)
         }
-        try await serverAuthenticationController.refreshToken(serverURL: url, inBackground: false, locking: false)
+        try await serverAuthenticationController.refreshToken(
+            serverURL: url,
+            inBackground: false,
+            locking: false,
+            forceInProcessLock: false
+        )
     }
 }

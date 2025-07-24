@@ -25,11 +25,15 @@ public struct JWT: Equatable {
     public let email: String?
     public let preferredUsername: String?
 
-    func encode() throws -> String {
-        // Create header (typically static for most JWTs)
+    static func make(
+        expiryDate: Date,
+        typ: String = "JWT",
+        email: String? = nil,
+        preferredUsername: String? = nil
+    ) throws -> JWT {
         let header = [
-            "alg": "HS256", // or whatever algorithm you're using
-            "typ": "JWT",
+            "alg": "none",
+            "typ": typ,
         ]
 
         // Create payload
@@ -37,34 +41,31 @@ public struct JWT: Equatable {
             exp: Int(expiryDate.timeIntervalSince1970),
             email: email,
             preferred_username: preferredUsername
-            // Add any other fields your JWTPayload has
         )
 
-        // Encode header
+        // Encode header and payload
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.outputFormatting = .sortedKeys
+
         let headerData = try jsonEncoder.encode(header)
-        let headerBase64 = headerData.base64EncodedString()
-            .replacingOccurrences(of: "=", with: "")
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
+        let headerBase64URL = Self.base64URLEncode(headerData)
 
-        // Encode payload
         let payloadData = try jsonEncoder.encode(payload)
-        let payloadBase64 = payloadData.base64EncodedString()
-            .replacingOccurrences(of: "=", with: "")
+        let payloadBase64URL = Self.base64URLEncode(payloadData)
+
+        return JWT(
+            token: "\(headerBase64URL).\(payloadBase64URL).",
+            expiryDate: expiryDate,
+            email: email,
+            preferredUsername: preferredUsername
+        )
+    }
+
+    private static func base64URLEncode(_ data: Data) -> String {
+        return data.base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
-
-        // For a complete JWT, you'd need to sign it with a secret key
-        // This is a simplified version that creates an unsigned token
-        let unsignedToken = "\(headerBase64).\(payloadBase64)"
-
-        // In a real implementation, you'd create a signature here
-        // let signature = createSignature(unsignedToken, secret: secretKey)
-        // return "\(unsignedToken).\(signature)"
-
-        // For now, returning unsigned token with empty signature
-        return "\(unsignedToken)."
+            .replacingOccurrences(of: "=", with: "")
     }
 
     public static func parse(_ jwt: String) throws -> JWT {
@@ -73,7 +74,10 @@ public struct JWT: Equatable {
         else {
             throw JWTError.invalidJWT(jwt)
         }
+
         let jwtEncodedPayload = components[1]
+
+        // Add padding if needed
         let remainder = jwtEncodedPayload.count % 4
         let paddedJWTEncodedPayload: String
         if remainder > 0 {
@@ -85,10 +89,17 @@ public struct JWT: Equatable {
         } else {
             paddedJWTEncodedPayload = jwtEncodedPayload
         }
-        guard let data = Data(base64Encoded: paddedJWTEncodedPayload)
+
+        // Convert Base64URL back to Base64
+        let base64String = paddedJWTEncodedPayload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        guard let data = Data(base64Encoded: base64String)
         else {
             throw JWTError.invalidJWT(jwtEncodedPayload)
         }
+
         let jsonDecoder = JSONDecoder()
         let payload = try jsonDecoder.decode(JWTPayload.self, from: data)
 

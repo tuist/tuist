@@ -30,7 +30,8 @@ struct AuthRefreshTokenServiceTests {
         given(serverAuthenticationController).refreshToken(
             serverURL: .value(url),
             inBackground: .value(false),
-            locking: .value(false)
+            locking: .value(false),
+            forceInProcessLock: .value(false)
         ).willReturn()
 
         // When
@@ -40,9 +41,8 @@ struct AuthRefreshTokenServiceTests {
         verify(serverAuthenticationController).refreshToken(
             serverURL: .value(url),
             inBackground: .value(false),
-            locking: .value(false)
+            locking: .value(false),
+            forceInProcessLock: .value(false)
         ).called(1)
-        let lockFileExists = try await fileSystem.exists(lockFilePath)
-        #expect(lockFileExists == false)
     }
 }

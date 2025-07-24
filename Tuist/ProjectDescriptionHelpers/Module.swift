@@ -464,6 +464,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "AnyCodable"),
                     .external(name: "XcodeGraph"),
                 ]

@@ -31,7 +31,7 @@ public protocol ServerAuthenticationControlling: Sendable {
     func authenticationToken(serverURL: URL) async throws
         -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
-    func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool) async throws
+    func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws
 }
 
 public enum AuthenticationTokenStatus {
@@ -40,7 +40,7 @@ public enum AuthenticationTokenStatus {
     case absent
 }
 
-public enum AuthenticationToken: CustomStringConvertible, Equatable {
+public enum AuthenticationToken: Equatable {
     /// The token represents a user session. User sessions are typically used in
     /// local environments where the user can be guided through an interactive
     /// authentication workflow
@@ -63,18 +63,121 @@ public enum AuthenticationToken: CustomStringConvertible, Equatable {
     public var description: String {
         switch self {
         case .user:
-            return "tuist user token: \(value)"
+            return "User token: \(value)"
         case let .project(token):
-            return "tuist project token: \(token)"
+            return "Project token: \(token)"
         }
     }
 }
+
+#if canImport(TuistSupport)
+    /// Actor responsible for serializing file system lock operations to prevent race conditions
+    private actor FileSystemLockActor {
+        private let fileSystem: FileSysteming
+
+        init(fileSystem: FileSysteming) {
+            self.fileSystem = fileSystem
+        }
+
+        func withLock<T>(
+            lockfilePath: AbsolutePath,
+            serverURL: URL,
+            maxAttempts: Int = 10,
+            retryInterval: UInt64 = 500, // Milliseconds
+            action: (_ complete: () async throws -> Void) async throws -> Void,
+            fetchActionResult: () async throws -> T?
+        ) async throws -> T {
+            return try await performLocked(
+                lockfilePath: lockfilePath,
+                serverURL: serverURL,
+                attemptCount: 0,
+                maxAttempts: maxAttempts,
+                retryInterval: retryInterval,
+                action: action,
+                fetchActionResult: fetchActionResult
+            )
+        }
+
+        private func performLocked<T>(
+            lockfilePath: AbsolutePath,
+            serverURL: URL,
+            attemptCount: Int,
+            maxAttempts: Int,
+            retryInterval: UInt64,
+            action: (_ complete: () async throws -> Void) async throws -> Void,
+            fetchActionResult: () async throws -> T?
+        ) async throws -> T {
+            // Check if we already have the result
+            if let result = try await fetchActionResult() {
+                return result
+            }
+
+            if attemptCount >= maxAttempts {
+                throw ServerAuthenticationControllerError.timedOut(
+                    seconds: maxAttempts * Int(retryInterval) / 1000,
+                    serverURL: serverURL
+                )
+            }
+
+            let lockFileExists = try await fileSystem.exists(lockfilePath)
+            let secondsSinceLastModified: Double? = if lockFileExists,
+                                                       let lastModificationDate = try await fileSystem
+                                                       .fileMetadata(at: lockfilePath)?.lastModificationDate
+            {
+                Date().timeIntervalSince(lastModificationDate)
+            } else {
+                nil
+            }
+
+            if !lockFileExists || (secondsSinceLastModified != nil && secondsSinceLastModified! > 10) {
+                // Create directories if needed
+                if !(try await fileSystem.exists(lockfilePath.parentDirectory)) {
+                    try await fileSystem.makeDirectory(at: lockfilePath.parentDirectory)
+                }
+
+                // Remove stale lock file if it exists
+                if try await fileSystem.exists(lockfilePath) {
+                    try await fileSystem.remove(lockfilePath)
+                }
+
+                // Create lock file
+                try? await fileSystem.touch(lockfilePath)
+
+                // Perform the action
+                try await action {
+                    try? await fileSystem.remove(lockfilePath)
+                }
+            }
+
+            // Check if result is now available
+            if let result = try await fetchActionResult() {
+                return result
+            }
+
+            // Wait and retry
+            try await Task.sleep(nanoseconds: retryInterval * 1_000_000)
+
+            return try await performLocked(
+                lockfilePath: lockfilePath,
+                serverURL: serverURL,
+                attemptCount: attemptCount + 1,
+                maxAttempts: maxAttempts,
+                retryInterval: retryInterval,
+                action: action,
+                fetchActionResult: fetchActionResult
+            )
+        }
+    }
+#endif
 
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
+        /// Shared actor instance across all ServerAuthenticationController instances
+        private static let fileSystemLockActor: FileSystemLockActor = .init(fileSystem: FileSystem())
+
         private let backgroundProcessRunner: BackgroundProcessRunning
     #endif
 
@@ -124,12 +227,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         #endif
     }
 
-    public func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool) async throws {
+    public func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool) async throws {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
             inBackground: inBackground,
-            locking: locking
+            locking: locking,
+            forceInProcessLock: forceInProcessLock
         )
     }
 
@@ -147,7 +251,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         forceRefresh: Bool,
         inBackground: Bool,
         locking: Bool,
-        attemptCount _: Int = 0
+        forceInProcessLock: Bool = false,
     ) async throws
         -> AuthenticationToken?
     {
@@ -166,23 +270,32 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         case let (.valid(token), _, _):
             return token
         case (.absent, _, _):
-            throw ServerClientAuthenticationError.notAuthenticated
+            return nil
         case (.expired, false, true): // Foreground with locking
-            #if canImport(TuistSupport)
-                return try await fileSystemLocked(serverURL: serverURL, action: { deleteLockfile in
-                    _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
-                    try await deleteLockfile()
-                }, fetchActionResult: fetchActionResult)
-            #else
+            if forceInProcessLock {
                 return try await inProcessLockedRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
-            #endif
+            } else {
+                #if canImport(TuistSupport)
+                    return try await fileSystemLocked(serverURL: serverURL, action: { deleteLockfile in
+                        _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                        try await deleteLockfile()
+                    }, fetchActionResult: fetchActionResult)
+                #else
+                    return try await inProcessLockedRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                #endif
+            }
         case (.expired, false, false): // Foreground without locking
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
         case (.expired, true, true): // Background with locking
             #if canImport(TuistSupport)
-                return try await fileSystemLocked(serverURL: serverURL, action: { _ in
-                    try await spawnRefreshProcess(serverURL: serverURL)
-                }, fetchActionResult: fetchActionResult)
+                return try await Self.fileSystemLockActor.withLock(
+                    lockfilePath: lockFilePath(serverURL: serverURL),
+                    serverURL: serverURL,
+                    action: { _ in
+                        try await spawnRefreshProcess(serverURL: serverURL)
+                    },
+                    fetchActionResult: fetchActionResult
+                )
             #else
                 return nil
             #endif
@@ -230,18 +343,18 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 if !(try await fileSystem.exists(lockfilePath.parentDirectory)) {
                     try await fileSystem.makeDirectory(at: lockfilePath.parentDirectory)
                 }
-                if lockFileExists {
+                if try await fileSystem.exists(lockfilePath) {
                     try await fileSystem.remove(lockfilePath)
                 }
 
-                try await fileSystem.touch(lockfilePath)
+                try? await fileSystem.touch(lockfilePath)
 
                 try await action {
                     // When the action runs in the foreground, the action can use this closure
                     // to notify that the action has been completed and therefore the lockfile
                     // can be deleted.
                     // In the background, the lockfile is deleted by the background task.
-                    try await fileSystem.remove(lockfilePath)
+                    try? await fileSystem.remove(lockfilePath)
                 }
             }
 
