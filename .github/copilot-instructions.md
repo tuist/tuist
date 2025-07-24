@@ -15,7 +15,25 @@ When reviewing pull requests, ensure the following items are addressed:
   - Tests that follow the project's testing patterns
 
 ### Documentation and Communication
-- **PR Title**: Verify the title is formulated in a way that is usable as a changelog entry. It should be:
+- **PR Title**: Enforce that the title follows the conventional commit convention. The title MUST follow this format:
+  ```
+  <type>(<scope>): <description>
+  ```
+  
+  **Valid scopes**: `app`, `cli`, `handbook`, `server`, `docs`
+  
+  **Valid types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `build`, `ci`
+  
+  **Examples of correct PR titles**:
+  - `feat(cli): add support for async test execution`
+  - `fix(app): resolve crash when opening project settings` 
+  - `docs(handbook): update migration guide for version 4.0`
+  - `fix(server): handle rate limiting for API endpoints`
+  - `chore(docs): fix typo in configuration section`
+  - `feat(server): add support for OAuth authentication`
+  - `refactor(cli): improve error handling in build command`
+  
+  The description should be:
   - Clear and concise
   - Written in present tense
   - Descriptive of the change's impact
@@ -29,13 +47,6 @@ When reviewing pull requests, ensure the following items are addressed:
 - **Consistency**: Ensure the code architecture and patterns are consistent with the rest of the codebase
 - **Code Style**: Verify adherence to Swift best practices and Tuist's coding conventions
 - **Modularity**: Check that code is properly organized within the appropriate modules
-
-### Labels and Changelog
-- **Changelog Labels**: For user-facing changes, verify the PR includes one of these labels:
-  - `changelog:added` - for new features
-  - `changelog:fixed` - for bug fixes
-  - `changelog:changed` - for changes to existing functionality
-- **Breaking Changes**: Flag any breaking changes that might require migration guides
 
 ## Additional Review Guidelines
 

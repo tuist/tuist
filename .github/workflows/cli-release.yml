@@ -1,0 +1,180 @@
+name: CLI Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+env:
+  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
+  MISE_EXPERIMENTAL: "1"
+
+jobs:
+  release:
+    name: Release CLI
+    runs-on: macos-15
+    timeout-minutes: 60
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist CLI') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
+      - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
+        with:
+          version: 2025.7.0
+          experimental: true
+      
+      # Check if there are releasable changes
+      - name: Check if there are releasable changes
+        id: is-releasable
+        working-directory: cli
+        run: |
+          # Run git cliff and save the output (from 4.55.6 onwards)
+          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump 4.55.6..HEAD)
+          echo "Bumped output:"
+          echo "${bumped_output}"
+
+          # Read the content of CHANGELOG.md
+          changelog_content=$(cat CHANGELOG.md || echo "")
+          echo "CHANGELOG.md content:"
+          echo "${changelog_content}"
+
+          # Compare the outputs and set the result
+          if [ "${bumped_output}" != "${changelog_content}" ]; then
+            echo "should-release=true" >> $GITHUB_ENV
+          else
+            echo "should-release=false" >> $GITHUB_ENV
+          fi
+      
+      # Early exit if no release needed
+      - name: Exit if no release needed
+        if: env.should-release == 'false' && github.event.inputs.version == ''
+        run: |
+          echo "No releasable changes found and no version manually specified. Exiting."
+          exit 0
+      
+      # Get next version
+      - name: Get next version
+        working-directory: cli
+        id: next-version
+        run: |
+          # Use provided version or calculate next version
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            NEXT_VERSION="${{ github.event.inputs.version }}"
+          else
+            # Get the latest CLI version tag
+            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "4.55.6")
+            # Use git cliff to determine next version (from 4.55.6 onwards)
+            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version 4.55.6..HEAD)
+          fi
+
+          echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Next version: $NEXT_VERSION"
+      
+      # Get release notes
+      - name: Get release notes
+        id: release-notes
+        working-directory: cli
+        run: |
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased 4.55.6..HEAD >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      
+      # Update version in Constants.swift
+      - name: Update version in Constants.swift
+        run: |
+          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" "cli/Sources/TuistSupport/Constants.swift"
+      
+      # Update CHANGELOG.md
+      - name: Update CHANGELOG.md
+        working-directory: cli
+        run: git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+      
+      # Update mise.toml
+      - name: Update mise.toml
+        run: |
+          sed -i '' "s/tuist = \".*\"/tuist = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" mise.toml
+      
+      # Bundle CLI
+      - name: Bundle CLI
+        run: mise run cli:bundle
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+      
+      # Commit changes and create tag
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
+          git commit -m "[Release] [skip ci] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+          git push origin main
+          git push origin main --tags
+      
+      # Create GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+          body: |
+            ## CLI Release
+
+            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+          files: |
+            build/tuist.zip
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+      
+      # Get CLI SHA256 for Homebrew
+      - name: Get CLI SHA256
+        id: sha256
+        run: |
+          SHA256=$(grep "tuist.zip" build/SHASUMS256.txt | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+      
+      # Release Homebrew Formula
+      - name: Release Homebrew Formula
+        run: |
+          # Clone homebrew-tuist repo
+          git clone https://x-access-token:${{ secrets.TUIST_HOMEBREW_RELEASE_TOKEN }}@github.com/tuist/homebrew-tuist.git
+          cd homebrew-tuist
+
+          # Update formula
+          sed -i '' "s/version \".*\"/version \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" Formula/tuist.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" Formula/tuist.rb
+
+          # Get download URL
+          DOWNLOAD_URL="https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/tuist.zip"
+          sed -i '' "s|url \".*\"|url \"$DOWNLOAD_URL\"|" Formula/tuist.rb
+
+          # Commit and push
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add Formula/tuist.rb
+          git commit -m "Update Tuist to ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git push origin main
