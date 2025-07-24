@@ -1,3 +1,9 @@
+## What's Changed in app@0.20.2
+* fix(app): menu bar app height by @fortmarek in [#7912](https://github.com/tuist/tuist/pull/7912)
+* update appcast.xml with missing 0.20.1 version by @fortmarek
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.20.1...app@0.20.2
+
 ## What's Changed in app@0.20.1
 * fix: run deeplink on continue user activity by @fortmarek in [#7897](https://github.com/tuist/tuist/pull/7897)
 
