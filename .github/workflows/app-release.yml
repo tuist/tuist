@@ -156,53 +156,53 @@ jobs:
             app/build/artifacts/SHASUMS512.txt
             app/appcast.xml
 
-  # release-ios:
-  #   name: Release iOS App
-  #   runs-on: namespace-profile-default-macos
-  #   timeout-minutes: 30
-  #   needs: setup
-  #   if: needs.setup.outputs.should-release == 'true'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Select Xcode
-  #       run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-  #     - name: Skip Xcode Macro Fingerprint Validation
-  #       run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-  #     - name: Skip Xcode Package Validation
-  #       run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-  #     - name: Activate .env.json
-  #       run: cp .optional.env.json .env.json
-  #     - name: Restore cache
-  #       id: cache-restore
-  #       uses: actions/cache/restore@v4
-  #       with:
-  #         path: .build
-  #         key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-  #         restore-keys: .build
-  #     - uses: jdx/mise-action@v2
-  #       with:
-  #         version: 2025.7.0
-  #         experimental: true
-  #     - name: Download updated files
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: updated-files
-  #         path: app
-  #     - name: Generate TuistApp
-  #       run: mise x -- tuist generate TuistApp --no-binary-cache
-  #     - name: Upload iOS App to App Store Connect
-  #       run: mise run app:upload-ios
-  #       env:
-  #         CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-  #         APPLE_ID: ${{ secrets.APPLE_ID }}
-  #         APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-  #         CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
+  release-ios:
+    name: Release iOS App
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
+    needs: setup
+    if: needs.setup.outputs.should-release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Activate .env.json
+        run: cp .optional.env.json .env.json
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.7.0
+          experimental: true
+      - name: Download updated files
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-files
+          path: app
+      - name: Generate TuistApp
+        run: mise x -- tuist generate TuistApp --no-binary-cache
+      - name: Upload iOS App to App Store Connect
+        run: mise run app:upload-ios
+        env:
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
 
   update-main:
     name: Update main with released apps
     runs-on: macos-15
     timeout-minutes: 10
-    needs: [setup, release-macos]
+    needs: [setup, release-macos, release-ios]
     if: needs.setup.outputs.should-release == 'true'
     steps:
       - uses: actions/checkout@v4
