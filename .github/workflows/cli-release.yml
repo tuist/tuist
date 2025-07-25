@@ -121,31 +121,33 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
           BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
 
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
-          git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
-          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --tags
+      # TESTING: Commenting out commit and push
+      # - name: Commit changes
+      #   run: |
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
+      #     git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
+      #     git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     git push origin ${{ github.ref_name }}
+      #     git push origin ${{ github.ref_name }} --tags
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          body: |
-            ## CLI Release
-
-            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-          files: |
-            build/tuist.zip
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
+      # TESTING: Commenting out GitHub release
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     draft: false
+      #     repository: tuist/tuist
+      #     name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     body: |
+      #       ## CLI Release
+      #
+      #       ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      #     files: |
+      #       build/tuist.zip
+      #       build/SHASUMS256.txt
+      #       build/SHASUMS512.txt
 
       - name: Get CLI SHA256
         id: sha256
@@ -153,23 +155,24 @@ jobs:
           SHA256=$(grep "tuist.zip" build/SHASUMS256.txt | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
 
-      - name: Release Homebrew Formula
-        run: |
-          # Clone homebrew-tuist repo
-          git clone https://x-access-token:${{ secrets.TUIST_HOMEBREW_RELEASE_TOKEN }}@github.com/tuist/homebrew-tuist.git
-          cd homebrew-tuist
-
-          # Update formula
-          sed -i '' "s/version \".*\"/version \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" Formula/tuist.rb
-          sed -i '' "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" Formula/tuist.rb
-
-          # Get download URL
-          DOWNLOAD_URL="https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/tuist.zip"
-          sed -i '' "s|url \".*\"|url \"$DOWNLOAD_URL\"|" Formula/tuist.rb
-
-          # Commit and push
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add Formula/tuist.rb
-          git commit -m "Update Tuist to ${{ steps.next-version.outputs.NEXT_VERSION }}"
-          git push origin main
+      # TESTING: Commenting out Homebrew formula update
+      # - name: Release Homebrew Formula
+      #   run: |
+      #     # Clone homebrew-tuist repo
+      #     git clone https://x-access-token:${{ secrets.TUIST_HOMEBREW_RELEASE_TOKEN }}@github.com/tuist/homebrew-tuist.git
+      #     cd homebrew-tuist
+      #
+      #     # Update formula
+      #     sed -i '' "s/version \".*\"/version \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" Formula/tuist.rb
+      #     sed -i '' "s/sha256 \".*\"/sha256 \"${{ steps.sha256.outputs.sha256 }}\"/" Formula/tuist.rb
+      #
+      #     # Get download URL
+      #     DOWNLOAD_URL="https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/tuist.zip"
+      #     sed -i '' "s|url \".*\"|url \"$DOWNLOAD_URL\"|" Formula/tuist.rb
+      #
+      #     # Commit and push
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git add Formula/tuist.rb
+      #     git commit -m "Update Tuist to ${{ steps.next-version.outputs.NEXT_VERSION }}"
+      #     git push origin main

@@ -156,7 +156,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: false  # TESTING: Changed to false
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -167,40 +167,42 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           github-token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      # Commit and tag
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add CHANGELOG.md
-          git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
-          git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --tags
+      # TESTING: Commenting out commit and push
+      # # Commit and tag
+      # - name: Commit changes
+      #   run: |
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git add CHANGELOG.md
+      #     git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
+      #     git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     git push origin ${{ github.ref_name }}
+      #     git push origin ${{ github.ref_name }} --tags
 
-      # Create GitHub releases
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          body: |
-            ## Server Release
-
-            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-
-      - name: Create GitHub Release on tuist/server
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/server
-          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          body: |
-            ## Server Release
-
-            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-          target_commitish: main
+      # TESTING: Commenting out GitHub releases
+      # # Create GitHub releases
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     draft: false
+      #     repository: tuist/tuist
+      #     name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     body: |
+      #       ## Server Release
+      #
+      #       ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      #
+      # - name: Create GitHub Release on tuist/server
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     draft: false
+      #     repository: tuist/server
+      #     name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
+      #     body: |
+      #       ## Server Release
+      #
+      #       ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      #     token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      #     target_commitish: main

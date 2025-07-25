@@ -193,13 +193,14 @@ jobs:
           path: app
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp --no-binary-cache
-      - name: Upload iOS App to App Store Connect
-        run: mise run app:upload-ios
-        env:
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
-          CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
+      # TESTING: Commenting out App Store upload
+      # - name: Upload iOS App to App Store Connect
+      #   run: mise run app:upload-ios
+      #   env:
+      #     CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+      #     CERTIFICATE_ENCRYPTION_PASSWORD: ${{ secrets.CERTIFICATE_ENCRYPTION_PASSWORD }}
 
   update-main:
     name: Update main with released apps
@@ -222,31 +223,34 @@ jobs:
         with:
           name: macos-artifacts
           path: app
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add app/CHANGELOG.md app/Project.swift app/appcast.xml
-          git commit -m "[Release] Tuist App ${{ needs.setup.outputs.next-version }}"
-          git tag ${{ needs.setup.outputs.next-version }}
-          git push origin ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --tags
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: ${{ needs.setup.outputs.next-version }}
-          tag_name: ${{ needs.setup.outputs.next-version }}
-          body: ${{ needs.setup.outputs.release-notes }}
-          files: |
-            app/build/artifacts/Tuist.dmg
-            app/build/artifacts/SHASUMS256.txt
-            app/build/artifacts/SHASUMS512.txt
+      # TESTING: Commenting out commit and push
+      # - name: Commit changes
+      #   run: |
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git add app/CHANGELOG.md app/Project.swift app/appcast.xml
+      #     git commit -m "[Release] Tuist App ${{ needs.setup.outputs.next-version }}"
+      #     git tag ${{ needs.setup.outputs.next-version }}
+      #     git push origin ${{ github.ref_name }}
+      #     git push origin ${{ github.ref_name }} --tags
+      # TESTING: Commenting out GitHub release
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     draft: false
+      #     repository: tuist/tuist
+      #     name: ${{ needs.setup.outputs.next-version }}
+      #     tag_name: ${{ needs.setup.outputs.next-version }}
+      #     body: ${{ needs.setup.outputs.release-notes }}
+      #     files: |
+      #       app/build/artifacts/Tuist.dmg
+      #       app/build/artifacts/SHASUMS256.txt
+      #       app/build/artifacts/SHASUMS512.txt
       - name: Get DMG SHA256
         id: sha256
         run: |
           SHA256=$(grep "Tuist.dmg" app/build/artifacts/SHASUMS256.txt | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-      - name: Release Homebrew cask
-        run: mise/tasks/cli/release/homebrew-cask.sh --version ${{ needs.setup.outputs.next-version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
+      # TESTING: Commenting out Homebrew cask release
+      # - name: Release Homebrew cask
+      #   run: mise/tasks/cli/release/homebrew-cask.sh --version ${{ needs.setup.outputs.next-version }} --github-token ${{ secrets.TUIST_HOMEBREW_APP_CASK_RELEASE_TOKEN }} --sha256 ${{ steps.sha256.outputs.sha256 }}
