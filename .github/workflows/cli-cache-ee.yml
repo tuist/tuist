@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
@@ -17,6 +18,7 @@ on:
       - "Tuist/**"
   pull_request:
     paths:
+      - "cli/TuistCacheEE"
       - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
@@ -80,9 +82,9 @@ jobs:
     runs-on: macos-15
     needs: [check-team-membership]
     if: |
-      always() && 
-      (github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
     steps:
       - uses: actions/checkout@v4
@@ -124,9 +126,9 @@ jobs:
     runs-on: macos-15
     needs: [check-team-membership]
     if: |
-      always() && 
-      (github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
     steps:
       - uses: actions/checkout@v4
@@ -168,9 +170,9 @@ jobs:
     runs-on: macos-15
     needs: [check-team-membership]
     if: |
-      always() && 
-      (github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
     steps:
       - uses: actions/checkout@v4
