@@ -104,16 +104,16 @@ jobs:
         working-directory: cli
         run: git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
 
-      - name: Update mise.toml
-        run: |
-          sed -i '' "s/tuist = \".*\"/tuist = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" mise.toml
-
       - name: Bundle CLI
         run: mise run cli:bundle
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
           BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+
+      - name: Update mise.toml
+        run: |
+          sed -i '' "s/tuist = \".*\"/tuist = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" mise.toml
 
       - name: Commit changes
         run: |
