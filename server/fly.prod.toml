@@ -14,7 +14,7 @@ console_command = "/app/bin/tuist remote"
 
   [[vm.processes]]
     app = "worker"
-    size = "shared-cpu-4x "
+    size = "shared-cpu-4x"
     memory = "8gb"
 
 [experimental]
