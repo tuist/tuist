@@ -172,8 +172,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./server
+          file: ./server/Dockerfile
           push: false  # TESTING: Changed to false
           cache-from: type=gha
           cache-to: type=gha,mode=max
