@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "The version to release"
-        type: string
 
 permissions:
   contents: write
@@ -66,9 +61,11 @@ jobs:
         id: is-releasable
         run: |
           # Check for unreleased changes
-          # Check if server@0.1.0 tag exists
-          if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- server@0.1.0..HEAD 2>/dev/null)
+          # Get the latest server version tag
+          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          
+          if [ -n "$LATEST_VERSION" ]; then
+            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD 2>/dev/null)
           else
             unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased 2>/dev/null)
           fi
@@ -88,82 +85,39 @@ jobs:
           fi
 
       - name: Exit if no release needed
-        if: env.should-release == 'false' && github.event.inputs.version == ''
+        if: env.should-release == 'false'
         run: |
-          echo "No releasable changes found and no version manually specified. Exiting."
+          echo "No releasable changes found. Exiting."
           exit 0
 
       - name: Get next version
         id: next-version
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         run: |
-          # Use provided version or calculate next version
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            NEXT_VERSION="${{ github.event.inputs.version }}"
-            # Ensure manual version has server@ prefix
-            if [[ "$NEXT_VERSION" != server@* ]]; then
-              NEXT_VERSION="server@$NEXT_VERSION"
-            fi
+          # Get the latest server version tag
+          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          
+          if [ -n "$LATEST_VERSION" ]; then
+            # Use git cliff to determine next version from the latest tag
+            NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
           else
-            # Get the latest server version tag
-            LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
-            # Use git cliff to determine next version
-            if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version -- server@0.1.0..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version)
-            fi
-
-            # If git cliff returns 0.1.0, increment from the latest version
-            if [ "$NEXT_VERSION" = "0.1.0" ]; then
-              # Extract version number from tag
-              VERSION_NUMBER="${LATEST_VERSION#server@}"
-              # Parse semver components
-              IFS='.' read -r major minor patch <<< "$VERSION_NUMBER"
-              # Increment minor version by default
-              NEXT_VERSION="server@${major}.$((minor + 1)).0"
-            else
-              # If NEXT_VERSION doesn't have server@ prefix, add it
-              if [[ "$NEXT_VERSION" != server@* ]]; then
-                NEXT_VERSION="server@$NEXT_VERSION"
-              fi
-            fi
+            # No server tags exist, use git cliff without range
+            NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version)
+          fi
+          
+          # Add server@ prefix if not present
+          if [[ "$NEXT_VERSION" != server@* ]]; then
+            NEXT_VERSION="server@$NEXT_VERSION"
           fi
 
-          # Debug output
-          echo "NEXT_VERSION before output: $NEXT_VERSION"
-          
-          # Ensure we have a valid version
-          if [[ -z "$NEXT_VERSION" ]] || [[ "$NEXT_VERSION" == "server@" ]]; then
-            echo "Error: Invalid NEXT_VERSION"
-            exit 1
-          fi
-          
-          # Extract just the version number without the 'server@' prefix for Docker tags
-          VERSION_NUMBER="${NEXT_VERSION#server@}"
-          echo "VERSION_NUMBER extracted: $VERSION_NUMBER"
-          
-          # Validate version number format (should be X.Y.Z)
-          if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Error: Invalid version number format: $VERSION_NUMBER"
-            # If git cliff failed due to API limits, fall back to incrementing the latest version
-            echo "Falling back to incrementing latest version due to invalid format"
-            LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
-            VERSION_NUMBER="${LATEST_VERSION#server@}"
-            IFS='.' read -r major minor patch <<< "$VERSION_NUMBER"
-            VERSION_NUMBER="${major}.$((minor + 1)).0"
-            NEXT_VERSION="server@$VERSION_NUMBER"
-            echo "Using fallback version: $NEXT_VERSION"
-          fi
-          
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          
-          echo "NEXT_VERSION_NUMBER=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Next version: $NEXT_VERSION (Docker tag: $VERSION_NUMBER)"
+          # Extract just the version number without the 'server@' prefix for Docker tags
+          echo "NEXT_VERSION_NUMBER=${NEXT_VERSION#server@}" >> "$GITHUB_OUTPUT"
+          echo "Next version: $NEXT_VERSION"
 
       - name: Get release notes
         id: release-notes
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
@@ -174,7 +128,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         run: |
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- server@0.1.0..HEAD
@@ -183,7 +137,7 @@ jobs:
           fi
 
       - name: Debug version outputs
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         run: |
           echo "NEXT_VERSION: ${{ steps.next-version.outputs.NEXT_VERSION }}"
           echo "NEXT_VERSION_NUMBER: ${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}"
@@ -194,7 +148,7 @@ jobs:
 
       # Build and push Docker image
       - name: Login to GitHub Container Registry
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -203,7 +157,7 @@ jobs:
 
       - name: Image metadata
         id: meta
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -219,7 +173,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/tuist/tuist
 
       - name: Build and push
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./server
@@ -237,7 +191,7 @@ jobs:
 
       # Commit and tag
       - name: Commit changes
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -268,7 +222,7 @@ jobs:
 
       # Create GitHub releases
       - name: Create GitHub Release
-        if: env.should-release == 'true' || github.event.inputs.version != ''
+        if: env.should-release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           draft: false

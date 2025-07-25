@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "The version to release"
-        type: string
 
 permissions:
   contents: write

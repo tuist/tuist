@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "The version to release"
-        type: string
 
 permissions:
   contents: write
@@ -73,25 +68,20 @@ jobs:
           fi
 
       - name: Exit if no release needed
-        if: env.should-release == 'false' && github.event.inputs.version == ''
+        if: env.should-release == 'false'
         run: |
-          echo "No releasable changes found and no version manually specified. Exiting."
+          echo "No releasable changes found. Exiting."
           exit 0
 
       - name: Get next version
         working-directory: cli
         id: next-version
         run: |
-          # Use provided version or calculate next version
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            NEXT_VERSION="${{ github.event.inputs.version }}"
-          else
-            # Get the latest CLI version tag
-            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
-            echo "Latest version: $LATEST_VERSION"
-            # Use git cliff to determine next version
-            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
-          fi
+          # Get the latest CLI version tag
+          LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+          echo "Latest version: $LATEST_VERSION"
+          # Use git cliff to determine next version
+          NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION"
