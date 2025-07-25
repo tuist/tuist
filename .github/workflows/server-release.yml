@@ -63,17 +63,17 @@ jobs:
           # Check for unreleased changes
           # Get the latest server version tag
           LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
-          
+
           if [ -n "$LATEST_VERSION" ]; then
             unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD 2>/dev/null)
           else
             unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased 2>/dev/null)
           fi
-          
+
           echo "Checking for unreleased changes..."
           echo "Unreleased changes:"
           echo "${unreleased_changes}"
-          
+
           # Check if there are any unreleased changes
           # git cliff returns empty output when there are no unreleased changes
           if [ -n "${unreleased_changes}" ] && [ "${unreleased_changes}" != "" ]; then
@@ -96,7 +96,7 @@ jobs:
         run: |
           # Get the latest server version tag
           LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
-          
+
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
             NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
@@ -104,7 +104,7 @@ jobs:
             # No server tags exist, use git cliff without range
             NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version)
           fi
-          
+
           # Add server@ prefix if not present
           if [[ "$NEXT_VERSION" != server@* ]]; then
             NEXT_VERSION="server@$NEXT_VERSION"
@@ -130,23 +130,15 @@ jobs:
       - name: Update CHANGELOG.md
         if: env.should-release == 'true'
         run: |
-          if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- server@0.1.0..HEAD
+          # Get the latest server version tag
+          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- ${LATEST_VERSION}..HEAD
           else
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
           fi
 
-      - name: Debug version outputs
-        if: env.should-release == 'true'
-        run: |
-          echo "NEXT_VERSION: ${{ steps.next-version.outputs.NEXT_VERSION }}"
-          echo "NEXT_VERSION_NUMBER: ${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}"
-          if [ -z "${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}" ]; then
-            echo "ERROR: NEXT_VERSION_NUMBER is not set!"
-            exit 1
-          fi
-
-      # Build and push Docker image
       - name: Login to GitHub Container Registry
         if: env.should-release == 'true'
         uses: docker/login-action@v3
@@ -187,9 +179,7 @@ jobs:
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          github-token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      # Commit and tag
       - name: Commit changes
         if: env.should-release == 'true'
         run: |
@@ -198,7 +188,7 @@ jobs:
           git add CHANGELOG.md
           git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          
+
           # Pull and rebase to avoid conflicts from concurrent releases
           max_attempts=5
           attempt=1
@@ -214,13 +204,12 @@ jobs:
             sleep 5
             attempt=$((attempt + 1))
           done
-          
+
           if [ $attempt -gt $max_attempts ]; then
             echo "Failed to push after $max_attempts attempts"
             exit 1
           fi
 
-      # Create GitHub releases
       - name: Create GitHub Release
         if: env.should-release == 'true'
         uses: softprops/action-gh-release@v2
@@ -233,4 +222,3 @@ jobs:
             ## Server Release
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-
