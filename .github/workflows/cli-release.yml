@@ -52,7 +52,7 @@ jobs:
           echo "Latest version: $LATEST_VERSION"
 
           # Run git cliff and save the output
-          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump ${LATEST_VERSION}..HEAD)
+          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -- ${LATEST_VERSION}..HEAD)
           echo "Bumped output:"
           echo "${bumped_output}"
 
@@ -86,7 +86,7 @@ jobs:
             LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
             echo "Latest version: $LATEST_VERSION"
             # Use git cliff to determine next version
-            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version ${LATEST_VERSION}..HEAD)
+            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
           fi
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
@@ -99,7 +99,7 @@ jobs:
           # Get the latest CLI version tag dynamically
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
+          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update version in Constants.swift

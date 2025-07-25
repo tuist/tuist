@@ -53,7 +53,7 @@ jobs:
           # Run git cliff and save the output
           # Check if app@0.20.2 tag exists
           if git rev-parse app@0.20.2 >/dev/null 2>&1; then
-            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump app@0.20.2..HEAD)
+            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -- app@0.20.2..HEAD)
           else
             bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump)
           fi
@@ -80,7 +80,7 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1 || echo "app@0.20.2")
           # Use git cliff to determine next version
           if git rev-parse app@0.20.2 >/dev/null 2>&1; then
-            NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version app@0.20.2..HEAD)
+            NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version -- app@0.20.2..HEAD)
           else
             NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version)
           fi
@@ -98,7 +98,7 @@ jobs:
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if git rev-parse app@0.20.2 >/dev/null 2>&1; then
-            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased app@0.20.2..HEAD >> "$GITHUB_OUTPUT"
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased -- app@0.20.2..HEAD >> "$GITHUB_OUTPUT"
           else
             git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased >> "$GITHUB_OUTPUT"
           fi
@@ -115,7 +115,7 @@ jobs:
         if: env.should-release == 'true'
         run: |
           if git rev-parse app@0.20.2 >/dev/null 2>&1; then
-            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md app@0.20.2..HEAD
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- app@0.20.2..HEAD
           else
             git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
           fi

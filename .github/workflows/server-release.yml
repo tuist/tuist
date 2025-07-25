@@ -64,7 +64,7 @@ jobs:
           # Run git cliff and save the output
           # Check if server@0.1.0 tag exists
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump server@0.1.0..HEAD)
+            bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -- server@0.1.0..HEAD)
           else
             bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump)
           fi
@@ -108,7 +108,7 @@ jobs:
             LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
             # Use git cliff to determine next version
             if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version server@0.1.0..HEAD)
+              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version -- server@0.1.0..HEAD)
             else
               NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version)
             fi
@@ -132,7 +132,7 @@ jobs:
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased server@0.1.0..HEAD >> "$GITHUB_OUTPUT"
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- server@0.1.0..HEAD >> "$GITHUB_OUTPUT"
           else
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased >> "$GITHUB_OUTPUT"
           fi
@@ -141,7 +141,7 @@ jobs:
       - name: Update CHANGELOG.md
         run: |
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md server@0.1.0..HEAD
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- server@0.1.0..HEAD
           else
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
           fi
