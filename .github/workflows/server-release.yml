@@ -68,9 +68,9 @@ jobs:
           # Check for unreleased changes
           # Check if server@0.1.0 tag exists
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
-            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- server@0.1.0..HEAD)
+            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased -- server@0.1.0..HEAD 2>/dev/null)
           else
-            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased)
+            unreleased_changes=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased 2>/dev/null)
           fi
           
           echo "Checking for unreleased changes..."

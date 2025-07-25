@@ -56,7 +56,7 @@ jobs:
           echo "Latest version: $LATEST_VERSION"
 
           # Check for unreleased changes
-          unreleased_changes=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD)
+          unreleased_changes=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD 2>/dev/null)
           
           echo "Checking for unreleased changes..."
           echo "Unreleased changes:"
