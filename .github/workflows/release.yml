@@ -56,15 +56,19 @@ jobs:
           echo "Latest CLI version: $LATEST_VERSION"
           echo "Next CLI version: $NEXT_VERSION"
           
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
+          # Validate that next version is actually newer
+          if [ "$NEXT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "No CLI version change detected (versions are equal)"
+            echo "should-release=false" >> "$GITHUB_OUTPUT"
+            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          elif [ "$(printf '%s\n' "$LATEST_VERSION" "$NEXT_VERSION" | sort -V | head -n1)" = "$NEXT_VERSION" ]; then
+            echo "ERROR: Next version ($NEXT_VERSION) is older than latest version ($LATEST_VERSION)"
+            echo "should-release=false" >> "$GITHUB_OUTPUT"
+            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          else
             echo "CLI version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
             echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          else
-            echo "No CLI version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check App for releasable changes
@@ -98,15 +102,20 @@ jobs:
           echo "Latest App version: ${LATEST_VERSION:-none}"
           echo "Next App version: $NEXT_VERSION"
           
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
+          # Validate and compare versions
+          if [ -z "$LATEST_VERSION" ]; then
+            # No previous version, this is the first release
+            echo "First App release: $NEXT_VERSION"
+            echo "should-release=true" >> "$GITHUB_OUTPUT"
+            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          elif [ "$NEXT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "No App version change detected (versions are equal)"
+            echo "should-release=false" >> "$GITHUB_OUTPUT"
+            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          else
             echo "App version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
             echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          else
-            echo "No App version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check Server for releasable changes
