@@ -8,7 +8,7 @@ defmodule Tuist.QA.Tools do
 
   require Logger
 
-  def tools do
+  def tools(context \\ %{}) do
     [
       describe_ui_tool(),
       tap_tool(),
@@ -20,6 +20,7 @@ defmodule Tuist.QA.Tools do
       touch_tool(),
       gesture_tool(),
       screenshot_tool(),
+      step_finished_tool(context),
       finalize_tool()
     ]
   end
@@ -431,6 +432,48 @@ defmodule Tuist.QA.Tools do
         else
           {:error, reason} -> {:error, "Failed to read screenshot file: #{reason}"}
           {error, _status} -> {:error, "Failed to capture screenshot: #{error}"}
+        end
+      end
+    })
+  end
+
+  defp step_finished_tool(context) do
+    Function.new!(%{
+      name: "step_finished",
+      description: "Marks a finished testing step. Call this often to mark your progress.",
+      parameters: [
+        FunctionParam.new!(%{
+          name: "summary",
+          type: :string,
+          description: "Summary of the finished testing step",
+          required: true
+        })
+      ],
+      function: fn %{"summary" => summary} = _params, _llm_context ->
+        server_url = Map.get(context, :server_url)
+        run_id = Map.get(context, :run_id)
+        auth_token = Map.get(context, :auth_token)
+        
+        if server_url && run_id && auth_token do
+          url = "#{server_url}/qa/runs/#{run_id}/steps"
+          
+          case Req.post(url, 
+            json: %{summary: summary},
+            headers: [{"authorization", "Bearer #{auth_token}"}]
+          ) do
+            {:ok, %{status: status}} when status in 200..299 ->
+              {:ok, "Step finished and reported. Continue with your testing."}
+              
+            {:ok, response} ->
+              Logger.warning("Failed to report step: #{inspect(response)}")
+              {:ok, "Step finished (reporting failed). Continue with your testing."}
+              
+            {:error, reason} ->
+              Logger.warning("Failed to report step: #{inspect(reason)}")
+              {:ok, "Step finished (reporting failed). Continue with your testing."}
+          end
+        else
+          {:ok, "Step finished. Continue with your testing."}
         end
       end
     })

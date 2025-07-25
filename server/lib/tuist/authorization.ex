@@ -156,6 +156,25 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :project_qa_run do
+    action :create do
+      desc("Allows users of a project to create a QA run.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to create a QA run.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows the authenticated project to create the QA run if it matches the project for which the QA run is being created."
+      )
+
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project_qa_run scope to create QA run steps.")
+      allow([:authenticated_as_account, scopes_permit: :project_qa_run])
+    end
+  end
+
   object :project_preview do
     action :create do
       desc("Allows users of a project to create a preview.")
