@@ -33,15 +33,9 @@ defmodule Tuist.Xcode.Clickhouse do
 
     Task.await_many(
       [
-        Task.async(fn ->
-          ClickHouseRepo.insert_all(XcodeGraph, xcode_graph_data)
-        end),
+        Task.async(fn -> ClickHouseRepo.insert_all(XcodeGraph, xcode_graph_data) end),
         Task.async(fn -> ClickHouseRepo.insert_all(XcodeProject, projects_data) end),
-        Task.async(fn ->
-          targets_data
-          |> Enum.chunk_every(1000)
-          |> Enum.each(&ClickHouseRepo.insert_all(XcodeTarget, &1))
-        end)
+        Task.async(fn -> ClickHouseRepo.insert_all(XcodeTarget, targets_data) end)
       ],
       30_000
     )
@@ -64,7 +58,9 @@ defmodule Tuist.Xcode.Clickhouse do
       )
 
     {targets, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params,
+        for: XcodeTargetDenormalized
+      )
 
     test_modules =
       Enum.map(targets, fn target ->
@@ -93,7 +89,9 @@ defmodule Tuist.Xcode.Clickhouse do
       )
 
     {targets, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params,
+        for: XcodeTargetDenormalized
+      )
 
     cacheable_targets =
       Enum.map(targets, fn target ->
