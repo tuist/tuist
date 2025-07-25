@@ -16,6 +16,10 @@ permissions:
   statuses: write
   packages: write
 
+concurrency:
+  group: server-release-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
