@@ -1,9 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.55.6
+## What's Changed in 4.55.6<!-- RELEASE NOTES START -->
+
 ### 🐛 Bug Fixes
 
+* fix cli not launching because ProjectAutomation's dynamic framework can't be found by [@pepicrft](https://github.com/pepicrft)
 * token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
 
 ## New Contributors
