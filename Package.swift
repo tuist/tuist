@@ -303,7 +303,7 @@ let targets: [Target] = [
         dependencies: [
             "Mockable"
         ],
-        path: "cli/Sources/TuistLoader",
+        path: "cli/Sources/TuistProcess",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -627,7 +627,8 @@ let package = Package(
         ),
         .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
-        .package(url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
+        .package(
+            url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
     ],
     targets: targets
 )
