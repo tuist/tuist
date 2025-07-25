@@ -2,7 +2,7 @@
 # https://git-cliff.org/docs/configuration
 
 [bump]
-initial_tag = "0.3.0"
+initial_tag = "0.1.0"
 
 [remote.github]
 owner = "tuist"
@@ -88,16 +88,16 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    # Include commits with (app) scope
-    { message = "^feat\\(app\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\(app\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\(app\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\(app\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\(app\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\(app\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\(app\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\(app\\)", skip = true },
-    { message = "^ci\\(app\\)", skip = true },
+    # Include commits with (server) scope
+    { message = "^feat\\(server\\)", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix\\(server\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?\\(server\\)", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf\\(server\\)", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor\\(server\\)", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style\\(server\\)", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test\\(server\\)", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\(server\\)", skip = true },
+    { message = "^ci\\(server\\)", skip = true },
     # Skip any other scoped commits
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
@@ -106,7 +106,7 @@ protect_breaking_commits = false
 # filter out the commits that are not matched by commit parsers
 filter_commits = true
 # regex for matching git tags
-tag_pattern = "app@[0-9].*"
+tag_pattern = "server@[0-9].*"
 # regex for skipping tags
 skip_tags = "beta|alpha"
 # regex for ignoring tags

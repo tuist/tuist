@@ -114,3 +114,4 @@ Tuist/Dependencies/graph.json
 .bundle
 
 .claude/
+*.p12
