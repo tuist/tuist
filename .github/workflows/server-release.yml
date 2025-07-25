@@ -28,7 +28,7 @@ jobs:
     name: Release Server
     runs-on: namespace-profile-default
     timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist Server') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist Server') }}
     defaults:
       run:
         working-directory: server
@@ -173,10 +173,10 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add CHANGELOG.md
-          git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git commit -m "[Release] [skip ci] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin main
-          git push origin main --tags
+          git push origin ${{ github.ref_name }}
+          git push origin ${{ github.ref_name }} --tags
 
       # Create GitHub releases
       - name: Create GitHub Release

@@ -25,9 +25,9 @@ env:
 jobs:
   release:
     name: Release CLI
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist CLI') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist CLI') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,8 +47,12 @@ jobs:
         id: is-releasable
         working-directory: cli
         run: |
-          # Run git cliff and save the output (from 4.55.6 onwards)
-          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump 4.55.6..HEAD)
+          # Get the latest CLI version tag dynamically
+          LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+          echo "Latest version: $LATEST_VERSION"
+          
+          # Run git cliff and save the output
+          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump ${LATEST_VERSION}..HEAD)
           echo "Bumped output:"
           echo "${bumped_output}"
 
@@ -79,9 +83,10 @@ jobs:
             NEXT_VERSION="${{ github.event.inputs.version }}"
           else
             # Get the latest CLI version tag
-            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "4.55.6")
-            # Use git cliff to determine next version (from 4.55.6 onwards)
-            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version 4.55.6..HEAD)
+            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+            echo "Latest version: $LATEST_VERSION"
+            # Use git cliff to determine next version
+            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version ${LATEST_VERSION}..HEAD)
           fi
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
@@ -91,8 +96,10 @@ jobs:
         id: release-notes
         working-directory: cli
         run: |
+          # Get the latest CLI version tag dynamically
+          LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased 4.55.6..HEAD >> "$GITHUB_OUTPUT"
+          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update version in Constants.swift
@@ -119,10 +126,10 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
-          git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git commit -m "[Release] [skip ci] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin main
-          git push origin main --tags
+          git push origin ${{ github.ref_name }}
+          git push origin ${{ github.ref_name }} --tags
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

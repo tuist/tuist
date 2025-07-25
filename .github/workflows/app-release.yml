@@ -27,7 +27,7 @@ jobs:
     name: Setup and Check Release
     runs-on: namespace-profile-default-macos
     timeout-minutes: 20
-    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist App') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
     outputs:
       should-release: ${{ env.should-release }}
       next-version: ${{ steps.next-version.outputs.NEXT_VERSION }}
@@ -111,7 +111,7 @@ jobs:
 
   release-macos:
     name: Release macOS App
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     needs: setup
     if: needs.setup.outputs.should-release == 'true'
@@ -203,7 +203,7 @@ jobs:
 
   update-main:
     name: Update main with released apps
-    runs-on: macos-15
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 10
     needs: [setup, release-macos, release-ios]
     if: needs.setup.outputs.should-release == 'true'
@@ -227,10 +227,10 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add app/CHANGELOG.md app/Project.swift app/appcast.xml
-          git commit -m "[Release] Tuist App ${{ needs.setup.outputs.next-version }}"
+          git commit -m "[Release] [skip ci] Tuist App ${{ needs.setup.outputs.next-version }}"
           git tag ${{ needs.setup.outputs.next-version }}
-          git push origin main
-          git push origin main --tags
+          git push origin ${{ github.ref_name }}
+          git push origin ${{ github.ref_name }} --tags
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
