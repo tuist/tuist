@@ -48,22 +48,19 @@ jobs:
         run: |
           # Get the latest CLI version tag dynamically
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+          
+          # Use git cliff to determine next version
+          NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
+          
           echo "Latest version: $LATEST_VERSION"
-
-          # Check for unreleased changes
-          unreleased_changes=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD 2>/dev/null)
+          echo "Next version: $NEXT_VERSION"
           
-          echo "Checking for unreleased changes..."
-          echo "Unreleased changes:"
-          echo "${unreleased_changes}"
-          
-          # Check if there are any unreleased changes
-          # git cliff returns empty output when there are no unreleased changes
-          if [ -n "${unreleased_changes}" ] && [ "${unreleased_changes}" != "" ]; then
-            echo "Found releasable changes"
+          # Compare versions to determine if release is needed
+          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
+            echo "Version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
             echo "should-release=true" >> $GITHUB_ENV
           else
-            echo "No releasable changes found"
+            echo "No version change detected"
             echo "should-release=false" >> $GITHUB_ENV
           fi
 
@@ -81,7 +78,7 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "Latest version: $LATEST_VERSION"
           # Use git cliff to determine next version
-          NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version -- ${LATEST_VERSION}..HEAD)
+          NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION"
@@ -93,7 +90,7 @@ jobs:
           # Get the latest CLI version tag dynamically
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
+          git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased 2>/dev/null -- ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update version in Constants.swift
@@ -102,7 +99,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: cli
-        run: git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+        run: git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
         run: mise run cli:bundle

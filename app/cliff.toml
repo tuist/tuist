@@ -2,7 +2,7 @@
 # https://git-cliff.org/docs/configuration
 
 [bump]
-initial_tag = "0.3.0"
+initial_tag = "0.20.2"
 
 [remote.github]
 owner = "tuist"
