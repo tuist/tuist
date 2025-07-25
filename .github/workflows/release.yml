@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-workflow-${{ github.ref }}
   cancel-in-progress: true
 
 env:
