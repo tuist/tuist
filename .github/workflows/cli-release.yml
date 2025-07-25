@@ -42,7 +42,7 @@ jobs:
         with:
           version: 2025.7.0
           experimental: true
-      
+
       # Check if there are releasable changes
       - name: Check if there are releasable changes
         id: is-releasable
@@ -64,15 +64,14 @@ jobs:
           else
             echo "should-release=false" >> $GITHUB_ENV
           fi
-      
+
       # Early exit if no release needed
       - name: Exit if no release needed
         if: env.should-release == 'false' && github.event.inputs.version == ''
         run: |
           echo "No releasable changes found and no version manually specified. Exiting."
           exit 0
-      
-      # Get next version
+
       - name: Get next version
         working-directory: cli
         id: next-version
@@ -89,8 +88,7 @@ jobs:
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION"
-      
-      # Get release notes
+
       - name: Get release notes
         id: release-notes
         working-directory: cli
@@ -98,31 +96,27 @@ jobs:
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased 4.55.6..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-      
+
       # Update version in Constants.swift
       - name: Update version in Constants.swift
         run: |
           sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" "cli/Sources/TuistSupport/Constants.swift"
-      
-      # Update CHANGELOG.md
+
       - name: Update CHANGELOG.md
         working-directory: cli
         run: git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
-      
-      # Update mise.toml
+
       - name: Update mise.toml
         run: |
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" mise.toml
-      
-      # Bundle CLI
+
       - name: Bundle CLI
         run: mise run cli:bundle
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
           BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE }}
-      
-      # Commit changes and create tag
+
       - name: Commit changes
         run: |
           git config user.name "github-actions"
@@ -132,8 +126,7 @@ jobs:
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
           git push origin main
           git push origin main --tags
-      
-      # Create GitHub Release
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -149,15 +142,13 @@ jobs:
             build/tuist.zip
             build/SHASUMS256.txt
             build/SHASUMS512.txt
-      
-      # Get CLI SHA256 for Homebrew
+
       - name: Get CLI SHA256
         id: sha256
         run: |
           SHA256=$(grep "tuist.zip" build/SHASUMS256.txt | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-      
-      # Release Homebrew Formula
+
       - name: Release Homebrew Formula
         run: |
           # Clone homebrew-tuist repo
