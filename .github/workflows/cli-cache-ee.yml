@@ -34,6 +34,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  inspect-implicit-imports:
+    name: Inspect Implicit Imports
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-cli-
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2025.7.0
+          experimental: true
+      - name: Run tests
+        run: mise x -- tuist inspect implicit-imports
+        env:
+          TUIST_EE: 1
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
     runs-on: macos-15
