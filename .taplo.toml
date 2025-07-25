@@ -1,4 +1,5 @@
 # Configuration for Zed's TOML extension to format files.
+# Docs: https://zed.dev/docs/languages/toml
 [formatting]
     include = ["**/*.toml"]
     indent_tables = true
