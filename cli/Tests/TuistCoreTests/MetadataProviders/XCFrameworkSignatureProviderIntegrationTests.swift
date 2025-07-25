@@ -218,4 +218,6 @@ private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
     func writeAsJSON(_: some Encodable, at _: Path.AbsolutePath, encoder _: JSONEncoder) async throws {
         throw unexpectedCallError()
     }
+
+    func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { throw unexpectedCallError() }
 }

@@ -283,6 +283,10 @@ public enum EnvKey: String, CaseIterable {
 
     case logoutPath = "TUIST_LOGOUT_PATH"
 
+    // AUTH REFRESH-TOKEN
+
+    case authRefreshTokenServerURL = "TUIST_AUTH_REFRESH_TOKEN_SERVER_URL"
+
     // ANALYTICS
 
     case analyticsPath = "TUIST_ANALYTICS_PATH"

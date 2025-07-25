@@ -125,7 +125,6 @@ public final class ServerSessionController: ServerSessionControlling {
                 deviceCode: deviceCode
             )
             let credentials = ServerCredentials(
-                token: nil,
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken
             )
@@ -146,8 +145,8 @@ public final class ServerSessionController: ServerSessionControlling {
         )
         else { return nil }
         switch token {
-        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
-            return accessToken?.preferredUsername
+        case let .user(accessToken: accessToken, refreshToken: _):
+            return accessToken.preferredUsername
         case .project:
             return nil
         }
@@ -161,8 +160,8 @@ public final class ServerSessionController: ServerSessionControlling {
             throw ServerSessionControllerError.unauthenticated
         }
         switch token {
-        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
-            guard let username = accessToken?.preferredUsername else {
+        case let .user(accessToken: accessToken, refreshToken: _):
+            guard let username = accessToken.preferredUsername else {
                 throw ServerSessionControllerError.unauthenticated
             }
             return username

@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCore
 import TuistGit
 import TuistLoader
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog

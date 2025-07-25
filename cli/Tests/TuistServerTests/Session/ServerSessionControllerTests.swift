@@ -59,7 +59,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .read(serverURL: .value(serverURL))
             .willReturn(
                 ServerCredentials(
-                    token: nil, accessToken: "access-token", refreshToken: "refresh-token"
+                    accessToken: "access-token", refreshToken: "refresh-token"
                 )
             )
         given(credentialsStore)
@@ -85,7 +85,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
                 .user(
-                    legacyToken: nil,
                     accessToken: .test(
                         email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
@@ -109,22 +108,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
-                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
-            )
-
-        // When
-        let got = try await subject.whoami(serverURL: serverURL)
-
-        // Then
-        XCTAssertEqual(got, nil)
-    }
-
-    func test_whoami_when_logged_in_with_legacy_token() async throws {
-        // Given
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(
-                .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
+                nil
             )
 
         // When
@@ -140,7 +124,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
                 .user(
-                    legacyToken: nil,
                     accessToken: .test(
                         email: "tuist@tuist.dev",
                         preferredUsername: "tuist"
@@ -163,7 +146,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
-                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
+                nil
             )
 
         // Then
@@ -171,32 +154,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             try await subject.authenticatedHandle(serverURL: serverURL),
             ServerSessionControllerError.unauthenticated
         )
-    }
-
-    func test_logout_deletesLegacyCredentials() async throws {
-        try await withMockedDependencies {
-            // Given
-            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
-            given(serverCredentialsStore)
-                .delete(serverURL: .any)
-                .willReturn()
-            let credentials = ServerCredentials(
-                token: "token",
-                accessToken: nil,
-                refreshToken: nil
-            )
-            given(credentialsStore)
-                .store(credentials: .value(credentials), serverURL: .value(serverURL))
-                .willReturn()
-            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-
-            given(credentialsStore)
-                .delete(serverURL: .value(serverURL))
-                .willReturn()
-
-            // When
-            try await subject.logout(serverURL: serverURL)
-        }
     }
 
     func test_logout_deletesCredentials() async throws {
@@ -207,7 +164,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
                 .delete(serverURL: .any)
                 .willReturn()
             let credentials = ServerCredentials(
-                token: nil,
                 accessToken: "access-token",
                 refreshToken: "refresh-token"
             )

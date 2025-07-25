@@ -25,14 +25,16 @@ public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void)
 
     let (logger, logFilePath) = try await initLogger()
 
-    try await Noora.$current.withValue(initNoora()) {
-        try await Logger.$current.withValue(logger) {
-            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                    try await RecentPathsStore.$current
-                        .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                            try await action(logFilePath)
-                        }
+    try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+        try await Noora.$current.withValue(initNoora()) {
+            try await Logger.$current.withValue(logger) {
+                try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                    try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                        try await RecentPathsStore.$current
+                            .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                                try await action(logFilePath)
+                            }
+                    }
                 }
             }
         }

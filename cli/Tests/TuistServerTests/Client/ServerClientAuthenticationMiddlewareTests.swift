@@ -48,7 +48,6 @@ struct ServerClientAuthenticationMiddlewareTests {
             status: 200
         )
         let token: AuthenticationToken? = .user(
-            legacyToken: nil,
             accessToken: .test(token: "access-token"),
             refreshToken: .test(token: "refresh-token")
         )

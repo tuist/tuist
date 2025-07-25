@@ -60,6 +60,7 @@ let targets: [Target] = [
             "XcodeProj",
             pathDependency,
             argumentParserDependency,
+            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             "TuistCore",
             "TuistSupport",
             "TuistGenerator",
@@ -298,10 +299,21 @@ let targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistProcess",
+        dependencies: [
+            "Mockable"
+        ],
+        path: "cli/Sources/TuistProcess",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
         name: "TuistAnalytics",
         dependencies: [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
+            "TuistServer",
             "TuistCore",
             "XcodeGraph",
             "TuistLoader",
@@ -342,6 +354,7 @@ let targets: [Target] = [
             "XcodeGraph",
             "Mockable",
             "KeychainAccess",
+            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "swift-http-types"),
@@ -578,7 +591,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph", .upToNextMajor(from: "1.17.0")),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.8.0")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.11.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
@@ -614,7 +627,8 @@ let package = Package(
         ),
         .package(url: "https://github.com/kean/Nuke", .upToNextMajor(from: "12.8.0")),
         .package(url: "https://github.com/leif-ibsen/SwiftECC", exact: "5.5.0"),
-        .package(url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
+        .package(
+            url: "https://github.com/lfroms/fluid-menu-bar-extra", .upToNextMajor(from: "1.1.0")),
     ],
     targets: targets
 )

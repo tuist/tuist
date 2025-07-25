@@ -101,7 +101,6 @@ final class LoginService: LoginServicing {
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(
-                token: nil,
                 accessToken: authenticationTokens.accessToken,
                 refreshToken: authenticationTokens.refreshToken
             ),

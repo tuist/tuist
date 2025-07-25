@@ -114,9 +114,9 @@ extension Environmenting {
 /// Local environment controller.
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
+
     public var processId = UUID().uuidString
 
-    /// File handler instance.
     public var variables: [String: String] { ProcessInfo.processInfo.environment }
     public var arguments: [String] { ProcessInfo.processInfo.arguments }
 

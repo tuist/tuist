@@ -1,20 +1,23 @@
+import AppKit
 import Foundation
 import Mockable
 
 @Mockable
-protocol BackgroundProcessRunning {
+public protocol BackgroundProcessRunning {
     func runInBackground(
         _ arguments: [String],
         environment: [String: String]
     ) throws
 }
 
-struct BackgroundProcessRunner: BackgroundProcessRunning {
-    func runInBackground(
+public struct BackgroundProcessRunner: BackgroundProcessRunning {
+    public init() {}
+
+    public func runInBackground(
         _ arguments: [String],
         environment: [String: String]
     ) throws {
-        let process = Process()
+        let process = Foundation.Process()
         process.environment = environment
         process.launchPath = arguments.first
         process.arguments = Array(arguments.dropFirst())

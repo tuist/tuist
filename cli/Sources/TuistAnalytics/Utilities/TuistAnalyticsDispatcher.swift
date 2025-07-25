@@ -1,5 +1,7 @@
 import Foundation
 import TuistCore
+import TuistServer
+import TuistSupport
 
 /// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported to the Tuist server (if defined)
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
@@ -17,10 +19,13 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
 
     public func dispatch(event: AsyncQueueEvent, completion: @escaping () async throws -> Void) throws {
         guard let commandEvent = event as? CommandEvent else { return }
-
         Task {
-            _ = try? await backend.send(commandEvent: commandEvent)
-            try await completion()
+            // The queue dependency that we use uses Dispatch and Operations, which don't propagate the task local states.
+            // Since analytics dispatcher is something we run only in the CLI, we can assume background refresh.
+            try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+                _ = try? await backend.send(commandEvent: commandEvent)
+                try await completion()
+            }
         }
     }
 

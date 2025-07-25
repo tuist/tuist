@@ -105,7 +105,12 @@ public struct TuistCommand: AsyncParsableCommand {
             let config = try await ConfigLoader().loadConfig(path: path)
             let url = try ServerEnvironmentService().url(configServerURL: config.url)
             let backend: TuistAnalyticsServerBackend?
-            if let fullHandle = config.fullHandle, processedArguments.prefix(2) != ["inspect", "build"] {
+            if let fullHandle = config.fullHandle, processedArguments.prefix(2) != ["inspect", "build"],
+               processedArguments.prefix(2) != [
+                   "auth",
+                   "refresh-token",
+               ]
+            {
                 let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
                     fullHandle: fullHandle,
                     url: url
