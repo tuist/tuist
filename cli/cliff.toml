@@ -2,7 +2,7 @@
 # https://git-cliff.org/docs/configuration
 
 [bump]
-initial_tag = "4.55.6"
+initial_tag = "4.56.0"
 
 [remote.github]
 owner = "tuist"
