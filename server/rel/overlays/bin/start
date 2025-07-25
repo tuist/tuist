@@ -25,4 +25,4 @@ echo "Migration completed successfully."
 
 # Starting the server
 echo "Starting the server..."
-PHX_SERVER=true exec ./tuist start
+TUIST_WEB=true TUIST_WORKER=true exec ./tuist start
