@@ -11,10 +11,6 @@ permissions:
   statuses: write
   packages: write
 
-concurrency:
-  group: app-release-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -51,7 +47,7 @@ jobs:
         run: |
           # Get the latest app version tag
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1)
-          
+
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
             NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
@@ -59,15 +55,15 @@ jobs:
             # No app tags exist, use git cliff without range
             NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null)
           fi
-          
+
           # Add app@ prefix if not present
           if [[ "$NEXT_VERSION" != app@* ]]; then
             NEXT_VERSION="app@$NEXT_VERSION"
           fi
-          
+
           echo "Latest version: ${LATEST_VERSION:-none}"
           echo "Next version: $NEXT_VERSION"
-          
+
           # Compare versions to determine if release is needed
           if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
             echo "Version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
@@ -83,7 +79,7 @@ jobs:
         run: |
           # Get the latest app version tag
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1)
-          
+
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
             NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
@@ -91,7 +87,7 @@ jobs:
             # No app tags exist, use git cliff without range
             NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null)
           fi
-          
+
           # Add app@ prefix if not present
           if [[ "$NEXT_VERSION" != app@* ]]; then
             NEXT_VERSION="app@$NEXT_VERSION"
@@ -106,7 +102,7 @@ jobs:
         run: |
           # Get the latest app version tag
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1)
-          
+
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
             git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased 2>/dev/null -- ${LATEST_VERSION}..HEAD >> "$GITHUB_OUTPUT"
@@ -127,7 +123,7 @@ jobs:
         run: |
           # Get the latest app version tag
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1)
-          
+
           if [ -n "$LATEST_VERSION" ]; then
             git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
           else
@@ -262,7 +258,7 @@ jobs:
           git add app/CHANGELOG.md app/Project.swift app/appcast.xml
           git commit -m "[Release] Tuist App ${{ needs.setup.outputs.next-version }}"
           git tag ${{ needs.setup.outputs.next-version }}
-          
+
           # Pull and rebase to avoid conflicts from concurrent releases
           max_attempts=5
           attempt=1
@@ -278,7 +274,7 @@ jobs:
             sleep 5
             attempt=$((attempt + 1))
           done
-          
+
           if [ $attempt -gt $max_attempts ]; then
             echo "Failed to push after $max_attempts attempts"
             exit 1

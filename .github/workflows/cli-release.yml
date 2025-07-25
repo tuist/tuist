@@ -11,10 +11,6 @@ permissions:
   statuses: write
   packages: write
 
-concurrency:
-  group: cli-release-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -48,13 +44,13 @@ jobs:
         run: |
           # Get the latest CLI version tag dynamically
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
-          
+
           # Use git cliff to determine next version
           NEXT_VERSION=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-          
+
           echo "Latest version: $LATEST_VERSION"
           echo "Next version: $NEXT_VERSION"
-          
+
           # Compare versions to determine if release is needed
           if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
             echo "Version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
@@ -119,7 +115,7 @@ jobs:
           git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
           git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          
+
           # Pull and rebase to avoid conflicts from concurrent releases
           max_attempts=5
           attempt=1
@@ -135,7 +131,7 @@ jobs:
             sleep 5
             attempt=$((attempt + 1))
           done
-          
+
           if [ $attempt -gt $max_attempts ]; then
             echo "Failed to push after $max_attempts attempts"
             exit 1
