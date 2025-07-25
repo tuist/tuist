@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 ## What's Changed in 4.55.7
 ### 🐛 Bug Fixes
 
-* token refresh race condition
+* token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
+
+## New Contributors
+* [@ns-vasilev](https://github.com/ns-vasilev) made their first contribution in [#7660](https://github.com/tuist/tuist/pull/7660)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.55.5...4.55.7
 
