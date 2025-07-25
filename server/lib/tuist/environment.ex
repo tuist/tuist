@@ -2,26 +2,6 @@ defmodule Tuist.Environment do
   @moduledoc false
   @env Mix.env()
 
-  defmodule Version do
-    @moduledoc ~S"""
-    A module that represents a Tuist version.
-    Tuist versions follow the convention MAJOR.YY.MM.DD.
-    """
-    @type t :: %{
-            major: integer(),
-            date: Date.t()
-          }
-    @enforce_keys [:major, :date]
-
-    defstruct [:major, :date]
-  end
-
-  defimpl String.Chars, for: Version do
-    def to_string(version) do
-      "#{version.major}.#{Timex.format!(version.date, "{YY}.{0M}.{0D}")}"
-    end
-  end
-
   def env do
     @env
   end
@@ -140,28 +120,9 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    version = get([:version])
-
-    case version do
-      nil ->
-        %Version{major: "1", date: Date.utc_today()}
-
-      "" ->
-        %Version{major: "1", date: Date.utc_today()}
-
-      version ->
-        [major, yy, mm, dd] = String.split(version, ".")
-
-        date =
-          "#{yy}-#{mm}-#{dd}"
-          |> Timex.parse("%y-%m-%d", :strftime)
-          |> case do
-            {:ok, date} -> date
-            # Fallback in case of error
-            {:error, _} -> Date.utc_today()
-          end
-
-        %Version{major: major, date: date}
+    case (get([:version]) || "0.1.0") |> Version.parse() do
+      :error -> nil
+      {:ok, version} -> version
     end
   end
 
