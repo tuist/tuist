@@ -50,8 +50,13 @@ jobs:
         id: is-releasable
         working-directory: app
         run: |
-          # Run git cliff and save the output (from app@0.20.2 onwards)
-          bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump app@0.20.2..HEAD)
+          # Run git cliff and save the output
+          # Check if app@0.20.2 tag exists
+          if git rev-parse app@0.20.2 >/dev/null 2>&1; then
+            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump app@0.20.2..HEAD)
+          else
+            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump)
+          fi
           echo "Bumped output:"
           echo "${bumped_output}"
 
@@ -73,8 +78,12 @@ jobs:
         run: |
           # Get the latest app version tag
           LATEST_VERSION=$(git tag -l | grep "app@" | sort -V | tail -n1 || echo "app@0.20.2")
-          # Use git cliff to determine next version (from app@0.20.2 onwards)
-          NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version app@0.20.2..HEAD)
+          # Use git cliff to determine next version
+          if git rev-parse app@0.20.2 >/dev/null 2>&1; then
+            NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version app@0.20.2..HEAD)
+          else
+            NEXT_VERSION=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bumped-version)
+          fi
 
           if [ "$NEXT_VERSION" = "0.1.0" ]; then
             NEXT_VERSION="app@0.1.0"
@@ -88,7 +97,11 @@ jobs:
         working-directory: app
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased app@0.20.2..HEAD >> "$GITHUB_OUTPUT"
+          if git rev-parse app@0.20.2 >/dev/null 2>&1; then
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased app@0.20.2..HEAD >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased >> "$GITHUB_OUTPUT"
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
       - name: Update version
         working-directory: app
@@ -99,7 +112,12 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: app
         if: env.should-release == 'true'
-        run: git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+        run: |
+          if git rev-parse app@0.20.2 >/dev/null 2>&1; then
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md app@0.20.2..HEAD
+          else
+            git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+          fi
       - name: Upload updated files as artifact
         if: env.should-release == 'true'
         uses: actions/upload-artifact@v4
