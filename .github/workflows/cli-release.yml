@@ -128,8 +128,27 @@ jobs:
           git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
           git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --tags
+          
+          # Pull and rebase to avoid conflicts from concurrent releases
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            if git pull --rebase origin ${{ github.ref_name }}; then
+              if git push origin ${{ github.ref_name }} && git push origin ${{ steps.next-version.outputs.NEXT_VERSION }}; then
+                echo "Successfully pushed changes"
+                break
+              fi
+            fi
+            echo "Push failed, retrying in 5 seconds..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "Failed to push after $max_attempts attempts"
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

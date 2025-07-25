@@ -125,6 +125,8 @@ jobs:
           fi
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          # Extract just the version number without the 'server@' prefix for Docker tags
+          echo "NEXT_VERSION_NUMBER=${NEXT_VERSION#server@}" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION"
 
       - name: Get release notes
@@ -152,7 +154,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - name: Image metadata
         id: meta
@@ -163,7 +165,8 @@ jobs:
           flavor: |
             latest=true
           tags: |
-            type=raw,value=${{ steps.next-version.outputs.NEXT_VERSION }}
+            type=raw,value=${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
@@ -179,7 +182,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
-            TUIST_VERSION=${{ steps.next-version.outputs.NEXT_VERSION }}
+            TUIST_VERSION=${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -193,8 +196,27 @@ jobs:
           git add CHANGELOG.md
           git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
-          git push origin ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --tags
+          
+          # Pull and rebase to avoid conflicts from concurrent releases
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            if git pull --rebase origin ${{ github.ref_name }}; then
+              if git push origin ${{ github.ref_name }} && git push origin ${{ steps.next-version.outputs.NEXT_VERSION }}; then
+                echo "Successfully pushed changes"
+                break
+              fi
+            fi
+            echo "Push failed, retrying in 5 seconds..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "Failed to push after $max_attempts attempts"
+            exit 1
+          fi
 
       # Create GitHub releases
       - name: Create GitHub Release
