@@ -108,7 +108,8 @@ jobs:
         if: env.should-release == 'true'
         run: |
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}\",/g" "Project.swift"
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}\",/g" "Project.swift"
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"$COMMIT_COUNT\",/g" "Project.swift"
       - name: Update CHANGELOG.md
         working-directory: app
         if: env.should-release == 'true'
