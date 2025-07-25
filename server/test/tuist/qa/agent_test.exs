@@ -84,7 +84,10 @@ defmodule Tuist.QA.AgentTest do
                Agent.test(%{
                  preview_url: preview_url,
                  bundle_identifier: bundle_identifier,
-                 prompt: prompt
+                 prompt: prompt,
+                 server_url: "https://example.com",
+                 run_id: "run-id",
+                 auth_token: "auth-token"
                })
     end
 
@@ -97,7 +100,10 @@ defmodule Tuist.QA.AgentTest do
                Agent.test(%{
                  preview_url: "https://example.com/preview.zip",
                  bundle_identifier: "com.example.app",
-                 prompt: "Test feature"
+                 prompt: "Test feature",
+                 server_url: "https://example.com",
+                 run_id: "run-id",
+                 auth_token: "auth-token"
                })
     end
 
@@ -111,7 +117,10 @@ defmodule Tuist.QA.AgentTest do
                Agent.test(%{
                  preview_url: "https://example.com/invalid.zip",
                  bundle_identifier: "com.example.app",
-                 prompt: "Test feature"
+                 prompt: "Test feature",
+                 server_url: "https://example.com",
+                 run_id: "run-id",
+                 auth_token: "auth-token"
                })
     end
 
@@ -125,7 +134,10 @@ defmodule Tuist.QA.AgentTest do
                Agent.test(%{
                  preview_url: "https://example.com/preview.zip",
                  bundle_identifier: "com.example.app",
-                 prompt: "Test feature"
+                 prompt: "Test feature",
+                 server_url: "https://example.com",
+                 run_id: "run-id",
+                 auth_token: "auth-token"
                })
     end
 
@@ -215,7 +227,10 @@ defmodule Tuist.QA.AgentTest do
                Agent.test(%{
                  preview_url: preview_url,
                  bundle_identifier: bundle_identifier,
-                 prompt: "Test feature"
+                 prompt: "Test feature",
+                 server_url: "https://example.com",
+                 run_id: "run-id",
+                 auth_token: "auth-token"
                })
     end
   end

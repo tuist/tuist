@@ -21,6 +21,7 @@ defmodule Tuist.QA.ToolsTest do
         "touch",
         "gesture",
         "screenshot",
+        "step_finished",
         "finalize"
       ]
 
@@ -494,18 +495,31 @@ defmodule Tuist.QA.ToolsTest do
     end
   end
 
+  describe "step_finished tool" do
+    test "returns confirmation message" do
+      # Given
+      summary = "Successfully completed login test"
+      step_finished_tool = Enum.find(Tools.tools(), &(&1.name == "step_finished"))
+
+      # When
+      result = step_finished_tool.function.(%{"summary" => summary}, nil)
+
+      # Then
+      assert {:ok, "Step finished. Continue with your testing."} = result
+    end
+  end
+
   describe "finalize tool" do
     test "returns summary and status" do
       # Given
       summary = "Test completed successfully"
-      status = "passed"
       finalize_tool = Enum.find(Tools.tools(), &(&1.name == "finalize"))
 
       # When
-      result = finalize_tool.function.(%{"summary" => summary, "status" => status}, nil)
+      result = finalize_tool.function.(%{"summary" => summary}, nil)
 
       # Then
-      assert {:ok, "The QA test run finished successfully."} = result
+      assert {:ok, "QA test run finished successfully."} = result
     end
   end
 end

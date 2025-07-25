@@ -11,7 +11,9 @@ defmodule Tuist.Accounts.AccountToken do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "account_tokens" do
     field :encrypted_token_hash, :string
-    field :scopes, {:array, Ecto.Enum}, values: [account_registry_read: 0]
+
+    field :scopes, {:array, Ecto.Enum},
+      values: [account_registry_read: 0, project_qa_run_update: 1, project_qa_run_step_create: 2]
 
     belongs_to :account, Account
 

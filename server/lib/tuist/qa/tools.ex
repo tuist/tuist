@@ -8,7 +8,7 @@ defmodule Tuist.QA.Tools do
 
   require Logger
 
-  def tools do
+  def tools(context \\ %{}) do
     [
       describe_ui_tool(),
       tap_tool(),
@@ -20,7 +20,8 @@ defmodule Tuist.QA.Tools do
       touch_tool(),
       gesture_tool(),
       screenshot_tool(),
-      finalize_tool()
+      step_finished_tool(context),
+      finalize_tool(context)
     ]
   end
 
@@ -436,7 +437,53 @@ defmodule Tuist.QA.Tools do
     })
   end
 
-  defp finalize_tool do
+  defp step_finished_tool(context) do
+    Function.new!(%{
+      name: "step_finished",
+      description: "Marks a finished testing step. Call this often to mark your progress.",
+      parameters: [
+        FunctionParam.new!(%{
+          name: "summary",
+          type: :string,
+          description: "Summary of the finished testing step",
+          required: true
+        })
+      ],
+      function: fn %{"summary" => summary} = _params, _llm_context ->
+        server_url = Map.get(context, :server_url)
+        run_id = Map.get(context, :run_id)
+        auth_token = Map.get(context, :auth_token)
+
+        create_step(summary, server_url, run_id, auth_token)
+      end
+    })
+  end
+
+  def create_step(summary, server_url, run_id, auth_token) do
+    if server_url && run_id && auth_token do
+      url = "#{server_url}/api/qa/runs/#{run_id}/steps"
+
+      case Req.post(url,
+             json: %{summary: summary},
+             headers: [{"authorization", "Bearer #{auth_token}"}]
+           ) do
+        {:ok, %{status: status}} when status in 200..299 ->
+          {:ok, "Step finished and reported. Continue with your testing."}
+
+        {:ok, response} ->
+          Logger.warning("Failed to report step: #{inspect(response)}")
+          {:ok, "Step finished (reporting failed). Continue with your testing."}
+
+        {:error, reason} ->
+          Logger.warning("Failed to report step: #{inspect(reason)}")
+          {:ok, "Step finished (reporting failed). Continue with your testing."}
+      end
+    else
+      {:ok, "Step finished. Continue with your testing."}
+    end
+  end
+
+  defp finalize_tool(context) do
     Function.new!(%{
       name: "finalize",
       description: "Gathers the QA session summary and sends it to the server",
@@ -448,8 +495,32 @@ defmodule Tuist.QA.Tools do
           required: true
         })
       ],
-      function: fn %{"summary" => _summary} = _params, _context ->
-        {:ok, "The QA test run finished successfully."}
+      function: fn %{"summary" => summary} = _params, _llm_context ->
+        server_url = Map.get(context, :server_url)
+        run_id = Map.get(context, :run_id)
+        auth_token = Map.get(context, :auth_token)
+
+        if server_url && run_id && auth_token do
+          url = "#{server_url}/api/qa/runs/#{run_id}"
+
+          case Req.patch(url,
+                 json: %{status: "finished", summary: summary},
+                 headers: [{"authorization", "Bearer #{auth_token}"}]
+               ) do
+            {:ok, %{status: status}} when status in 200..299 ->
+              {:ok, "QA test run finished successfully and status updated."}
+
+            {:ok, response} ->
+              Logger.warning("Failed to update run status: #{inspect(response)}")
+              {:ok, "QA test run finished (status update failed)."}
+
+            {:error, reason} ->
+              Logger.warning("Failed to update run status: #{inspect(reason)}")
+              {:ok, "QA test run finished (status update failed)."}
+          end
+        else
+          {:ok, "QA test run finished successfully."}
+        end
       end
     })
   end

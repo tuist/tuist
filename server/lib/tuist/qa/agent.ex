@@ -15,7 +15,14 @@ defmodule Tuist.QA.Agent do
 
   require Logger
 
-  def test(%{preview_url: preview_url, bundle_identifier: bundle_identifier, prompt: prompt}) do
+  def test(%{
+        preview_url: preview_url,
+        bundle_identifier: bundle_identifier,
+        prompt: prompt,
+        server_url: server_url,
+        run_id: run_id,
+        auth_token: auth_token
+      }) do
     with {:ok, simulator_device} <- simulator_device(),
          :ok <- run_preview(preview_url, bundle_identifier, simulator_device) do
       handler = %{
@@ -48,24 +55,25 @@ defmodule Tuist.QA.Agent do
           api_key: Tuist.Environment.anthropic_api_key()
         })
 
-      run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)])
+      context = %{server_url: server_url, run_id: run_id, auth_token: auth_token}
+      run_llm(%{llm: llm, max_retry_count: 10}, handler, [Message.new_user!(prompt)], context)
 
       :ok
     end
   end
 
-  defp run_llm(attrs, handler, messages) do
+  defp run_llm(attrs, handler, messages, context) do
     case attrs
          |> LLMChain.new!()
          |> LLMChain.add_messages(messages)
-         |> LLMChain.add_tools(Tools.tools())
+         |> LLMChain.add_tools(Tools.tools(context))
          |> LLMChain.add_callback(handler)
          |> LLMChain.run_until_tool_used(["describe_ui", "screenshot", "finalize"]) do
       {:ok, %LLMChain{last_message: last_message} = chain, tool_result} ->
         case tool_result.name do
           tool_name when tool_name in ["describe_ui", "screenshot"] ->
             trimmed_messages = trim_tool_messages(Enum.drop(chain.messages, -1), tool_name)
-            run_llm(attrs, handler, trimmed_messages ++ [last_message])
+            run_llm(attrs, handler, trimmed_messages ++ [last_message], context)
 
           "finalize" ->
             %ToolResult{content: [summary_message]} = tool_result

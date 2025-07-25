@@ -229,6 +229,11 @@ defmodule TuistWeb.Router do
         alias: TuistWeb.API,
         assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
+    
+    scope "/qa" do
+      post "/runs/:run_id/steps", QAController, :create_step
+      patch "/runs/:run_id", QAController, :update_run
+    end
 
     scope "/accounts/:account_handle" do
       patch "/", AccountController, :update_account

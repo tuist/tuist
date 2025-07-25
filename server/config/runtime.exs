@@ -301,7 +301,7 @@ config :tuist, Tuist.Guardian,
 
 # Prometheus
 config :tuist, Tuist.PromEx,
-  disabled: Tuist.Environment.env() == :test,
+  disabled: Tuist.Environment.env() == :test or Tuist.Environment.env() == :dev,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
