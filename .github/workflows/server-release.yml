@@ -57,7 +57,7 @@ jobs:
         id: is-releasable
         run: |
           # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
@@ -67,8 +67,16 @@ jobs:
             NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null)
           fi
 
-          # Add server@ prefix if not present
-          if [[ "$NEXT_VERSION" != server@* ]]; then
+          # Add server@ prefix if not present and remove any duplicate prefixes
+          if [[ "$NEXT_VERSION" == server@* ]]; then
+            # If it already has server@ prefix, extract just the version number and re-add single prefix
+            VERSION_NUM="${NEXT_VERSION#server@}"
+            # Remove any additional server@ prefixes
+            while [[ "$VERSION_NUM" == server@* ]]; do
+              VERSION_NUM="${VERSION_NUM#server@}"
+            done
+            NEXT_VERSION="server@$VERSION_NUM"
+          else
             NEXT_VERSION="server@$NEXT_VERSION"
           fi
 
@@ -95,7 +103,7 @@ jobs:
         if: env.should-release == 'true'
         run: |
           # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
@@ -105,8 +113,16 @@ jobs:
             NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version 2>/dev/null)
           fi
 
-          # Add server@ prefix if not present
-          if [[ "$NEXT_VERSION" != server@* ]]; then
+          # Add server@ prefix if not present and remove any duplicate prefixes
+          if [[ "$NEXT_VERSION" == server@* ]]; then
+            # If it already has server@ prefix, extract just the version number and re-add single prefix
+            VERSION_NUM="${NEXT_VERSION#server@}"
+            # Remove any additional server@ prefixes
+            while [[ "$VERSION_NUM" == server@* ]]; do
+              VERSION_NUM="${VERSION_NUM#server@}"
+            done
+            NEXT_VERSION="server@$VERSION_NUM"
+          else
             NEXT_VERSION="server@$NEXT_VERSION"
           fi
 
@@ -120,7 +136,7 @@ jobs:
         if: env.should-release == 'true'
         run: |
           # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -132,9 +148,10 @@ jobs:
 
       - name: Update CHANGELOG.md
         if: env.should-release == 'true'
+        working-directory: server
         run: |
           # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
@@ -188,7 +205,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add CHANGELOG.md
+          git add server/CHANGELOG.md
           git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
 
