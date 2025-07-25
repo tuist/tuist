@@ -103,6 +103,7 @@ jobs:
 
       - name: Get next version
         id: next-version
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         run: |
           # Use provided version or calculate next version
           if [ -n "${{ github.event.inputs.version }}" ]; then
@@ -133,13 +134,32 @@ jobs:
             fi
           fi
 
+          # Debug output
+          echo "NEXT_VERSION before output: $NEXT_VERSION"
+          
+          # Ensure we have a valid version
+          if [[ -z "$NEXT_VERSION" ]] || [[ "$NEXT_VERSION" == "server@" ]]; then
+            echo "Error: Invalid NEXT_VERSION"
+            exit 1
+          fi
+          
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           # Extract just the version number without the 'server@' prefix for Docker tags
-          echo "NEXT_VERSION_NUMBER=${NEXT_VERSION#server@}" >> "$GITHUB_OUTPUT"
-          echo "Next version: $NEXT_VERSION"
+          VERSION_NUMBER="${NEXT_VERSION#server@}"
+          echo "VERSION_NUMBER extracted: $VERSION_NUMBER"
+          
+          # Ensure we have a valid version number
+          if [[ -z "$VERSION_NUMBER" ]] || [[ "$VERSION_NUMBER" == "$NEXT_VERSION" ]]; then
+            echo "Error: Failed to extract version number from $NEXT_VERSION"
+            exit 1
+          fi
+          
+          echo "NEXT_VERSION_NUMBER=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Next version: $NEXT_VERSION (Docker tag: $VERSION_NUMBER)"
 
       - name: Get release notes
         id: release-notes
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
@@ -150,6 +170,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         run: |
           if git rev-parse server@0.1.0 >/dev/null 2>&1; then
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- server@0.1.0..HEAD
@@ -159,6 +180,7 @@ jobs:
 
       # Build and push Docker image
       - name: Login to GitHub Container Registry
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -167,6 +189,7 @@ jobs:
 
       - name: Image metadata
         id: meta
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -182,6 +205,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/tuist/tuist
 
       - name: Build and push
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         uses: docker/build-push-action@v6
         with:
           context: ./server
@@ -199,6 +223,7 @@ jobs:
 
       # Commit and tag
       - name: Commit changes
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -229,6 +254,7 @@ jobs:
 
       # Create GitHub releases
       - name: Create GitHub Release
+        if: env.should-release == 'true' || github.event.inputs.version != ''
         uses: softprops/action-gh-release@v2
         with:
           draft: false
