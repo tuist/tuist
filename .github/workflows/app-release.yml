@@ -27,7 +27,7 @@ jobs:
     name: Setup and Check Release
     runs-on: namespace-profile-default-macos
     timeout-minutes: 20
-    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist App') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist App') }}
     outputs:
       should-release: ${{ env.should-release }}
       next-version: ${{ steps.next-version.outputs.NEXT_VERSION }}
@@ -227,7 +227,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add app/CHANGELOG.md app/Project.swift app/appcast.xml
-          git commit -m "[Release] [skip ci] Tuist App ${{ needs.setup.outputs.next-version }}"
+          git commit -m "[Release] Tuist App ${{ needs.setup.outputs.next-version }}"
           git tag ${{ needs.setup.outputs.next-version }}
           git push origin ${{ github.ref_name }}
           git push origin ${{ github.ref_name }} --tags

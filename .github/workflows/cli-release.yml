@@ -27,7 +27,7 @@ jobs:
     name: Release CLI
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist CLI') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist CLI') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +50,7 @@ jobs:
           # Get the latest CLI version tag dynamically
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "Latest version: $LATEST_VERSION"
-          
+
           # Run git cliff and save the output
           bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump ${LATEST_VERSION}..HEAD)
           echo "Bumped output:"
@@ -126,7 +126,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
-          git commit -m "[Release] [skip ci] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
           git push origin ${{ github.ref_name }}
           git push origin ${{ github.ref_name }} --tags
