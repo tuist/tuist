@@ -54,25 +54,25 @@ jobs:
         id: is-releasable
         working-directory: app
         run: |
-          # Run git cliff and save the output
+          # Check for unreleased changes
           # Check if app@0.20.2 tag exists
           if git rev-parse app@0.20.2 >/dev/null 2>&1; then
-            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump -- app@0.20.2..HEAD)
+            unreleased_changes=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased -- app@0.20.2..HEAD)
           else
-            bumped_output=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --bump)
+            unreleased_changes=$(git cliff --include-path "app/**/*" --config cliff.toml --repository "../" --unreleased)
           fi
-          echo "Bumped output:"
-          echo "${bumped_output}"
-
-          # Read the content of CHANGELOG.md
-          changelog_content=$(cat CHANGELOG.md || echo "")
-          echo "CHANGELOG.md content:"
-          echo "${changelog_content}"
-
-          # Compare the outputs and set the result
-          if [ "${bumped_output}" != "${changelog_content}" ]; then
+          
+          echo "Checking for unreleased changes..."
+          echo "Unreleased changes:"
+          echo "${unreleased_changes}"
+          
+          # Check if there are any unreleased changes
+          # git cliff returns empty output when there are no unreleased changes
+          if [ -n "${unreleased_changes}" ] && [ "${unreleased_changes}" != "" ]; then
+            echo "Found releasable changes"
             echo "should-release=true" >> $GITHUB_ENV
           else
+            echo "No releasable changes found"
             echo "should-release=false" >> $GITHUB_ENV
           fi
       - name: Get next version

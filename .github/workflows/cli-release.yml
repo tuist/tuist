@@ -55,20 +55,20 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           echo "Latest version: $LATEST_VERSION"
 
-          # Run git cliff and save the output
-          bumped_output=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --bump -- ${LATEST_VERSION}..HEAD)
-          echo "Bumped output:"
-          echo "${bumped_output}"
-
-          # Read the content of CHANGELOG.md
-          changelog_content=$(cat CHANGELOG.md || echo "")
-          echo "CHANGELOG.md content:"
-          echo "${changelog_content}"
-
-          # Compare the outputs and set the result
-          if [ "${bumped_output}" != "${changelog_content}" ]; then
+          # Check for unreleased changes
+          unreleased_changes=$(git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased -- ${LATEST_VERSION}..HEAD)
+          
+          echo "Checking for unreleased changes..."
+          echo "Unreleased changes:"
+          echo "${unreleased_changes}"
+          
+          # Check if there are any unreleased changes
+          # git cliff returns empty output when there are no unreleased changes
+          if [ -n "${unreleased_changes}" ] && [ "${unreleased_changes}" != "" ]; then
+            echo "Found releasable changes"
             echo "should-release=true" >> $GITHUB_ENV
           else
+            echo "No releasable changes found"
             echo "should-release=false" >> $GITHUB_ENV
           fi
 
