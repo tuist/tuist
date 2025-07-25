@@ -21,6 +21,7 @@ body = """
 ## What's Changed
 
 {%- if version %} in {{ version }}{%- endif -%}
+<!-- RELEASE NOTES START -->
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
