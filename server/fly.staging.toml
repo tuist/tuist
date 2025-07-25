@@ -5,64 +5,64 @@ kill_timeout = "5s"
 console_command = "/app/bin/tuist remote"
 
 [[vm]]
-size = "shared-cpu-2x"
-memory = "2gb"
+  size = "shared-cpu-2x"
+  memory = "2gb"
 
 [experimental]
-auto_rollback = true
-cmd = ["sh", "-C", "/app/bin/server"]
+  auto_rollback = true
+  cmd = ["sh", "-C", "/app/bin/server"]
 
 [deploy]
-release_command = '/app/bin/migrate'
+  release_command = '/app/bin/migrate'
 
 [env]
-PORT = "8080"
-MIX_ENV = "stag"
-TUIST_APP_URL = "https://staging.tuist.dev"
-TUIST_HOSTED = "1"
-TUIST_USE_IPV6 = "1"
-TUIST_USE_SSL_FOR_DATABASE = "1"
-TUIST_DATABASE_POOL_SIZE = "15"
+  PORT = "8080"
+  MIX_ENV = "stag"
+  TUIST_APP_URL = "https://staging.tuist.dev"
+  TUIST_HOSTED = "1"
+  TUIST_USE_IPV6 = "1"
+  TUIST_USE_SSL_FOR_DATABASE = "1"
+  TUIST_DATABASE_POOL_SIZE = "15"
 
 [[vm]]
-cpu_kind = 'shared'
-memory = "2048mb"
-cpus = 2
+  cpu_kind = 'shared'
+  memory = "2048mb"
+  cpus = 2
 
 [[services]]
-protocol = "tcp"
-internal_port = 8080
-auto_stop_machines = "suspend"
-auto_start_machines = true
-processes = ["app"]
-http_options = { h2_backend = true }
+  protocol = "tcp"
+  internal_port = 8080
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  processes = ["app"]
+  http_options = { h2_backend = true }
 
-[[services.ports]]
-port = 80
-handlers = ["http"]
-force_https = true
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
 
-[[services.ports]]
-port = 443
-handlers = ["tls", "http"]
-[services.concurrency]
-type = "connections"
-soft_limit = 20
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 20
 
-[[services.http_checks]]
-interval = 10000
-grace_period = "10s"
-method = "get"
-path = "/ready"
-protocol = "http"
-timeout = 2000
-tls_skip_verify = false
-[services.http_checks.headers]
+  [[services.http_checks]]
+    interval = 10000
+    grace_period = "10s"
+    method = "get"
+    path = "/ready"
+    protocol = "http"
+    timeout = 2000
+    tls_skip_verify = false
+    [services.http_checks.headers]
 
 [[statics]]
-guest_path = "/app/public"
-url_prefix = "/"
+  guest_path = "/app/public"
+  url_prefix = "/"
 
 [[metrics]]
-port = 9091
-path = "/metrics"
+  port = 9091
+  path = "/metrics"
