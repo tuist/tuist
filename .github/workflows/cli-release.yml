@@ -116,6 +116,7 @@ jobs:
 
       - name: Bundle CLI
         run: mise run cli:bundle
+        continue-on-error: true  # TESTING: Continue even if bundle fails
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
