@@ -125,6 +125,11 @@ jobs:
               IFS='.' read -r major minor patch <<< "$VERSION_NUMBER"
               # Increment minor version by default
               NEXT_VERSION="server@${major}.$((minor + 1)).0"
+            else
+              # If NEXT_VERSION doesn't have server@ prefix, add it
+              if [[ "$NEXT_VERSION" != server@* ]]; then
+                NEXT_VERSION="server@$NEXT_VERSION"
+              fi
             fi
           fi
 
