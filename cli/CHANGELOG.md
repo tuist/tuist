@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.55.9<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek) in [#7918](https://github.com/tuist/tuist/pull/7918)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.55.8...4.55.9
+
 ## What's Changed in 4.55.8<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
