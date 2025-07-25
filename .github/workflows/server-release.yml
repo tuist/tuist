@@ -231,16 +231,3 @@ jobs:
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
 
-      - name: Create GitHub Release on tuist/server
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/server
-          name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          tag_name: ${{ steps.next-version.outputs.NEXT_VERSION }}
-          body: |
-            ## Server Release
-
-            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-          target_commitish: main
