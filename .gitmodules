@@ -3,4 +3,4 @@
 	url = https://github.com/fortmarek/ExampleTuistPlugin/
 [submodule "cli/TuistCacheEE"]
 	path = cli/TuistCacheEE
-	url = git@github.com:tuist/TuistCacheEE.git
+	url = https://github.com/tuist/TuistCacheEE/
