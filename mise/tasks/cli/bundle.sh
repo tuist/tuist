@@ -87,7 +87,7 @@ echo "$(format_subsection "Installing Tuist dependencies")"
 DEVELOPER_DIR=$XCODE_PATH tuist install --path $MISE_PROJECT_ROOT
 
 echo "$(format_subsection "Generating Xcode project")"
-DEVELOPER_DIR=$XCODE_PATH TUIST_DYNAMIC_PROJECT_FRAMEWORKS=0 tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
+DEVELOPER_DIR=$XCODE_PATH TUIST_FORCE_STATIC_LINKING=1 tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
 
 echo "$(format_subsection "Building tuist executable")"
 build_cli

@@ -29,6 +29,10 @@ public enum Module: String, CaseIterable {
     case git = "TuistGit"
     case rootDirectoryLocator = "TuistRootDirectoryLocator"
     case process = "TuistProcess"
+    
+    func forceStaticLinking() -> Bool {
+        return Environment.forceStaticLinking.getBoolean(default: false)
+    }
 
     public static func includeEE() -> Bool {
         return Environment.ee.getBoolean(default: false)
@@ -225,7 +229,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
         case .projectAutomation, .projectDescription:
-            return .framework
+            return  forceStaticLinking() ? .staticFramework : .framework
         default:
             return .staticFramework
         }
