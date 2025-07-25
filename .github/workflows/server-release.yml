@@ -22,7 +22,7 @@ concurrency:
 
 env:
   TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
-  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   MISE_EXPERIMENTAL: "1"
   PNPM_HOME: ~/.pnpm
@@ -139,16 +139,24 @@ jobs:
             exit 1
           fi
           
-          echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           # Extract just the version number without the 'server@' prefix for Docker tags
           VERSION_NUMBER="${NEXT_VERSION#server@}"
           echo "VERSION_NUMBER extracted: $VERSION_NUMBER"
           
-          # Ensure we have a valid version number
-          if [[ -z "$VERSION_NUMBER" ]] || [[ "$VERSION_NUMBER" == "$NEXT_VERSION" ]]; then
-            echo "Error: Failed to extract version number from $NEXT_VERSION"
-            exit 1
+          # Validate version number format (should be X.Y.Z)
+          if [[ ! "$VERSION_NUMBER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version number format: $VERSION_NUMBER"
+            # If git cliff failed due to API limits, fall back to incrementing the latest version
+            echo "Falling back to incrementing latest version due to invalid format"
+            LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
+            VERSION_NUMBER="${LATEST_VERSION#server@}"
+            IFS='.' read -r major minor patch <<< "$VERSION_NUMBER"
+            VERSION_NUMBER="${major}.$((minor + 1)).0"
+            NEXT_VERSION="server@$VERSION_NUMBER"
+            echo "Using fallback version: $NEXT_VERSION"
           fi
+          
+          echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           
           echo "NEXT_VERSION_NUMBER=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION (Docker tag: $VERSION_NUMBER)"
