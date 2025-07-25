@@ -91,6 +91,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.testing.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
