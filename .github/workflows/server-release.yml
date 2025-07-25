@@ -61,8 +61,13 @@ jobs:
       - name: Check if there are releasable changes
         id: is-releasable
         run: |
-          # Run git cliff and save the output (from server@0.1.0 onwards)
-          bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump server@0.1.0..HEAD)
+          # Run git cliff and save the output
+          # Check if server@0.1.0 tag exists
+          if git rev-parse server@0.1.0 >/dev/null 2>&1; then
+            bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump server@0.1.0..HEAD)
+          else
+            bumped_output=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump)
+          fi
           echo "Bumped output:"
           echo "${bumped_output}"
 
@@ -101,8 +106,12 @@ jobs:
           else
             # Get the latest server version tag
             LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
-            # Use git cliff to determine next version (from server@0.1.0 onwards)
-            NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version server@0.1.0..HEAD)
+            # Use git cliff to determine next version
+            if git rev-parse server@0.1.0 >/dev/null 2>&1; then
+              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version server@0.1.0..HEAD)
+            else
+              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bumped-version)
+            fi
 
             # If git cliff returns 0.1.0, increment from the latest version
             if [ "$NEXT_VERSION" = "0.1.0" ]; then
@@ -122,11 +131,20 @@ jobs:
         id: release-notes
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased server@0.1.0..HEAD >> "$GITHUB_OUTPUT"
+          if git rev-parse server@0.1.0 >/dev/null 2>&1; then
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased server@0.1.0..HEAD >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased >> "$GITHUB_OUTPUT"
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
-        run: git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md server@0.1.0..HEAD
+        run: |
+          if git rev-parse server@0.1.0 >/dev/null 2>&1; then
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md server@0.1.0..HEAD
+          else
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+          fi
 
       # Build and push Docker image
       - name: Login to GitHub Container Registry
