@@ -27,7 +27,7 @@ jobs:
     name: Release CLI
     runs-on: macos-15
     timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist CLI') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist CLI') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +43,6 @@ jobs:
           version: 2025.7.0
           experimental: true
 
-      # Check if there are releasable changes
       - name: Check if there are releasable changes
         id: is-releasable
         working-directory: cli
@@ -65,7 +64,6 @@ jobs:
             echo "should-release=false" >> $GITHUB_ENV
           fi
 
-      # Early exit if no release needed
       - name: Exit if no release needed
         if: env.should-release == 'false' && github.event.inputs.version == ''
         run: |
@@ -97,7 +95,6 @@ jobs:
           git cliff --include-path "cli/**/*" --config cliff.toml --repository "../" --unreleased 4.55.6..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      # Update version in Constants.swift
       - name: Update version in Constants.swift
         run: |
           sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ steps.next-version.outputs.NEXT_VERSION }}\"/" "cli/Sources/TuistSupport/Constants.swift"
@@ -122,7 +119,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
-          git commit -m "[Release] [skip ci] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git commit -m "[Release] Tuist CLI ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
           git push origin main
           git push origin main --tags

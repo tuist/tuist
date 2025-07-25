@@ -28,7 +28,7 @@ jobs:
     name: Release Server
     runs-on: namespace-profile-default
     timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '[Release] [skip ci] Tuist Server') }}
+    if: ${{ !contains(github.event.head_commit.message, '[Release] Tuist Server') }}
     defaults:
       run:
         working-directory: server
@@ -57,8 +57,7 @@ jobs:
         with:
           version: 2025.7.0
           experimental: true
-      
-      # Check if there are releasable changes
+
       - name: Check if there are releasable changes
         id: is-releasable
         run: |
@@ -86,14 +85,13 @@ jobs:
           else
             echo "should-release=false" >> $GITHUB_ENV
           fi
-      
-      # Early exit if no release needed
+
       - name: Exit if no release needed
         if: env.should-release == 'false' && github.event.inputs.version == ''
         run: |
           echo "No releasable changes found and no version manually specified. Exiting."
           exit 0
-      
+
       - name: Get next version
         id: next-version
         run: |
@@ -119,17 +117,17 @@ jobs:
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Next version: $NEXT_VERSION"
-      
+
       - name: Get release notes
         id: release-notes
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --unreleased server@0.1.0..HEAD >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-      
+
       - name: Update CHANGELOG.md
         run: git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md server@0.1.0..HEAD
-      
+
       # Build and push Docker image
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -137,7 +135,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -152,7 +150,7 @@ jobs:
             org.opencontainers.image.title=Tuist
             org.opencontainers.image.vendor=Tuist GmbH
             org.opencontainers.image.source=https://github.com/tuist/tuist
-      
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -168,18 +166,18 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           github-token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      
+
       # Commit and tag
       - name: Commit changes
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add CHANGELOG.md
-          git commit -m "[Release] [skip ci] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          git commit -m "[Release] Tuist Server ${{ steps.next-version.outputs.NEXT_VERSION }}"
           git tag ${{ steps.next-version.outputs.NEXT_VERSION }}
           git push origin main
           git push origin main --tags
-      
+
       # Create GitHub releases
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -192,7 +190,7 @@ jobs:
             ## Server Release
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      
+
       - name: Create GitHub Release on tuist/server
         uses: softprops/action-gh-release@v2
         with:
