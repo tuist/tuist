@@ -100,6 +100,10 @@ jobs:
           # Use provided version or calculate next version
           if [ -n "${{ github.event.inputs.version }}" ]; then
             NEXT_VERSION="${{ github.event.inputs.version }}"
+            # Ensure manual version has server@ prefix
+            if [[ "$NEXT_VERSION" != server@* ]]; then
+              NEXT_VERSION="server@$NEXT_VERSION"
+            fi
           else
             # Get the latest server version tag
             LATEST_VERSION=$(git tag -l | grep "server@" | sort -V | tail -n1 || echo "server@0.1.0")
@@ -168,6 +172,16 @@ jobs:
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md -- server@0.1.0..HEAD
           else
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md
+          fi
+
+      - name: Debug version outputs
+        if: env.should-release == 'true' || github.event.inputs.version != ''
+        run: |
+          echo "NEXT_VERSION: ${{ steps.next-version.outputs.NEXT_VERSION }}"
+          echo "NEXT_VERSION_NUMBER: ${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}"
+          if [ -z "${{ steps.next-version.outputs.NEXT_VERSION_NUMBER }}" ]; then
+            echo "ERROR: NEXT_VERSION_NUMBER is not set!"
+            exit 1
           fi
 
       # Build and push Docker image
