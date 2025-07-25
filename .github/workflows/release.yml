@@ -129,9 +129,24 @@ jobs:
           if [ -n "$LATEST_VERSION" ]; then
             # Use git cliff to determine next version from the latest tag
             NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
+            
+            # If git cliff returns empty or starts with a number (CLI version), check for changes
+            if [ -z "$NEXT_VERSION" ] || [[ "$NEXT_VERSION" =~ ^[0-9] ]]; then
+              # Check if there are any changes in server directory since last tag
+              if git diff --quiet ${LATEST_VERSION}..HEAD -- server/; then
+                # No changes, keep current version
+                NEXT_VERSION="${LATEST_VERSION#server@}"
+              else
+                # There are changes, extract version and bump patch
+                VERSION_NUM="${LATEST_VERSION#server@}"
+                IFS='.' read -r major minor patch <<< "$VERSION_NUM"
+                NEXT_VERSION="$major.$minor.$((patch + 1))"
+              fi
+            fi
           else
-            # No server tags exist, use git cliff without range
-            NEXT_VERSION=$(git cliff --include-path "server/**/*" --config cliff.toml --repository "." --bumped-version 2>/dev/null)
+            # No server tags exist, default to 0.1.0
+            echo "No server tags found, defaulting to initial version"
+            NEXT_VERSION="0.1.0"
           fi
           
           # Add server@ prefix if not present and remove any duplicate prefixes
@@ -152,7 +167,7 @@ jobs:
           
           # Compare versions to determine if release is needed
           if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Server version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
+            echo "Server version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
             echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
             echo "next-version-number=${NEXT_VERSION#server@}" >> "$GITHUB_OUTPUT"
