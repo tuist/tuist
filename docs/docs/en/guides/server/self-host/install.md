@@ -8,17 +8,38 @@ description: Learn how to install Tuist on your infrastructure.
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
-> [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
-> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+> [!IMPORTANT] LICENSE REQUIRED
+> Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
 ## Release cadence {#release-cadence}
 
-The Tuist server is **released every Monday** and the version name follows the convention name `{MAJOR}.YY.MM.DD`. The date component is used to warn the CLI user if their hosted version is 60 days older than the release date of the CLI. It's crucial that on-premise organizations keep up with Tuist updates to ensure their developers benefit from the most recent improvements and that we can drop deprecated features with the confidence that we are not breaking any of the on-premise setups.
+We release new versions of Tuist continuously as new releasable changes land on main. We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility.
 
-The major component of the CLI is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest asure we'll work with you in making the transition smooth.
+The major component is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
 
-> [!NOTE] RELEASE NOTES
-> You'll be given access to a `tuist/registry` repository associated with the registry where images are published. Every new released will be published in that repository as a GitHub release and will contain release notes to inform you about what changes come with it.
+## Continuous deployment {#continuous-deployment}
+
+We strongly recommend setting up a continuous deployment pipeline that automatically deploys the latest version of Tuist every day. This ensures you always have access to the latest features, improvements, and security updates.
+
+Here's an example GitHub Actions workflow that checks for and deploys new versions daily:
+
+```yaml
+name: Update Tuist Server
+on:
+  schedule:
+    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+  workflow_dispatch: # Allow manual runs
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and deploy latest version
+        run: |
+          # Your deployment commands here
+          # Example: docker pull ghcr.io/tuist/tuist:latest
+          # Deploy to your infrastructure
+```
 
 ## Runtime requirements {#runtime-requirements}
 
@@ -183,25 +204,27 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 
 ## Deployment {#deployment}
 
-On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
-
-> [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
-> Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
+The official Tuist Docker image is available at:
+```
+ghcr.io/tuist/tuist
+```
 
 ### Pulling the Docker image {#pulling-the-docker-image}
 
-After generating the token, you can retrieve the image by executing the following command:
+You can retrieve the image by executing the following command:
 
 ```bash
-echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 docker pull ghcr.io/tuist/tuist:latest
+```
+
+Or pull a specific version:
+```bash
+docker pull ghcr.io/tuist/tuist:0.1.0
 ```
 
 ### Deploying the Docker image {#deploying-the-docker-image}
 
 The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
-
-We recommend establishing a deployment pipeline that that runs **every Tuesday**, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements.
 
 > [!IMPORTANT]
 > If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
