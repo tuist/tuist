@@ -131,7 +131,8 @@ defmodule Tuist.MixProject do
          {:noora, path: "../../Noora/web"}) ||
         {:noora, "== 0.11.0"},
       {:zstream, "~> 0.6"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      {:langchain, git: "https://github.com/tuist/langchain", branch: "feat/until-multiple-tools"}
     ]
   end
 
