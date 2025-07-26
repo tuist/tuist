@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.56.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft) in [#7924](https://github.com/tuist/tuist/pull/7924)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.55.9...4.56.0
+
 ## What's Changed in 4.55.9<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
