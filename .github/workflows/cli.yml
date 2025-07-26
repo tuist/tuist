@@ -6,6 +6,8 @@ on:
       - main
   pull_request:
     paths:
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "*.swift"
