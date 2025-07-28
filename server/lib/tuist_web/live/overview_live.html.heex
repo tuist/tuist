@@ -229,7 +229,13 @@
           />
         </div>
       </.card_section>
-      <.card_section :if={false} data-part="time-saved-card-chart-section">
+      <.card_section
+        :if={
+          @build_time_analytics.total_time_saved != 0 &&
+            @build_time_analytics.total_build_time != 0
+        }
+        data-part="time-saved-card-chart-section"
+      >
         <div data-part="legends">
           <.legend
             title={gettext("Build time saved")}
