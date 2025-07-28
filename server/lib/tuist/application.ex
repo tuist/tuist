@@ -64,14 +64,16 @@ defmodule Tuist.Application do
           {Phoenix.PubSub, name: Tuist.PubSub},
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
-          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
           TuistWeb.Endpoint
         ],
         else: []
     )
     |> Kernel.++(
       if Environment.worker?(),
-        do: [{Oban, Application.fetch_env!(:tuist, Oban)}],
+        do: [
+          {Oban, Application.fetch_env!(:tuist, Oban)},
+          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
+        ],
         else: []
     )
     |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
