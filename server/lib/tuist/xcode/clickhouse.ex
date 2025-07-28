@@ -6,6 +6,7 @@ defmodule Tuist.Xcode.Clickhouse do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias Tuist.Xcode.Clickhouse.XcodeProject
   alias Tuist.Xcode.Clickhouse.XcodeTarget
@@ -34,13 +35,13 @@ defmodule Tuist.Xcode.Clickhouse do
     Task.await_many(
       [
         Task.async(fn ->
-          ClickHouseRepo.insert_all(XcodeGraph, xcode_graph_data)
+          IngestRepo.insert_all(XcodeGraph, xcode_graph_data)
         end),
-        Task.async(fn -> ClickHouseRepo.insert_all(XcodeProject, projects_data) end),
+        Task.async(fn -> IngestRepo.insert_all(XcodeProject, projects_data) end),
         Task.async(fn ->
           targets_data
           |> Enum.chunk_every(1000)
-          |> Enum.each(&ClickHouseRepo.insert_all(XcodeTarget, &1))
+          |> Enum.each(&IngestRepo.insert_all(XcodeTarget, &1))
         end)
       ],
       30_000
