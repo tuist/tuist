@@ -136,8 +136,8 @@ defmodule Tuist.ClickHouseRepo.Migrations.UpdateXcodeTablesOrderingAndProjection
       xg.command_event_id as command_event_id,
       xg.binary_build_duration as graph_binary_build_duration
     FROM xcode_targets AS xt
-    INNER JOIN xcode_projects AS xp ON (xt.xcode_project_id = xp.id) AND (xt.inserted_at = xp.inserted_at)
-    INNER JOIN xcode_graphs AS xg ON (xp.xcode_graph_id = xg.id) AND (xp.inserted_at = xg.inserted_at)
+    INNER JOIN (SELECT * FROM xcode_projects WHERE inserted_at >= (now() - toIntervalMinute(10))) AS xp ON xt.xcode_project_id = xp.id
+    INNER JOIN (SELECT * FROM xcode_graphs WHERE inserted_at >= (now() - toIntervalMinute(10))) AS xg ON xp.xcode_graph_id = xg.id
     SETTINGS join_algorithm = 'partial_merge'
     """
   end
