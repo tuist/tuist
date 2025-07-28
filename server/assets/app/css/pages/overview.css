@@ -69,34 +69,6 @@
       display: flex;
       flex: 1;
       flex-direction: column;
-
-      & [data-part="footer"] {
-        display: flex;
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-        gap: 6px;
-        margin-top: auto;
-
-        & [data-part="indicator"] {
-          align-self: stretch;
-          border-radius: var(--noora-radius-xsmall);
-          background-color: var(--noora-chart-legend-primary);
-          width: 6px;
-        }
-
-        & [data-part="title"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-        }
-
-        & [data-part="value"] {
-          flex: 1;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-          text-align: end;
-        }
-      }
     }
   }
 
