@@ -50,7 +50,8 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        {Tuist.ClickHouseRepo, []},
+        Tuist.ClickHouseRepo,
+        Tuist.IngestRepo,
         {Cachex, [:tuist, cachex_opts()]},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Phoenix.PubSub, name: Tuist.PubSub},

@@ -2,8 +2,8 @@ defmodule Tuist.Runs.AnalyticsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Clickhouse.Event
+  alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -1077,7 +1077,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Insert into ClickHouse Event table
-      ClickHouseRepo.insert_all(Event, [
+      IngestRepo.insert_all(Event, [
         %{
           id: command_event_1.id,
           project_id: project.id,
@@ -1095,7 +1095,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       ])
 
       # Insert into ClickHouse XcodeGraph table
-      ClickHouseRepo.insert_all(XcodeGraph, [
+      IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraph1",
@@ -1158,7 +1158,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Insert into ClickHouse Event table
-      ClickHouseRepo.insert_all(Event, [
+      IngestRepo.insert_all(Event, [
         %{
           id: command_event_1.id,
           project_id: project1.id,
@@ -1176,7 +1176,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       ])
 
       # Insert into ClickHouse XcodeGraph table
-      ClickHouseRepo.insert_all(XcodeGraph, [
+      IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraph1",
@@ -1225,7 +1225,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Insert into ClickHouse Event table
-      ClickHouseRepo.insert_all(Event, [
+      IngestRepo.insert_all(Event, [
         %{
           id: command_event_ci.id,
           project_id: project.id,
@@ -1245,7 +1245,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       ])
 
       # Insert into ClickHouse XcodeGraph table
-      ClickHouseRepo.insert_all(XcodeGraph, [
+      IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphCI",
@@ -1291,7 +1291,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Insert into ClickHouse Event table
-      ClickHouseRepo.insert_all(Event, [
+      IngestRepo.insert_all(Event, [
         %{
           id: command_event_in_range.id,
           project_id: project.id,
@@ -1309,7 +1309,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       ])
 
       # Insert into ClickHouse XcodeGraph table
-      ClickHouseRepo.insert_all(XcodeGraph, [
+      IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphInRange",
@@ -1354,7 +1354,7 @@ defmodule Tuist.Runs.AnalyticsTest do
         )
 
       # Insert into ClickHouse Event table
-      ClickHouseRepo.insert_all(Event, [
+      IngestRepo.insert_all(Event, [
         %{
           id: command_event.id,
           project_id: project.id,
@@ -1365,7 +1365,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       ])
 
       # Insert into ClickHouse XcodeGraph table
-      ClickHouseRepo.insert_all(XcodeGraph, [
+      IngestRepo.insert_all(XcodeGraph, [
         %{
           id: UUIDv7.generate(),
           name: "TestGraphNilDuration",

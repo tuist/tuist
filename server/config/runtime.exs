@@ -33,7 +33,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     ecto_repos:
       [Tuist.Repo] ++
         if(Tuist.Environment.clickhouse_configured?(secrets),
-          do: [Tuist.ClickHouseRepo],
+          do: [Tuist.IngestRepo],
           else: []
         ),
     generators: [timestamp_type: :utc_datetime],
@@ -42,6 +42,12 @@ if Enum.member?([:prod, :stag, :can], env) do
 
   if Tuist.Environment.clickhouse_configured?(secrets) do
     config :tuist, Tuist.ClickHouseRepo,
+      url: Tuist.Environment.clickhouse_url(secrets),
+      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets)
+
+    config :tuist, Tuist.IngestRepo,
       url: Tuist.Environment.clickhouse_url(secrets),
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),

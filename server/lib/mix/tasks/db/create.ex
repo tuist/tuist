@@ -22,6 +22,9 @@ defmodule Mix.Tasks.Db.Create do
         Tuist.ClickHouseRepo ->
           :ok
 
+        Tuist.IngestRepo ->
+          :ok
+
         Tuist.Repo ->
           {:ok, _} =
             Ecto.Adapters.SQL.query(repo, "CREATE EXTENSION IF NOT EXISTS timescaledb", [])

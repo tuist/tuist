@@ -120,7 +120,7 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    case (get([:version]) || "0.1.0") |> Version.parse() do
+    case Version.parse(get([:version]) || "0.1.0") do
       :error -> nil
       {:ok, version} -> version
     end

@@ -15,22 +15,12 @@ config :tuist, Oban, testing: :inline
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
-  settings: [
-    # These settings will be applied to all queries
-    mutations_sync: 2,
-    wait_for_async_insert: 1,
-    insert_quorum: 1,
-    # Disable parallel processing for deterministic tests
-    max_threads: 1,
-    max_insert_threads: 1,
-    # Force synchronous inserts and materialized view updates
-    async_insert: 0,
-    # Wait for materialized views to be updated before returning
-    insert_distributed_sync: 1,
-    # Ensure data is visible immediately after insert
-    insert_keeper_max_retries: 0
-  ]
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
+config :tuist, Tuist.IngestRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
@@ -60,7 +50,7 @@ config :tuist,
   api_pipeline_producer_options: []
 
 config :tuist,
-  ecto_repos: [Tuist.Repo, Tuist.ClickHouseRepo],
+  ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]

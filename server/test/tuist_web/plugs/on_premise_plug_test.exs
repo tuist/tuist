@@ -41,8 +41,7 @@ defmodule TuistWeb.OnPremisePlugTest do
       assert got.halted == true
 
       assert json_response(got, 422) == %{
-               "message" =>
-                 "The license has expired. Please, contact contact@tuist.dev to renovate it."
+               "message" => "The license has expired. Please, contact contact@tuist.dev to renovate it."
              }
     end
 

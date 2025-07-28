@@ -8,6 +8,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Clickhouse.Event
+  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -91,7 +92,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
     event_attrs = Event.changeset(event_attrs)
 
     event = struct(Event, event_attrs)
-    {:ok, command_event} = ClickHouseRepo.insert(event)
+    {:ok, command_event} = IngestRepo.insert(event)
     command_event |> ClickHouseRepo.reload() |> Event.normalize_enums()
   end
 
@@ -112,7 +113,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
   def delete_account_events(account_id) do
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-    ClickHouseRepo.delete_all(from(c in Event, where: c.project_id in ^project_ids))
+    IngestRepo.delete_all(from(c in Event, where: c.project_id in ^project_ids))
   end
 
   def list_customer_id_and_remote_cache_hits_count_pairs(attrs \\ %{}) do
@@ -171,7 +172,7 @@ defmodule Tuist.CommandEvents.Clickhouse do
   end
 
   def delete_project_events(project_id) do
-    ClickHouseRepo.delete_all(from(c in Event, where: c.project_id == ^project_id))
+    IngestRepo.delete_all(from(c in Event, where: c.project_id == ^project_id))
   end
 
   def get_project_last_interaction_data(project_ids) do
