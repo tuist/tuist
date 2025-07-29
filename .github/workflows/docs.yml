@@ -56,7 +56,7 @@ jobs:
         # the site. This can potentially lead to out-of-memory errors in localized documentation
         # sites where the number of pages is multiplied by the number of languages.
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=12288
         run: mise run docs:build
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
