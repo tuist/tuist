@@ -381,6 +381,27 @@ defmodule Tuist.Environment do
     get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
   end
 
+  def clickhouse_flush_interval_ms(secrets \\ secrets()) do
+    case get([:clickhouse, :flush_interval_ms], secrets) do
+      flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
+      _ -> 5000
+    end
+  end
+
+  def clickhouse_max_buffer_size(secrets \\ secrets()) do
+    case get([:clickhouse, :max_buffer_size], secrets) do
+      max_buffer_size when is_binary(max_buffer_size) -> String.to_integer(max_buffer_size)
+      _ -> 1_000_000
+    end
+  end
+
+  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
+    case get([:clickhouse, :buffer_pool_size], secrets) do
+      buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
+      _ -> 5
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

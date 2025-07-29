@@ -45,13 +45,22 @@ if Enum.member?([:prod, :stag, :can], env) do
       url: Tuist.Environment.clickhouse_url(secrets),
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets)
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        readonly: 1,
+        # Specifies the join algorithms to use in order of preference: direct (fastest for small tables), 
+        # parallel_hash (good for medium tables), and hash (fallback for large tables)
+        join_algorithm: "direct,parallel_hash,hash"
+      ]
 
     config :tuist, Tuist.IngestRepo,
       url: Tuist.Environment.clickhouse_url(secrets),
       pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets)
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
+      max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
+      pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets)
   end
 
   database_url =

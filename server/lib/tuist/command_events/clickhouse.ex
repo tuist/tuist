@@ -90,10 +90,10 @@ defmodule Tuist.CommandEvents.Clickhouse do
 
   def create_command_event(event_attrs) do
     event_attrs = Event.changeset(event_attrs)
-
     event = struct(Event, event_attrs)
-    {:ok, command_event} = IngestRepo.insert(event)
-    command_event |> ClickHouseRepo.reload() |> Event.normalize_enums()
+    {:ok, _} = Tuist.CommandEvents.Buffer.insert(event)
+
+    event
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do

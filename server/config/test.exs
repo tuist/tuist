@@ -20,7 +20,10 @@ config :tuist, Tuist.ClickHouseRepo,
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  flush_interval_ms: 5000,
+  max_buffer_size: 100_000,
+  pool_size: 5
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
