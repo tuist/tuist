@@ -4,8 +4,6 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
-  setup :verify_on_exit!
-
   describe "use_local_storage?/1" do
     test "returns true when local is configured" do
       # Given/when
