@@ -94,8 +94,7 @@ config :phoenix, :json_library, Jason
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
-  notifier: Oban.Notifiers.PG,
-  queues: [default: 10]
+  notifier: Oban.Notifiers.PG
 
 # Configures the mailer
 #
