@@ -52,8 +52,10 @@ defmodule Tuist.Application do
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
         Tuist.ClickHouseRepo,
         Tuist.IngestRepo,
+        {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, cachex_opts()]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
+        {Phoenix.PubSub, name: Tuist.PubSub},
         TuistWeb.Telemetry
       ]
 
@@ -61,7 +63,6 @@ defmodule Tuist.Application do
     |> Kernel.++(
       if Environment.web?(),
         do: [
-          {Phoenix.PubSub, name: Tuist.PubSub},
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           TuistWeb.Endpoint
@@ -71,7 +72,6 @@ defmodule Tuist.Application do
     |> Kernel.++(
       if Environment.worker?(),
         do: [
-          {Oban, Application.fetch_env!(:tuist, Oban)},
           {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
         ],
         else: []

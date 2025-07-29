@@ -47,12 +47,12 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def worker?() do
-    System.get_env("TUIST_WORKER", "1") |> truthy?()
+  def worker? do
+    "TUIST_WORKER" |> System.get_env("1") |> truthy?()
   end
 
-  def web?() do
-    System.get_env("TUIST_WEB", "1") |> truthy?()
+  def web? do
+    "TUIST_WEB" |> System.get_env("1") |> truthy?()
   end
 
   def database_url(secrets \\ secrets()) do
