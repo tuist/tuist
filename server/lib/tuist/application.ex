@@ -53,21 +53,29 @@ defmodule Tuist.Application do
         Tuist.ClickHouseRepo,
         Tuist.IngestRepo,
         {Cachex, [:tuist, cachex_opts()]},
-        {Oban, Application.fetch_env!(:tuist, Oban)},
-        {Phoenix.PubSub, name: Tuist.PubSub},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
-        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        {Tuist.API.Pipeline, []},
-        # Rate limit
-        {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
-        TuistWeb.Telemetry,
-        # Start a worker by calling: Tuist.Worker.start_link(arg)
-        # {Tuist.Worker, arg},
-        # Start to serve requests, typically the last entry
-        TuistWeb.Endpoint
+        TuistWeb.Telemetry
       ]
 
     children
+    |> Kernel.++(
+      if Environment.web?(),
+        do: [
+          {Phoenix.PubSub, name: Tuist.PubSub},
+          {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+          {Tuist.API.Pipeline, []},
+          TuistWeb.Endpoint
+        ],
+        else: []
+    )
+    |> Kernel.++(
+      if Environment.worker?(),
+        do: [
+          {Oban, Application.fetch_env!(:tuist, Oban)},
+          {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
+        ],
+        else: []
+    )
     |> Kernel.++(if Environment.analytics_enabled?(), do: [Tuist.Analytics.Posthog], else: [])
     |> Kernel.++(
       if Environment.tuist_hosted?(),
