@@ -97,6 +97,10 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :xml do
+    plug :accepts, ["xml", "text", "html", "*/*"]
+  end
+
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -423,11 +427,11 @@ defmodule TuistWeb.Router do
     # Local S3 storage routes
     if Tuist.Environment.use_local_storage?() do
       scope "/s3/:bucket", TuistWeb do
-        pipe_through [:non_authenticated_api]
+        pipe_through [:xml]
 
         # List operations (must come before /*key routes)
         get "/", LocalS3Controller, :list_objects_v2
-        
+
         # Delete operations
         post "/", LocalS3Controller, :delete_objects
 
