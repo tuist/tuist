@@ -192,7 +192,7 @@ defmodule Tuist.Environment do
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
-    default_bucket = if use_local_storage?(), do: "tuist-local", else: nil
+    default_bucket = if use_local_storage?(), do: "tuist-local"
     get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets) || default_bucket
   end
 
@@ -226,10 +226,10 @@ defmodule Tuist.Environment do
     [:s3, :virtual_host] |> get(secrets) |> truthy?()
   end
 
-  def use_local_storage?(secrets \\ secrets()) do
-    default_value = dev?()
-    
-    case get([:storage, :mode], secrets, default_value: if(default_value, do: "local", else: "remote")) do
+  def use_local_storage?(secrets \\ secrets(), dev? \\ dev?()) do
+    default_value = if(dev?, do: "local", else: "remote")
+
+    case get([:storage, :mode], secrets, default_value: default_value) do
       "local" -> true
       "remote" -> false
       _ -> default_value

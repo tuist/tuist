@@ -1,7 +1,44 @@
 defmodule Tuist.EnvironmentTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Environment
+
+  setup :verify_on_exit!
+
+  describe "use_local_storage?/1" do
+    test "returns true when local is configured" do
+      # Given/when
+      got = Environment.use_local_storage?(%{"storage" => %{"mode" => "local"}})
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false when remote is configured" do
+      # Given/when
+      got = Environment.use_local_storage?(%{"storage" => %{"mode" => "remote"}})
+
+      # Then
+      assert got == false
+    end
+
+    test "returns true when nothing is configured and it's dev" do
+      # Given/when
+      got = Environment.use_local_storage?(%{}, true)
+
+      # Then
+      assert got == true
+    end
+
+    test "returns false when nothing is configured and it's not dev" do
+      # Given/when
+      got = Environment.use_local_storage?(%{}, false)
+
+      # Then
+      assert got == false
+    end
+  end
 
   describe "get/3" do
     test "retrieves value from secrets using string keys" do
