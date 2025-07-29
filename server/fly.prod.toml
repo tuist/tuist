@@ -11,11 +11,7 @@ console_command = "/app/bin/tuist remote"
 [[vm]]
   size = "performance-1x"
   memory = "2gb"
-
-  [[vm.processes]]
-    app = "worker"
-    size = "shared-cpu-4x "
-    memory = "8gb"
+  processes = ["web"]
 
 [experimental]
   auto_rollback = true
@@ -36,9 +32,9 @@ console_command = "/app/bin/tuist remote"
   TUIST_S3_POOL_SIZE = "50"
 
 [[vm]]
-  cpu_kind = 'performance'
-  memory = "4096mb"
-  cpus = 2
+  size = "shared-cpu-4x"
+  memory = "8gb"
+  processes = ["worker"]
 
 [[services]]
   protocol = "tcp"
@@ -46,7 +42,7 @@ console_command = "/app/bin/tuist remote"
   auto_stop_machines = false
   auto_start_machines = false
   min_machines_running = 2
-  processes = ["app"]
+  processes = ["web"]
   http_options = { h2_backend = true }
 
   [[services.ports]]
