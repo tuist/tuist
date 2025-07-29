@@ -4,6 +4,8 @@ defmodule Tuist.Storage do
   """
   alias Tuist.Environment
   alias Tuist.Performance
+  
+  import SweetXml
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     content_length = Keyword.get(opts, :content_length)
@@ -15,27 +17,29 @@ defmodule Tuist.Storage do
         [{"Content-Length", Integer.to_string(content_length)}]
       end
 
-    url = if Environment.use_local_storage?() do
-      # For local storage, generate a direct URL to our local S3 controller
-      bucket = Environment.s3_bucket_name()
-      base_url = Environment.app_url()
-      params = URI.encode_query([{"uploadId", upload_id}, {"partNumber", part_number}])
-      "#{base_url}/s3/#{bucket}/#{object_key}?#{params}"
-    else
-      {:ok, url} =
-        :s3
-        |> ExAws.Config.new()
-        |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-          query_params: [
-            {"partNumber", part_number},
-            {"uploadId", upload_id}
-          ],
-          headers: headers,
-          virtual_host: true,
-          expires_in: Keyword.get(opts, :expires_in, 3600)
-        )
-      url
-    end
+    url =
+      if Environment.use_local_storage?() do
+        # For local storage, generate a direct URL to our local S3 controller
+        bucket = Environment.s3_bucket_name()
+        base_url = Environment.app_url()
+        params = URI.encode_query([{"uploadId", upload_id}, {"partNumber", part_number}])
+        "#{base_url}/s3/#{bucket}/#{object_key}?#{params}"
+      else
+        {:ok, url} =
+          :s3
+          |> ExAws.Config.new()
+          |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+            query_params: [
+              {"partNumber", part_number},
+              {"uploadId", upload_id}
+            ],
+            headers: headers,
+            virtual_host: true,
+            expires_in: Keyword.get(opts, :expires_in, 3600)
+          )
+
+        url
+      end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
@@ -54,24 +58,29 @@ defmodule Tuist.Storage do
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
           url = "#{base_url}/s3/#{bucket}/#{object_key}?uploadId=#{upload_id}"
-          
+
           # Build the XML body for complete multipart upload
-          parts_xml = parts
-          |> Enum.map(fn %{etag: etag, part_number: part_number} ->
-            "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
-          end)
-          |> Enum.join("")
-          
+          parts_xml =
+            Enum.map_join(parts, "", fn 
+              {part_number, etag} ->
+                "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
+              %{etag: etag, part_number: part_number} ->
+                "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
+            end)
+
           body = """
           <?xml version="1.0" encoding="UTF-8"?>
           <CompleteMultipartUpload>
             #{parts_xml}
           </CompleteMultipartUpload>
           """
-          
+
           case Req.post(url, body: body, headers: [{"content-type", "application/xml"}]) do
             {:ok, %{status: 200}} -> :ok
-            _ -> {:error, "Failed to complete multipart upload"}
+            {:ok, %{status: status, body: response_body}} -> 
+              {:error, "Failed to complete multipart upload - HTTP #{status}: #{inspect(response_body)}"}
+            {:error, reason} -> 
+              {:error, "Failed to complete multipart upload - Request error: #{inspect(reason)}"}
           end
         else
           Environment.s3_bucket_name()
@@ -123,22 +132,24 @@ defmodule Tuist.Storage do
   end
 
   def generate_upload_url(object_key, opts \\ []) do
-    url = if Environment.use_local_storage?() do
-      # For local storage, generate a direct URL to our local S3 controller
-      bucket = Environment.s3_bucket_name()
-      base_url = Environment.app_url()
-      "#{base_url}/s3/#{bucket}/#{object_key}"
-    else
-      {:ok, url} =
-        :s3
-        |> ExAws.Config.new()
-        |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-          query_params: [],
-          expires_in: Keyword.get(opts, :expires_in, 3600),
-          virtual_host: true
-        )
-      url
-    end
+    url =
+      if Environment.use_local_storage?() do
+        # For local storage, generate a direct URL to our local S3 controller
+        bucket = Environment.s3_bucket_name()
+        base_url = Environment.app_url()
+        "#{base_url}/s3/#{bucket}/#{object_key}"
+      else
+        {:ok, url} =
+          :s3
+          |> ExAws.Config.new()
+          |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+            query_params: [],
+            expires_in: Keyword.get(opts, :expires_in, 3600),
+            virtual_host: true
+          )
+
+        url
+      end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),
@@ -150,19 +161,20 @@ defmodule Tuist.Storage do
   end
 
   def stream_object(object_key) do
-    stream = if Environment.use_local_storage?() do
-      # For local storage, stream the file directly
-      bucket = Environment.s3_bucket_name()
-      base_url = Environment.app_url()
-      url = "#{base_url}/s3/#{bucket}/#{object_key}"
-      
-      # Use Req to stream the response
-      Req.get!(url, into: :stream).body
-    else
-      Environment.s3_bucket_name()
-      |> ExAws.S3.download_file(object_key, :memory)
-      |> ExAws.stream!()
-    end
+    stream =
+      if Environment.use_local_storage?() do
+        # For local storage, stream the file directly
+        bucket = Environment.s3_bucket_name()
+        base_url = Environment.app_url()
+        url = "#{base_url}/s3/#{bucket}/#{object_key}"
+
+        # Use Req to stream the response
+        Req.get!(url, into: :stream).body
+      else
+        Environment.s3_bucket_name()
+        |> ExAws.S3.download_file(object_key, :memory)
+        |> ExAws.stream!()
+      end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_stream_object(),
@@ -179,8 +191,9 @@ defmodule Tuist.Storage do
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
       url = "#{base_url}/s3/#{bucket}/#{object_key}"
-      
+
       content = File.read!(source)
+
       case Req.put(url, body: content) do
         {:ok, %{status: 200}} -> :ok
         _ -> {:error, "Failed to upload file"}
@@ -200,7 +213,7 @@ defmodule Tuist.Storage do
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
       url = "#{base_url}/s3/#{bucket}/#{object_key}"
-      
+
       case Req.put(url, body: content) do
         {:ok, %{status: 200}} -> :ok
         _ -> {:error, "Failed to put object"}
@@ -220,7 +233,7 @@ defmodule Tuist.Storage do
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
           url = "#{base_url}/s3/#{bucket}/#{object_key}"
-          
+
           case Req.head(url) do
             {:ok, %{status: 200}} -> true
             _ -> false
@@ -252,7 +265,7 @@ defmodule Tuist.Storage do
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
           url = "#{base_url}/s3/#{bucket}/#{object_key}"
-          
+
           case Req.get(url) do
             {:ok, %{status: 200, body: body}} -> body
             _ -> nil
@@ -284,18 +297,24 @@ defmodule Tuist.Storage do
           # For local storage, initiate multipart upload via our local S3 controller
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/s3/#{bucket}/#{object_key}"
-          
+          url = "#{base_url}/s3/#{bucket}/#{object_key}?uploads"
+
           case Req.post(url, headers: [{"content-type", "application/xml"}]) do
             {:ok, %{status: 200, body: body}} ->
               # Parse the upload ID from the XML response
-              # Simple regex extraction for now
-              case Regex.run(~r/<UploadId>([^<]+)<\/UploadId>/, body) do
-                [_, upload_id] -> upload_id
-                _ -> raise "Failed to parse upload ID"
+              upload_id = body |> xpath(~x"//UploadId/text()"s)
+              
+              if upload_id == "" do
+                raise "Failed to parse upload ID from response: #{body}"
+              else
+                upload_id
               end
-            _ -> 
-              raise "Failed to initiate multipart upload"
+
+            {:ok, %{status: status, body: body}} ->
+              raise "Failed to initiate multipart upload - HTTP #{status}: #{inspect(body)}"
+              
+            {:error, reason} ->
+              raise "Failed to initiate multipart upload - Request error: #{inspect(reason)}"
           end
         else
           %{body: %{upload_id: upload_id}} =
@@ -365,13 +384,18 @@ defmodule Tuist.Storage do
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
           url = "#{base_url}/s3/#{bucket}/#{object_key}"
-          
+
           case Req.head(url) do
             {:ok, %{status: 200, headers: headers}} ->
               headers
               |> Enum.find(fn {key, _value} -> String.downcase(key) == "content-length" end)
-              |> elem(1)
+              |> case do
+                {_, value} when is_list(value) -> List.first(value)
+                {_, value} -> value
+                nil -> "0"
+              end
               |> String.to_integer()
+
             _ ->
               0
           end
@@ -381,8 +405,11 @@ defmodule Tuist.Storage do
           |> ExAws.request!()
           |> Map.get(:headers)
           |> Enum.find(fn {key, _value} -> key == "content-length" end)
-          |> elem(1)
-          |> List.first()
+          |> case do
+            {_, value} when is_list(value) -> List.first(value)
+            {_, value} -> value
+            nil -> "0"
+          end
           |> String.to_integer()
         end
       end)

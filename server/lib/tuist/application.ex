@@ -91,11 +91,6 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-    |> Kernel.++(
-      if Environment.dev?() and Environment.use_local_storage?(),
-        do: [Tuist.Storage.LocalS3],
-        else: []
-    )
   end
 
   def cachex_opts do

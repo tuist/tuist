@@ -60,13 +60,19 @@ defmodule TuistWeb.API.CacheController do
     responses: %{
       ok: {"The item exists in the action cache", "application/json", Schemas.CacheActionItem},
       not_found: {"The item doesn't exist in the actino cache", "application/json", Error},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
 
-  def get_cache_action_item(%{assigns: %{selected_project: selected_project}} = conn, %{hash: hash} = _params) do
+  def get_cache_action_item(
+        %{assigns: %{selected_project: selected_project}} = conn,
+        %{hash: hash} = _params
+      ) do
     cache_action_item =
       Tuist.KeyValueStore.get_or_update(
         [
@@ -103,14 +109,16 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:download,
     summary: "Downloads an artifact from the cache.",
-    description: "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
+    description:
+      "This endpoint returns a signed URL that can be used to download an artifact from the cache.",
     operation_id: "downloadCacheArtifact",
     parameters: [
       cache_category: [
         in: :query,
         type: CacheCategory,
         required: false,
-        description: "The category of the cache. It's used to differentiate between different types of caches."
+        description:
+          "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -127,9 +135,13 @@ defmodule TuistWeb.API.CacheController do
       name: [in: :query, type: :string, required: true, description: "The name of the artifact."]
     ],
     responses: %{
-      ok: {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      ok:
+        {"The artifact exists and is downloadable", "application/json", CacheArtifactDownloadURL},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project or the cache artifact doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -206,7 +218,8 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description: "The category of the cache. It's used to differentiate between different types of caches."
+        description:
+          "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -237,8 +250,11 @@ defmodule TuistWeb.API.CacheController do
              }
            }
          }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found:
         {"The artifact doesn't exist", "application/json",
          %Schema{
@@ -325,10 +341,15 @@ defmodule TuistWeb.API.CacheController do
        }},
     responses: %{
       created: {"The action item was cached", "application/json", Schemas.CacheActionItem},
-      ok: {"The request is valid but the cache action item already exists", "application/json", Schemas.CacheActionItem},
+      ok:
+        {"The request is valid but the cache action item already exists", "application/json",
+         Schemas.CacheActionItem},
       bad_request: {"The request has missing or invalid parameters", "application/json", Error},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -402,7 +423,8 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description: "The category of the cache. It's used to differentiate between different types of caches."
+        description:
+          "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -420,8 +442,11 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -468,13 +493,15 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description: "The category of the cache. It's used to differentiate between different types of caches."
+        description:
+          "The category of the cache. It's used to differentiate between different types of caches."
       ],
       content_length: [
         in: :query,
         type: :integer,
         required: false,
-        description: "The size in bytes of the part that will be uploaded. It's used to generate the signed URL."
+        description:
+          "The size in bytes of the part that will be uploaded. It's used to generate the signed URL."
       ],
       project_id: [
         in: :query,
@@ -504,8 +531,11 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -539,7 +569,8 @@ defmodule TuistWeb.API.CacheController do
         upload_id,
         part_number,
         expires_in: expires_in,
-        content_length: if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
+        content_length:
+          if(is_nil(content_length), do: nil, else: String.to_integer(content_length))
       )
 
     json(conn, %{status: "success", data: %{url: url}})
@@ -576,7 +607,8 @@ defmodule TuistWeb.API.CacheController do
         in: :query,
         type: CacheCategory,
         required: false,
-        description: "The category of the cache. It's used to differentiate between different types of caches."
+        description:
+          "The category of the cache. It's used to differentiate between different types of caches."
       ],
       project_id: [
         in: :query,
@@ -614,8 +646,11 @@ defmodule TuistWeb.API.CacheController do
              }
            }
          }},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project doesn't exist", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
@@ -698,8 +733,11 @@ defmodule TuistWeb.API.CacheController do
     ],
     responses: %{
       no_content: "The cache has been successfully cleaned",
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
       not_found: {"The project was not found", "application/json", Error}
     }
   )
@@ -714,7 +752,12 @@ defmodule TuistWeb.API.CacheController do
     send_resp(conn, :no_content, "")
   end
 
-  defp get_object_key(%{hash: hash, cache_category: cache_category, name: name, project_slug: project_slug}) do
+  defp get_object_key(%{
+         hash: hash,
+         cache_category: cache_category,
+         name: name,
+         project_slug: project_slug
+       }) do
     if cache_category == nil do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else

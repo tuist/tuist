@@ -1,62 +1,29 @@
 defmodule Tuist.Storage.LocalS3 do
   @moduledoc """
-  Manages the lifecycle of local storage directories in development.
-  Ensures cleanup on application termination.
+  Provides the local storage directory paths for S3-compatible storage in development.
   """
 
-  use GenServer
-
-  require Logger
-
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
-  end
-
-  def init(_) do
-    Process.flag(:trap_exit, true)
-
-    storage_dir = get_storage_dir()
-    File.mkdir_p!(storage_dir)
-
-    Logger.info("Local storage directory created at: #{storage_dir}")
-
-    {:ok, %{storage_dir: storage_dir}}
-  end
-
-  def terminate(_reason, %{storage_dir: storage_dir}) do
-    if File.exists?(storage_dir) do
-      Logger.info("Cleaning up local storage directory: #{storage_dir}")
-      File.rm_rf!(storage_dir)
-    end
-
-    :ok
-  end
-
-  def handle_info({:EXIT, _pid, _reason}, state) do
-    {:noreply, state}
-  end
-
   @project_root [__DIR__, "..", "..", ".."] |> Path.join() |> Path.expand()
+  @base_dir Path.join([@project_root, "tmp", "local_s3_storage"])
 
-  def get_storage_dir do
-    timestamp = DateTime.to_unix(DateTime.utc_now(), :millisecond)
-    Path.join([@project_root, "tmp", "local_storage_#{timestamp}"])
+  @doc """
+  Get the base storage directory path.
+  """
+  def storage_directory do
+    @base_dir
   end
 
   @doc """
-  Get the current storage directory path
+  Get the directory for multipart uploads in progress.
   """
-  def storage_directory do
-    case Process.whereis(__MODULE__) do
-      nil ->
-        get_storage_dir()
-
-      pid ->
-        GenServer.call(pid, :get_storage_dir)
-    end
+  def uploads_directory do
+    Path.join(@base_dir, "uploads")
   end
 
-  def handle_call(:get_storage_dir, _from, %{storage_dir: storage_dir} = state) do
-    {:reply, storage_dir, state}
+  @doc """
+  Get the directory for completed objects.
+  """
+  def completed_directory do
+    Path.join(@base_dir, "completed")
   end
 end
