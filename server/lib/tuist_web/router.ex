@@ -419,6 +419,25 @@ defmodule TuistWeb.Router do
 
       forward "/sent_emails", Bamboo.SentEmailViewerPlug
     end
+
+    # Local S3 storage routes
+    if Tuist.Environment.use_local_storage?() do
+      scope "/local-s3/:bucket", TuistWeb do
+        pipe_through [:non_authenticated_api]
+
+        # List operations (must come before /*key routes)
+        get "/", LocalS3Controller, :list_objects_v2
+        
+        # Delete operations
+        post "/", LocalS3Controller, :delete_objects
+
+        # Object operations
+        put "/*key", LocalS3Controller, :put_object
+        post "/*key", LocalS3Controller, :post_object
+        get "/*key", LocalS3Controller, :get_object
+        head "/*key", LocalS3Controller, :head_object
+      end
+    end
   end
 
   ## Authentication routes

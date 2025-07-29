@@ -82,6 +82,7 @@ defmodule Tuist do
       # We should not be exposing this one
       Repo,
       Storage,
+      Storage.LocalS3,
       Time,
       Utilities.DateFormatter,
       VCS,

@@ -21,6 +21,7 @@ erl_crash.dump
 
 # Temporary files, for example, from tests.
 /tmp/
+/.tmp/
 
 # Ignore package tarball (built via "mix hex.build").
 hello-*.tar

@@ -15,18 +15,27 @@ defmodule Tuist.Storage do
         [{"Content-Length", Integer.to_string(content_length)}]
       end
 
-    {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-        query_params: [
-          {"partNumber", part_number},
-          {"uploadId", upload_id}
-        ],
-        headers: headers,
-        virtual_host: true,
-        expires_in: Keyword.get(opts, :expires_in, 3600)
-      )
+    url = if Environment.use_local_storage?() do
+      # For local storage, generate a direct URL to our local S3 controller
+      bucket = Environment.s3_bucket_name()
+      base_url = Environment.app_url()
+      params = URI.encode_query([{"uploadId", upload_id}, {"partNumber", part_number}])
+      "#{base_url}/local-s3/#{bucket}/#{object_key}?#{params}"
+    else
+      {:ok, url} =
+        :s3
+        |> ExAws.Config.new()
+        |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+          query_params: [
+            {"partNumber", part_number},
+            {"uploadId", upload_id}
+          ],
+          headers: headers,
+          virtual_host: true,
+          expires_in: Keyword.get(opts, :expires_in, 3600)
+        )
+      url
+    end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
@@ -40,11 +49,37 @@ defmodule Tuist.Storage do
   def multipart_complete_upload(object_key, upload_id, parts) do
     {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        Environment.s3_bucket_name()
-        |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!()
+        if Environment.use_local_storage?() do
+          # For local storage, make a direct HTTP request to our local S3 controller
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/local-s3/#{bucket}/#{object_key}?uploadId=#{upload_id}"
+          
+          # Build the XML body for complete multipart upload
+          parts_xml = parts
+          |> Enum.map(fn %{etag: etag, part_number: part_number} ->
+            "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
+          end)
+          |> Enum.join("")
+          
+          body = """
+          <?xml version="1.0" encoding="UTF-8"?>
+          <CompleteMultipartUpload>
+            #{parts_xml}
+          </CompleteMultipartUpload>
+          """
+          
+          case Req.post(url, body: body, headers: [{"content-type", "application/xml"}]) do
+            {:ok, %{status: 200}} -> :ok
+            _ -> {:error, "Failed to complete multipart upload"}
+          end
+        else
+          Environment.s3_bucket_name()
+          |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
+          |> ExAws.request!()
 
-        :ok
+          :ok
+        end
       end)
 
     :telemetry.execute(
@@ -59,16 +94,23 @@ defmodule Tuist.Storage do
   def generate_download_url(object_key, opts \\ []) do
     {time, url} =
       Performance.measure_time_in_milliseconds(fn ->
-        {:ok, url} =
-          :s3
-          |> ExAws.Config.new()
-          |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
-            query_params: [],
-            expires_in: Keyword.get(opts, :expires_in, 3600),
-            virtual_host: true
-          )
+        if Environment.use_local_storage?() do
+          # For local storage, generate a direct URL to our local S3 controller
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          "#{base_url}/local-s3/#{bucket}/#{object_key}"
+        else
+          {:ok, url} =
+            :s3
+            |> ExAws.Config.new()
+            |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
+              query_params: [],
+              expires_in: Keyword.get(opts, :expires_in, 3600),
+              virtual_host: true
+            )
 
-        url
+          url
+        end
       end)
 
     :telemetry.execute(
@@ -81,14 +123,22 @@ defmodule Tuist.Storage do
   end
 
   def generate_upload_url(object_key, opts \\ []) do
-    {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-        query_params: [],
-        expires_in: Keyword.get(opts, :expires_in, 3600),
-        virtual_host: true
-      )
+    url = if Environment.use_local_storage?() do
+      # For local storage, generate a direct URL to our local S3 controller
+      bucket = Environment.s3_bucket_name()
+      base_url = Environment.app_url()
+      "#{base_url}/local-s3/#{bucket}/#{object_key}"
+    else
+      {:ok, url} =
+        :s3
+        |> ExAws.Config.new()
+        |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+          query_params: [],
+          expires_in: Keyword.get(opts, :expires_in, 3600),
+          virtual_host: true
+        )
+      url
+    end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),
@@ -100,10 +150,19 @@ defmodule Tuist.Storage do
   end
 
   def stream_object(object_key) do
-    stream =
+    stream = if Environment.use_local_storage?() do
+      # For local storage, stream the file directly
+      bucket = Environment.s3_bucket_name()
+      base_url = Environment.app_url()
+      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      
+      # Use Req to stream the response
+      Req.get!(url, into: :stream).body
+    else
       Environment.s3_bucket_name()
       |> ExAws.S3.download_file(object_key, :memory)
       |> ExAws.stream!()
+    end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_stream_object(),
@@ -115,27 +174,64 @@ defmodule Tuist.Storage do
   end
 
   def upload(source, object_key) do
-    bucket = Environment.s3_bucket_name()
+    if Environment.use_local_storage?() do
+      # For local storage, upload directly to our local S3 controller
+      bucket = Environment.s3_bucket_name()
+      base_url = Environment.app_url()
+      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      
+      content = File.read!(source)
+      case Req.put(url, body: content) do
+        {:ok, %{status: 200}} -> :ok
+        _ -> {:error, "Failed to upload file"}
+      end
+    else
+      bucket = Environment.s3_bucket_name()
 
-    source
-    |> ExAws.S3.upload(bucket, object_key)
-    |> ExAws.request!()
+      source
+      |> ExAws.S3.upload(bucket, object_key)
+      |> ExAws.request!()
+    end
   end
 
   def put_object(object_key, content) do
-    Environment.s3_bucket_name()
-    |> ExAws.S3.put_object(object_key, content)
-    |> ExAws.request!()
+    if Environment.use_local_storage?() do
+      # For local storage, put directly to our local S3 controller
+      bucket = Environment.s3_bucket_name()
+      base_url = Environment.app_url()
+      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      
+      case Req.put(url, body: content) do
+        {:ok, %{status: 200}} -> :ok
+        _ -> {:error, "Failed to put object"}
+      end
+    else
+      Environment.s3_bucket_name()
+      |> ExAws.S3.put_object(object_key, content)
+      |> ExAws.request!()
+    end
   end
 
   def object_exists?(object_key) do
     {time, exists} =
       Performance.measure_time_in_milliseconds(fn ->
-        case Environment.s3_bucket_name()
-             |> ExAws.S3.head_object(object_key)
-             |> ExAws.request() do
-          {:ok, _} -> true
-          {:error, _} -> false
+        if Environment.use_local_storage?() do
+          # For local storage, check with HEAD request
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          
+          case Req.head(url) do
+            {:ok, %{status: 200}} -> true
+            _ -> false
+          end
+        else
+          case Environment.s3_bucket_name()
+               |> ExAws.S3.head_object(object_key)
+               |> ExAws.request() do
+            {:ok, _} -> true
+            {:error, _} -> false
+          end
         end
       end)
 
@@ -151,9 +247,25 @@ defmodule Tuist.Storage do
   def get_object_as_string(object_key) do
     {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        Environment.s3_bucket_name()
-        |> ExAws.S3.get_object(object_key)
-        |> ExAws.request()
+        if Environment.use_local_storage?() do
+          # For local storage, get directly from our local S3 controller
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          
+          case Req.get(url) do
+            {:ok, %{status: 200, body: body}} -> body
+            _ -> nil
+          end
+        else
+          Environment.s3_bucket_name()
+          |> ExAws.S3.get_object(object_key)
+          |> ExAws.request()
+          |> case do
+            {:ok, %{body: content}} -> content
+            {:error, {:http_error, 404, _}} -> nil
+          end
+        end
       end)
 
     :telemetry.execute(
@@ -162,21 +274,37 @@ defmodule Tuist.Storage do
       %{object_key: object_key}
     )
 
-    case result do
-      {:ok, %{body: content}} -> content
-      {:error, {:http_error, 404, _}} -> nil
-    end
+    result
   end
 
   def multipart_start(object_key) do
     {time, upload_id} =
       Performance.measure_time_in_milliseconds(fn ->
-        %{body: %{upload_id: upload_id}} =
-          Environment.s3_bucket_name()
-          |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> ExAws.request!()
+        if Environment.use_local_storage?() do
+          # For local storage, initiate multipart upload via our local S3 controller
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          
+          case Req.post(url, headers: [{"content-type", "application/xml"}]) do
+            {:ok, %{status: 200, body: body}} ->
+              # Parse the upload ID from the XML response
+              # Simple regex extraction for now
+              case Regex.run(~r/<UploadId>([^<]+)<\/UploadId>/, body) do
+                [_, upload_id] -> upload_id
+                _ -> raise "Failed to parse upload ID"
+              end
+            _ -> 
+              raise "Failed to initiate multipart upload"
+          end
+        else
+          %{body: %{upload_id: upload_id}} =
+            Environment.s3_bucket_name()
+            |> ExAws.S3.initiate_multipart_upload(object_key)
+            |> ExAws.request!()
 
-        upload_id
+          upload_id
+        end
       end)
 
     :telemetry.execute(
@@ -191,26 +319,32 @@ defmodule Tuist.Storage do
   def delete_all_objects(prefix) do
     {time, _} =
       Performance.measure_time_in_milliseconds(fn ->
-        # Check if there are any objects with the given prefix
-        any_objects? =
-          Environment.s3_bucket_name()
-          |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
-          |> ExAws.request!()
-          |> Map.get(:body)
-          |> Map.get(:contents)
-          |> Enum.any?()
-
-        if any_objects? do
-          stream =
-            Environment.s3_bucket_name()
-            |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
-            |> ExAws.stream!()
-            |> Stream.map(& &1.key)
-
-          {:ok, _} =
-            Environment.s3_bucket_name() |> ExAws.S3.delete_all_objects(stream) |> ExAws.request()
-        else
+        if Environment.use_local_storage?() do
+          # For local storage, we'd need to implement batch delete
+          # For now, just return :ok as local storage is temporary
           :ok
+        else
+          # Check if there are any objects with the given prefix
+          any_objects? =
+            Environment.s3_bucket_name()
+            |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
+            |> ExAws.request!()
+            |> Map.get(:body)
+            |> Map.get(:contents)
+            |> Enum.any?()
+
+          if any_objects? do
+            stream =
+              Environment.s3_bucket_name()
+              |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
+              |> ExAws.stream!()
+              |> Stream.map(& &1.key)
+
+            {:ok, _} =
+              Environment.s3_bucket_name() |> ExAws.S3.delete_all_objects(stream) |> ExAws.request()
+          else
+            :ok
+          end
         end
       end)
 
@@ -226,14 +360,31 @@ defmodule Tuist.Storage do
   def get_object_size(object_key) do
     {time, size} =
       Performance.measure_time_in_milliseconds(fn ->
-        Environment.s3_bucket_name()
-        |> ExAws.S3.head_object(object_key)
-        |> ExAws.request!()
-        |> Map.get(:headers)
-        |> Enum.find(fn {key, _value} -> key == "content-length" end)
-        |> elem(1)
-        |> List.first()
-        |> String.to_integer()
+        if Environment.use_local_storage?() do
+          # For local storage, get size via HEAD request
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          
+          case Req.head(url) do
+            {:ok, %{status: 200, headers: headers}} ->
+              headers
+              |> Enum.find(fn {key, _value} -> String.downcase(key) == "content-length" end)
+              |> elem(1)
+              |> String.to_integer()
+            _ ->
+              0
+          end
+        else
+          Environment.s3_bucket_name()
+          |> ExAws.S3.head_object(object_key)
+          |> ExAws.request!()
+          |> Map.get(:headers)
+          |> Enum.find(fn {key, _value} -> key == "content-length" end)
+          |> elem(1)
+          |> List.first()
+          |> String.to_integer()
+        end
       end)
 
     :telemetry.execute(

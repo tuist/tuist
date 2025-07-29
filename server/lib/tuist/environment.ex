@@ -192,7 +192,8 @@ defmodule Tuist.Environment do
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
-    get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
+    default_bucket = if use_local_storage?(), do: "tuist-local", else: nil
+    get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets) || default_bucket
   end
 
   def s3_endpoint(secrets \\ secrets()) do
@@ -223,6 +224,16 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     [:s3, :virtual_host] |> get(secrets) |> truthy?()
+  end
+
+  def use_local_storage?(secrets \\ secrets()) do
+    default_value = dev?()
+    
+    case get([:storage, :mode], secrets, default_value: if(default_value, do: "local", else: "remote")) do
+      "local" -> true
+      "remote" -> false
+      _ -> default_value
+    end
   end
 
   def slack_tuist_token(secrets \\ secrets()) do
