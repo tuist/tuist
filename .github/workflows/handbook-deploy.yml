@@ -20,4 +20,7 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           experimental: true
-      - run: mise run handbook:deploy
+      - name: Deploy handbook
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: mise run handbook:deploy

@@ -42,7 +42,7 @@ importers:
         specifier: ^6.0
         version: 6.3.5(@types/node@22.16.0)(yaml@2.8.0)
       vitepress:
-        specifier: ^1.5.0
+        specifier: ^1.6.3
         version: 1.6.3(@algolia/client-search@5.28.0)(@types/node@22.16.0)(fuse.js@7.1.0)(postcss@8.5.6)(search-insights@2.17.3)
       vitepress-plugin-llmstxt:
         specifier: 0.3.0
@@ -60,7 +60,7 @@ importers:
         specifier: ^0.25.0
         version: 0.25.5
       vitepress:
-        specifier: ^1.5.0
+        specifier: ^1.6.3
         version: 1.6.3(@algolia/client-search@5.28.0)(@types/node@22.16.0)(fuse.js@7.1.0)(postcss@8.5.6)(search-insights@2.17.3)
       vitepress-plugin-llmstxt:
         specifier: 0.3.0
