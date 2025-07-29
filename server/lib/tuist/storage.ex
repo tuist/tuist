@@ -20,7 +20,7 @@ defmodule Tuist.Storage do
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
       params = URI.encode_query([{"uploadId", upload_id}, {"partNumber", part_number}])
-      "#{base_url}/local-s3/#{bucket}/#{object_key}?#{params}"
+      "#{base_url}/s3/#{bucket}/#{object_key}?#{params}"
     else
       {:ok, url} =
         :s3
@@ -53,7 +53,7 @@ defmodule Tuist.Storage do
           # For local storage, make a direct HTTP request to our local S3 controller
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/local-s3/#{bucket}/#{object_key}?uploadId=#{upload_id}"
+          url = "#{base_url}/s3/#{bucket}/#{object_key}?uploadId=#{upload_id}"
           
           # Build the XML body for complete multipart upload
           parts_xml = parts
@@ -98,7 +98,7 @@ defmodule Tuist.Storage do
           # For local storage, generate a direct URL to our local S3 controller
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          "#{base_url}/s3/#{bucket}/#{object_key}"
         else
           {:ok, url} =
             :s3
@@ -127,7 +127,7 @@ defmodule Tuist.Storage do
       # For local storage, generate a direct URL to our local S3 controller
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
-      "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      "#{base_url}/s3/#{bucket}/#{object_key}"
     else
       {:ok, url} =
         :s3
@@ -154,7 +154,7 @@ defmodule Tuist.Storage do
       # For local storage, stream the file directly
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
-      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      url = "#{base_url}/s3/#{bucket}/#{object_key}"
       
       # Use Req to stream the response
       Req.get!(url, into: :stream).body
@@ -178,7 +178,7 @@ defmodule Tuist.Storage do
       # For local storage, upload directly to our local S3 controller
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
-      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      url = "#{base_url}/s3/#{bucket}/#{object_key}"
       
       content = File.read!(source)
       case Req.put(url, body: content) do
@@ -199,7 +199,7 @@ defmodule Tuist.Storage do
       # For local storage, put directly to our local S3 controller
       bucket = Environment.s3_bucket_name()
       base_url = Environment.app_url()
-      url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+      url = "#{base_url}/s3/#{bucket}/#{object_key}"
       
       case Req.put(url, body: content) do
         {:ok, %{status: 200}} -> :ok
@@ -219,7 +219,7 @@ defmodule Tuist.Storage do
           # For local storage, check with HEAD request
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          url = "#{base_url}/s3/#{bucket}/#{object_key}"
           
           case Req.head(url) do
             {:ok, %{status: 200}} -> true
@@ -251,7 +251,7 @@ defmodule Tuist.Storage do
           # For local storage, get directly from our local S3 controller
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          url = "#{base_url}/s3/#{bucket}/#{object_key}"
           
           case Req.get(url) do
             {:ok, %{status: 200, body: body}} -> body
@@ -284,7 +284,7 @@ defmodule Tuist.Storage do
           # For local storage, initiate multipart upload via our local S3 controller
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          url = "#{base_url}/s3/#{bucket}/#{object_key}"
           
           case Req.post(url, headers: [{"content-type", "application/xml"}]) do
             {:ok, %{status: 200, body: body}} ->
@@ -364,7 +364,7 @@ defmodule Tuist.Storage do
           # For local storage, get size via HEAD request
           bucket = Environment.s3_bucket_name()
           base_url = Environment.app_url()
-          url = "#{base_url}/local-s3/#{bucket}/#{object_key}"
+          url = "#{base_url}/s3/#{bucket}/#{object_key}"
           
           case Req.head(url) do
             {:ok, %{status: 200, headers: headers}} ->

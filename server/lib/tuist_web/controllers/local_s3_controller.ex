@@ -222,7 +222,7 @@ defmodule TuistWeb.LocalS3Controller do
       response_xml = """
       <?xml version="1.0" encoding="UTF-8"?>
       <CompleteMultipartUploadResult>
-        <Location>http://localhost:8080/local-s3/#{bucket}/#{key}</Location>
+        <Location>http://localhost:8080/s3/#{bucket}/#{key}</Location>
         <Bucket>#{bucket}</Bucket>
         <Key>#{key}</Key>
         <ETag>"#{etag}"</ETag>

@@ -422,7 +422,7 @@ defmodule TuistWeb.Router do
 
     # Local S3 storage routes
     if Tuist.Environment.use_local_storage?() do
-      scope "/local-s3/:bucket", TuistWeb do
+      scope "/s3/:bucket", TuistWeb do
         pipe_through [:non_authenticated_api]
 
         # List operations (must come before /*key routes)
