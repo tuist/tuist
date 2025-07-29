@@ -3,8 +3,9 @@ defmodule Tuist.Storage.LocalS3 do
   Manages the lifecycle of local storage directories in development.
   Ensures cleanup on application termination.
   """
-  
+
   use GenServer
+
   require Logger
 
   def start_link(_opts) do
@@ -13,12 +14,12 @@ defmodule Tuist.Storage.LocalS3 do
 
   def init(_) do
     Process.flag(:trap_exit, true)
-    
+
     storage_dir = get_storage_dir()
     File.mkdir_p!(storage_dir)
-    
+
     Logger.info("Local storage directory created at: #{storage_dir}")
-    
+
     {:ok, %{storage_dir: storage_dir}}
   end
 
@@ -27,7 +28,7 @@ defmodule Tuist.Storage.LocalS3 do
       Logger.info("Cleaning up local storage directory: #{storage_dir}")
       File.rm_rf!(storage_dir)
     end
-    
+
     :ok
   end
 
@@ -35,12 +36,11 @@ defmodule Tuist.Storage.LocalS3 do
     {:noreply, state}
   end
 
+  @project_root [__DIR__, "..", "..", ".."] |> Path.join() |> Path.expand()
+
   def get_storage_dir do
-    app_dir = Application.app_dir(:tuist)
-    server_dir = app_dir |> Path.join("../../../..") |> Path.expand()
-    
-    timestamp = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
-    Path.join([server_dir, ".tmp", "local_storage_#{timestamp}"])
+    timestamp = DateTime.to_unix(DateTime.utc_now(), :millisecond)
+    Path.join([@project_root, "tmp", "local_storage_#{timestamp}"])
   end
 
   @doc """
@@ -48,8 +48,9 @@ defmodule Tuist.Storage.LocalS3 do
   """
   def storage_directory do
     case Process.whereis(__MODULE__) do
-      nil -> 
+      nil ->
         get_storage_dir()
+
       pid ->
         GenServer.call(pid, :get_storage_dir)
     end
