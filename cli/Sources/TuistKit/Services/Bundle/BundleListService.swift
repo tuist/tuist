@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import OpenAPIURLSession
 import Path
 import TuistLoader
@@ -89,27 +90,7 @@ final class BundleListService: BundleListServicing {
         )
 
         if json {
-            // Create a raw response that matches the API format
-            let rawBundles = bundles.map { bundle in
-                [
-                    "id": bundle.id,
-                    "name": bundle.name,
-                    "app_bundle_id": bundle.appBundleId,
-                    "version": bundle.version,
-                    "supported_platforms": bundle.supportedPlatforms,
-                    "install_size": bundle.installSize,
-                    "download_size": bundle.downloadSize as Any,
-                    "git_branch": bundle.gitBranch as Any,
-                    "git_commit_sha": bundle.gitCommitSha as Any,
-                    "git_ref": bundle.gitRef as Any,
-                    "inserted_at": Int(bundle.insertedAt.timeIntervalSince1970),
-                    "updated_at": Int(bundle.updatedAt.timeIntervalSince1970),
-                    "uploaded_by_account": bundle.uploadedByAccount,
-                    "url": bundle.url,
-                ]
-            }
-            let jsonData = try JSONSerialization.data(withJSONObject: rawBundles, options: .prettyPrinted)
-            Logger.current.info(.init(stringLiteral: String(data: jsonData, encoding: .utf8)!), metadata: .json)
+            try Noora.current.json(bundles)
             return
         }
 
@@ -119,32 +100,22 @@ final class BundleListService: BundleListServicing {
             return
         }
 
-        let bundlesString = formatBundlesList(bundles, fullHandle: resolvedFullHandle)
-        Logger.current.info("\(bundlesString)")
-    }
-
-    private func formatBundlesList(_ bundles: [ServerBundle], fullHandle: String) -> String {
-        let header = "Bundles for \(fullHandle):\n"
-        let bundleLines = bundles.map { bundle in
-            let installSizeFormatted = formatBytes(bundle.installSize)
-            let downloadSizeFormatted = bundle.downloadSize.map(formatBytes) ?? "Unknown"
-            let platforms = bundle.supportedPlatforms.joined(separator: ", ")
-            let branch = bundle.gitBranch ?? "unknown"
-
-            return "  • \(bundle.name) v\(bundle.version) (\(bundle.appBundleId))\n" +
-                "    Platforms: \(platforms)\n" +
-                "    Install Size: \(installSizeFormatted), Download Size: \(downloadSizeFormatted)\n" +
-                "    Branch: \(branch)\n" +
-                "    ID: \(bundle.id)"
-        }
-
-        return header + bundleLines.joined(separator: "\n\n")
-    }
-
-    private func formatBytes(_ bytes: Int) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
+        try Noora.current.paginatedTable(TableData(columns: [
+            TableColumn(title: "ID", width: .auto),
+            TableColumn(title: "App bundle id", width: .auto),
+            TableColumn(title: "Install size", width: .auto),
+            TableColumn(title: "Download size", width: .auto),
+            TableColumn(title: "Inserted at", width: .auto),
+            TableColumn(title: "URL", width: .auto),
+        ], rows: bundles.map { bundle in
+            return [
+                "\(bundle.id)",
+                "\(bundle.appBundleId)",
+                "\(Formatters.formatBytes(bundle.installSize))",
+                "\(bundle.downloadSize != nil ? Formatters.formatBytes(bundle.downloadSize!) : "Unknown")",
+                "\(Formatters.formatDate(bundle.insertedAt))",
+                "\(.link(title: "Link", href: bundle.url))",
+            ]
+        }), pageSize: 10)
     }
 }
