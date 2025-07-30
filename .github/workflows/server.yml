@@ -20,7 +20,6 @@ concurrency:
 
 env:
   MIX_ENV: test
-  MISE_EXPERIMENTAL: "1"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
