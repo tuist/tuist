@@ -17,7 +17,7 @@ config :boruta, Boruta.Oauth,
   token_generator: Tuist.OAuth.TokenGenerator
 
 config :tuist, Tuist.Vault,
-  key: {Tuist.Environment, :secret_key_sso, []}
+  key: {Tuist.Environment, :secret_key_base, []}
 
 config :ecto_ch,
   default_table_engine: "MergeTree"
