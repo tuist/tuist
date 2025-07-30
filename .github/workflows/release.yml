@@ -218,8 +218,6 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Activate .env.json
-        run: cp .optional.env.json .env.json
       - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
         with:
           version: 2025.7.0
@@ -288,8 +286,6 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
-      - name: Activate .env.json
-        run: cp .optional.env.json .env.json
       - uses: tuist/mise-action@18966898ea274fb74c1d7cf9cc1758fe0d9ddc7e
         with:
           version: 2025.7.0
@@ -617,5 +613,5 @@ jobs:
           tag_name: ${{ needs.check-releases.outputs.server-next-version }}
           body: |
             Docker image: `ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}`
-            
+
             ${{ needs.release-server.outputs.release-notes }}
