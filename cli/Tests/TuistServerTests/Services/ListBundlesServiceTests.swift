@@ -1,13 +1,13 @@
 import Foundation
 import Mockable
 import Testing
+import struct TSCUtility.Version
 import TuistSupport
 import TuistTesting
-import struct TSCUtility.Version
 
 @testable import TuistServer
 
-//struct ListBundlesServiceTests {
+// struct ListBundlesServiceTests {
 //    private var subject: ListBundlesService!
 //    private var serverClient: MockServerClientServicing!
 //    private var serverAuthenticationController: MockServerAuthenticationControlling!
@@ -27,7 +27,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        let expectedBundles = [
 //            ServerBundle.test(
 //                id: "1",
@@ -44,7 +44,7 @@ import struct TSCUtility.Version
 //                size: 150_000
 //            ),
 //        ]
-//        
+//
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
 //            .willReturn(expectedBundles)
@@ -64,7 +64,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
 //            .willReturn([])
@@ -84,7 +84,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(nil)
-//        
+//
 //        let expectedError = ListBundlesServiceError.unauthorized(serverURL)
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
@@ -104,7 +104,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        let expectedError = ListBundlesServiceError.forbidden("tuist/test", serverURL)
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
@@ -124,7 +124,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        let expectedError = ListBundlesServiceError.projectNotFound("tuist/test", serverURL)
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
@@ -144,7 +144,7 @@ import struct TSCUtility.Version
 //        given(serverAuthenticationController)
 //            .authenticationToken(serverURL: .value(serverURL))
 //            .willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        let expectedError = ListBundlesServiceError.unknownError(500)
 //        given(serverClient)
 //            .listBundles(fullHandle: .value("tuist/test"), serverURL: .value(serverURL))
@@ -158,4 +158,4 @@ import struct TSCUtility.Version
 //            )
 //        }
 //    }
-//}
+// }

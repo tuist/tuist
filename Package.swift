@@ -608,7 +608,7 @@ let package = Package(
             .upToNextMajor(from: "0.2.43")
         ),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.40.1")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.45.0")),
         .package(
             url: "https://github.com/frazer-rbsn/OrderedSet.git", .upToNextMajor(from: "2.0.0")
         ),

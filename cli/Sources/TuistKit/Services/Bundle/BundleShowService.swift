@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import OpenAPIURLSession
 import Path
 import TuistLoader
@@ -86,47 +87,12 @@ final class BundleShowService: BundleShowServicing {
         )
 
         if json {
-            // Create a raw response that matches the API format
-            let rawBundle: [String: Any] = [
-                "id": bundle.id,
-                "name": bundle.name,
-                "app_bundle_id": bundle.appBundleId,
-                "version": bundle.version,
-                "supported_platforms": bundle.supportedPlatforms,
-                "install_size": bundle.installSize,
-                "download_size": bundle.downloadSize as Any,
-                "git_branch": bundle.gitBranch as Any,
-                "git_commit_sha": bundle.gitCommitSha as Any,
-                "git_ref": bundle.gitRef as Any,
-                "inserted_at": Int(bundle.insertedAt.timeIntervalSince1970),
-                "updated_at": Int(bundle.updatedAt.timeIntervalSince1970),
-                "uploaded_by_account": bundle.uploadedByAccount,
-                "artifacts": bundle.artifacts.map { artifact in
-                    [
-                        "artifact_type": artifact.artifactType,
-                        "path": artifact.path,
-                        "size": artifact.size,
-                        "shasum": artifact.shasum,
-                        "children": artifact.children.map { child in
-                            [
-                                "artifact_type": child.artifactType,
-                                "path": child.path,
-                                "size": child.size,
-                                "shasum": child.shasum,
-                                "children": [] as [[String: Any]],
-                            ]
-                        },
-                    ]
-                },
-                "url": bundle.url,
-            ]
-            let jsonData = try JSONSerialization.data(withJSONObject: rawBundle, options: .prettyPrinted)
-            Logger.current.info(.init(stringLiteral: String(data: jsonData, encoding: .utf8)!), metadata: .json)
+            try Noora.current.json(bundle)
             return
         }
 
         let bundleInfo = formatBundleInfo(bundle)
-        Logger.current.info("\(bundleInfo)")
+        Noora.current.passthrough("\(bundleInfo)")
     }
 
     private func formatBundleInfo(_ bundle: ServerBundle) -> String {
@@ -137,10 +103,10 @@ final class BundleShowService: BundleShowServicing {
             "Version: \(bundle.version)",
             "App Bundle ID: \(bundle.appBundleId)",
             "Supported Platforms: \(bundle.supportedPlatforms.joined(separator: ", "))",
-            "Install Size: \(formatBytes(bundle.installSize))",
-            "Download Size: \(bundle.downloadSize.map(formatBytes) ?? "Unknown")",
+            "Install Size: \(Formatters.formatBytes(bundle.installSize))",
+            "Download Size: \(bundle.downloadSize.map(Formatters.formatBytes) ?? "Unknown")",
             "Uploaded by: \(bundle.uploadedByAccount)",
-            "Created: \(formatDate(bundle.insertedAt))",
+            "Created: \(Formatters.formatDate(bundle.insertedAt))",
         ]
 
         if let gitBranch = bundle.gitBranch {
@@ -169,7 +135,7 @@ final class BundleShowService: BundleShowServicing {
         var lines: [String] = []
 
         for artifact in artifacts {
-            let size = formatBytes(artifact.size)
+            let size = Formatters.formatBytes(artifact.size)
             lines.append("\(indent)• \(artifact.path) (\(artifact.artifactType)) - \(size)")
 
             if !artifact.children.isEmpty {
@@ -178,19 +144,5 @@ final class BundleShowService: BundleShowServicing {
         }
 
         return lines
-    }
-
-    private func formatBytes(_ bytes: Int) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }

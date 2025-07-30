@@ -10,7 +10,7 @@ import TuistTesting
 
 @testable import TuistKit
 
-//struct BundleListServiceTests {
+// struct BundleListServiceTests {
 //    private var listBundlesService: MockListBundlesServicing!
 //    private var subject: BundleListService!
 //    private var configLoader: MockConfigLoading!
@@ -24,7 +24,7 @@ import TuistTesting
 //        serverAuthenticationController = MockServerAuthenticationControlling()
 //        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 //        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-//        
+//
 //        subject = BundleListService(
 //            listBundlesService: listBundlesService,
 //            configLoader: configLoader,
@@ -148,7 +148,7 @@ import TuistTesting
 //        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 //        let projectPath = temporaryDirectory.appending(components: "Project.swift")
 //        try await FileSystem.shared.write(projectPath, Data())
-//        
+//
 //        given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(url: serverURL, project: "organization/project"))
 //        given(listBundlesService)
 //            .listBundles(fullHandle: .value("organization/project"), serverURL: .value(serverURL))
@@ -177,4 +177,4 @@ import TuistTesting
 //          • MyApp-iOS (1.0.0) - iOS
 //        """)
 //    }
-//}
+// }
