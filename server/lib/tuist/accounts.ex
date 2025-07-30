@@ -295,7 +295,7 @@ defmodule Tuist.Accounts do
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
         okta_client_id: okta_client_id,
-        okta_client_secret: okta_client_secret,
+        okta_encrypted_client_secret: okta_client_secret,
         okta_site: okta_site,
         created_at: created_at
       })
@@ -1369,7 +1369,7 @@ defmodule Tuist.Accounts do
           {:ok,
            %{
              client_id: organization.okta_client_id,
-             client_secret: organization.okta_client_secret,
+             client_secret: organization.okta_encrypted_client_secret,
              site: organization.okta_site
            }}
         else

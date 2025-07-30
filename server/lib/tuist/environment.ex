@@ -446,6 +446,10 @@ defmodule Tuist.Environment do
     get([:secret_key, :tokens], secrets, default_value: secret_key_base(secrets))
   end
 
+  def secret_key_sso(secrets \\ secrets()) do
+    get([:secret_key, :sso], secrets, default_value: secret_key_base(secrets))
+  end
+
   def oauth_client_id(secrets \\ secrets()) do
     get([:oauth, :client_id], secrets)
   end
