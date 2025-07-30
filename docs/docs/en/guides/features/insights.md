@@ -11,18 +11,18 @@ description: Get insights into your projects to maintain a product developer env
 
 Working on large projects shouldn't feel like a chore. In fact, it should be as enjoyable as working on a project you started just two weeks ago. One of the reasons it is not is because as the project grows, the developer experience suffers. The build times increase and tests become slow and flaky. It's often easy to overlook these issues until it gets to a point where they become unbearable – however, at that point, it's difficult to address them. Tuist Insights provides you with the tools to monitor the health of your project and maintain a productive developer environment as your project scales.
 
-In other words, Tuist Insights helps you to anwer questions such as:
-- Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
-
-> [!NOTE]
-> Tuist Insights are in early development.
-
 ## Builds {#builds}
 
-While you probably have some metrics for the performance of CI workflows, you might not have the same visibility into the local development environment. However, local build times are one of the most important factors that contribute to the developer experience.
+When working on apps, **having fast and reliable builds is strongly connected with developers' momentum.**
+However, having visibility over that is not trivial. Xcode outputs information from the builds,
+however, deriving valuable insights requires the perspective of data across time and space (e.g. branches).
+Some CI providers provide analytics from your pipelines, but they are generic and pipeline-centric, and therefore not granular enough.
+For example, you can't answer quetions like *How has the compilation time of this module increased over time?*
 
-To start tracking local build times, you can leverage the `tuist inspect build` command by adding it to your scheme's post-action:
+Tuist can parse, standardize, and store data from your builds and provide you with valuable insights to improve your development environment.
+All you need is to have a scheme build post-action invoking `tuist inspect build`.
+
+
 
 ![Post-action for inspecting builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
@@ -31,9 +31,7 @@ In case you're using [Mise](https://mise.jdx.dev/), your script will need to act
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
-eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-tuist inspect build
+$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
 
@@ -70,8 +68,7 @@ let project = Project(
                     .executionAction(
                         name: "Inspect Build",
                         scriptText: """
-                        eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
-                        tuist inspect build
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
                         """
                     )
                 ],

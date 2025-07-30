@@ -26,10 +26,10 @@ struct InspectTestsCommand: AsyncParsableCommand, NooraReadyCommand {
     var derivedDataPath: String?
 
     func run() async throws {
-//        try await InspectBuildCommandService()
-//            .run(
-//                path: path,
-//                derivedDataPath: derivedDataPath
-//            )
+        try await InspectTestsCommandService()
+            .run(
+                path: path,
+                derivedDataPath: derivedDataPath
+            )
     }
 }

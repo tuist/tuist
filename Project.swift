@@ -12,10 +12,9 @@ func debugSettings() -> SettingsDictionary {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-    tuist inspect build
-    """
+        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
+        """,
+    target: .target("tuist")
 )
 
 func releaseSettings() -> SettingsDictionary {
@@ -51,16 +50,20 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.targets).map(\.name).sorted().map {
                     .target($0)
-                } + (Module.includeEE() ? [.target("TuistCacheEE"), .target("TuistCacheEETests")] : []),
+                }
+                    + (Module.includeEE()
+                        ? [.target("TuistCacheEE"), .target("TuistCacheEETests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.testTargets).map {
                     .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : [])
+                }
+                    + (Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEETests"))] : [])
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -72,16 +75,19 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
+                    .map { .target($0) }
+                    + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : [])
+                }
+                    + (Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : [])
             ),
             runAction: .runAction(
                 arguments: .arguments(
@@ -93,16 +99,19 @@ func schemes() -> [Scheme] {
             name: "TuistUnitTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.unitTestTargets).map(\.name).sorted()
-                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEETests")] : []),
+                    .map { .target($0) }
+                    + (Module.includeEE() ? [.target("TuistCacheEETests")] : []),
                 postActions: [
-                    inspectBuildPostAction,
+                    inspectBuildPostAction
                 ],
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.unitTestTargets).map {
                     .testableTarget(target: .target($0.name))
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEETests"))] : []),
+                }
+                    + (Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEETests"))] : []),
                 options: .options(
                     language: "en"
                 )
@@ -125,51 +134,53 @@ func schemes() -> [Scheme] {
         ),
     ]
     if Module.includeEE() {
-        schemes.append(.scheme(
-            name: "TuistCacheEEAcceptanceTests",
-            buildAction: .buildAction(
-                targets: [.target("TuistCacheEEAcceptanceTests")],
-                postActions: [
-                    inspectBuildPostAction,
-                ],
-                runPostActionsOnFailure: true
-            ),
-            testAction: .targets(
-                [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))],
-                options: .options(
-                    language: "en"
+        schemes.append(
+            .scheme(
+                name: "TuistCacheEEAcceptanceTests",
+                buildAction: .buildAction(
+                    targets: [.target("TuistCacheEEAcceptanceTests")],
+                    postActions: [
+                        inspectBuildPostAction
+                    ],
+                    runPostActionsOnFailure: true
+                ),
+                testAction: .targets(
+                    [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))],
+                    options: .options(
+                        language: "en"
+                    )
+                ),
+                runAction: .runAction(
+                    arguments: .arguments(
+                        environmentVariables: acceptanceTestsEnvironmentVariables()
+                    )
                 )
-            ),
-            runAction: .runAction(
-                arguments: .arguments(
-                    environmentVariables: acceptanceTestsEnvironmentVariables()
+            ))
+        schemes.append(
+            .scheme(
+                name: "TuistCacheEEUnitTests",
+                buildAction: .buildAction(
+                    targets: [.target("TuistCacheEETests")],
+                    postActions: [
+                        inspectBuildPostAction
+                    ],
+                    runPostActionsOnFailure: true
+                ),
+                testAction: .targets(
+                    [.testableTarget(target: .target("TuistCacheEETests"))],
+                    options: .options(
+                        language: "en"
+                    )
+                ),
+                runAction: .runAction(
+                    arguments: .arguments(
+                        environmentVariables: [
+                            "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                            "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                        ]
+                    )
                 )
-            )
-        ))
-        schemes.append(.scheme(
-            name: "TuistCacheEEUnitTests",
-            buildAction: .buildAction(
-                targets: [.target("TuistCacheEETests")],
-                postActions: [
-                    inspectBuildPostAction,
-                ],
-                runPostActionsOnFailure: true
-            ),
-            testAction: .targets(
-                [.testableTarget(target: .target("TuistCacheEETests"))],
-                options: .options(
-                    language: "en"
-                )
-            ),
-            runAction: .runAction(
-                arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
-                )
-            )
-        ))
+            ))
     }
     schemes.append(
         contentsOf: Module.allCases.filter(\.isRunnable).map {
@@ -178,7 +189,7 @@ func schemes() -> [Scheme] {
                 buildAction: .buildAction(
                     targets: [.target($0.targetName)],
                     postActions: [
-                        inspectBuildPostAction,
+                        inspectBuildPostAction
                     ],
                     runPostActionsOnFailure: true
                 ),
@@ -197,25 +208,26 @@ func schemes() -> [Scheme] {
     )
 
     schemes.append(
-        contentsOf: (Module.allCases.compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"]: [])).map {
-            .scheme(
-                name: $0,
-                hidden: true,
-                buildAction: .buildAction(
-                    targets: [.target($0)],
-                    postActions: [
-                        inspectBuildPostAction,
-                    ],
-                    runPostActionsOnFailure: true
-                ),
-                testAction: .targets([.testableTarget(target: .target($0))]),
-                runAction: .runAction(
-                    arguments: .arguments(
-                        environmentVariables: acceptanceTestsEnvironmentVariables()
+        contentsOf: (Module.allCases.compactMap(\.acceptanceTestsTargetName)
+            + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])).map {
+                .scheme(
+                    name: $0,
+                    hidden: true,
+                    buildAction: .buildAction(
+                        targets: [.target($0)],
+                        postActions: [
+                            inspectBuildPostAction
+                        ],
+                        runPostActionsOnFailure: true
+                    ),
+                    testAction: .targets([.testableTarget(target: .target($0))]),
+                    runAction: .runAction(
+                        arguments: .arguments(
+                            environmentVariables: acceptanceTestsEnvironmentVariables()
+                        )
                     )
                 )
-            )
-        }
+            }
     )
 
     return schemes
