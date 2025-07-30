@@ -2760,4 +2760,64 @@ defmodule Tuist.AccountsTest do
       assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
     end
   end
+
+  describe "get_okta_configuration_by_organization_id/1" do
+    test "returns okta configuration when organization has okta configured with db values" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com",
+          okta_client_id: "test_client_id",
+          okta_client_secret: "test_client_secret",
+          okta_site: "https://company.okta.com"
+        )
+
+      # When
+      {:ok, config} = Accounts.get_okta_configuration_by_organization_id(organization.id)
+
+      # Then
+      assert config.client_id == "test_client_id"
+      assert config.client_secret == "test_client_secret"
+      assert config.site == "https://company.okta.com"
+    end
+
+    test "returns error when organization does not have okta configured" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "company.com"
+        )
+
+      # When / Then
+      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+    end
+
+    test "returns error when organization has okta as provider but no client_id" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com"
+        )
+
+      # When / Then
+      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+    end
+
+    test "returns error when organization does not exist" do
+      # When / Then
+      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999999)
+    end
+  end
 end
