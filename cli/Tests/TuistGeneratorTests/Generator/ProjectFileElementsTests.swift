@@ -1039,7 +1039,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let project = Project.empty(
             path: "/a/project",
             targets: [target],
-            packages: [.local(path: localPackagePath)]
+            packages: [.local(path: localPackagePath, groupPath: nil)]
         )
         let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
         let groups = ProjectGroups.generate(
@@ -1055,7 +1055,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .local(path: localPackagePath),
+                    "A": .local(path: localPackagePath, groupPath: nil),
                 ],
             ],
             dependencies: [

@@ -287,24 +287,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
                 guard let root = try pbxproj.rootGroup() else { continue }
                 if let groupPath {
-                    let packagesGroup: PBXGroup?
-                    if let existing = root.group(named: "Packages") {
-                        packagesGroup = existing
-                    } else {
-                        packagesGroup = try root.addGroup(named: "Packages", options: .withoutFolder).first
-                    }
-
-                    let components = groupPath.split(separator: "/").map(String.init)
-                    var currentGroup = packagesGroup
-                    for folder in components.dropLast() {
-                        if let sub = currentGroup?.group(named: folder) {
-                            currentGroup = sub
-                        } else {
-                            currentGroup = try currentGroup?.addGroup(named: folder, options: .withoutFolder).first
-                        }
-                    }
-
-                    currentGroup?.children.append(reference)
+                    try addLocalPackageReference(root: root, groupPath: groupPath, reference: reference)
                 } else {
                     if let existingPackageGroup = root.group(named: "Packages") {
                         existingPackageGroup.children.append(reference)
@@ -326,6 +309,31 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         pbxProject.remotePackages = remotePackageReferences.sorted { $0.key < $1.key }.map { $1 }
         pbxProject.localPackages = localPackageReferences.sorted { $0.key < $1.key }.map { $1 }
+    }
+
+    private func addLocalPackageReference(
+        root: PBXGroup,
+        groupPath: String,
+        reference: PBXFileReference
+    ) throws {
+        let packagesGroup: PBXGroup?
+        if let existing = root.group(named: "Packages") {
+            packagesGroup = existing
+        } else {
+            packagesGroup = try root.addGroup(named: "Packages", options: .withoutFolder).first
+        }
+
+        let components = groupPath.split(separator: "/").map(String.init)
+        var currentGroup = packagesGroup
+        for folder in components {
+            if let sub = currentGroup?.group(named: folder) {
+                currentGroup = sub
+            } else {
+                currentGroup = try currentGroup?.addGroup(named: folder, options: .withoutFolder).first
+            }
+        }
+
+        currentGroup?.children.append(reference)
     }
 
     private func generateAttributes(project: Project) -> [String: ProjectAttribute] {
