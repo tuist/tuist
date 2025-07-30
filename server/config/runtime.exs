@@ -218,8 +218,6 @@ if Tuist.Environment.env() not in [:test] do
     scheme: "https://",
     host: s3_endpoint_host
 
-  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
-
   config :ex_aws,
     http_client: Tuist.AWS.Client
 
