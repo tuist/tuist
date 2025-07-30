@@ -383,7 +383,7 @@ public final class GraphLoader: GraphLoading {
 extension Package {
     fileprivate var name: String {
         switch self {
-        case let .local(path: path):
+        case let .local(path, _):
             return path.pathString
         case let .remote(url: url, requirement: _):
             return url

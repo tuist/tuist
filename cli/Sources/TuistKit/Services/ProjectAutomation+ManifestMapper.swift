@@ -67,7 +67,7 @@ extension ProjectAutomation.Package {
         switch package {
         case let .remote(url, _):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.remote, path: url)
-        case let .local(path):
+        case let .local(path, _):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.local, path: path.pathString)
         }
     }

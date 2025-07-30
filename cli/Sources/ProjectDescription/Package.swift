@@ -7,7 +7,7 @@
 public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
     case registry(identifier: String, requirement: Requirement)
-    case local(path: Path)
+    case local(path: Path, groupPath: Path?)
 
     private enum Kind: String, Codable {
         case remote
@@ -114,8 +114,8 @@ extension Package {
     /// on multiple tightly coupled packages.
     ///
     /// - Parameter path: The path of the package.
-    public static func package(path: Path) -> Package {
-        .local(path: path)
+    public static func package(path: Path, groupPath: Path? = nil) -> Package {
+        .local(path: path, groupPath: groupPath)
     }
 
     /// Adds a package dependency that uses the version requirement, starting with the given minimum version,
