@@ -137,9 +137,10 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                if command is NooraReadyCommand {
+                if let nooraReadyCommand = command as? NooraReadyCommand {
+                    let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                     try await withLoggerForNoora(logFilePath: logFilePath) {
-                        try await Noora.$current.withValue(initNoora()) {
+                        try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
                             try await trackableCommand.run(
                                 backend: backend
                             )

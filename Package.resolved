@@ -1,5 +1,5 @@
 {
-  "originHash" : "57ca9ad1a2fae3dcb958cd5001cc8069377467a183b14027e0df94b114f89a21",
+  "originHash" : "7afc4ad59c460b01029ca40ce712c12d25acdbc643c64f4c3f1ebb54b58095ef",
   "pins" : [
     {
       "identity" : "aexml",
@@ -177,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "4858805eccada342572f7ccb0c5e4d78135c51f2",
-        "version" : "0.40.1"
+        "revision" : "100d63d30721993b235b426b03fa3bbe446ce04a",
+        "version" : "0.45.0"
       }
     },
     {
@@ -240,8 +240,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Rainbow",
       "state" : {
-        "revision" : "0c627a4f8a39ef37eadec1ceec02e4a7f55561ac",
-        "version" : "4.1.0"
+        "revision" : "16da5c62dd737258c6df2e8c430f8a3202f655a7",
+        "version" : "4.2.0"
       }
     },
     {
@@ -303,8 +303,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "011f0c765fb46d9cac61bca19be0527e99c98c8b",
-        "version" : "1.5.1"
+        "revision" : "309a47b2b1d9b5e991f36961c983ecec72275be3",
+        "version" : "1.6.1"
       }
     },
     {
@@ -375,8 +375,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "3d8596ed08bd13520157f0355e35caed215ffbfa",
-        "version" : "1.6.3"
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
       }
     },
     {
@@ -510,8 +510,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "d5a29fcc952f29ac70537a07d2a7181b052aa870",
-        "version" : "2.20.0"
+        "revision" : "12ef25ac417cb5ae2a7975a786c3bd6a6b701235",
+        "version" : "2.29.0"
       }
     },
     {

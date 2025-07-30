@@ -23,11 +23,17 @@ struct BundleShowServiceTests {
         serverURL = URL(string: "https://test.tuist.dev")!
         serverAuthenticationController = MockServerAuthenticationControlling()
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
-        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(legacyToken: "token", accessToken: nil, refreshToken: nil))
-        
-        subject = BundleShowService(getBundleService: getBundleService,
-                          serverEnvironmentService: ServerEnvironmentService(),
-                          configLoader: configLoader)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(
+            legacyToken: "token",
+            accessToken: nil,
+            refreshToken: nil
+        ))
+
+        subject = BundleShowService(
+            getBundleService: getBundleService,
+            serverEnvironmentService: ServerEnvironmentService(),
+            configLoader: configLoader
+        )
     }
 
     @Test func bundle_show_with_details() async throws {
@@ -68,7 +74,7 @@ struct BundleShowServiceTests {
 //                ),
 //            ]
 //        )
-//        
+//
         given(getBundleService)
             .getBundle(fullHandle: .value("tuist/test"), bundleId: .value("bundle-123"), serverURL: .value(serverURL))
             .willReturn(bundle)
@@ -107,7 +113,7 @@ struct BundleShowServiceTests {
 //            platforms: [.iOS],
 //            size: 250_000
 //        )
-//        
+//
 //        given(getBundleService)
 //            .getBundle(fullHandle: .value("tuist/test"), bundleId: .value("bundle-123"), serverURL: .value(serverURL))
 //            .willReturn(bundle)
@@ -144,7 +150,7 @@ struct BundleShowServiceTests {
 //            releaseDate: nil,
 //            artifacts: []
 //        )
-//        
+//
 //        given(getBundleService)
 //            .getBundle(fullHandle: .value("tuist/test"), bundleId: .value("bundle-123"), serverURL: .value(serverURL))
 //            .willReturn(bundle)
@@ -190,16 +196,16 @@ struct BundleShowServiceTests {
 //        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 //        let projectPath = temporaryDirectory.appending(components: "Project.swift")
 //        try await FileSystem.shared.write(projectPath, Data())
-//        
+//
 //        given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(.test(url: serverURL, project: "organization/project"))
-//        
+//
 //        let bundle = ServerBundle.test(
 //            id: "bundle-123",
 //            name: "MyApp-iOS",
 //            bundleVersion: Version(major: 1, minor: 0, patch: 0),
 //            platforms: [.iOS]
 //        )
-//        
+//
 //        given(getBundleService)
 //            .getBundle(fullHandle: .value("organization/project"), bundleId: .value("bundle-123"), serverURL: .value(serverURL))
 //            .willReturn(bundle)

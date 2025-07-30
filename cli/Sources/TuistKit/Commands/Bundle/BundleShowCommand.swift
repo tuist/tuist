@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 
-struct BundleShowCommand: AsyncParsableCommand {
+struct BundleShowCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "show",
@@ -37,6 +37,8 @@ struct BundleShowCommand: AsyncParsableCommand {
         envKey: .bundleShowJson
     )
     var json: Bool = false
+
+    var jsonThroughNoora: Bool = true
 
     func run() async throws {
         try await BundleShowService().run(
