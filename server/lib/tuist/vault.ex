@@ -25,6 +25,7 @@ defmodule Tuist.Vault do
   end
 
   defp decode_env!(key) when is_binary(key) do
+    # AES-GCM requires exactly 32 bytes for the encryption key
     # If the key is already the right length, use it directly
     # Otherwise, take the first 32 bytes or pad with zeros
     case byte_size(key) do
