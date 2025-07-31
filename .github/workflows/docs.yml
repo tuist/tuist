@@ -43,8 +43,8 @@ jobs:
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
-      - name: Generate manifest docs
-        run: mise run docs:generate-manifests-docs
+      - name: Generate documentation data
+        run: mise run docs:generate-data
       - name: Build the documentation
         # VitePress is not memory-efficient, loading all the pages into memory when building
         # the site. This can potentially lead to out-of-memory errors in localized documentation
