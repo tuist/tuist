@@ -1,14 +1,14 @@
-defmodule TuistWeb.API.Schemas.Bundle do
+defmodule TuistWeb.API.Schemas.BundleList do
   @moduledoc """
-  The schema for a bundle.
+  The schema for a bundle in list operations (without artifacts).
   """
   alias OpenApiSpex.Schema
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "Bundle",
-    description: "Response schema for bundle",
+    title: "BundleList",
+    description: "Response schema for bundle in list operations",
     type: :object,
     properties: %{
       id: %Schema{
@@ -68,16 +68,11 @@ defmodule TuistWeb.API.Schemas.Bundle do
         type: :string,
         description: "The account that uploaded this bundle"
       },
-      artifacts: %Schema{
-        type: :array,
-        description: "The artifacts in this bundle",
-        items: TuistWeb.API.Schemas.BundleArtifact
-      },
       url: %Schema{
         type: :string,
         description: "The URL to view this bundle"
       }
     },
-    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :inserted_at, :updated_at, :uploaded_by_account, :artifacts, :url]
+    required: [:id, :name, :app_bundle_id, :version, :supported_platforms, :install_size, :inserted_at, :updated_at, :uploaded_by_account, :url]
   })
 end
