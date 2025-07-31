@@ -62,7 +62,7 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(
-      if Environment.dev?() and not Environment.dev_use_remote_storage?(),
+      if not Environment.dev_use_remote_storage?(),
         do: [Tuist.MinioSupervisor],
         else: []
     )
