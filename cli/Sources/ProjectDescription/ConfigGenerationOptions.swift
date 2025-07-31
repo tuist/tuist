@@ -39,8 +39,13 @@ extension Tuist {
 
         /// When disabled, build insights are not collected. Build insights are never collected unless you are connected to a
         /// remote Tuist project.
-        /// Default value is `true`.
+        /// Default value is `false`.
         public var buildInsightsDisabled: Bool
+
+        /// When disabled, tests insights are not collected. Tests insights are never collected unless you are connected to a
+        /// remote Tuist project.
+        /// Default value is `false`.
+        public var testsInsightsDisabled: Bool
 
         /// Disables building manifests in a sandboxed environment.
         ///
@@ -58,6 +63,7 @@ extension Tuist {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = false,
+            testsInsightsDisabled: Bool = false,
             disableSandbox: Bool = false
         ) -> Self {
             self.init(
@@ -69,6 +75,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testsInsightsDisabled: testsInsightsDisabled,
                 disableSandbox: disableSandbox
             )
         }
@@ -96,6 +103,7 @@ extension Tuist {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: false,
+                testsInsightsDisabled: false,
                 disableSandbox: false
             )
         }

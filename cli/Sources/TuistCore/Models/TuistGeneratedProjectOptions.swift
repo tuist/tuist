@@ -40,6 +40,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
+                testsInsightsDisabled: true,
                 disableSandbox: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
@@ -63,6 +64,7 @@ extension TuistGeneratedProjectOptions {
         public let defaultConfiguration: String?
         public var optionalAuthentication: Bool
         public let buildInsightsDisabled: Bool
+        public let testsInsightsDisabled: Bool
         public let disableSandbox: Bool
 
         public init(
@@ -74,6 +76,7 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool,
+            testsInsightsDisabled: Bool,
             disableSandbox: Bool
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
@@ -84,6 +87,7 @@ extension TuistGeneratedProjectOptions {
             self.defaultConfiguration = defaultConfiguration
             self.optionalAuthentication = optionalAuthentication
             self.buildInsightsDisabled = buildInsightsDisabled
+            self.testsInsightsDisabled = testsInsightsDisabled
             self.disableSandbox = disableSandbox
         }
     }
@@ -129,6 +133,7 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
+            testsInsightsDisabled: Bool = true,
             disableSandbox: Bool = false
         ) -> Self {
             .init(
@@ -140,6 +145,7 @@ extension TuistGeneratedProjectOptions {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testsInsightsDisabled: testsInsightsDisabled,
                 disableSandbox: disableSandbox
             )
         }

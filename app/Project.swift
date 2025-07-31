@@ -23,10 +23,9 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
 let inspectBuildPostAction: ExecutionAction = .executionAction(
     title: "Inspect build",
     scriptText: """
-    eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-    tuist inspect build
-    """
+    $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
+    """,
+    target: .target("tuist")
 )
 
 let oauthClientIdEnvironmentVariable: EnvironmentVariable =
@@ -111,7 +110,8 @@ let project = Project(
                     "DEVELOPMENT_TEAM": "U6LC622NKF",
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
-                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": "Resources/TuistApp/TuistApp.entitlements",
+                    "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]":
+                        "Resources/TuistApp/TuistApp.entitlements",
                 ],
                 release: [
                     // Needed for the app notarization
