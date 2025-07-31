@@ -293,9 +293,35 @@ defmodule Tuist.Storage do
     {time, upload_id} =
       Performance.measure_time_in_milliseconds(fn ->
         if Environment.use_local_storage?() do
-          multipart_start_local(object_key)
+          # For local storage, initiate multipart upload via our local S3 controller
+          bucket = Environment.s3_bucket_name()
+          base_url = Environment.app_url()
+          url = "#{base_url}/s3/#{bucket}/#{object_key}?uploads"
+
+          case Req.post(url, headers: [{"content-type", "application/xml"}]) do
+            {:ok, %{status: 200, body: body}} ->
+              # Parse the upload ID from the XML response
+              upload_id = xpath(body, ~x"//UploadId/text()"s)
+
+              if upload_id == "" do
+                raise "Failed to parse upload ID from response: #{body}"
+              else
+                upload_id
+              end
+
+            {:ok, %{status: status, body: body}} ->
+              raise "Failed to initiate multipart upload - HTTP #{status}: #{inspect(body)}"
+
+            {:error, reason} ->
+              raise "Failed to initiate multipart upload - Request error: #{inspect(reason)}"
+          end
         else
-          multipart_start_remote(object_key)
+          %{body: %{upload_id: upload_id}} =
+            Environment.s3_bucket_name()
+            |> ExAws.S3.initiate_multipart_upload(object_key)
+            |> ExAws.request!()
+
+          upload_id
         end
       end)
 
@@ -304,37 +330,6 @@ defmodule Tuist.Storage do
       %{duration: time},
       %{object_key: object_key}
     )
-
-    upload_id
-  end
-
-  defp multipart_start_local(object_key) do
-    bucket = Environment.s3_bucket_name()
-    base_url = Environment.app_url()
-    url = "#{base_url}/s3/#{bucket}/#{object_key}?uploads"
-
-    case Req.post(url, headers: [{"content-type", "application/xml"}]) do
-      {:ok, %{status: 200, body: body}} ->
-        upload_id = xpath(body, ~x"//UploadId/text()"s)
-
-        case upload_id do
-          "" -> raise "Failed to parse upload ID from response: #{body}"
-          _ -> upload_id
-        end
-
-      {:ok, %{status: status, body: body}} ->
-        raise "Failed to initiate multipart upload - HTTP #{status}: #{inspect(body)}"
-
-      {:error, reason} ->
-        raise "Failed to initiate multipart upload - Request error: #{inspect(reason)}"
-    end
-  end
-
-  defp multipart_start_remote(object_key) do
-    %{body: %{upload_id: upload_id}} =
-      Environment.s3_bucket_name()
-      |> ExAws.S3.initiate_multipart_upload(object_key)
-      |> ExAws.request!()
 
     upload_id
   end
