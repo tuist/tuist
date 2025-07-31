@@ -62,6 +62,11 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(
+      if Environment.dev?() and not Environment.dev_use_remote_storage?(),
+        do: [Tuist.MinioSupervisor],
+        else: []
+    )
+    |> Kernel.++(
       if Environment.web?(),
         do: [
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},

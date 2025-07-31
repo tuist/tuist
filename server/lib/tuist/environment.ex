@@ -76,6 +76,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  def dev_use_remote_storage? do
+    truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
+  end
+
   def get_license_key(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_KEY") ||
       get([:license], secrets)
@@ -177,13 +181,21 @@ defmodule Tuist.Environment do
   end
 
   def s3_access_key_id(secrets \\ secrets()) do
-    System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
-      get([:s3, :access_key_id], secrets)
+    if env() == :dev and not dev_use_remote_storage?() do
+      "minio"
+    else
+      System.get_env("AWS_ACCESS_KEY_ID") || get([:aws, :access_key_id], secrets) ||
+        get([:s3, :access_key_id], secrets)
+    end
   end
 
   def s3_secret_access_key(secrets \\ secrets()) do
-    System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
-      get([:s3, :secret_access_key], secrets)
+    if env() == :dev and not dev_use_remote_storage?() do
+      "minio1234"
+    else
+      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:aws, :secret_access_key], secrets) ||
+        get([:s3, :secret_access_key], secrets)
+    end
   end
 
   def s3_region(secrets \\ secrets()) do
@@ -192,11 +204,19 @@ defmodule Tuist.Environment do
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
-    get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
+    if env() == :dev and not dev_use_remote_storage?() do
+      "tuist-development"
+    else
+      get([:aws, :bucket_name], secrets) || get([:s3, :bucket_name], secrets)
+    end
   end
 
   def s3_endpoint(secrets \\ secrets()) do
-    get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
+    if env() == :dev and not dev_use_remote_storage?() do
+      "http://localhost:9095"
+    else
+      get([:aws, :endpoint], secrets) || get([:s3, :endpoint], secrets)
+    end
   end
 
   def s3_pool_size(secrets \\ secrets()) do
@@ -222,7 +242,11 @@ defmodule Tuist.Environment do
   end
 
   def s3_virtual_host(secrets \\ secrets()) do
-    [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    if env() == :dev and not dev_use_remote_storage?() do
+      false
+    else
+      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+    end
   end
 
   def slack_tuist_token(secrets \\ secrets()) do

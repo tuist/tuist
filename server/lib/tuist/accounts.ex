@@ -227,7 +227,7 @@ defmodule Tuist.Accounts do
 
   @doc """
   Updates the Okta configuration for an organization.
-  
+
   ## Parameters
     - organization_id: The ID of the organization to update
     - attrs: Map containing Okta configuration fields:
@@ -236,7 +236,7 @@ defmodule Tuist.Accounts do
       - okta_site: The Okta site URL
       - sso_provider: Will be automatically set to :okta
       - sso_organization_id: The Okta organization ID
-  
+
   ## Returns
     - {:ok, organization} on success
     - {:error, :not_found} if organization doesn't exist
@@ -246,19 +246,20 @@ defmodule Tuist.Accounts do
     case get_organization_by_id(organization_id) do
       {:ok, organization} ->
         # Rename okta_client_secret to okta_encrypted_client_secret for the changeset
-        okta_attrs = attrs
-        |> Map.put(:sso_provider, :okta)
-        |> maybe_rename_client_secret()
-        
+        okta_attrs =
+          attrs
+          |> Map.put(:sso_provider, :okta)
+          |> maybe_rename_client_secret()
+
         organization
         |> Organization.update_changeset(okta_attrs)
         |> Repo.update()
-        
+
       {:error, :not_found} = error ->
         error
     end
   end
-  
+
   defp maybe_rename_client_secret(attrs) do
     case Map.pop(attrs, :okta_client_secret) do
       {nil, attrs} -> attrs
@@ -1399,7 +1400,7 @@ defmodule Tuist.Accounts do
 
   @doc """
   Gets the Okta configuration for an organization by its ID.
-  
+
   Returns {:ok, %{client_id: ..., client_secret: ..., site: ...}} if the organization
   has Okta configuration, otherwise returns {:error, :not_found}.
   """
