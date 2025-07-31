@@ -639,6 +639,102 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "update_okta_configuration/2" do
+    test "updates Okta configuration for an existing organization" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      
+      # When
+      result = Accounts.update_okta_configuration(organization.id, %{
+        okta_client_id: "test_client_id",
+        okta_client_secret: "test_secret",
+        okta_site: "https://test.okta.com",
+        sso_organization_id: "test-okta-org"
+      })
+      
+      # Then
+      assert {:ok, updated_org} = result
+      assert updated_org.okta_client_id == "test_client_id"
+      assert updated_org.okta_site == "https://test.okta.com"
+      assert updated_org.sso_provider == :okta
+      assert updated_org.sso_organization_id == "test-okta-org"
+      # Check that the secret is stored (encrypted)
+      assert updated_org.okta_encrypted_client_secret != nil
+    end
+    
+    test "encrypts the client secret when storing" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      plain_secret = "my_super_secret_key"
+      
+      # When
+      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
+        okta_client_id: "test_client_id",
+        okta_client_secret: plain_secret,
+        okta_site: "https://test.okta.com",
+        sso_organization_id: "test-okta-org"
+      })
+      
+      # Then
+      # Verify the secret was stored
+      assert updated_org.okta_encrypted_client_secret != nil
+      
+      # Reload from database to ensure we're testing the persisted value
+      {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
+      
+      # The Vault.Binary type should automatically decrypt when loaded
+      # so we should get back the original plain text
+      assert reloaded_org.okta_encrypted_client_secret == plain_secret
+    end
+    
+    test "returns error when organization doesn't exist" do
+      # When
+      result = Accounts.update_okta_configuration(999999, %{
+        okta_client_id: "test_client_id"
+      })
+      
+      # Then
+      assert result == {:error, :not_found}
+    end
+    
+    test "automatically sets sso_provider to okta" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user, sso_provider: :google)
+      
+      # When - update Okta configuration
+      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
+        okta_client_id: "test_client_id"
+      })
+      
+      # Then - sso_provider should be changed to :okta
+      assert updated_org.sso_provider == :okta
+    end
+    
+    test "can update partial Okta configuration" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(
+        creator: user,
+        okta_client_id: "old_client_id",
+        okta_site: "https://old.okta.com",
+        sso_provider: :okta
+      )
+      
+      # When - update only the client ID
+      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
+        okta_client_id: "new_client_id"
+      })
+      
+      # Then
+      assert updated_org.okta_client_id == "new_client_id"
+      assert updated_org.okta_site == "https://old.okta.com"  # unchanged
+      assert updated_org.sso_provider == :okta  # still okta
+    end
+  end
+
   describe "get_invitation_by_id/1" do
     test "returns a given invitation" do
       # Given

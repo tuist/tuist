@@ -13,7 +13,7 @@ defmodule Tuist.Accounts.Organization do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2]
     field :sso_organization_id, :string
     field :okta_client_id, :string
-    field :okta_encrypted_client_secret, Tuist.Encrypted.Binary
+    field :okta_encrypted_client_secret, Tuist.Vault.Binary
     field :okta_site, :string
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)

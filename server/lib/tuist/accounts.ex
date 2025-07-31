@@ -225,6 +225,47 @@ defmodule Tuist.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
+  @doc """
+  Updates the Okta configuration for an organization.
+  
+  ## Parameters
+    - organization_id: The ID of the organization to update
+    - attrs: Map containing Okta configuration fields:
+      - okta_client_id: The Okta client ID
+      - okta_client_secret: The Okta client secret (will be encrypted automatically)
+      - okta_site: The Okta site URL
+      - sso_provider: Will be automatically set to :okta
+      - sso_organization_id: The Okta organization ID
+  
+  ## Returns
+    - {:ok, organization} on success
+    - {:error, :not_found} if organization doesn't exist
+    - {:error, changeset} if validation fails
+  """
+  def update_okta_configuration(organization_id, attrs) do
+    case get_organization_by_id(organization_id) do
+      {:ok, organization} ->
+        # Rename okta_client_secret to okta_encrypted_client_secret for the changeset
+        okta_attrs = attrs
+        |> Map.put(:sso_provider, :okta)
+        |> maybe_rename_client_secret()
+        
+        organization
+        |> Organization.update_changeset(okta_attrs)
+        |> Repo.update()
+        
+      {:error, :not_found} = error ->
+        error
+    end
+  end
+  
+  defp maybe_rename_client_secret(attrs) do
+    case Map.pop(attrs, :okta_client_secret) do
+      {nil, attrs} -> attrs
+      {secret, attrs} -> Map.put(attrs, :okta_encrypted_client_secret, secret)
+    end
+  end
+
   def update_organization(%Organization{} = organization, attrs) do
     Multi.new()
     |> Multi.update(:organization, Organization.update_changeset(organization, attrs))
