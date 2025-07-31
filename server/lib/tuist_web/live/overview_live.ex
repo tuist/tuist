@@ -258,6 +258,10 @@ defmodule TuistWeb.OverviewLive do
       ] = Analytics.combined_overview_analytics(project.id, opts)
 
       socket
+      |> assign(
+        :build_time_analytics,
+        Analytics.build_time_analytics(opts)
+      )
       |> assign(:binary_cache_hit_rate_analytics, binary_cache_hit_rate_analytics)
       |> assign(:selective_testing_analytics, selective_testing_analytics)
       |> assign(:build_analytics, build_analytics)
