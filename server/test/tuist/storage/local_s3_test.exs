@@ -19,4 +19,22 @@ defmodule Tuist.Storage.LocalS3Test do
       assert String.ends_with?(storage_dir, "tmp/local_s3_storage")
     end
   end
+
+  describe "uploads_directory/0" do
+    test "returns uploads subdirectory" do
+      uploads_dir = LocalS3.uploads_directory()
+      storage_dir = LocalS3.storage_directory()
+
+      assert uploads_dir == Path.join(storage_dir, "uploads")
+    end
+  end
+
+  describe "completed_directory/0" do
+    test "returns completed subdirectory" do
+      completed_dir = LocalS3.completed_directory()
+      storage_dir = LocalS3.storage_directory()
+
+      assert completed_dir == Path.join(storage_dir, "completed")
+    end
+  end
 end

@@ -31,8 +31,10 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
+      frame_src:
+        "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
+      connect_src:
+        "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
 
   pipeline :browser_app do
@@ -143,7 +145,8 @@ defmodule TuistWeb.Router do
 
     get "/newsletter/rss.xml", MarketingController, :newsletter_rss, metadata: %{type: :marketing}
 
-    get "/newsletter/atom.xml", MarketingController, :newsletter_atom, metadata: %{type: :marketing}
+    get "/newsletter/atom.xml", MarketingController, :newsletter_atom,
+      metadata: %{type: :marketing}
 
     get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
   end
@@ -322,7 +325,8 @@ defmodule TuistWeb.Router do
 
     get "/organizations/:organization_name/usage", OrganizationsController, :usage
 
-    resources "/organizations/:organization_name/invitations", InvitationsController, only: [:create]
+    resources "/organizations/:organization_name/invitations", InvitationsController,
+      only: [:create]
 
     delete "/organizations/:organization_name/invitations", InvitationsController, :delete
 
