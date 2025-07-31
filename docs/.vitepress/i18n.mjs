@@ -3,7 +3,6 @@ import ruStrings from "./strings/ru.json";
 import koStrings from "./strings/ko.json";
 import jaStrings from "./strings/ja.json";
 import esStrings from "./strings/es.json";
-import ptStrings from "./strings/pt.json";
 
 const strings = {
   en: enStrings,
@@ -11,7 +10,6 @@ const strings = {
   ko: koStrings,
   ja: jaStrings,
   es: esStrings,
-  pt: ptStrings,
 };
 
 export function localizedString(locale, key) {
