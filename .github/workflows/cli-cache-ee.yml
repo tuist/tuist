@@ -108,9 +108,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-        with:
-          version: 2025.7.0
-          experimental: true
       - name: Run tests
         run: mise x -- tuist inspect implicit-imports
         env:
@@ -152,9 +149,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-        with:
-          version: 2025.7.0
-          experimental: true
       - name: Run tests
         run: mise x -- tuist test TuistCacheEEAcceptanceTests
         env:
@@ -196,9 +190,6 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
-        with:
-          version: 2025.7.0
-          experimental: true
       - name: Run tests
         run: mise x -- tuist test TuistCacheEEUnitTests
         env:
