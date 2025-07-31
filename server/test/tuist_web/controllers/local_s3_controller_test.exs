@@ -1,9 +1,9 @@
 defmodule TuistWeb.LocalS3ControllerTest do
   use ExUnit.Case, async: true
-  
+
   import SweetXml
 
-  alias TuistWeb.LocalS3Controller
+  alias Tuist.Storage.LocalS3
 
   describe "XML parsing with SweetXml" do
     test "extracts object keys from delete XML" do
@@ -22,8 +22,8 @@ defmodule TuistWeb.LocalS3ControllerTest do
       </Delete>
       """
 
-      keys = xml |> xpath(~x"//Object/Key/text()"sl)
-      
+      keys = xpath(xml, ~x"//Object/Key/text()"sl)
+
       assert keys == ["file1.txt", "file2.txt", "path/to/file3.txt"]
     end
 
@@ -46,7 +46,7 @@ defmodule TuistWeb.LocalS3ControllerTest do
         xml
         |> xpath(
           ~x"//Part"l,
-          part_number: ~x"./PartNumber/text()"s |> transform_by(&String.to_integer/1),
+          part_number: transform_by(~x"./PartNumber/text()"s, &String.to_integer/1),
           etag: ~x"./ETag/text()"s
         )
         |> Enum.map(fn %{part_number: part_number, etag: etag} ->
@@ -66,18 +66,24 @@ defmodule TuistWeb.LocalS3ControllerTest do
       </InitiateMultipartUploadResult>
       """
 
-      upload_id = xml |> xpath(~x"//UploadId/text()"s)
-      
+      upload_id = xpath(xml, ~x"//UploadId/text()"s)
+
       assert upload_id == "abc123xyz"
     end
   end
 
   describe "storage directory" do
-    test "get_storage_dir returns a valid path" do
-      dir = LocalS3Controller.storage_dir()
-      
-      assert is_binary(dir)
-      assert String.contains?(dir, "tmp/local_storage_")
+    test "storage directories exist and are valid paths" do
+      uploads_dir = LocalS3.uploads_directory()
+      completed_dir = LocalS3.completed_directory()
+      storage_dir = LocalS3.storage_directory()
+
+      assert is_binary(uploads_dir)
+      assert is_binary(completed_dir)
+      assert is_binary(storage_dir)
+      assert String.contains?(storage_dir, "tmp/local_s3_storage")
+      assert String.contains?(uploads_dir, "uploads")
+      assert String.contains?(completed_dir, "completed")
     end
   end
 end

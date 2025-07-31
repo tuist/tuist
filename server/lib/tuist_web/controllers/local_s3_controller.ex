@@ -1,15 +1,18 @@
 defmodule TuistWeb.LocalS3Controller do
   use TuistWeb, :controller
 
-  require Logger
   import SweetXml
 
+  alias Tuist.Storage.LocalS3
+
+  require Logger
+
   defp uploads_dir do
-    Tuist.Storage.LocalS3.uploads_directory()
+    LocalS3.uploads_directory()
   end
 
   defp completed_dir do
-    Tuist.Storage.LocalS3.completed_directory()
+    LocalS3.completed_directory()
   end
 
   def init(opts), do: opts
@@ -241,12 +244,12 @@ defmodule TuistWeb.LocalS3Controller do
 
   defp get_object_path(bucket, key) do
     # Handle key as either string or list (from wildcard route)
-    key_string = 
+    key_string =
       case key do
         key when is_list(key) -> Enum.join(key, "/")
         key when is_binary(key) -> key
       end
-    
+
     # Ensure key uses forward slashes and map to directory hierarchy
     normalized_key = String.replace(key_string, ~r/[\\]+/, "/")
     Path.join([completed_dir(), bucket, normalized_key])
@@ -254,12 +257,12 @@ defmodule TuistWeb.LocalS3Controller do
 
   defp get_multipart_dir(bucket, key, upload_id) do
     # Handle key as either string or list (from wildcard route)
-    key_string = 
+    key_string =
       case key do
         key when is_list(key) -> Enum.join(key, "/")
         key when is_binary(key) -> key
       end
-    
+
     # Ensure key uses forward slashes
     normalized_key = String.replace(key_string, ~r/[\\]+/, "/")
     Path.join([uploads_dir(), bucket, normalized_key, upload_id])
@@ -291,8 +294,7 @@ defmodule TuistWeb.LocalS3Controller do
   end
 
   defp extract_objects_to_delete(xml) do
-    xml
-    |> xpath(~x"//Object/Key/text()"sl)
+    xpath(xml, ~x"//Object/Key/text()"sl)
   end
 
   defp build_delete_response(results) do
@@ -382,7 +384,7 @@ defmodule TuistWeb.LocalS3Controller do
       xml
       |> xpath(
         ~x"//Part"l,
-        part_number: ~x"./PartNumber/text()"s |> transform_by(&String.to_integer/1),
+        part_number: transform_by(~x"./PartNumber/text()"s, &String.to_integer/1),
         etag: ~x"./ETag/text()"s
       )
       |> Enum.map(fn %{part_number: part_number, etag: etag} ->
@@ -394,13 +396,14 @@ defmodule TuistWeb.LocalS3Controller do
 
   defp cleanup_empty_parent_dirs(dir, stop_at) do
     parent = Path.dirname(dir)
-    
+
     if parent != stop_at and parent != "/" and parent != "." do
       case File.ls(parent) do
-        {:ok, []} -> 
+        {:ok, []} ->
           File.rmdir(parent)
           cleanup_empty_parent_dirs(parent, stop_at)
-        _ -> 
+
+        _ ->
           :ok
       end
     end

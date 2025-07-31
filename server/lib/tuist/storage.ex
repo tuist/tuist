@@ -2,10 +2,11 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  import SweetXml
+
   alias Tuist.Environment
   alias Tuist.Performance
-  
-  import SweetXml
+  alias Tuist.Storage.LocalS3
 
   def multipart_generate_url(object_key, upload_id, part_number, opts \\ []) do
     content_length = Keyword.get(opts, :content_length)
@@ -61,9 +62,10 @@ defmodule Tuist.Storage do
 
           # Build the XML body for complete multipart upload
           parts_xml =
-            Enum.map_join(parts, "", fn 
+            Enum.map_join(parts, "", fn
               {part_number, etag} ->
                 "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
+
               %{etag: etag, part_number: part_number} ->
                 "<Part><PartNumber>#{part_number}</PartNumber><ETag>#{etag}</ETag></Part>"
             end)
@@ -76,10 +78,13 @@ defmodule Tuist.Storage do
           """
 
           case Req.post(url, body: body, headers: [{"content-type", "application/xml"}]) do
-            {:ok, %{status: 200}} -> :ok
-            {:ok, %{status: status, body: response_body}} -> 
+            {:ok, %{status: 200}} ->
+              :ok
+
+            {:ok, %{status: status, body: response_body}} ->
               {:error, "Failed to complete multipart upload - HTTP #{status}: #{inspect(response_body)}"}
-            {:error, reason} -> 
+
+            {:error, reason} ->
               {:error, "Failed to complete multipart upload - Request error: #{inspect(reason)}"}
           end
         else
@@ -163,13 +168,12 @@ defmodule Tuist.Storage do
   def stream_object(object_key) do
     stream =
       if Environment.use_local_storage?() do
-        # For local storage, stream the file directly
+        # For local storage, stream the file directly from filesystem
         bucket = Environment.s3_bucket_name()
-        base_url = Environment.app_url()
-        url = "#{base_url}/s3/#{bucket}/#{object_key}"
+        completed_dir = LocalS3.completed_directory()
+        object_path = Path.join([completed_dir, bucket, object_key])
 
-        # Use Req to stream the response
-        Req.get!(url, into: :stream).body
+        File.stream!(object_path)
       else
         Environment.s3_bucket_name()
         |> ExAws.S3.download_file(object_key, :memory)
@@ -229,15 +233,11 @@ defmodule Tuist.Storage do
     {time, exists} =
       Performance.measure_time_in_milliseconds(fn ->
         if Environment.use_local_storage?() do
-          # For local storage, check with HEAD request
+          # For local storage, check file existence directly on filesystem
           bucket = Environment.s3_bucket_name()
-          base_url = Environment.app_url()
-          url = "#{base_url}/s3/#{bucket}/#{object_key}"
-
-          case Req.head(url) do
-            {:ok, %{status: 200}} -> true
-            _ -> false
-          end
+          completed_dir = LocalS3.completed_directory()
+          object_path = Path.join([completed_dir, bucket, object_key])
+          File.exists?(object_path) && File.regular?(object_path)
         else
           case Environment.s3_bucket_name()
                |> ExAws.S3.head_object(object_key)
@@ -261,14 +261,13 @@ defmodule Tuist.Storage do
     {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
         if Environment.use_local_storage?() do
-          # For local storage, get directly from our local S3 controller
+          # For local storage, read directly from filesystem
           bucket = Environment.s3_bucket_name()
-          base_url = Environment.app_url()
-          url = "#{base_url}/s3/#{bucket}/#{object_key}"
+          completed_dir = LocalS3.completed_directory()
+          object_path = Path.join([completed_dir, bucket, object_key])
 
-          case Req.get(url) do
-            {:ok, %{status: 200, body: body}} -> body
-            _ -> nil
+          if File.exists?(object_path) && File.regular?(object_path) do
+            File.read!(object_path)
           end
         else
           Environment.s3_bucket_name()
@@ -302,8 +301,8 @@ defmodule Tuist.Storage do
           case Req.post(url, headers: [{"content-type", "application/xml"}]) do
             {:ok, %{status: 200, body: body}} ->
               # Parse the upload ID from the XML response
-              upload_id = body |> xpath(~x"//UploadId/text()"s)
-              
+              upload_id = xpath(body, ~x"//UploadId/text()"s)
+
               if upload_id == "" do
                 raise "Failed to parse upload ID from response: #{body}"
               else
@@ -312,7 +311,7 @@ defmodule Tuist.Storage do
 
             {:ok, %{status: status, body: body}} ->
               raise "Failed to initiate multipart upload - HTTP #{status}: #{inspect(body)}"
-              
+
             {:error, reason} ->
               raise "Failed to initiate multipart upload - Request error: #{inspect(reason)}"
           end
@@ -380,24 +379,16 @@ defmodule Tuist.Storage do
     {time, size} =
       Performance.measure_time_in_milliseconds(fn ->
         if Environment.use_local_storage?() do
-          # For local storage, get size via HEAD request
+          # For local storage, get size directly from filesystem
           bucket = Environment.s3_bucket_name()
-          base_url = Environment.app_url()
-          url = "#{base_url}/s3/#{bucket}/#{object_key}"
+          completed_dir = LocalS3.completed_directory()
+          object_path = Path.join([completed_dir, bucket, object_key])
 
-          case Req.head(url) do
-            {:ok, %{status: 200, headers: headers}} ->
-              headers
-              |> Enum.find(fn {key, _value} -> String.downcase(key) == "content-length" end)
-              |> case do
-                {_, value} when is_list(value) -> List.first(value)
-                {_, value} -> value
-                nil -> "0"
-              end
-              |> String.to_integer()
-
-            _ ->
-              0
+          if File.exists?(object_path) && File.regular?(object_path) do
+            %{size: size} = File.stat!(object_path)
+            size
+          else
+            0
           end
         else
           Environment.s3_bucket_name()
