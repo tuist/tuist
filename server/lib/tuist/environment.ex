@@ -314,13 +314,6 @@ defmodule Tuist.Environment do
     get([:okta, :site], secrets)
   end
 
-  def okta_client_id_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_id], secrets)
-  end
-
-  def okta_client_secret_for_organization_id(organization_id, secrets \\ secrets()) do
-    get([:okta, organization_id, :client_secret], secrets)
-  end
 
   def okta_oauth_configured?(secrets \\ secrets()) do
     get([:okta], secrets) != nil or
