@@ -912,7 +912,7 @@ defmodule Tuist.Accounts do
     account = get_account_from_organization(organization)
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
 
-    {:ok, invitation} =
+    invitation =
       %Invitation{}
       |> Invitation.create_changeset(%{
         token: token,
@@ -922,7 +922,7 @@ defmodule Tuist.Accounts do
       })
       |> Repo.insert()
 
-    if Environment.mail_configured?() do
+    if match?({:ok, _invitation}, invitation) and Environment.mail_configured?() do
       UserNotifier.deliver_invitation(email, %{
         inviter: inviter,
         to: %{organization: organization, account: account},
