@@ -52,6 +52,7 @@ defmodule Tuist.Application do
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
         Tuist.ClickHouseRepo,
         Tuist.IngestRepo,
+        Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, cachex_opts()]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},

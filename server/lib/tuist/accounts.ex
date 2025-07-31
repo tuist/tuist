@@ -225,6 +225,47 @@ defmodule Tuist.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
+  @doc """
+  Updates the Okta configuration for an organization.
+  
+  ## Parameters
+    - organization_id: The ID of the organization to update
+    - attrs: Map containing Okta configuration fields:
+      - okta_client_id: The Okta client ID
+      - okta_client_secret: The Okta client secret (will be encrypted automatically)
+      - okta_site: The Okta site URL
+      - sso_provider: Will be automatically set to :okta
+      - sso_organization_id: The Okta organization ID
+  
+  ## Returns
+    - {:ok, organization} on success
+    - {:error, :not_found} if organization doesn't exist
+    - {:error, changeset} if validation fails
+  """
+  def update_okta_configuration(organization_id, attrs) do
+    case get_organization_by_id(organization_id) do
+      {:ok, organization} ->
+        # Rename okta_client_secret to okta_encrypted_client_secret for the changeset
+        okta_attrs = attrs
+        |> Map.put(:sso_provider, :okta)
+        |> maybe_rename_client_secret()
+        
+        organization
+        |> Organization.update_changeset(okta_attrs)
+        |> Repo.update()
+        
+      {:error, :not_found} = error ->
+        error
+    end
+  end
+  
+  defp maybe_rename_client_secret(attrs) do
+    case Map.pop(attrs, :okta_client_secret) do
+      {nil, attrs} -> attrs
+      {secret, attrs} -> Map.put(attrs, :okta_encrypted_client_secret, secret)
+    end
+  end
+
   def update_organization(%Organization{} = organization, attrs) do
     Multi.new()
     |> Multi.update(:organization, Organization.update_changeset(organization, attrs))
@@ -280,6 +321,9 @@ defmodule Tuist.Accounts do
   defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
+    okta_client_id = Keyword.get(opts, :okta_client_id)
+    okta_client_secret = Keyword.get(opts, :okta_client_secret)
+    okta_site = Keyword.get(opts, :okta_site)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     current_month_remote_cache_hits_count =
@@ -291,6 +335,9 @@ defmodule Tuist.Accounts do
       Organization.create_changeset(%Organization{}, %{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
+        okta_client_id: okta_client_id,
+        okta_encrypted_client_secret: okta_client_secret,
+        okta_site: okta_site,
         created_at: created_at
       })
     )
@@ -1348,6 +1395,31 @@ defmodule Tuist.Accounts do
         organization
       end
     end)
+  end
+
+  @doc """
+  Gets the Okta configuration for an organization by its ID.
+  
+  Returns {:ok, %{client_id: ..., client_secret: ..., site: ...}} if the organization
+  has Okta configuration, otherwise returns {:error, :not_found}.
+  """
+  def get_okta_configuration_by_organization_id(organization_id) do
+    case get_organization_by_id(organization_id) do
+      {:ok, organization} ->
+        if organization.sso_provider == :okta && organization.okta_client_id do
+          {:ok,
+           %{
+             client_id: organization.okta_client_id,
+             client_secret: organization.okta_encrypted_client_secret,
+             site: organization.okta_site
+           }}
+        else
+          {:error, :not_found}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def delete_account!(%Account{} = account) do

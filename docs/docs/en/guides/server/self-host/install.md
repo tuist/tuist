@@ -97,6 +97,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
+| `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
