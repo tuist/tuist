@@ -16,16 +16,12 @@ defmodule Tuist.Storage do
       end
 
     {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+      presigned_url(:put, object_key,
         query_params: [
           {"partNumber", part_number},
           {"uploadId", upload_id}
         ],
-        headers: headers,
-        virtual_host: true,
-        expires_in: Keyword.get(opts, :expires_in, 3600)
+        headers: headers
       )
 
     :telemetry.execute(
@@ -59,15 +55,7 @@ defmodule Tuist.Storage do
   def generate_download_url(object_key, opts \\ []) do
     {time, url} =
       Performance.measure_time_in_milliseconds(fn ->
-        {:ok, url} =
-          :s3
-          |> ExAws.Config.new()
-          |> ExAws.S3.presigned_url(:get, Environment.s3_bucket_name(), object_key,
-            query_params: [],
-            expires_in: Keyword.get(opts, :expires_in, 3600),
-            virtual_host: true
-          )
-
+        {:ok, url} = presigned_url(:get, object_key)
         url
       end)
 
@@ -81,14 +69,7 @@ defmodule Tuist.Storage do
   end
 
   def generate_upload_url(object_key, opts \\ []) do
-    {:ok, url} =
-      :s3
-      |> ExAws.Config.new()
-      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
-        query_params: [],
-        expires_in: Keyword.get(opts, :expires_in, 3600),
-        virtual_host: true
-      )
+    {:ok, url} = presigned_url(:put, object_key)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),
@@ -97,6 +78,21 @@ defmodule Tuist.Storage do
     )
 
     url
+  end
+
+  def presigned_url(method, object_key, opts \\ []) do
+    {:ok, url} =
+      ExAws.Config.new(:s3)
+      |> Map.put(:host, Environment.s3_bucket_name())
+      |> ExAws.S3.presigned_url(method, Environment.s3_bucket_name(), object_key,
+        query_params: Keyword.get(opts, :query_params, []),
+        headers: Keyword.get(opts, :headers, []),
+        expires_in: Keyword.get(opts, :expires_in, 3600),
+        virtual_host: false,
+        bucket_as_host: false
+      )
+
+    {:ok, url |> String.replace(Environment.s3_endpoint(), "https://")}
   end
 
   def stream_object(object_key) do

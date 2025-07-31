@@ -44,7 +44,7 @@ defmodule Tuist.Environment do
   end
 
   def truthy?(value) do
-    Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
+    Enum.member?(["1", "true", "TRUE", "yes", "YES", true, 1], value)
   end
 
   def worker? do
@@ -221,8 +221,12 @@ defmodule Tuist.Environment do
     end
   end
 
-  def s3_virtual_host(secrets \\ secrets()) do
+  def s3_virtual_host?(secrets \\ secrets()) do
     [:s3, :virtual_host] |> get(secrets) |> truthy?()
+  end
+
+  def s3_bucket_as_host?(secrets \\ secrets()) do
+    [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
   end
 
   def slack_tuist_token(secrets \\ secrets()) do
