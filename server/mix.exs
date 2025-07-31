@@ -112,6 +112,7 @@ defmodule Tuist.MixProject do
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:solid, "~> 1.0.0"},
       {:plug_minify_html, "~> 0.1.0"},
+      {:xml_builder, "~> 2.3"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.13.0"},
       {:fun_with_flags_ui, "~> 1.1.0"},
