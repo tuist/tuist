@@ -94,7 +94,7 @@ struct TargetContentHasherTests {
         )
 
         // Then
-        #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone")
+        #expect(got.hash == "hash-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone")
     }
 
     @Test func hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
@@ -111,7 +111,10 @@ struct TargetContentHasherTests {
         )
 
         // Then
-        #expect(got.hash == "hash-app-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two")
+        #expect(
+            got.hash ==
+                "hash-app-settings_hash-settings_hash-dependencies_hash-iPad-iPhone-additional_string_one-additional_string_two"
+        )
     }
 
     @Test func hash_with_additional_strings() async throws {
@@ -133,7 +136,11 @@ struct TargetContentHasherTests {
         // Then
         #expect(
             got.hash ==
-                "Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad-iPhone-deployment_targets_hash-settings_hash"
+                """
+                Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash\
+                -core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad\
+                -iPhone-deployment_targets_hash-settings_hash-settings_hash
+                """
         )
     }
 

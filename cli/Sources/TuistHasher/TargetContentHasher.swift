@@ -107,6 +107,8 @@ public final class TargetContentHasher: TargetContentHashing {
             settingsHash = nil
         }
 
+        let projectSettingsHash = try await settingsContentHasher.hash(settings: graphTarget.project.settings)
+
         let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
         let dependenciesHash = try await dependenciesContentHasher.hash(
             graphTarget: graphTarget,
@@ -120,6 +122,7 @@ public final class TargetContentHasher: TargetContentHashing {
                     [
                         projectHash,
                         graphTarget.target.product.rawValue,
+                        projectSettingsHash,
                         settingsHash,
                         dependenciesHash.hash,
                     ].compactMap { $0 } + destinations + additionalStrings
@@ -181,6 +184,8 @@ public final class TargetContentHasher: TargetContentHashing {
             let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
+
+        stringsToHash.append(projectSettingsHash)
 
         if let settingsHash {
             stringsToHash.append(settingsHash)
