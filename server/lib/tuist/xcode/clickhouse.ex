@@ -10,7 +10,6 @@ defmodule Tuist.Xcode.Clickhouse do
   alias Tuist.Xcode.Clickhouse.XcodeGraph
   alias Tuist.Xcode.Clickhouse.XcodeProject
   alias Tuist.Xcode.Clickhouse.XcodeTarget
-  alias Tuist.Xcode.Clickhouse.XcodeTargetDenormalized
 
   def create_xcode_graph(%{
         command_event: %{id: command_event_id},
@@ -29,7 +28,7 @@ defmodule Tuist.Xcode.Clickhouse do
       }
     ]
 
-    projects_data = build_xcode_projects(projects, xcode_graph_id, inserted_at)
+    projects_data = build_xcode_projects(projects, command_event_id, xcode_graph_id, inserted_at)
     targets_data = build_xcode_targets(projects, projects_data, inserted_at)
 
     Task.await_many(
@@ -53,7 +52,7 @@ defmodule Tuist.Xcode.Clickhouse do
 
   def selective_testing_analytics(run, flop_params \\ %{}) do
     base_query =
-      from(xt in XcodeTargetDenormalized,
+      from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
@@ -65,7 +64,7 @@ defmodule Tuist.Xcode.Clickhouse do
       )
 
     {targets, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
 
     test_modules =
       Enum.map(targets, fn target ->
@@ -82,7 +81,7 @@ defmodule Tuist.Xcode.Clickhouse do
 
   def binary_cache_analytics(run, flop_params \\ %{}) do
     base_query =
-      from(xt in XcodeTargetDenormalized,
+      from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
@@ -94,7 +93,7 @@ defmodule Tuist.Xcode.Clickhouse do
       )
 
     {targets, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTargetDenormalized)
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
 
     cacheable_targets =
       Enum.map(targets, fn target ->
@@ -112,7 +111,7 @@ defmodule Tuist.Xcode.Clickhouse do
   def selective_testing_counts(run) do
     result =
       ClickHouseRepo.one(
-        from(xt in XcodeTargetDenormalized,
+        from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
           where: not is_nil(xt.selective_testing_hash),
           select: %{
@@ -135,7 +134,7 @@ defmodule Tuist.Xcode.Clickhouse do
   def binary_cache_counts(run) do
     result =
       ClickHouseRepo.one(
-        from(xt in XcodeTargetDenormalized,
+        from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
           where: not is_nil(xt.binary_cache_hash),
           select: %{
@@ -157,7 +156,7 @@ defmodule Tuist.Xcode.Clickhouse do
 
   def has_selective_testing_data?(run) do
     ClickHouseRepo.exists?(
-      from(xt in XcodeTargetDenormalized,
+      from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
         where: not is_nil(xt.selective_testing_hash)
       )
@@ -166,7 +165,7 @@ defmodule Tuist.Xcode.Clickhouse do
 
   def has_binary_cache_data?(run) do
     ClickHouseRepo.exists?(
-      from(xt in XcodeTargetDenormalized,
+      from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
         where: not is_nil(xt.binary_cache_hash)
       )
@@ -177,7 +176,7 @@ defmodule Tuist.Xcode.Clickhouse do
     limit = Keyword.get(opts, :limit, 1000)
     offset = Keyword.get(opts, :offset, 0)
 
-    from(xt in XcodeTargetDenormalized,
+    from(xt in XcodeTarget,
       where: xt.command_event_id == ^command_event_id,
       order_by: xt.name,
       limit: ^limit,
@@ -194,13 +193,14 @@ defmodule Tuist.Xcode.Clickhouse do
       }
     )
     |> ClickHouseRepo.all()
-    |> Enum.map(&XcodeTargetDenormalized.normalize_enums/1)
+    |> Enum.map(&XcodeTarget.normalize_enums/1)
   end
 
-  defp build_xcode_projects(projects, xcode_graph_id, inserted_at) do
+  defp build_xcode_projects(projects, command_event_id, xcode_graph_id, inserted_at) do
     Enum.map(projects, fn project ->
       %{
         id: UUIDv7.generate(),
+        command_event_id: command_event_id,
         xcode_graph_id: xcode_graph_id,
         name: project["name"],
         path: project["path"],
@@ -220,7 +220,12 @@ defmodule Tuist.Xcode.Clickhouse do
     |> Enum.flat_map(fn xcode_project ->
       Enum.map(
         xcode_project.targets,
-        &XcodeTarget.changeset(xcode_project.project.id, &1, inserted_at)
+        &XcodeTarget.changeset(
+          xcode_project.project.command_event_id,
+          xcode_project.project.id,
+          &1,
+          inserted_at
+        )
       )
     end)
   end
