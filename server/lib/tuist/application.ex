@@ -62,9 +62,30 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(
-      if not Environment.dev_use_remote_storage?(),
-        do: [Tuist.MinioSupervisor],
-        else: []
+      if not Environment.dev_use_remote_storage?() do
+        %{port: minio_port, scheme: minio_scheme} = URI.parse(Environment.s3_endpoint())
+        port = minio_port || 9095
+
+        minio_path =
+          case System.cmd("mise", ["which", "minio"]) do
+            {path, 0} -> String.trim(path)
+            _ -> System.find_executable("minio")
+          end
+
+        [
+          {MinioServer,
+           name: :minio_dev,
+           port: port,
+           scheme: minio_scheme,
+           region: Environment.s3_region(),
+           access_key_id: Environment.s3_access_key_id(),
+           secret_access_key: Environment.s3_secret_access_key(),
+           minio_executable: minio_path},
+          Tuist.MinioBucketCreator
+        ]
+      else
+        []
+      end
     )
     |> Kernel.++(
       if Environment.web?(),
