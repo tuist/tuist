@@ -132,7 +132,8 @@ defmodule Tuist.MixProject do
         {:noora, "== 0.11.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      {:minio_server, "~> 0.1.0", only: :dev}
     ]
   end
 
