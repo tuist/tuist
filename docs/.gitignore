@@ -173,9 +173,5 @@ Temporary Items
 # End of https://www.toptal.com/developers/gitignore/api/osx,node
 
 .vitepress/cache/
-.vitepress/config.mjs.timestamp*
 
 docs/generated
-# Generated documentation data files
-.vitepress/data/manifest-data.json
-.vitepress/data/cli-data.json

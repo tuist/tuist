@@ -28,14 +28,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  generate-data:
-    name: Generate Documentation Data
+  docs-build-deploy:
+    name: Build & Deploy
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore SPM cache
+      - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
@@ -43,91 +43,22 @@ jobs:
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
-      - name: Generate documentation data
-        run: mise run docs:generate-data
-      - name: Compress generated docs for artifact upload
+      - name: Generate manifest docs
+        run: mise run docs:generate-manifests-docs
+      - name: Build the documentation
+        # VitePress is not memory-efficient, loading all the pages into memory when building
+        # the site. This can potentially lead to out-of-memory errors in localized documentation
+        # sites where the number of pages is multiplied by the number of languages.
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
+        run: mise run docs:build
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
         run: |
-          # GitHub Actions artifacts don't support certain characters in filenames (< > : " | * ? \r \n)
-          # Since our generated docs contain files like "Array<FileElement>.md", we need to compress them
-          # into a tar archive to preserve the original filenames during upload/download
-          tar -czf docs/generated-docs.tar.gz -C docs/docs generated
-      - name: Upload manifest data
-        uses: actions/upload-artifact@v4
-        with:
-          name: manifest-data
-          path: docs/.vitepress/data/manifest-data.json
-      - name: Upload CLI data
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-data
-          path: docs/.vitepress/data/cli-data.json
-      - name: Upload generated docs archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-docs
-          path: docs/generated-docs.tar.gz
-      - name: Save SPM cache
+          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist
+      - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-
-  build-deploy:
-    name: Build & Deploy
-    needs: generate-data
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
-          tool-cache: false
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-      - name: Check disk space before build
-        run: df -h
-      - uses: jdx/mise-action@v2
-      - name: Download manifest data
-        uses: actions/download-artifact@v4
-        with:
-          name: manifest-data
-          path: docs/.vitepress/data/
-      - name: Download CLI data
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-data
-          path: docs/.vitepress/data/
-      - name: Download generated docs archive
-        uses: actions/download-artifact@v4
-        with:
-          name: generated-docs
-          path: docs/
-      - name: Extract generated docs
-        run: |
-          # Extract the compressed docs archive to restore files with special characters
-          tar -xzf docs/generated-docs.tar.gz -C docs/docs
-          rm docs/generated-docs.tar.gz
-      - name: Build the documentation
-        # VitePress is not memory-efficient, loading all the pages into memory when building
-        # the site. This can potentially lead to out-of-memory errors in localized documentation
-        # sites where the number of pages is multiplied by the number of languages.
-        # Ubuntu runners have more disk space than macOS runners which helps with ENOSPC errors
-        env:
-          NODE_OPTIONS: --max-old-space-size=12288
-        run: mise run docs:build
-      - name: Check disk space after build
-        if: always()
-        run: df -h
-      - name: Deploy to Cloudflare Pages
-        if: github.ref == 'refs/heads/main'
-        run: |
-          mise x npm:wrangler@latest -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs docs/.vitepress/dist

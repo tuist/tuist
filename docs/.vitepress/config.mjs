@@ -178,6 +178,11 @@ export default defineConfig({
       lang: "es",
       themeConfig: await themeConfig("es"),
     },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
+    },
     zh: {
       label: "中文 (Chinese)",
       lang: "zh",
