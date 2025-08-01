@@ -47,6 +47,10 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+      - name: Get system info for cache key
+        id: system-info
+        run: |
+          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -55,14 +59,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -90,8 +94,8 @@ jobs:
         name: "Cache installed dependencies folder"
         with:
           path: cli-ext/.build
-          key: spm-ext-v1-${{ runner.os }}-${{ hashFiles('cli-ext/Package.resolved') }}
-          restore-keys: spm-ext-v1-${{ runner.os }}-${{ hashFiles('cli-ext/Package.resolved') }}
+          key: spm-ext-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cli-ext/Package.resolved') }}
+          restore-keys: spm-ext-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cli-ext/Package.resolved') }}
       - uses: jdx/mise-action@v2
         with:
           working_directory: cli-ext
@@ -121,6 +125,10 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+      - name: Get system info for cache key
+        id: system-info
+        run: |
+          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -129,14 +137,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
@@ -173,6 +181,10 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+      - name: Get system info for cache key
+        id: system-info
+        run: |
+          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
       - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
@@ -181,14 +193,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: "Get version"
         id: version
