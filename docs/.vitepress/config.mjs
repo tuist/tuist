@@ -9,7 +9,6 @@ import {
 } from "./bars.mjs";
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
-import llmstxtPlugin from "vitepress-plugin-llmstxt";
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -149,9 +148,11 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
-  vite: {
-    plugins: [llmstxtPlugin()],
+  experimental: {
+    metaChunk: true,
   },
+  // Uncomment for MPA mode (disables client-side navigation but reduces JS to 0kb)
+  mpa: true,
   locales: {
     en: {
       label: "English",
@@ -177,6 +178,11 @@ export default defineConfig({
       label: "Castellano (Spanish)",
       lang: "es",
       themeConfig: await themeConfig("es"),
+    },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
     },
     zh: {
       label: "中文 (Chinese)",

@@ -48,17 +48,6 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Get system info for cache key
-        id: system-info
-        run: |
-          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
-      - name: Restore Mise Cache
-        uses: actions/cache@v4
-        id: mise-cache
-        with:
-          path: |
-            ~/.local/share/mise
-          key: mise-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('.mise.toml', 'server/.mise.toml') }}
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -67,14 +56,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
@@ -86,17 +75,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Get system info for cache key
-        id: system-info
-        run: |
-          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
-      - name: Restore Mise Cache
-        uses: actions/cache@v4
-        id: mise-cache
-        with:
-          path: |
-            ~/.local/share/mise
-          key: mise-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('.mise.toml', 'server/.mise.toml') }}
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -105,14 +83,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Run Credo
         run: mix credo
@@ -122,17 +100,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Get system info for cache key
-        id: system-info
-        run: |
-          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
-      - name: Restore Mise Cache
-        uses: actions/cache@v4
-        id: mise-cache
-        with:
-          path: |
-            ~/.local/share/mise
-          key: mise-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('.mise.toml', 'server/.mise.toml') }}
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -141,14 +108,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check format
         run: mise run server:format --check
@@ -166,14 +133,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Install esbuild
         run: mix esbuild.install
@@ -192,17 +159,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Get system info for cache key
-        id: system-info
-        run: |
-          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
-      - name: Restore Mise Cache
-        uses: actions/cache@v4
-        id: mise-cache
-        with:
-          path: |
-            ~/.local/share/mise
-          key: mise-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('.mise.toml', 'server/.mise.toml') }}
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -211,14 +167,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Check
         run: mise run server:security
@@ -238,14 +194,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - name: Docker build
         uses: docker/build-push-action@v6
@@ -279,17 +235,6 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Get system info for cache key
-        id: system-info
-        run: |
-          echo "ubuntu-version=$(lsb_release -rs)" >> $GITHUB_OUTPUT
-      - name: Restore Mise Cache
-        uses: actions/cache@v4
-        id: mise-cache
-        with:
-          path: |
-            ~/.local/share/mise
-          key: mise-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('.mise.toml', 'server/.mise.toml') }}
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
@@ -298,14 +243,14 @@ jobs:
             deps
             _build
             _site
-          key: mix-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('mix.lock') }}
+          key: mix-${{ hashFiles('mix.lock') }}
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.ubuntu-version }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - uses: jdx/mise-action@v2
       - run: mise run server:clickhouse:start
       - run: mise run server:db:reset
