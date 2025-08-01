@@ -43,6 +43,8 @@ jobs:
           key: ${{ runner.os }}-docs-${{ hashFiles('Package.resolved') }}
           restore-keys: ${{ runner.os }}-docs-
       - uses: jdx/mise-action@v2
+      - name: Generate CLI docs
+        run: mise run docs:generate-cli-docs
       - name: Generate manifest docs
         run: mise run docs:generate-manifests-docs
       - name: Free space
