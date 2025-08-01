@@ -14,7 +14,6 @@ defmodule Tuist.Accounts.Organization do
     field :sso_organization_id, :string
     field :okta_client_id, :string
     field :okta_encrypted_client_secret, Tuist.Vault.Binary
-    field :okta_site, :string
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
     has_many(:invitations, Invitation)
@@ -24,7 +23,7 @@ defmodule Tuist.Accounts.Organization do
 
   def create_changeset(organization \\ %__MODULE__{}, attrs \\ %{}) do
     organization
-    |> cast(attrs, [:sso_provider, :sso_organization_id, :okta_client_id, :okta_encrypted_client_secret, :okta_site, :created_at])
+    |> cast(attrs, [:sso_provider, :sso_organization_id, :okta_client_id, :okta_encrypted_client_secret, :created_at])
     |> validate_inclusion(:sso_provider, [:okta, :google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
@@ -34,7 +33,7 @@ defmodule Tuist.Accounts.Organization do
 
   def update_changeset(organization, attrs) do
     organization
-    |> cast(attrs, [:sso_provider, :sso_organization_id, :okta_client_id, :okta_encrypted_client_secret, :okta_site])
+    |> cast(attrs, [:sso_provider, :sso_organization_id, :okta_client_id, :okta_encrypted_client_secret])
     |> validate_inclusion(:sso_provider, [:okta, :google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:

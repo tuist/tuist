@@ -649,16 +649,14 @@ defmodule Tuist.AccountsTest do
       result = Accounts.update_okta_configuration(organization.id, %{
         okta_client_id: "test_client_id",
         okta_client_secret: "test_secret",
-        okta_site: "https://test.okta.com",
-        sso_organization_id: "test-okta-org"
+        sso_organization_id: "https://test.okta.com"
       })
       
       # Then
       assert {:ok, updated_org} = result
       assert updated_org.okta_client_id == "test_client_id"
-      assert updated_org.okta_site == "https://test.okta.com"
       assert updated_org.sso_provider == :okta
-      assert updated_org.sso_organization_id == "test-okta-org"
+      assert updated_org.sso_organization_id == "https://test.okta.com"
       # Check that the secret is stored (encrypted)
       assert updated_org.okta_encrypted_client_secret != nil
     end
@@ -673,8 +671,7 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
         okta_client_id: "test_client_id",
         okta_client_secret: plain_secret,
-        okta_site: "https://test.okta.com",
-        sso_organization_id: "test-okta-org"
+        sso_organization_id: "https://test.okta.com"
       })
       
       # Then
@@ -719,7 +716,7 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture(
         creator: user,
         okta_client_id: "old_client_id",
-        okta_site: "https://old.okta.com",
+        sso_organization_id: "https://old.okta.com",
         sso_provider: :okta
       )
       
@@ -730,7 +727,7 @@ defmodule Tuist.AccountsTest do
       
       # Then
       assert updated_org.okta_client_id == "new_client_id"
-      assert updated_org.okta_site == "https://old.okta.com"  # unchanged
+      assert updated_org.sso_organization_id == "https://old.okta.com"  # unchanged
       assert updated_org.sso_provider == :okta  # still okta
     end
   end
@@ -2894,8 +2891,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
           okta_client_id: "test_client_id",
-          okta_client_secret: "test_client_secret",
-          okta_site: "https://company.okta.com"
+          okta_client_secret: "test_client_secret"
         )
 
       # When
@@ -2904,7 +2900,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert config.client_id == "test_client_id"
       assert config.client_secret == "test_client_secret"
-      assert config.site == "https://company.okta.com"
+      assert config.site == "company.okta.com"
     end
 
     test "returns error when organization does not have okta configured" do

@@ -233,7 +233,6 @@ defmodule Tuist.Accounts do
     - attrs: Map containing Okta configuration fields:
       - okta_client_id: The Okta client ID
       - okta_client_secret: The Okta client secret (will be encrypted automatically)
-      - okta_site: The Okta site URL
       - sso_provider: Will be automatically set to :okta
       - sso_organization_id: The Okta organization ID
   
@@ -323,7 +322,6 @@ defmodule Tuist.Accounts do
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     okta_client_id = Keyword.get(opts, :okta_client_id)
     okta_client_secret = Keyword.get(opts, :okta_client_secret)
-    okta_site = Keyword.get(opts, :okta_site)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     current_month_remote_cache_hits_count =
@@ -337,7 +335,6 @@ defmodule Tuist.Accounts do
         sso_organization_id: sso_organization_id,
         okta_client_id: okta_client_id,
         okta_encrypted_client_secret: okta_client_secret,
-        okta_site: okta_site,
         created_at: created_at
       })
     )
@@ -1411,7 +1408,7 @@ defmodule Tuist.Accounts do
            %{
              client_id: organization.okta_client_id,
              client_secret: organization.okta_encrypted_client_secret,
-             site: organization.okta_site
+             site: organization.sso_organization_id
            }}
         else
           {:error, :not_found}

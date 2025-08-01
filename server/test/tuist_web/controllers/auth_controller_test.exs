@@ -81,14 +81,10 @@ defmodule TuistWeb.AuthControllerTest do
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :okta,
-          sso_organization_id: "dev-123456"
+          sso_organization_id: "dev-123456",
+          okta_client_id: UUIDv7.generate(),
+          okta_client_secret: UUIDv7.generate()
         )
-
-      expect(Tuist.Environment, :okta_client_id_for_organization_id, fn _ -> "test_client_id" end)
-
-      expect(Tuist.Environment, :okta_client_secret_for_organization_id, fn _ ->
-        "test_client_secret"
-      end)
 
       # When
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
@@ -137,12 +133,6 @@ defmodule TuistWeb.AuthControllerTest do
           sso_provider: :okta,
           sso_organization_id: "dev-123456"
         )
-
-      expect(Tuist.Environment, :okta_client_id_for_organization_id, fn _ -> "test_client_id" end)
-
-      expect(Tuist.Environment, :okta_client_secret_for_organization_id, fn _ ->
-        "test_client_secret"
-      end)
 
       # When
       conn =
