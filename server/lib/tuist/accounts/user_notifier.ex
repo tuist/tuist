@@ -112,7 +112,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 </p>
             </div>
         """,
-        Tuist.Environment.email_icon_url()
+        Environment.email_icon_url()
       )
     )
   end
@@ -141,7 +141,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 </p>
             </div>
         """,
-        Tuist.Environment.email_icon_url()
+        Environment.email_icon_url()
       )
     )
   end
@@ -169,7 +169,7 @@ defmodule Tuist.Accounts.UserNotifier do
               </p>
             </div>
         """,
-        Tuist.Environment.email_icon_url()
+        Environment.email_icon_url()
       )
     )
   end

@@ -314,7 +314,6 @@ defmodule Tuist.Environment do
     get([:okta, :site], secrets)
   end
 
-
   def okta_oauth_configured?(secrets \\ secrets()) do
     get([:okta], secrets) != nil or
       Enum.any?(System.get_env(), fn {key, _value} -> String.starts_with?(key, "TUIST_OKTA_") end)

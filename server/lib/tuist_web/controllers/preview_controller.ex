@@ -28,7 +28,7 @@ defmodule TuistWeb.PreviewController do
     with project when not is_nil(project) <-
            Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
          latest_preview when not is_nil(latest_preview) <-
-           Tuist.AppBuilds.latest_preview(project) do
+           AppBuilds.latest_preview(project) do
       conn
       |> redirect(to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_preview.id}")
       |> halt()
@@ -74,7 +74,7 @@ defmodule TuistWeb.PreviewController do
         %{"account_handle" => account_handle, "project_handle" => project_handle, "id" => preview_id} = _params
       ) do
     object_key =
-      Tuist.AppBuilds.icon_storage_key(%{
+      AppBuilds.icon_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
         preview_id: preview_id
@@ -109,14 +109,14 @@ defmodule TuistWeb.PreviewController do
 
     storage_key =
       app_build &&
-        Tuist.AppBuilds.storage_key(%{
+        AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
           app_build_id: app_build.id
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key) do
-      raise TuistWeb.Errors.NotFoundError, gettext("The preview ipa doesn't exist or has expired.")
+      raise NotFoundError, gettext("The preview ipa doesn't exist or has expired.")
     end
 
     send_resp(conn, :ok, Storage.get_object_as_string(storage_key))
@@ -182,7 +182,7 @@ defmodule TuistWeb.PreviewController do
       app_builds
       |> Enum.map(fn app_build ->
         storage_key =
-          Tuist.AppBuilds.storage_key(%{
+          AppBuilds.storage_key(%{
             account_handle: account_handle,
             project_handle: project_handle,
             app_build_id: app_build.id
@@ -204,7 +204,7 @@ defmodule TuistWeb.PreviewController do
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
-    case Tuist.AppBuilds.preview_by_id(preview_id, preload: :app_builds) do
+    case AppBuilds.preview_by_id(preview_id, preload: :app_builds) do
       {:error, :not_found} ->
         raise NotFoundError, "Preview not found."
 

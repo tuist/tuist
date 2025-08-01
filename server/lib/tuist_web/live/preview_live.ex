@@ -109,7 +109,7 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp get_current_preview(preview_id) do
-    case Tuist.AppBuilds.preview_by_id(preview_id,
+    case AppBuilds.preview_by_id(preview_id,
            preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->

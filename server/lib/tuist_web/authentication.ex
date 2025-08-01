@@ -36,7 +36,7 @@ defmodule TuistWeb.Authentication do
     current_user(conn.assigns)
   end
 
-  def current_user(%LiveView.Socket{} = socket) do
+  def current_user(%Socket{} = socket) do
     current_user(socket.assigns)
   end
 
@@ -265,8 +265,8 @@ defmodule TuistWeb.Authentication do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/users/log_in")
+        |> LiveView.put_flash(:error, "You must log in to access this page.")
+        |> LiveView.redirect(to: ~p"/users/log_in")
 
       {:halt, socket}
     end
@@ -279,7 +279,7 @@ defmodule TuistWeb.Authentication do
     if is_nil(user) do
       {:cont, socket}
     else
-      {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(user))}
+      {:halt, LiveView.redirect(socket, to: signed_in_path(user))}
     end
   end
 

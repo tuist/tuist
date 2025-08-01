@@ -77,7 +77,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["url"] == download_url
-      assert response_data["expires_at"] != nil
+      assert response_data["expires_at"]
     end
 
     test "errors if the account has no subscription and they've surpassed their limit", %{
@@ -88,7 +88,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
@@ -242,7 +242,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
@@ -401,7 +401,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
@@ -480,7 +480,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       project_id = "#{account.name}/#{project.name}"
       cache_category = "builds"
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
@@ -555,7 +555,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       upload_id = "1234"
       part_number = "3"
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
@@ -710,7 +710,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         %{part_number: 3, etag: "etag3"}
       ]
 
-      Tuist.Repo.update!(
+      Repo.update!(
         Ecto.Changeset.change(account,
           current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )

@@ -121,7 +121,7 @@ defmodule Tuist.MixProject do
       {:off_broadway_memory, "~> 1.2"},
       {:broadway_dashboard, "~> 0.4.1"},
       {:zxcvbn, "~> 0.3.0"},
-      {:styler, "~> 1.4.0", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.6.0", only: [:dev, :test], runtime: false},
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},

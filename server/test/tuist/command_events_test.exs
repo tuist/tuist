@@ -1830,7 +1830,7 @@ defmodule Tuist.CommandEventsTest do
       run_with_invalid_user = CommandEventsFixtures.command_event_fixture(user_id: user.id)
       non_existent_user_id = 999_999
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(e in Tuist.CommandEvents.Postgres.Event, where: e.id == ^run_with_invalid_user.id),
         set: [user_id: non_existent_user_id]
       )

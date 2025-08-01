@@ -47,8 +47,8 @@ defmodule TuistWeb.API.OrganizationsController do
   def index(conn, _params) do
     organizations =
       conn
-      |> TuistWeb.Authentication.current_user()
-      |> Tuist.Accounts.get_user_organization_accounts()
+      |> Authentication.current_user()
+      |> Accounts.get_user_organization_accounts()
       |> Enum.map(
         &%{
           id: &1.organization.id,
