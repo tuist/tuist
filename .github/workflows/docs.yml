@@ -79,6 +79,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          tool-cache: false
+          # all of these default to true, but feel free to set to
+          # "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+      - name: Check disk space before build
+        run: df -h
       - uses: jdx/mise-action@v2
       - name: Download manifest data
         uses: actions/download-artifact@v4
@@ -108,6 +124,9 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=12288
         run: mise run docs:build
+      - name: Check disk space after build
+        if: always()
+        run: df -h
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'
         run: |
