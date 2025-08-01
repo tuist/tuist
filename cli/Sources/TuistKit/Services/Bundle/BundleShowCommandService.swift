@@ -5,31 +5,26 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import Mockable
 
-protocol BundleShowServicing {
+@Mockable
+protocol BundleShowCommandServicing {
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         bundleId: String,
         path: String?,
         json: Bool
     ) async throws
 }
 
-enum BundleShowServiceError: Equatable, FatalError, LocalizedError {
+enum BundleShowServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
 
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .missingFullHandle: .abort
-        case .unknownError, .notFound, .forbidden, .unauthorized: .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't show the bundle because the full handle is missing. You can pass either its value or a path to a Tuist project."
@@ -39,11 +34,9 @@ enum BundleShowServiceError: Equatable, FatalError, LocalizedError {
             return message
         }
     }
-
-    var errorDescription: String? { description }
 }
 
-final class BundleShowService: BundleShowServicing {
+final class BundleShowCommandService: BundleShowCommandServicing {
     private let getBundleService: GetBundleServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -59,7 +52,7 @@ final class BundleShowService: BundleShowServicing {
     }
 
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         bundleId: String,
         path: String?,
         json: Bool
@@ -72,7 +65,7 @@ final class BundleShowService: BundleShowServicing {
         }
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        let resolvedFullHandle = fullHandle.isEmpty ? config.fullHandle : fullHandle
+        let resolvedFullHandle = fullHandle != nil ? fullHandle! : config.fullHandle
 
         guard let resolvedFullHandle else {
             throw BundleShowServiceError.missingFullHandle
