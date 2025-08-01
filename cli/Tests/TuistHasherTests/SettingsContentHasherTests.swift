@@ -12,12 +12,14 @@ import XCTest
 final class SettingsContentHasherTests: TuistUnitTestCase {
     private var subject: SettingsContentHasher!
     private var contentHasher: MockContentHashing!
+    private var xcconfigHasher: MockXCConfigContentHashing!
     private let filePath1 = try! AbsolutePath(validating: "/file1")
 
     override func setUp() {
         super.setUp()
         contentHasher = .init()
-        subject = SettingsContentHasher(contentHasher: contentHasher)
+        xcconfigHasher = .init()
+        subject = SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher)
 
         given(contentHasher)
             .hash(Parameter<[String]>.any)
@@ -36,7 +38,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
     // MARK: - Tests
 
     func test_hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() async throws {
-        given(contentHasher)
+        given(xcconfigHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
 
@@ -61,7 +63,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
     }
 
     func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() async throws {
-        given(contentHasher)
+        given(xcconfigHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
 
