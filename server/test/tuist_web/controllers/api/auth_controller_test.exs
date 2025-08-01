@@ -280,7 +280,7 @@ defmodule TuistWeb.API.AuthControllerTest do
           ttl: {4, :weeks}
         )
 
-      Tuist.Accounts.delete_user(user)
+      Accounts.delete_user(user)
 
       # When
       conn =
@@ -348,7 +348,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       password = UUIDv7.generate()
 
       user =
-        [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
+        [password: password] |> AccountsFixtures.user_fixture() |> Repo.preload(:account)
 
       # When
       conn =
@@ -428,7 +428,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       password = UUIDv7.generate()
 
       user =
-        [password: password] |> AccountsFixtures.user_fixture() |> Tuist.Repo.preload(:account)
+        [password: password] |> AccountsFixtures.user_fixture() |> Repo.preload(:account)
 
       # When
       conn = put_req_header(conn, "content-type", "application/json")
@@ -498,7 +498,7 @@ defmodule TuistWeb.API.AuthControllerTest do
           "typ" => "refresh"
         })
 
-      fetched_user = Tuist.Accounts.get_user_by_email(email)
+      fetched_user = Accounts.get_user_by_email(email)
       assert fetched_user.email == email
     end
   end

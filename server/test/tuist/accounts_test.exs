@@ -644,91 +644,100 @@ defmodule Tuist.AccountsTest do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
-      
+
       # When
-      result = Accounts.update_okta_configuration(organization.id, %{
-        okta_client_id: "test_client_id",
-        okta_client_secret: "test_secret",
-        sso_organization_id: "https://test.okta.com"
-      })
-      
+      result =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id",
+          okta_client_secret: "test_secret",
+          sso_organization_id: "https://test.okta.com"
+        })
+
       # Then
       assert {:ok, updated_org} = result
       assert updated_org.okta_client_id == "test_client_id"
       assert updated_org.sso_provider == :okta
       assert updated_org.sso_organization_id == "https://test.okta.com"
       # Check that the secret is stored (encrypted)
-      assert updated_org.okta_encrypted_client_secret != nil
+      assert updated_org.okta_encrypted_client_secret
     end
-    
+
     test "encrypts the client secret when storing" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
       plain_secret = "my_super_secret_key"
-      
+
       # When
-      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
-        okta_client_id: "test_client_id",
-        okta_client_secret: plain_secret,
-        sso_organization_id: "https://test.okta.com"
-      })
-      
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id",
+          okta_client_secret: plain_secret,
+          sso_organization_id: "https://test.okta.com"
+        })
+
       # Then
       # Verify the secret was stored
-      assert updated_org.okta_encrypted_client_secret != nil
-      
+      assert updated_org.okta_encrypted_client_secret
+
       # Reload from database to ensure we're testing the persisted value
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
-      
+
       # The Vault.Binary type should automatically decrypt when loaded
       # so we should get back the original plain text
       assert reloaded_org.okta_encrypted_client_secret == plain_secret
     end
-    
+
     test "returns error when organization doesn't exist" do
       # When
-      result = Accounts.update_okta_configuration(999999, %{
-        okta_client_id: "test_client_id"
-      })
-      
+      result =
+        Accounts.update_okta_configuration(999_999, %{
+          okta_client_id: "test_client_id"
+        })
+
       # Then
       assert result == {:error, :not_found}
     end
-    
+
     test "automatically sets sso_provider to okta" do
       # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user, sso_provider: :google)
-      
+
       # When - update Okta configuration
-      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
-        okta_client_id: "test_client_id"
-      })
-      
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "test_client_id"
+        })
+
       # Then - sso_provider should be changed to :okta
       assert updated_org.sso_provider == :okta
     end
-    
+
     test "can update partial Okta configuration" do
       # Given
       user = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(
-        creator: user,
-        okta_client_id: "old_client_id",
-        sso_organization_id: "https://old.okta.com",
-        sso_provider: :okta
-      )
-      
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          okta_client_id: "old_client_id",
+          sso_organization_id: "https://old.okta.com",
+          sso_provider: :okta
+        )
+
       # When - update only the client ID
-      {:ok, updated_org} = Accounts.update_okta_configuration(organization.id, %{
-        okta_client_id: "new_client_id"
-      })
-      
+      {:ok, updated_org} =
+        Accounts.update_okta_configuration(organization.id, %{
+          okta_client_id: "new_client_id"
+        })
+
       # Then
       assert updated_org.okta_client_id == "new_client_id"
-      assert updated_org.sso_organization_id == "https://old.okta.com"  # unchanged
-      assert updated_org.sso_provider == :okta  # still okta
+      # unchanged
+      assert updated_org.sso_organization_id == "https://old.okta.com"
+      # still okta
+      assert updated_org.sso_provider == :okta
     end
   end
 
@@ -897,7 +906,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
       :ok
     end
 
@@ -1455,7 +1464,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_by_handle(String.upcase(handle))
 
       # Then
-      assert got != nil
+      assert got
     end
   end
 
@@ -1636,7 +1645,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert changeset.valid?
-      assert !is_nil(get_change(changeset, :encrypted_password))
+      assert get_change(changeset, :encrypted_password)
     end
   end
 
@@ -1721,7 +1730,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1746,7 +1755,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1783,7 +1792,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
       %{user: user_fixture()}
     end
 
@@ -1808,7 +1817,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Tuist.Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2157,7 +2166,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :github}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :github})
     end
 
     test "updates an existing user with a new okta identity" do
@@ -2183,7 +2192,7 @@ defmodule Tuist.AccountsTest do
         })
 
       assert user.email == got.email
-      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta}) != nil
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta})
     end
 
     test "handles reserved handle names by adding a suffix" do
@@ -2915,7 +2924,8 @@ defmodule Tuist.AccountsTest do
         )
 
       # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
     end
 
     test "returns error when organization has okta as provider but no client_id" do
@@ -2930,12 +2940,13 @@ defmodule Tuist.AccountsTest do
         )
 
       # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(organization.id)
+      assert {:error, :not_found} ==
+               Accounts.get_okta_configuration_by_organization_id(organization.id)
     end
 
     test "returns error when organization does not exist" do
       # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999999)
+      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999_999)
     end
   end
 end

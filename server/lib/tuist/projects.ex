@@ -240,7 +240,7 @@ defmodule Tuist.Projects do
     if length(full_token_components) == 3 do
       [_audience, token_id, token_hash] = full_token_components
 
-      token = Tuist.Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
+      token = Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
 
       cond do
         is_nil(token) ->

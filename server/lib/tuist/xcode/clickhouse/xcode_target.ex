@@ -76,9 +76,7 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
         |> Map.put(:selective_testing_hash, xcode_target["selective_testing_metadata"]["hash"])
         |> Map.put(
           :selective_testing_hit,
-          hit_enum_to_int(
-            hit_value_to_enum(xcode_target["selective_testing_metadata"]["hit"], :miss)
-          )
+          hit_enum_to_int(hit_value_to_enum(xcode_target["selective_testing_metadata"]["hit"], :miss))
         )
       end
 
@@ -88,10 +86,8 @@ defmodule Tuist.Xcode.Clickhouse.XcodeTarget do
   def normalize_enums(target) do
     %{
       target
-      | binary_cache_hit:
-          if(target.binary_cache_hit, do: String.to_atom(target.binary_cache_hit)),
-        selective_testing_hit:
-          if(target.selective_testing_hit, do: String.to_atom(target.selective_testing_hit))
+      | binary_cache_hit: if(target.binary_cache_hit, do: String.to_atom(target.binary_cache_hit)),
+        selective_testing_hit: if(target.selective_testing_hit, do: String.to_atom(target.selective_testing_hit))
     }
   end
 

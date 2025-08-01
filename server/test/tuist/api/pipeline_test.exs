@@ -104,18 +104,14 @@ defmodule Tuist.API.PipelineTest do
                       }
                     ], []}
 
-    refute is_nil(
-             CacheActionItems.get_cache_action_item(%{
-               project: project,
-               hash: first_cache_action_item.hash
-             })
-           )
+    assert CacheActionItems.get_cache_action_item(%{
+             project: project,
+             hash: first_cache_action_item.hash
+           })
 
-    refute is_nil(
-             CacheActionItems.get_cache_action_item(%{
-               project: project,
-               hash: second_cache_action_item.hash
-             })
-           )
+    assert CacheActionItems.get_cache_action_item(%{
+             project: project,
+             hash: second_cache_action_item.hash
+           })
   end
 end
