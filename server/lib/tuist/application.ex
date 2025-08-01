@@ -70,8 +70,8 @@ defmodule Tuist.Application do
           {MinioServer,
            name: :minio_dev,
            port: port,
-           access_key: Environment.s3_access_key_id(),
-           secret_key: Environment.s3_secret_access_key(),
+           access_key_id: Environment.s3_access_key_id(),
+           secret_access_key: Environment.s3_secret_access_key(),
            data_dir: Path.join(File.cwd!(), "tmp/storage"),
            ownership: :manual
           },
