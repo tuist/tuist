@@ -151,8 +151,7 @@ export default defineConfig({
   experimental: {
     metaChunk: true,
   },
-  // Uncomment for MPA mode (disables client-side navigation but reduces JS to 0kb)
-  mpa: true,
+  mpa: false,
   locales: {
     en: {
       label: "English",
